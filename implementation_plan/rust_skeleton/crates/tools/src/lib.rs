@@ -7,10 +7,6 @@ pub mod file_ops;
 pub mod git_ops;
 pub mod web_ops;
 pub mod shell_ops;
-pub mod ai_router;
-
-// Экспорты для внешнего использования
-pub use ai_router::{SmartRouter, ActionPlan, PlannedAction};
 
 // Базовые типы для системы инструментов
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,50 +77,8 @@ impl ToolRegistry {
         self.tools.values().map(|tool| tool.spec()).collect()
     }
     
-    // Умный поиск инструмента по описанию
-    pub async fn find_tool_for_query(&self, query: &str) -> Option<&dyn Tool> {
-        // Простая эвристика для выбора инструмента
-        let query_lower = query.to_lowercase();
-        
-        if query_lower.contains("read") || query_lower.contains("show") || query_lower.contains("cat") {
-            return self.get("file_read");
-        }
-        if query_lower.contains("write") || query_lower.contains("create") || query_lower.contains("save") {
-            return self.get("file_write");  
-        }
-        if query_lower.contains("list") || query_lower.contains("ls") || query_lower.contains("directory") {
-            return self.get("dir_list");
-        }
-        if query_lower.contains("git status") || query_lower.contains("git st") {
-            return self.get("git_status");
-        }
-        if query_lower.contains("commit") || query_lower.contains("git commit") {
-            return self.get("git_commit");
-        }
-        if query_lower.contains("search") || query_lower.contains("google") || query_lower.contains("find") {
-            return self.get("web_search");
-        }
-        if query_lower.contains("run") || query_lower.contains("execute") || query_lower.contains("shell") {
-            return self.get("shell_exec");
-        }
-        
-        None
-    }
-    
-    // Выполнение инструмента с естественным языком
-    pub async fn execute_natural(&self, query: &str) -> Result<ToolOutput> {
-        if let Some(tool) = self.find_tool_for_query(query).await {
-            let input = tool.parse_natural_language(query).await?;
-            tool.execute(input).await
-        } else {
-            Ok(ToolOutput {
-                success: false,
-                result: format!("Не удалось найти подходящий инструмент для запроса: {}", query),
-                formatted_output: None,
-                metadata: HashMap::new(),
-            })
-        }
-    }
+    // Удалены захардкоженные методы find_tool_for_query и execute_natural
+    // Теперь используем специализированные агенты в SmartRouter
 }
 
 impl Default for ToolRegistry {

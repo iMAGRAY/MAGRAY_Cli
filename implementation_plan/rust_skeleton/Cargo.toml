@@ -3,6 +3,8 @@ members = [
     "crates/cli",
     "crates/llm",
     "crates/tools",
+    "crates/router",
+    "crates/memory",
 ]
 
 [workspace.package]

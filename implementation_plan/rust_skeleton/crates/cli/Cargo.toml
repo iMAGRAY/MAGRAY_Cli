@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 llm = { path = "../llm" }
-tools = { path = "../tools" }
+router = { path = "../router" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }

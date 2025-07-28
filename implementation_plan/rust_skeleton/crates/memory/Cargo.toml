@@ -1,0 +1,35 @@
+[package]
+name = "memory"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+rusqlite = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+# Для векторных операций
+ndarray = "0.16"
+hnsw = "0.11"
+
+# Для эмбеддингов и reranking через ONNX Runtime
+reqwest = { workspace = true }
+ort = "=2.0.0-rc.10"
+tokenizers = "0.21"
+
+# Для криптографии и хеширования
+blake3 = "1.5"
+
+# Для файловых операций
+walkdir = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio-test = "0.4"

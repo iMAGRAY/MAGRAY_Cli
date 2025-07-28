@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use tracing::{info, debug, error};
 
+pub mod agents;
+
+pub use agents::*;
+
 #[derive(Debug, Clone)]
 pub enum LlmProvider {
     OpenAI { api_key: String, model: String },
