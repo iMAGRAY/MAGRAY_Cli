@@ -23,12 +23,48 @@ impl Tool for ShellExec {
     }
     
     async fn execute(&self, _input: ToolInput) -> Result<ToolOutput> {
-        Ok(ToolOutput {
-            success: false,
-            result: "Shell выполнение будет реализовано позже".to_string(),
-            formatted_output: None,
-            metadata: HashMap::new(),
-        })
+        use tokio::process::Command;
+
+        let cmd_str = _input.args.get("command")
+            .cloned()
+            .unwrap_or_default();
+
+        if cmd_str.trim().is_empty() {
+            return Ok(ToolOutput {
+                success: false,
+                result: "Не указана команда для shell_exec".to_string(),
+                formatted_output: None,
+                metadata: HashMap::new(),
+            });
+        }
+
+        // Выполняем команду через /bin/bash -c
+        let output = Command::new("/bin/bash")
+            .args(["-c", &cmd_str])
+            .output()
+            .await?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+        let mut metadata = HashMap::new();
+        metadata.insert("status_code".to_string(), output.status.code().unwrap_or(-1).to_string());
+
+        if output.status.success() {
+            Ok(ToolOutput {
+                success: true,
+                result: stdout.clone(),
+                formatted_output: Some(format!("$ {}\n{}", cmd_str, stdout)),
+                metadata,
+            })
+        } else {
+            Ok(ToolOutput {
+                success: false,
+                result: format!("Команда завершилась с ошибкой:\n{}", stderr),
+                formatted_output: None,
+                metadata,
+            })
+        }
     }
     
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
