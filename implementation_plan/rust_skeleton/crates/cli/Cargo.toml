@@ -8,15 +8,9 @@ name = "magray"
 path = "src/main.rs"
 
 [dependencies]
-magray_core = { path = "../core" }
-memory = { path = "../memory" }
-executor = { path = "../executor" }
+llm = { path = "../llm" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-chrono = { workspace = true }
-uuid = { workspace = true }
