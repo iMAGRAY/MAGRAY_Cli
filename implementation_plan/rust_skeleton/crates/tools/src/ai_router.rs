@@ -44,10 +44,39 @@ impl SmartRouter {
         
         let full_prompt = format!("{}\n\nЗапрос пользователя:\n{}", system_prompt, user_prompt);
         
-        let llm_response = self.llm_client.chat(&full_prompt).await
-            .map_err(|e| anyhow!("Ошибка LLM анализа: {}", e))?;
-            
-        self.parse_llm_response(&llm_response)
+        match self.llm_client.chat(&full_prompt).await {
+            Ok(response) => match self.parse_llm_response(&response) {
+                Ok(plan) => Ok(plan),
+                Err(parse_err) => {
+                    eprintln!("[✗] Ошибка парсинга LLM: {}\n[●] Включаю локальное планирование", parse_err);
+                    self.heuristic_plan(user_query).await
+                }
+            },
+            Err(llm_err) => {
+                eprintln!("[✗] Ошибка LLM: {}\n[●] Включаю локальное планирование", llm_err);
+                self.heuristic_plan(user_query).await
+            }
+        }
+    }
+
+    /// Простое локальное планирование, если LLM недоступен
+    async fn heuristic_plan(&self, user_query: &str) -> Result<ActionPlan> {
+        if let Some(tool) = self.tool_registry.find_tool_for_query(user_query).await {
+            let input = tool.parse_natural_language(user_query).await?;
+            let step = PlannedAction {
+                tool: input.command.clone(),
+                description: user_query.to_string(),
+                args: input.args.clone(),
+                expected_output: "".to_string(),
+            };
+            Ok(ActionPlan {
+                reasoning: "Локальный эвристический планировщик".to_string(),
+                steps: vec![step],
+                confidence: 0.5,
+            })
+        } else {
+            Err(anyhow!("Не удалось спланировать задачу — инструмент не найден"))
+        }
     }
     
     /// Выполняет план действий
