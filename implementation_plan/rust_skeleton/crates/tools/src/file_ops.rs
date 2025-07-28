@@ -184,26 +184,61 @@ impl Tool for FileWriter {
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         let mut args = HashMap::new();
         
-        // Простой парсинг для создания файлов
+        // Улучшенный парсинг для создания файлов
         if query.contains("создай") || query.contains("create") {
             let words: Vec<&str> = query.split_whitespace().collect();
             
-            // Ищем путь
+            // Ищем путь (файл с расширением или без)
+            let mut found_path = None;
             for word in &words {
                 if word.contains('.') {
-                    args.insert("path".to_string(), word.to_string());
+                    found_path = Some(word.to_string());
                     break;
                 }
             }
             
-            // Базовое содержимое
-            let file_name = args.get("path").unwrap_or(&"new_file.txt".to_string()).clone();
-            let content = if file_name.ends_with(".md") {
-                format!("# {}\n\nОписание проекта...\n", file_name.replace(".md", ""))
-            } else if file_name.ends_with(".toml") {
-                "[settings]\nkey = \"value\"\n".to_string()
+            // Если не нашли файл с расширением, ищем просто имя файла
+            if found_path.is_none() {
+                for (i, word) in words.iter().enumerate() {
+                    if *word == "файл" || *word == "file" {
+                        if i + 1 < words.len() {
+                            let mut filename = words[i + 1].to_string();
+                            // Добавляем расширение если его нет
+                            if !filename.contains('.') {
+                                filename.push_str(".txt");
+                            }
+                            found_path = Some(filename);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            let file_path = found_path.unwrap_or_else(|| "new_file.txt".to_string());
+            args.insert("path".to_string(), file_path.clone());
+            
+            // Ищем содержимое в запросе
+            let content = if query.contains("с текстом") || query.contains("с содержимым") {
+                // Извлекаем текст после "с текстом" или "с содержимым"
+                let content_markers = ["с текстом", "с содержимым", "содержимым"];
+                let mut content = String::new();
+                
+                for marker in &content_markers {
+                    if let Some(pos) = query.find(marker) {
+                        let after_marker = &query[pos + marker.len()..].trim();
+                        // Убираем кавычки если есть
+                        content = after_marker.trim_matches('"').trim_matches('\'').to_string();
+                        break;
+                    }
+                }
+                
+                if content.is_empty() {
+                    FileWriter::generate_default_content(&file_path)
+                } else {
+                    content
+                }
             } else {
-                "# Новый файл\n".to_string()
+                FileWriter::generate_default_content(&file_path)
             };
             
             args.insert("content".to_string(), content);
@@ -214,6 +249,23 @@ impl Tool for FileWriter {
             args,
             context: Some(query.to_string()),
         })
+    }
+}
+
+impl FileWriter {
+    fn generate_default_content(file_path: &str) -> String {
+        if file_path.ends_with(".rs") {
+            "fn main() {\n    println!(\"Hello, world!\");\n}".to_string()
+        } else if file_path.ends_with(".md") {
+            let name = file_path.replace(".md", "");
+            format!("# {}\n\nОписание проекта...\n\n## Использование\n\nИнструкции по использованию...\n", name)
+        } else if file_path.ends_with(".toml") {
+            "[settings]\nname = \"example\"\nversion = \"1.0.0\"\n".to_string()
+        } else if file_path.ends_with(".json") {
+            "{\n  \"name\": \"example\",\n  \"version\": \"1.0.0\"\n}".to_string()
+        } else {
+            format!("# Файл: {}\n\nСодержимое файла...\n", file_path)
+        }
     }
 }
 

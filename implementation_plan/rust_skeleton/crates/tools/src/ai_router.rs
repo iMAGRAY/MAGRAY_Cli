@@ -134,6 +134,18 @@ impl SmartRouter {
 6. Для git_commit используй "message"
 7. Для web_search используй "query"
 
+УМНАЯ ОБРАБОТКА ПУТЕЙ:
+- Если пользователь говорит "создай файл test", добавь расширение .txt
+- Если указана папка без имени файла, создай файл с осмысленным именем
+- Всегда проверяй, что путь корректный (без недопустимых символов)
+- Для создания папок используй shell_exec с mkdir
+
+ОБРАБОТКА СОДЕРЖИМОГО:
+- Если содержимое не указано, создай осмысленное содержимое по контексту
+- Для .rs файлов создавай базовую Rust программу
+- Для .md файлов создавай заголовок и описание
+- Для .txt файлов создавай простой текст
+
 ФОРМАТ ОТВЕТА (строго JSON):
 {{
   "reasoning": "Объяснение логики",
@@ -149,11 +161,12 @@ impl SmartRouter {
 }}
 
 ПРИМЕРЫ:
-"покажи файл main.rs" → tool: "file_read", args: {{"path": "main.rs"}}
-"создай файл hello.txt с текстом привет" → tool: "file_write", args: {{"path": "hello.txt", "content": "привет"}}
-"покажи содержимое папки src" → tool: "dir_list", args: {{"path": "src"}}
-"создай папку test" → tool: "shell_exec", args: {{"command": "mkdir test"}}
-"выполни команду ls" → tool: "shell_exec", args: {{"command": "ls"}}
+- "покажи файл main.rs" → tool: "file_read", args: {{"path": "main.rs"}}
+- "создай файл hello.txt с текстом привет" → tool: "file_write", args: {{"path": "hello.txt", "content": "привет"}}
+- "создай файл test" → tool: "file_write", args: {{"path": "test.txt", "content": "Содержимое файла"}}
+- "покажи содержимое папки src" → tool: "dir_list", args: {{"path": "src"}}
+- "создай папку test" → tool: "shell_exec", args: {{"command": "mkdir test"}}
+- "выполни команду ls" → tool: "shell_exec", args: {{"command": "ls"}}
 
 Отвечай ТОЛЬКО JSON!"#, tools_info)
     }
