@@ -2,6 +2,7 @@
 members = [
     "crates/cli",
     "crates/llm",
+    "crates/tools",
 ]
 
 [workspace.package]
@@ -27,3 +28,8 @@ dotenv = "0.15"
 indicatif = "0.17"
 console = "0.15"
 tokio-stream = "0.1"
+walkdir = "2.4"
+syntect = "5.2"
+ureq = { version = "2.9", features = ["json"] }
+ignore = "0.4"
+tempfile = "3.8"
