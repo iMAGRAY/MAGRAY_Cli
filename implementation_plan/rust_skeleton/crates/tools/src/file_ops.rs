@@ -1,76 +1,43 @@
 use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
 use anyhow::{anyhow, Result};
-use console::style;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use syntect::easy::HighlightLines;
-use syntect::highlighting::ThemeSet;
-use syntect::parsing::SyntaxSet;
-use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
 use walkdir::WalkDir;
 
-// FileReader - чтение файлов с подсветкой синтаксиса
-pub struct FileReader {
-    syntax_set: SyntaxSet,
-    theme_set: ThemeSet,
-}
+// FileReader - чтение файлов с простым форматированием
+pub struct FileReader;
 
 impl FileReader {
     pub fn new() -> Self {
-        Self {
-            syntax_set: SyntaxSet::load_defaults_newlines(),
-            theme_set: ThemeSet::load_defaults(),
-        }
+        Self
     }
     
     fn format_file_content(&self, path: &Path, content: &str) -> String {
-        let syntax = self.syntax_set
-            .find_syntax_for_file(path)
-            .unwrap_or_else(|_| Some(self.syntax_set.find_syntax_plain_text()))
-            .unwrap();
-            
-        let theme = self.theme_set.themes.get("base16-ocean.dark")
-            .or_else(|| self.theme_set.themes.values().next())
-            .unwrap();
-        let mut highlighter = HighlightLines::new(syntax, theme);
-        
+        // Простое форматирование без syntect для надежности
         let mut formatted = String::new();
         
         // Добавляем красивый заголовок
-        formatted.push_str(&format!("{}┌─ {} {}\n", 
-            style("").dim(),
-            style("📄").cyan(),
-            style(path.display()).bright().bold()
+        formatted.push_str(&format!("┌─ {} {}\n", 
+            "📄",
+            path.display()
         ));
         
+        // Простое форматирование с номерами строк
         let lines: Vec<&str> = content.lines().collect();
         let line_count = lines.len();
         let line_width = line_count.to_string().len().max(3);
         
-        for (i, line) in LinesWithEndings::from(content).enumerate() {
+        for (i, line) in lines.iter().enumerate() {
             let line_num = format!("{:width$}", i + 1, width = line_width);
-            
-            if let Ok(ranges) = highlighter.highlight_line(line, &self.syntax_set) {
-                let escaped = as_24_bit_terminal_escaped(&ranges[..], false);
-                formatted.push_str(&format!("{}│ {} │ {}", 
-                    style("").dim(),
-                    style(line_num).dim(),
-                    escaped
-                ));
-            } else {
-                formatted.push_str(&format!("{}│ {} │ {}", 
-                    style("").dim(),
-                    style(line_num).dim(),
-                    line
-                ));
-            }
+            formatted.push_str(&format!("│ {} │ {}\n", line_num, line));
         }
         
-        formatted.push_str(&format!("{}└{}\n",
-            style("").dim(),
-            style("─".repeat(60)).dim()
-        ));
+        formatted.push_str("└");
+        for _ in 0..60 {
+            formatted.push('─');
+        }
+        formatted.push('\n');
         
         formatted
     }
@@ -201,10 +168,8 @@ impl Tool for FileWriter {
         fs::write(&path, content)
             .map_err(|e| anyhow!("Ошибка записи файла: {}", e))?;
             
-        let formatted = format!("{}✓ Файл успешно записан: {}\n{}📄 Размер: {} байт",
-            style("").green(),
-            style(path.display()).bright(),
-            style("").dim(),
+        let formatted = format!("✓ Файл успешно записан: {}\n📄 Размер: {} байт",
+            path.display(),
             content.len()
         );
         
@@ -263,10 +228,7 @@ impl DirLister {
     fn format_directory_tree(&self, path: &Path) -> Result<String> {
         let mut output = String::new();
         
-        output.push_str(&format!("{}📁 {}\n", 
-            style("").cyan(), 
-            style(path.display()).bright().bold()
-        ));
+        output.push_str(&format!("📁 {}\n", path.display()));
         
         let walker = WalkDir::new(path)
             .max_depth(3)
@@ -285,27 +247,18 @@ impl DirLister {
                 .to_string_lossy();
                 
             if entry_path.is_dir() {
-                output.push_str(&format!("{}{}📁 {}\n", 
-                    style("").dim(), 
-                    indent, 
-                    style(name).blue()
-                ));
+                output.push_str(&format!("{}📁 {}\n", indent, name));
             } else {
                 let icon = match entry_path.extension().and_then(|s| s.to_str()) {
-                    Some("rs") => "🦀",
-                    Some("toml") => "⚙️",
-                    Some("md") => "📝",
-                    Some("json") => "📋",
+                    Some("rs") => "📄",
+                    Some("toml") => "📄", 
+                    Some("md") => "📄",
+                    Some("json") => "📄",
                     Some("txt") => "📄",
                     _ => "📄",
                 };
                 
-                output.push_str(&format!("{}{}{} {}\n", 
-                    style("").dim(), 
-                    indent, 
-                    icon,
-                    style(name).white()
-                ));
+                output.push_str(&format!("{}{} {}\n", indent, icon, name));
             }
         }
         
