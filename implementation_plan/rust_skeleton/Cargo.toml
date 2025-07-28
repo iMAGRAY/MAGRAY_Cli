@@ -1,0 +1,16 @@
+[workspace]
+members = [
+    "crates/cli",
+    "crates/core",
+    "crates/executor",
+    "crates/memory",
+    "crates/nlu",
+    "crates/toolsvc",
+    "crates/llm",
+]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+authors = ["You <you@example.com>"]
+license = "MIT"
