@@ -1,12 +1,98 @@
 ---
-description: "Planner: генерируй DAG-план (шаги, deps, success criteria)"
-globs: []
+description: "Planner: DAG-планировщик с приоритетом на разблокировку критических компонентов"
+globs: ["**/planner/**/*.rs", "**/executor/**/*.rs"]
 alwaysApply: false
 ---
 
-Алгоритм:
-1. Извлеки контекст (через M4).
-2. Разбей цель на шаги, формализуй критерии успеха.
-3. Построй DAG: `nodes = TaskNode`, `edges = deps`.
-4. Для каждого узла укажи: tool, input, mem_refs, policy.
-5. Сохрани план (markdown/JSON) в `docs/workflow_state.md`.
+## Стратегия планирования для CLI-агента
+
+### 1. Анализ блокеров (из INCOMPLETE.md)
+```rust
+fn analyze_blockers(goal: &str) -> Vec<BlockerType> {
+    // БЛОКЕРЫ: toolsvc, llm интеграция
+    // КРИТИЧНЫЕ: memory координация, NLU
+    // ВАЖНЫЕ: agent loop, мониторинг
+}
+```
+
+### 2. Приоритизация шагов
+```rust
+pub enum StepPriority {
+    Blocker,    // toolsvc, llm - без них ничего не работает
+    Critical,   // memory, nlu - основная функциональность  
+    Important,  // мониторинг, оптимизация
+    Nice2Have,  // дополнительные фичи
+}
+```
+
+### 3. DAG с учётом зависимостей
+```rust
+pub struct TaskNode {
+    pub id: String,
+    pub tool: Option<String>,
+    pub input: Value,
+    pub priority: StepPriority,
+    pub blocks: Vec<String>,        // какие компоненты разблокирует
+    pub requires: Vec<String>,      // зависимости
+    pub success_criteria: Vec<String>,
+    pub estimated_effort: Duration,
+}
+```
+
+### 4. Шаблоны планов для типовых задач
+
+#### Разблокировка toolsvc
+```yaml
+steps:
+  - id: "impl_file_read_tool"
+    tool: "code_write"
+    priority: "Blocker"
+    blocks: ["executor", "memory_integration"]
+    
+  - id: "impl_tool_registry" 
+    tool: "code_write"
+    requires: ["impl_file_read_tool"]
+    
+  - id: "integrate_with_executor"
+    tool: "code_modify"
+    requires: ["impl_tool_registry"]
+```
+
+#### LLM интеграция
+```yaml
+steps:
+  - id: "setup_openai_client"
+    tool: "code_write"
+    priority: "Blocker"
+    
+  - id: "impl_think_step"
+    tool: "code_modify"
+    requires: ["setup_openai_client"]
+    blocks: ["agent_reasoning"]
+```
+
+### 5. Валидация плана
+```rust
+fn validate_dag(plan: &ExecutionPlan) -> Result<()> {
+    // Проверка на циклы
+    // Проверка доступности тулов
+    // Проверка критериев успеха
+    // Оценка времени выполнения
+}
+```
+
+### 6. Адаптивное планирование
+- Если шаг падает → анализируй причину → перепланируй
+- Если блокер решён → пересчитай приоритеты зависимых шагов
+- Если новые блокеры найдены → вставь в план с высоким приоритетом
+
+## Интеграция с memory
+- Перед планированием: поиск похожих задач в M4
+- После планирования: сохранение плана в M2
+- Во время выполнения: обновление статуса в M1
+
+## Метрики планирования
+- Время от задачи до готового плана
+- Точность оценки времени выполнения  
+- Процент успешно завершённых планов
+- Количество перепланирований

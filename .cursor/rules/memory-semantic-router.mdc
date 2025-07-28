@@ -1,22 +1,95 @@
 ---
-description: "Memory & Semantic Router: 5 слоёв памяти и правила промоушена"
-globs: []
+description: "Memory & Semantic Router: реализация 5-слойной архитектуры с BGE3/BG3"
+globs: ["**/memory/**/*.rs", "**/nlu/**/*.rs", "**/*.sql"]
 alwaysApply: false
 ---
 
-## Слои памяти
-- **M0 Ephemeral** — RAM, временные данные шага.
-- **M1 ShortTerm** — sqlite KV, последние факты/ответы.
-- **M2 MediumTerm** — структурированные записи (таблицы).
-- **M3 LongTerm** — большие файлы/артефакты (blobs).
-- **M4 Semantic** — векторный индекс (BGE3) со ссылками на все слои.
+## Архитектура слоёв (ПРИОРИТЕТ: реализовать координацию)
 
-## Правила
-- Любая запись M1–M3 индексируется в M4 (embed + meta link).
-- Поиск всегда стартует в M4 → Rerank (BG3) → MemRef → вытаскиваем оригинал.
-- Промоушен данных (M0→M1→M2/M3) — по TTL и полезности.
-- Очистка/вакуум: удаляй сиротские векторы, архивируй старые blobs.
+### M0 Ephemeral (RAM)
+```rust
+// Текущая реализация: HashMap в памяти
+// TODO: добавить TTL и автоочистку
+struct EphemeralStore {
+    data: HashMap<String, Value>,
+    ttl: HashMap<String, Instant>,
+}
+```
 
-## При работе агента
-- Перед генерацией промпта делай retrieval через M4.
-- После получения результата — сохраняй в соответствующий слой и индексируй.
+### M1 ShortTerm (SQLite KV)
+```sql
+-- Таблица для быстрых фактов
+CREATE TABLE short_term_memory (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    accessed_at INTEGER NOT NULL,
+    access_count INTEGER DEFAULT 1
+);
+```
+
+### M2 MediumTerm (Структурированные данные)
+```sql
+-- Результаты выполнения задач
+CREATE TABLE execution_results (
+    task_id TEXT NOT NULL,
+    step_id TEXT NOT NULL,
+    result_data TEXT NOT NULL,
+    metadata TEXT,
+    created_at INTEGER NOT NULL
+);
+```
+
+### M3 LongTerm (Blobs)
+```rust
+// Файловое хранилище с индексацией
+struct BlobStore {
+    base_path: PathBuf, // ~/.ourcli/projects/<id>/blobs/
+    index: HashMap<String, BlobMeta>,
+}
+```
+
+### M4 Semantic (BGE3 векторы)
+```sql
+-- Векторный индекс со ссылками
+CREATE TABLE semantic_index (
+    id TEXT PRIMARY KEY,
+    embedding BLOB NOT NULL, -- BGE3 768-dim
+    content_hash TEXT NOT NULL,
+    layer TEXT NOT NULL, -- M1/M2/M3
+    layer_key TEXT NOT NULL,
+    metadata TEXT,
+    created_at INTEGER NOT NULL
+);
+```
+
+## Критические недоработки (из INCOMPLETE.md)
+1. **НЕТ автоматического промоушена M0→M1→M2→M3→M4**
+2. **НЕТ векторного поиска по слоям**
+3. **НЕТ BGE3/BG3 эмбеддингов**
+4. **НЕТ сохранения результатов выполнения**
+
+## Протокол реализации
+1. **BGE3 интеграция**: подключи модель для эмбеддингов
+2. **Координатор памяти**: автоматический промоушен по TTL/размеру
+3. **Семантический поиск**: M4 → rerank → MemRef → оригинал
+4. **Сохранение результатов**: каждый step executor → соответствующий слой
+
+## Тестирование
+```rust
+#[test]
+fn test_memory_promotion_flow() {
+    // M0 (temp) → M1 (frequent access) → M2 (structured) → M4 (indexed)
+}
+
+#[test] 
+fn test_semantic_retrieval() {
+    // Query → BGE3 embed → M4 search → rerank → fetch original
+}
+```
+
+## Метрики для мониторинга
+- Размер каждого слоя памяти
+- Hit rate семантического поиска
+- Latency промоушена данных
+- Качество reranking (BG3)
