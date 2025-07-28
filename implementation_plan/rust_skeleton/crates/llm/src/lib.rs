@@ -58,6 +58,7 @@ struct AnthropicContent {
     text: String,
 }
 
+#[derive(Clone)]
 pub struct LlmClient {
     provider: LlmProvider,
     client: reqwest::Client,
