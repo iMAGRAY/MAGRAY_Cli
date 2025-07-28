@@ -1701,6 +1701,7 @@ dependencies = [
  "console",
  "ignore",
  "indicatif",
+ "llm",
  "serde",
  "serde_json",
  "syntect",

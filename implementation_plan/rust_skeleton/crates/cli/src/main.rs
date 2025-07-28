@@ -8,7 +8,7 @@ use std::io::{self, Write};
 use std::time::Duration;
 use tokio::time::sleep;
 use tokio_stream::{StreamExt, wrappers::IntervalStream};
-use tools::{ToolRegistry, ToolInput};
+use tools::{ToolRegistry, ToolInput, SmartRouter};
 
 
 // Анимированные ASCII иконки
@@ -83,6 +83,11 @@ enum Commands {
         /// Описание действия на естественном языке
         action: String,
     },
+    /// [★] Умный AI планировщик (анализ + планирование + выполнение)
+    Smart {
+        /// Сложная задача на естественном языке
+        task: String,
+    },
 }
 
 #[tokio::main]
@@ -114,6 +119,9 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Tool { action }) => {
             handle_tool_action(&action).await?;
+        }
+        Some(Commands::Smart { task }) => {
+            handle_smart_task(&task).await?;
         }
         None => {
             // По умолчанию запускаем интерактивный чат
@@ -436,11 +444,108 @@ async fn handle_dir_list(path: &str) -> Result<()> {
 }
 
 async fn handle_tool_action(action: &str) -> Result<()> {
+    // Инициализируем LLM клиент для AI роутера
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .tick_chars("[◐][◓][◑][◒]")
+            .template("{spinner} {msg}")
+            .unwrap()
+    );
+    
+    spinner.set_message("Подключение к AI системе...");
+    
+    let llm_client = match LlmClient::from_env() {
+        Ok(client) => {
+            spinner.finish_with_message("[✓] AI система готова");
+            client
+        },
+        Err(e) => {
+            spinner.finish_with_message("[✗] Ошибка подключения к AI");
+            eprintln!("{} {}", 
+                style(ERROR_ICON).red(),
+                style(format!("Ошибка: {}", e)).red()
+            );
+            eprintln!("{} Используем обычный режим...", 
+                style("[i]").yellow()
+            );
+            
+            // Fallback к старому методу
+            return handle_tool_action_fallback(action).await;
+        }
+    };
+    
+    let smart_router = SmartRouter::new(llm_client);
+    
+    match smart_router.process_smart_request(action).await {
+        Ok(result) => {
+            println!("{}", result);
+        }
+        Err(e) => {
+            eprintln!("{} {}", 
+                style(ERROR_ICON).red(),
+                style(format!("Ошибка AI обработки: {}", e)).red()
+            );
+            eprintln!("{} Пробуем обычный режим...", 
+                style("[i]").yellow()
+            );
+            
+            // Fallback к старому методу
+            return handle_tool_action_fallback(action).await;
+        }
+    }
+    
+    Ok(())
+}
+
+// Fallback функция для случаев когда AI недоступен
+async fn handle_smart_task(task: &str) -> Result<()> {
+    // Принудительное использование AI планировщика
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .tick_chars("[◐][◓][◑][◒]")
+            .template("{spinner} {msg}")
+            .unwrap()
+    );
+    
+    spinner.set_message("Запускаю AI планировщик...");
+    
+    let llm_client = match LlmClient::from_env() {
+        Ok(client) => {
+            spinner.finish_with_message("[★] AI планировщик активирован");
+            client
+        },
+        Err(e) => {
+            spinner.finish_with_message("[✗] AI планировщик недоступен");
+            eprintln!("{} {}", 
+                style(ERROR_ICON).red(),
+                style(format!("Ошибка: {}", e)).red()
+            );
+            eprintln!("{} Для умного режима требуется настройка .env файла", 
+                style("[i]").yellow()
+            );
+            eprintln!("{} Используйте команду 'tool' для простого режима", 
+                style("[i]").yellow()
+            );
+            return Err(e.into());
+        }
+    };
+    
+    let smart_router = SmartRouter::new(llm_client);
+    
+    let result = smart_router.process_smart_request(task).await?;
+    println!("{}", result);
+    
+    Ok(())
+}
+
+async fn handle_tool_action_fallback(action: &str) -> Result<()> {
     let registry = ToolRegistry::new();
     
     println!("{} {}", 
         style("[●]").cyan(),
-        style("Анализирую запрос...").dim()
+        style("Анализирую запрос (простой режим)...").dim()
     );
     
     let output = registry.execute_natural(action).await?;

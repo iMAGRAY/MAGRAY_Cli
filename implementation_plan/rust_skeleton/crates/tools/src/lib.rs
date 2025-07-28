@@ -7,6 +7,10 @@ pub mod file_ops;
 pub mod git_ops;
 pub mod web_ops;
 pub mod shell_ops;
+pub mod ai_router;
+
+// Экспорты для внешнего использования
+pub use ai_router::{SmartRouter, ActionPlan, PlannedAction};
 
 // Базовые типы для системы инструментов
 #[derive(Debug, Clone, Serialize, Deserialize)]
