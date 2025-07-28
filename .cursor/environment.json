@@ -1,14 +1,8 @@
 {
   "base": "ubuntu-22",
-  "install": [
-    "sudo apt-get update",
-    "sudo apt-get install -y build-essential python3 python3-pip sqlite3",
-    "pip install -r requirements.txt || true",
-    "cargo install cargo-nextest || true",
-    "npm install || true"
-  ],
+  "install": "sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev libsqlite3-dev clang llvm mold ripgrep && curl -sSf https://sh.rustup.rs | sh -s -- -y && ~/.cargo/bin/rustup default stable && ~/.cargo/bin/rustup component add rustfmt clippy && ~/.cargo/bin/cargo install cargo-nextest just taplo-cli sqlx-cli --locked || true",
   "env": {
-    "OPENAI_API_KEY": "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",
-    "GITHUB_TOKEN": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCD+t4sJfTyx/+0UHiFYosBHBNXVXlErRxxMHJz5L24eRPlL4GKOYiBV4/QPOQF8EhZW4ki6b87ndp97USsIgEjAP8ATjfT4+XEf0QJ4weqYEbE0V/GvE9ldXNXc6stPFhUtH8/snQIud/R2vrcXUKqgFPUm3PHcLmYuy6Ybo7rU58CE/pKuw0maZM6+evHKSFbFH7jhdeRnwgzoxL/R24IchS6a0FluRc8Or/fE+nvT66GfnMNEqLJMsFmA8Mz7aLM1U73ID23ES0Txnzw39Cf9VOXf75Z79ad5lpfo4Oa/DO30U7UA/vxqn/5tg2wlzmR/HugsaD0dM6J2LaBK6H3"
+    "OPENAI_API_KEY": "@secret:openai",
+    "GITHUB_TOKEN": "@secret:github_token"
   }
 }
