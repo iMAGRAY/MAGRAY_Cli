@@ -1,0 +1,25 @@
+---
+description: "Todo/TaskBoard: CRUD задач, staleness, связь с DAG"
+globs: []
+alwaysApply: false
+---
+
+## Состояния
+`Planned → Ready → InProgress → Blocked → Done → Archived`
+
+## Обязательные поля
+title, desc, priority, deps[], tags[], due_at?, staleness, last_touch.
+
+## Взаимодействие с агентом
+- Planner связывает TodoItem с узлами DAG (task_id).
+- Executor обновляет состояние по событиям (started/done/failed).
+- Scheduler пересматривает просроченные/устаревшие задачи.
+
+## CLI-подсказки
+```
+todo add "title" --desc "..." --due 2025-08-01 --tag foo
+todo list --state ready --sort priority
+todo done <id>
+todo snooze <id> --for 3d
+todo prune --stale
+```

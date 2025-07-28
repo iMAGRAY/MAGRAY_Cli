@@ -1,0 +1,12 @@
+---
+description: "Planner: генерируй DAG-план (шаги, deps, success criteria)"
+globs: []
+alwaysApply: false
+---
+
+Алгоритм:
+1. Извлеки контекст (через M4).
+2. Разбей цель на шаги, формализуй критерии успеха.
+3. Построй DAG: `nodes = TaskNode`, `edges = deps`.
+4. Для каждого узла укажи: tool, input, mem_refs, policy.
+5. Сохрани план (markdown/JSON) в `docs/workflow_state.md`.
