@@ -1,0 +1,44 @@
+# Rust стандарты разработки
+
+## Структура кода
+- Используем workspace для многомодульных проектов
+- Следуем официальному Rust style guide
+- Clippy warnings = errors
+
+## Обработка ошибок
+- `Result<T, E>` для восстанавливаемых ошибок
+- `panic!` только для невосстанавливаемых
+- Используем `thiserror` для custom errors
+
+## Тестирование
+- Unit тесты рядом с кодом
+- Integration тесты в `tests/`
+- Doc тесты для примеров использования
+
+## Пример валидного кода:
+```rust
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum AppError {
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+}
+
+pub fn process(input: &str) -> Result<String, AppError> {
+    if input.is_empty() {
+        return Err(AppError::InvalidInput("empty string".into()));
+    }
+    Ok(input.to_uppercase())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_process() {
+        assert_eq!(process("hello").unwrap(), "HELLO");
+    }
+}
+```

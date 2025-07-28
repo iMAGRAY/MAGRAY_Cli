@@ -1,0 +1,65 @@
+[package]
+name = "{{project_name}}"
+version = "0.1.0"
+edition = "2021"
+authors = ["{{author}}"]
+description = "{{description}}"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/{{github_user}}/{{project_name}}"
+keywords = ["cli", "tool", "developer-tools"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "{{project_name}}"
+path = "src/main.rs"
+
+[dependencies]
+# CLI Framework
+clap = { version = "4.5", features = ["derive", "cargo", "env", "unicode", "wrap_help"] }
+clap_complete = "4.5"
+
+# Async runtime
+tokio = { version = "1.41", features = ["rt-multi-thread", "macros", "fs", "process"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# UI/UX
+indicatif = "0.17"
+dialoguer = "0.11"
+colored = "2.1"
+comfy-table = "7.1"
+crossterm = "0.28"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Utilities
+directories = "5.0"
+which = "6.0"
+once_cell = "1.20"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = "3.14"
+mockall = "0.13"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0
+
+[profile.test]
+opt-level = 2
