@@ -1,24 +1,51 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use console::{style, Term, Emoji};
+use console::{style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
 use llm::LlmClient;
 use std::io::{self, Write};
 use std::time::Duration;
 use tokio::time::sleep;
 use tokio_stream::{StreamExt, wrappers::IntervalStream};
-use tracing::error;
 
-static ROBOT: Emoji<'_, '_> = Emoji("🤖", "");
-static SPARKLES: Emoji<'_, '_> = Emoji("✨", "");
-static ROCKET: Emoji<'_, '_> = Emoji("🚀", "");
-static GEAR: Emoji<'_, '_> = Emoji("⚙️", "");
-static BRAIN: Emoji<'_, '_> = Emoji("🧠", "");
-static LIGHTNING: Emoji<'_, '_> = Emoji("⚡", "");
+
+// Анимированные ASCII иконки
+struct AnimatedIcon {
+    frames: &'static [&'static str],
+    current: std::sync::atomic::AtomicUsize,
+}
+
+impl AnimatedIcon {
+    const fn new(frames: &'static [&'static str]) -> Self {
+        Self {
+            frames,
+            current: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+    
+    fn next_frame(&self) -> &'static str {
+        let current = self.current.load(std::sync::atomic::Ordering::Relaxed);
+        let next = (current + 1) % self.frames.len();
+        self.current.store(next, std::sync::atomic::Ordering::Relaxed);
+        self.frames[current]
+    }
+    
+    fn get_frame(&self, index: usize) -> &'static str {
+        self.frames[index % self.frames.len()]
+    }
+}
+
+static ROBOT_ICON: AnimatedIcon = AnimatedIcon::new(&["[AI]", "[▲I]", "[●I]", "[♦I]"]);
+static THINKING_ICON: AnimatedIcon = AnimatedIcon::new(&["[●  ]", "[●● ]", "[●●●]", "[ ●●]", "[  ●]", "[   ]"]);
+static USER_ICON: &str = "[►]";
+static SUCCESS_ICON: &str = "[✓]";
+static ERROR_ICON: &str = "[✗]";
+static INFO_ICON: &str = "[i]";
+static LOADING_ICON: AnimatedIcon = AnimatedIcon::new(&["[|]", "[/]", "[-]", "[\\]"]);
 
 #[derive(Parser)]
 #[command(name = "magray")]
-#[command(about = "🤖 MAGRAY - Интеллектуальный CLI агент")]
+#[command(about = "[AI] MAGRAY - Интеллектуальный CLI агент")]
 #[command(version = "0.1.0")]
 struct Cli {
     #[command(subcommand)]
@@ -27,7 +54,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// 💬 Чат с LLM моделью
+    /// [►] Чат с LLM моделью
     Chat {
         /// Сообщение для отправки (если не указано - интерактивный режим)
         message: Option<String>,
@@ -68,7 +95,7 @@ async fn show_welcome_animation() -> Result<()> {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
-            .tick_chars("⠁⠃⠇⡇⡆⡤⡴⡼⢼⢸⢹⢻⢿⡿⣿⣾⣽⣻⣯⣟⣯⣿")
+            .tick_chars("[|][/][-][\\]")
             .template("{spinner:.cyan} {msg}")
             .unwrap()
     );
@@ -118,7 +145,7 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
-            .tick_chars("🌍🌎🌏")
+            .tick_chars("[●][◐][◑][◒][◓][●]")
             .template("{spinner} {msg}")
             .unwrap()
     );
@@ -126,13 +153,13 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     
     let llm_client = match LlmClient::from_env() {
         Ok(client) => {
-            spinner.finish_with_message("✅ Подключено к LLM!");
+            spinner.finish_with_message("[✓] Подключено к LLM!");
             sleep(Duration::from_millis(500)).await;
             spinner.finish_and_clear();
             client
         },
         Err(e) => {
-            spinner.finish_with_message("❌ Ошибка подключения!");
+            spinner.finish_with_message("[✗] Ошибка подключения!");
             println!();
             println!("{} {}", 
                 style("Ошибка:").red().bold(), 
@@ -140,7 +167,7 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
             );
             println!();
             println!("{} {}", 
-                style("💡 Решение:").yellow().bold(),
+                style("[i] Решение:").yellow().bold(),
                 "Создайте файл .env с настройками:"
             );
             println!("   {} {}", 
@@ -161,11 +188,11 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     } else {
         // Интерактивный чат
         println!("{} {}", 
-            ROCKET, 
+            style("[★]").green().bold(), 
             style("Добро пожаловать в интерактивный режим!").bright().bold()
         );
         println!("{} {}", 
-            style("💬").cyan(), 
+            style("[►]").cyan(), 
             style("Напишите ваше сообщение или").dim()
         );
         println!("{} {} {}", 
@@ -178,7 +205,7 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
         loop {
             // Красивый промпт
             print!("{} {} ", 
-                style("👤").bright(),
+                style(USER_ICON).bright().green(),
                 style("Вы:").bright().bold()
             );
             io::stdout().flush()?;
@@ -209,7 +236,7 @@ async fn send_message_with_animation(client: &LlmClient, message: &str) -> Resul
     let thinking_spinner = ProgressBar::new_spinner();
     thinking_spinner.set_style(
         ProgressStyle::default_spinner()
-            .tick_chars("🤔💭🧠⚡🔮✨🎯🚀")
+            .tick_chars("[◐][◓][◑][◒]")
             .template("{spinner} {msg}")
             .unwrap()
     );
@@ -243,7 +270,7 @@ async fn send_message_with_animation(client: &LlmClient, message: &str) -> Resul
                     Ok(response) => {
                         // Анимация печати ответа
                         print!("{} {} ", 
-                            ROBOT, 
+                            style(ROBOT_ICON.get_frame(0)).bright().blue(),
                             style("AI:").bright().green().bold()
                         );
                         
@@ -259,7 +286,7 @@ async fn send_message_with_animation(client: &LlmClient, message: &str) -> Resul
                     }
                     Err(e) => {
                         println!("{} {} {}", 
-                            style("❌").red(),
+                            style(ERROR_ICON).red(),
                             style("Ошибка:").red().bold(),
                             style(format!("{}", e)).red()
                         );
@@ -279,7 +306,7 @@ async fn show_goodbye_animation() -> Result<()> {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
-            .tick_chars("👋✨🌟💫⭐🌠🎆🎇")
+            .tick_chars("[◄][◁][◀][■]")
             .template("{spinner} {msg}")
             .unwrap()
     );
@@ -300,11 +327,11 @@ async fn show_goodbye_animation() -> Result<()> {
     
     println!();
     println!("{} {}", 
-        style("👋").bright(),
+        style("[★]").bright().yellow(),
         style("Спасибо за использование MAGRAY CLI!").bright().bold()
     );
     println!("{} {}", 
-        SPARKLES,
+        style("[►]").cyan(),
         style("Увидимся в следующий раз!").cyan()
     );
     println!();
