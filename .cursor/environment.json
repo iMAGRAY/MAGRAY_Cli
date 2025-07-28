@@ -8,7 +8,6 @@
     "npm install || true"
   ],
   "env": {
-    "OPENAI_API_KEY": "@secret:openai",
-    "GITHUB_TOKEN": "@secret:github_token"
+    "OPENAI_API_KEY": "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"
   }
 }
