@@ -276,6 +276,19 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
 }
 
 async fn send_message_with_animation(client: &LlmClient, message: &str) -> Result<()> {
+    // Сначала проверяем, нужны ли инструменты
+    if should_use_tools(message) {
+        println!("{} {}", 
+            style("[AI]").bright().blue(),
+            style("Обнаружен запрос, требующий инструментов. Переключаюсь в умный режим...").dim()
+        );
+        
+        let smart_router = SmartRouter::new(client.clone());
+        let result = smart_router.process_smart_request(message).await?;
+        println!("{}", result);
+        return Ok(());
+    }
+    
     // Анимация "думаю"
     let thinking_spinner = ProgressBar::new_spinner();
     thinking_spinner.set_style(
@@ -344,6 +357,49 @@ async fn send_message_with_animation(client: &LlmClient, message: &str) -> Resul
             }
         }
     }
+}
+
+// Функция для определения, нужны ли инструменты
+fn should_use_tools(message: &str) -> bool {
+    let message_lower = message.to_lowercase();
+    
+    // Ключевые слова, указывающие на необходимость инструментов
+    let tool_keywords = [
+        // Файловые операции
+        "покажи файл", "прочитай файл", "открой файл", "читай файл",
+        "создай файл", "запиши файл", "сохрани файл", "напиши файл",
+        "покажи содержимое", "список файлов", "покажи папку", "список директории",
+        
+        // Git операции
+        "git status", "git commit", "статус git", "коммит",
+        
+        // Shell команды
+        "выполни команду", "запусти команду", "shell", "bash",
+        
+        // Web поиск
+        "найди в интернете", "поиск в интернете", "google", "search",
+        
+        // Общие действия
+        "создай", "удали", "скопируй", "перемести", "выполни",
+        "покажи", "список", "найди", "поиск"
+    ];
+    
+    // Проверяем наличие ключевых слов
+    for keyword in &tool_keywords {
+        if message_lower.contains(keyword) {
+            return true;
+        }
+    }
+    
+    // Проверяем упоминание файлов с расширениями
+    let file_extensions = [".rs", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"];
+    for ext in &file_extensions {
+        if message_lower.contains(ext) {
+            return true;
+        }
+    }
+    
+    false
 }
 
 async fn handle_file_read(path: &str) -> Result<()> {
