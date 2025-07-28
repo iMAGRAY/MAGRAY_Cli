@@ -18,3 +18,5 @@ tempfile = { workspace = true }
 console = { workspace = true }
 indicatif = { workspace = true }
 async-trait = { workspace = true }
+reqwest = { workspace = true }
+urlencoding = "2.1"
