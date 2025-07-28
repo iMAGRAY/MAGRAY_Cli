@@ -10,7 +10,7 @@ use tracing::{info, error};
 #[command(version = "0.1.0")]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -32,8 +32,12 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Chat { message } => {
+        Some(Commands::Chat { message }) => {
             handle_chat(message).await?;
+        }
+        None => {
+            // По умолчанию запускаем интерактивный чат
+            handle_chat(None).await?;
         }
     }
 
