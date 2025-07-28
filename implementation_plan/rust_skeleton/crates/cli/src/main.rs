@@ -444,7 +444,7 @@ async fn handle_dir_list(path: &str) -> Result<()> {
 }
 
 async fn handle_tool_action(action: &str) -> Result<()> {
-    // Инициализируем LLM клиент для AI роутера
+    // Используем тот же AI планировщик что и в smart команде
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
@@ -453,47 +453,29 @@ async fn handle_tool_action(action: &str) -> Result<()> {
             .unwrap()
     );
     
-    spinner.set_message("Подключение к AI системе...");
+    spinner.set_message("Запускаю AI планировщик...");
     
     let llm_client = match LlmClient::from_env() {
         Ok(client) => {
-            spinner.finish_with_message("[✓] AI система готова");
+            spinner.finish_with_message("[★] AI планировщик активирован");
             client
         },
         Err(e) => {
-            spinner.finish_with_message("[✗] Ошибка подключения к AI");
+            spinner.finish_with_message("[✗] AI планировщик недоступен");
             eprintln!("{} {}", 
                 style(ERROR_ICON).red(),
                 style(format!("Ошибка: {}", e)).red()
             );
-            eprintln!("{} Используем обычный режим...", 
+            eprintln!("{} Требуется настройка .env файла с LLM API ключом", 
                 style("[i]").yellow()
             );
-            
-            // Fallback к старому методу
-            return handle_tool_action_fallback(action).await;
+            return Err(e.into());
         }
     };
     
     let smart_router = SmartRouter::new(llm_client);
-    
-    match smart_router.process_smart_request(action).await {
-        Ok(result) => {
-            println!("{}", result);
-        }
-        Err(e) => {
-            eprintln!("{} {}", 
-                style(ERROR_ICON).red(),
-                style(format!("Ошибка AI обработки: {}", e)).red()
-            );
-            eprintln!("{} Пробуем обычный режим...", 
-                style("[i]").yellow()
-            );
-            
-            // Fallback к старому методу
-            return handle_tool_action_fallback(action).await;
-        }
-    }
+    let result = smart_router.process_smart_request(action).await?;
+    println!("{}", result);
     
     Ok(())
 }
@@ -540,31 +522,7 @@ async fn handle_smart_task(task: &str) -> Result<()> {
     Ok(())
 }
 
-async fn handle_tool_action_fallback(action: &str) -> Result<()> {
-    let registry = ToolRegistry::new();
-    
-    println!("{} {}", 
-        style("[●]").cyan(),
-        style("Анализирую запрос (простой режим)...").dim()
-    );
-    
-    let output = registry.execute_natural(action).await?;
-    
-    if output.success {
-        if let Some(formatted) = output.formatted_output {
-            println!("{}", formatted);
-        } else {
-            println!("{}", output.result);
-        }
-    } else {
-        println!("{} {}", 
-            style(ERROR_ICON).red(),
-            style(output.result).red()
-        );
-    }
-    
-    Ok(())
-}
+
 
 async fn show_goodbye_animation() -> Result<()> {
     let spinner = ProgressBar::new_spinner();
