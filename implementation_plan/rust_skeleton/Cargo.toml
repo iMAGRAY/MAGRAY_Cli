@@ -1,11 +1,6 @@
 [workspace]
 members = [
     "crates/cli",
-    "crates/core",
-    "crates/executor",
-    "crates/memory",
-    "crates/nlu",
-    "crates/toolsvc",
     "crates/llm",
 ]
 
@@ -28,9 +23,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 async-trait = "0.1"
 reqwest = { version = "0.11", features = ["json"] }
-toml = "0.8"
-dirs = "5.0"
-walkdir = "2.0"
-sha2 = "0.10"
-petgraph = "0.6"
 dotenv = "0.15"
+indicatif = "0.17"
+console = "0.15"
+tokio-stream = "0.1"
