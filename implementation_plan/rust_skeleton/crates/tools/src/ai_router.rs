@@ -54,11 +54,15 @@ impl SmartRouter {
     pub async fn execute_plan(&self, plan: &ActionPlan) -> Result<Vec<ToolOutput>> {
         let mut results = Vec::new();
         
-        for action in &plan.steps {
-            println!("[AI] Выполняю: {}", action.description);
+        println!("[●] Доступные инструменты: {:?}", 
+                self.tool_registry.list_tools().iter().map(|t| &t.name).collect::<Vec<_>>());
+        
+        for (i, action) in plan.steps.iter().enumerate() {
+            println!("[AI] Шаг {}: {} (инструмент: {})", i + 1, action.description, action.tool);
+            println!("[●] Аргументы: {:?}", action.args);
             
             let tool = self.tool_registry.get(&action.tool)
-                .ok_or_else(|| anyhow!("Инструмент '{}' не найден", action.tool))?;
+                .ok_or_else(|| anyhow!("Инструмент '{}' не найден в реестре", action.tool))?;
                 
             let input = ToolInput {
                 command: action.tool.clone(),
@@ -66,8 +70,16 @@ impl SmartRouter {
                 context: Some(action.description.clone()),
             };
             
-            let result = tool.execute(input).await?;
-            results.push(result);
+            match tool.execute(input).await {
+                Ok(result) => {
+                    println!("[✓] Шаг {} выполнен успешно", i + 1);
+                    results.push(result);
+                }
+                Err(e) => {
+                    println!("[✗] Ошибка в шаге {}: {}", i + 1, e);
+                    return Err(e);
+                }
+            }
             
             // Небольшая пауза между действиями для UX
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -96,37 +108,46 @@ impl SmartRouter {
     }
     
     fn create_planning_prompt(&self, tools_info: &str) -> String {
-        format!(r#"Ты - умный AI ассистент MAGRAY CLI. Твоя задача - анализировать запросы пользователей и создавать планы действий используя доступные инструменты.
+        format!(r#"Ты - умный AI ассистент MAGRAY CLI. Анализируй запросы пользователей и создавай планы действий используя ТОЧНЫЕ имена инструментов.
 
 ДОСТУПНЫЕ ИНСТРУМЕНТЫ:
 {}
 
-ПРАВИЛА ПЛАНИРОВАНИЯ:
-1. Анализируй запрос и определи, какие инструменты нужны
-2. Создай последовательный план действий  
-3. Каждое действие должно иметь четкое описание
-4. Оцени уверенность в плане (0.0-1.0)
+КРИТИЧЕСКИ ВАЖНО - ИСПОЛЬЗУЙ ТОЛЬКО ЭТИ ТОЧНЫЕ ИМЕНА:
+- file_read (чтение файлов)
+- file_write (создание/запись файлов) 
+- dir_list (просмотр директорий)
+- git_status (git статус)
+- git_commit (git коммиты)
+- web_search (поиск в интернете)
+- shell_exec (выполнение команд)
+
+ПРАВИЛА:
+1. Используй ТОЛЬКО имена инструментов из списка выше
+2. Для аргументов file_read/file_write используй "path"
+3. Для dir_list используй "path" (по умолчанию ".")
+4. Для file_write добавляй "content"
 
 ФОРМАТ ОТВЕТА (строго JSON):
 {{
-  "reasoning": "Объяснение логики планирования",
-  "confidence": 0.85,
+  "reasoning": "Объяснение логики",
+  "confidence": 0.9,
   "steps": [
     {{
-      "tool": "имя_инструмента",
-      "description": "Что делает этот шаг",
-      "args": {{"key": "value"}},
-      "expected_output": "Ожидаемый результат"
+      "tool": "file_read",
+      "description": "Читаем файл X",
+      "args": {{"path": "путь_к_файлу"}},
+      "expected_output": "Содержимое файла"
     }}
   ]
 }}
 
-ПРИМЕРЫ ПЛАНОВ:
-- "покажи содержимое файла main.rs" → file_read с path="main.rs"
-- "создай новый файл README" → file_write с path="README.md" и базовым содержимым
-- "покажи файлы в папке src" → dir_list с path="src/"
+ПРИМЕРЫ:
+"покажи файл main.rs" → tool: "file_read", args: {{"path": "main.rs"}}
+"создай файл hello.txt с текстом привет" → tool: "file_write", args: {{"path": "hello.txt", "content": "привет"}}
+"покажи содержимое папки src" → tool: "dir_list", args: {{"path": "src"}}
 
-Отвечай ТОЛЬКО валидным JSON без дополнительного текста."#, tools_info)
+Отвечай ТОЛЬКО JSON!"#, tools_info)
     }
     
     fn get_available_tools_description(&self) -> String {
@@ -147,13 +168,25 @@ impl SmartRouter {
     }
     
     fn parse_llm_response(&self, response: &str) -> Result<ActionPlan> {
+        println!("[●] Ответ LLM: {}", response);
+        
         // Пытаемся найти JSON в ответе
         let json_start = response.find('{').unwrap_or(0);
         let json_end = response.rfind('}').map(|i| i + 1).unwrap_or(response.len());
         let json_str = &response[json_start..json_end];
         
-        serde_json::from_str::<ActionPlan>(json_str)
-            .map_err(|e| anyhow!("Ошибка парсинга JSON ответа: {}\nОтвет LLM: {}", e, response))
+        println!("[●] Извлеченный JSON: {}", json_str);
+        
+        match serde_json::from_str::<ActionPlan>(json_str) {
+            Ok(plan) => {
+                println!("[✓] JSON успешно распарсен, {} шагов", plan.steps.len());
+                Ok(plan)
+            }
+            Err(e) => {
+                println!("[✗] Ошибка парсинга JSON: {}", e);
+                Err(anyhow!("Ошибка парсинга JSON ответа: {}\nОтвет LLM: {}", e, response))
+            }
+        }
     }
     
     fn format_results(&self, plan: &ActionPlan, results: &[ToolOutput]) -> Result<String> {
