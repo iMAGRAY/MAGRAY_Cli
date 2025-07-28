@@ -1,0 +1,45 @@
+# Конфигурация Альтаира для работы с Амиром
+
+[project]
+name = "MAGRAY_Cli"
+lead = "Amir"
+ai_assistant = "Altair"
+
+[workflow]
+# Стиль работы
+work_style = "pair_programming"
+# Уровень автономности (1-10)
+autonomy_level = 8
+# Запрашивать подтверждение на критические операции
+require_confirmation = ["delete", "major_refactor", "api_breaking_change"]
+
+[development]
+# Предпочтения по коду
+prefer_safe_over_fast = true
+prefer_correct_over_simple = true
+always_write_tests = true
+documentation_level = "comprehensive"
+
+[communication]
+language = "ru"
+# Стиль общения
+style = "professional_friendly"
+# Уровень детализации объяснений
+explanation_detail = "balanced"
+# Частота обновлений статуса
+status_updates = "on_milestone"
+
+[tools]
+# Инструменты для анализа кода
+linter = "clippy"
+formatter = "rustfmt"
+# Автоматически исправлять предупреждения
+auto_fix_warnings = true
+
+[ai_behavior]
+# Всегда предлагать альтернативные решения
+suggest_alternatives = true
+# Проактивно искать потенциальные проблемы
+proactive_issue_detection = true
+# Уровень рефакторинга (1-10)
+refactoring_aggressiveness = 7
