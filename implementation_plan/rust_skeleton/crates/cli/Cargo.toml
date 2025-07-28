@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 magray_core = { path = "../core" }
 memory = { path = "../memory" }
+executor = { path = "../executor" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }

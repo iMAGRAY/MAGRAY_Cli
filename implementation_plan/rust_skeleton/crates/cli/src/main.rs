@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use magray_core::{DocStore, ProjectId, Request, TodoItem, TaskState};
 use memory::{TodoService, SqliteStore, MemoryCoordinator};
+use executor::AgentExecutor;
 use std::env;
 use std::sync::Arc;
 use tracing::{info, error};
@@ -170,13 +171,7 @@ async fn main() -> Result<()> {
                 std::process::exit(1);
             }
             
-            let request = Request::new(goal.clone(), project_id);
-            info!("Создан запрос: {} (ID: {})", goal, request.id);
-            
-            // #INCOMPLETE: Здесь будет интеграция с Planner и Executor
-            println!("🚀 Запрос принят: {}", goal);
-            println!("🆔 ID запроса: {}", request.id);
-            println!("⏳ Планирование и выполнение будет реализовано в следующих версиях");
+            handle_run_command(goal, &docstore).await?;
         }
         
         Commands::Vec { action } => {
@@ -377,6 +372,56 @@ async fn handle_mem_action(action: MemAction, docstore: &DocStore) -> Result<()>
             println!("🔍 M4 (Semantic): {}", docstore.vectors_dir().display());
             // #INCOMPLETE: Реальная статистика размеров и использования
             println!("⏳ Детальная статистика будет реализована в memory crate");
+        }
+    }
+    
+    Ok(())
+}
+
+async fn handle_run_command(goal: String, docstore: &DocStore) -> Result<()> {
+    let project_id = ProjectId::from_path(&env::current_dir()?);
+    let request = Request::new(goal.clone(), project_id);
+    
+    println!("🚀 Выполняю запрос: {}", goal);
+    println!("🆔 Request ID: {}", request.id);
+    println!("📁 Project: {}", request.project_id.as_str());
+    
+    // Создаем memory coordinator и executor
+    let sqlite_store = Arc::new(SqliteStore::new(docstore)?);
+    let memory = Arc::new(MemoryCoordinator::new(sqlite_store));
+    let executor = AgentExecutor::new(memory);
+    
+    // Выполняем запрос
+    match executor.execute_request(&request).await {
+        Ok(context) => {
+            println!("✅ Запрос выполнен успешно!");
+            println!("📊 Статистика выполнения:");
+            println!("   🎯 Цель: {}", context.goal);
+            println!("   📝 Шагов выполнено: {}", context.execution_log.len());
+            
+            if !context.execution_log.is_empty() {
+                println!("   📋 Последние шаги:");
+                for step in context.execution_log.iter().rev().take(3) {
+                    let status_emoji = match step.status {
+                        executor::StepStatus::Completed => "✅",
+                        executor::StepStatus::Failed => "❌",
+                        executor::StepStatus::Running => "🔄",
+                        executor::StepStatus::Pending => "⏳",
+                        executor::StepStatus::Skipped => "⏭️",
+                    };
+                    println!("      {} {} - {}", status_emoji, step.step_id, step.action);
+                }
+            }
+            
+            println!("   ⏱️  Время выполнения: {:?}", 
+                     context.execution_log.last()
+                         .map(|step| step.timestamp)
+                         .unwrap_or(chrono::Utc::now()));
+        },
+        Err(e) => {
+            error!("❌ Ошибка выполнения запроса: {}", e);
+            println!("💡 Попробуйте упростить запрос или проверьте логи");
+            return Err(e);
         }
     }
     
