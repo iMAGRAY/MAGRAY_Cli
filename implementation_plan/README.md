@@ -2,6 +2,13 @@
 
 Локальный CLI-агент с 5-слойной памятью, семантическим роутингом (BGE3/BG3), Todo/TaskBoard и DAG‑планировщиком.
 
+## Используемые модели
+
+Проект использует следующие ONNX модели для семантического поиска и ранжирования:
+
+- **Qwen3-Embedding-0.6B-ONNX** ([HuggingFace](https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX/)) 
+- **Qwen3-Reranker-0.6B-ONNX** ([HuggingFace](https://huggingface.co/zhiqing/Qwen3-Reranker-0.6B-ONNX/)) 
+
 ## Быстрый старт
 1. `cli init` — создаёт DocStore проекта в `~/.ourcli/projects/<id>/`.
 2. `cli todo add "сделать анализ репо"` — задача попадёт в TaskBoard.
