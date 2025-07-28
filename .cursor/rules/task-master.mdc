@@ -1,0 +1,48 @@
+---
+description: "Task Master: централизованный 'task-file' и строгий Execution Protocol для Background Agent"
+globs: []
+alwaysApply: false
+---
+
+## Назначение
+Включить режим **Task Master Prompt** для сложных задач: один «источник истины» (task-file), строгий протокол выполнения, фиксация всех решений и чекпоинтов.
+
+## Принципы
+- **Единый task-file** (`docs/task_master/<task-id>.md`): цель, контекст, план, ход работ, решения.
+- **Execution Protocol**:
+  1. Прочитай user input и контекст (semantic search M4 → rerank → MemRef → оригинал).
+  2. Сформулируй цель, ограничения, критерии успеха. Подтверди.
+  3. Построй детальный план (DAG) и зафиксируй его в task-file.
+  4. Выполняй шаги по одному. После каждого шага:
+     - Обнови task-file (что сделал, почему, результат).
+     - Прогони проверки (lint/tests/policy).
+     - Синхронизируй Todo state.
+     - Запроси подтверждение *только если явно требуется*.
+  5. Финальный отчёт: что сделано, ссылки на PR/patch, что осталось.
+- **Верификационные точки**: после планирования, после крупных изменений, перед завершением.
+
+## Формат task-file (минимум)
+```md
+# Task <id>: <title>
+## Goal
+...
+## Constraints / Policy
+...
+## Plan (DAG)
+- Step 1 ...
+- Step 2 ...
+## Execution Log
+### Step 1
+Action: ...
+Result: ...
+Issues: ...
+Next: ...
+```
+## Интеграция
+- Planner пишет/обновляет раздел Plan.
+- Executor / Background Agent обновляет Execution Log.
+- MemoryCoordinator индексирует task-file в M4 для будущих запросов.
+
+## Ограничения
+- Не дублируй информацию: task-file — центральный документ.
+- Не пропускай шаги протокола без пометки в task-file.
