@@ -130,6 +130,9 @@ impl SmartRouter {
 2. Для аргументов file_read/file_write используй "path"
 3. Для dir_list используй "path" (по умолчанию ".")
 4. Для file_write добавляй "content"
+5. Для shell_exec используй "command" (НЕ "команда"!)
+6. Для git_commit используй "message"
+7. Для web_search используй "query"
 
 ФОРМАТ ОТВЕТА (строго JSON):
 {{
@@ -149,6 +152,8 @@ impl SmartRouter {
 "покажи файл main.rs" → tool: "file_read", args: {{"path": "main.rs"}}
 "создай файл hello.txt с текстом привет" → tool: "file_write", args: {{"path": "hello.txt", "content": "привет"}}
 "покажи содержимое папки src" → tool: "dir_list", args: {{"path": "src"}}
+"создай папку test" → tool: "shell_exec", args: {{"command": "mkdir test"}}
+"выполни команду ls" → tool: "shell_exec", args: {{"command": "ls"}}
 
 Отвечай ТОЛЬКО JSON!"#, tools_info)
     }

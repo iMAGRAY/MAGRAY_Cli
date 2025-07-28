@@ -3,12 +3,12 @@ use clap::{Parser, Subcommand};
 use console::{style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
 use llm::LlmClient;
-use std::collections::HashMap;
 use std::io::{self, Write};
 use std::time::Duration;
 use tokio::time::sleep;
-use tokio_stream::{StreamExt, wrappers::IntervalStream};
-use tools::{ToolRegistry, ToolInput, SmartRouter};
+
+mod agent;
+use agent::{UnifiedAgent, AgentResponse};
 
 
 // Анимированные ASCII иконки
@@ -109,19 +109,37 @@ async fn main() -> Result<()> {
             handle_chat(message).await?;
         }
         Some(Commands::Read { path }) => {
-            handle_file_read(&path).await?;
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+            let message = format!("прочитай файл {}", path);
+            let response = agent.process_message(&message).await?;
+            display_response(response).await;
         }
         Some(Commands::Write { path, content }) => {
-            handle_file_write(&path, &content).await?;
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+            let message = format!("создай файл {} с содержимым: {}", path, content);
+            let response = agent.process_message(&message).await?;
+            display_response(response).await;
         }
         Some(Commands::List { path }) => {
-            handle_dir_list(path.as_deref().unwrap_or(".")).await?;
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+            let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
+            let response = agent.process_message(&message).await?;
+            display_response(response).await;
         }
         Some(Commands::Tool { action }) => {
-            handle_tool_action(&action).await?;
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+            let response = agent.process_message(&action).await?;
+            display_response(response).await;
         }
         Some(Commands::Smart { task }) => {
-            handle_smart_task(&task).await?;
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+            let response = agent.process_message(&task).await?;
+            display_response(response).await;
         }
         None => {
             // По умолчанию запускаем интерактивный чат
@@ -226,357 +244,101 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
         }
     };
 
+    // Создаем единый агент
+    let agent = UnifiedAgent::new(llm_client);
+
     if let Some(msg) = message {
         // Одиночное сообщение
-        send_message_with_animation(&llm_client, &msg).await?;
+        process_single_message(&agent, &msg).await?;
     } else {
         // Интерактивный чат
-        println!("{} {}", 
-            style("[★]").green().bold(), 
-            style("Добро пожаловать в интерактивный режим!").bright().bold()
-        );
-        println!("{} {}", 
-            style("[►]").cyan(), 
-            style("Напишите ваше сообщение или").dim()
-        );
-        println!("{} {} {}", 
-            style("   ").dim(),
-            style("'exit'").yellow().bold(), 
-            style("для выхода").dim()
-        );
-        println!();
-
-        loop {
-            // Красивый промпт
-            print!("{} {} ", 
-                style(USER_ICON).bright().green(),
-                style("Вы:").bright().bold()
-            );
-            io::stdout().flush()?;
-
-            let mut input = String::new();
-            io::stdin().read_line(&mut input)?;
-            let input = input.trim();
-
-            if input.is_empty() {
-                continue;
-            }
-
-            if input == "exit" || input == "quit" {
-                show_goodbye_animation().await?;
-                break;
-            }
-
-            send_message_with_animation(&llm_client, input).await?;
-            println!();
-        }
+        run_interactive_chat(&agent).await?;
     }
 
     Ok(())
 }
 
-async fn send_message_with_animation(client: &LlmClient, message: &str) -> Result<()> {
-    // Сначала проверяем, нужны ли инструменты
-    if should_use_tools(message) {
-        println!("{} {}", 
-            style("[AI]").bright().blue(),
-            style("Обнаружен запрос, требующий инструментов. Переключаюсь в умный режим...").dim()
-        );
-        
-        let smart_router = SmartRouter::new(client.clone());
-        let result = smart_router.process_smart_request(message).await?;
-        println!("{}", result);
-        return Ok(());
-    }
-    
-    // Анимация "думаю"
-    let thinking_spinner = ProgressBar::new_spinner();
-    thinking_spinner.set_style(
-        ProgressStyle::default_spinner()
-            .tick_chars("[◐][◓][◑][◒]")
-            .template("{spinner} {msg}")
-            .unwrap()
+async fn process_single_message(agent: &UnifiedAgent, message: &str) -> Result<()> {
+    let response = agent.process_message(message).await?;
+    display_response(response).await;
+    Ok(())
+}
+
+async fn run_interactive_chat(agent: &UnifiedAgent) -> Result<()> {
+    println!("{} {}", 
+        style("[★]").green().bold(), 
+        style("Добро пожаловать в интерактивный режим!").bright().bold()
     );
-    
-    let thinking_messages = [
-        "Анализирую ваш запрос...",
-        "Обрабатываю информацию...",
-        "Генерирую ответ...",
-        "Финальная обработка...",
-    ];
-    
-    thinking_spinner.set_message(thinking_messages[0]);
-    
-    // Запускаем LLM запрос в фоне
-    let client_clone = client.clone();
-    let message_clone = message.to_string();
-    let mut llm_task = tokio::spawn(async move {
-        client_clone.chat(&message_clone).await
-    });
-    
-    // Анимируем сообщения пока ждем
-    let mut message_idx = 0;
-    let mut interval = IntervalStream::new(tokio::time::interval(Duration::from_millis(800)));
-    
+    println!("{} {}", 
+        style("[►]").cyan(), 
+        style("Напишите ваше сообщение или").dim()
+    );
+    println!("{} {} {}", 
+        style("   ").dim(),
+        style("'exit'").yellow().bold(), 
+        style("для выхода").dim()
+    );
+    println!();
+
     loop {
-        tokio::select! {
-            result = &mut llm_task => {
-                thinking_spinner.finish_and_clear();
-                
-                match result? {
-                    Ok(response) => {
-                        // Анимация печати ответа
-                        print!("{} {} ", 
-                            style(ROBOT_ICON.get_frame(0)).bright().blue(),
-                            style("AI:").bright().green().bold()
-                        );
-                        
-                        // Эффект печатания
-                        for char in response.chars() {
-                            print!("{}", style(char).bright());
-                            io::stdout().flush()?;
-                            sleep(Duration::from_millis(20)).await;
-                        }
-                        println!();
-                        
-                        return Ok(());
-                    }
-                    Err(e) => {
-                        println!("{} {} {}", 
-                            style(ERROR_ICON).red(),
-                            style("Ошибка:").red().bold(),
-                            style(format!("{}", e)).red()
-                        );
-                        return Err(e.into());
-                    }
-                }
-            }
-            _ = interval.next() => {
-                message_idx = (message_idx + 1) % thinking_messages.len();
-                thinking_spinner.set_message(thinking_messages[message_idx]);
-            }
-        }
-    }
-}
-
-// Функция для определения, нужны ли инструменты
-fn should_use_tools(message: &str) -> bool {
-    let message_lower = message.to_lowercase();
-    
-    // Ключевые слова, указывающие на необходимость инструментов
-    let tool_keywords = [
-        // Файловые операции
-        "покажи файл", "прочитай файл", "открой файл", "читай файл",
-        "создай файл", "запиши файл", "сохрани файл", "напиши файл",
-        "покажи содержимое", "список файлов", "покажи папку", "список директории",
-        
-        // Git операции
-        "git status", "git commit", "статус git", "коммит",
-        
-        // Shell команды
-        "выполни команду", "запусти команду", "shell", "bash",
-        
-        // Web поиск
-        "найди в интернете", "поиск в интернете", "google", "search",
-        
-        // Общие действия
-        "создай", "удали", "скопируй", "перемести", "выполни",
-        "покажи", "список", "найди", "поиск"
-    ];
-    
-    // Проверяем наличие ключевых слов
-    for keyword in &tool_keywords {
-        if message_lower.contains(keyword) {
-            return true;
-        }
-    }
-    
-    // Проверяем упоминание файлов с расширениями
-    let file_extensions = [".rs", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"];
-    for ext in &file_extensions {
-        if message_lower.contains(ext) {
-            return true;
-        }
-    }
-    
-    false
-}
-
-async fn handle_file_read(path: &str) -> Result<()> {
-    let registry = ToolRegistry::new();
-    let tool = registry.get("file_read").unwrap();
-    
-    let mut args = HashMap::new();
-    args.insert("path".to_string(), path.to_string());
-    
-    let input = ToolInput {
-        command: "file_read".to_string(),
-        args,
-        context: None,
-    };
-    
-    let output = tool.execute(input).await?;
-    
-    if output.success {
-        if let Some(formatted) = output.formatted_output {
-            println!("{}", formatted);
-        } else {
-            println!("{}", output.result);
-        }
-    } else {
-        println!("{} {}", 
-            style(ERROR_ICON).red(),
-            style(output.result).red()
+        // Красивый промпт
+        print!("{} {} ", 
+            style(USER_ICON).bright().green(),
+            style("Вы:").bright().bold()
         );
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+
+        if input.is_empty() {
+            continue;
+        }
+
+        if input == "exit" || input == "quit" {
+            show_goodbye_animation().await?;
+            break;
+        }
+
+        let response = agent.process_message(input).await?;
+        display_response(response).await;
+        println!();
     }
     
     Ok(())
 }
 
-async fn handle_file_write(path: &str, content: &str) -> Result<()> {
-    let registry = ToolRegistry::new();
-    let tool = registry.get("file_write").unwrap();
-    
-    let mut args = HashMap::new();
-    args.insert("path".to_string(), path.to_string());
-    args.insert("content".to_string(), content.to_string());
-    
-    let input = ToolInput {
-        command: "file_write".to_string(),
-        args,
-        context: None,
-    };
-    
-    let output = tool.execute(input).await?;
-    
-    if output.success {
-        if let Some(formatted) = output.formatted_output {
-            println!("{}", formatted);
-        } else {
-            println!("{} {}", 
-                style(SUCCESS_ICON).green(),
-                style(output.result).green()
-            );
+async fn display_response(response: AgentResponse) {
+    match response {
+        AgentResponse::Chat(text) => {
+            display_chat_response(&text).await;
         }
-    } else {
-        println!("{} {}", 
-            style(ERROR_ICON).red(),
-            style(output.result).red()
-        );
+        AgentResponse::ToolExecution(result) => {
+            println!("{}", result);
+        }
     }
-    
-    Ok(())
 }
 
-async fn handle_dir_list(path: &str) -> Result<()> {
-    let registry = ToolRegistry::new();
-    let tool = registry.get("dir_list").unwrap();
-    
-    let mut args = HashMap::new();
-    args.insert("path".to_string(), path.to_string());
-    
-    let input = ToolInput {
-        command: "dir_list".to_string(),
-        args,
-        context: None,
-    };
-    
-    let output = tool.execute(input).await?;
-    
-    if output.success {
-        if let Some(formatted) = output.formatted_output {
-            println!("{}", formatted);
-        } else {
-            println!("{}", output.result);
-        }
-    } else {
-        println!("{} {}", 
-            style(ERROR_ICON).red(),
-            style(output.result).red()
-        );
-    }
-    
-    Ok(())
-}
-
-async fn handle_tool_action(action: &str) -> Result<()> {
-    // Используем тот же AI планировщик что и в smart команде
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::default_spinner()
-            .tick_chars("[◐][◓][◑][◒]")
-            .template("{spinner} {msg}")
-            .unwrap()
+async fn display_chat_response(text: &str) {
+    // Анимация печати ответа
+    print!("{} {} ", 
+        style(ROBOT_ICON.get_frame(0)).bright().blue(),
+        style("AI:").bright().green().bold()
     );
     
-    spinner.set_message("Запускаю AI планировщик...");
-    
-    let llm_client = match LlmClient::from_env() {
-        Ok(client) => {
-            spinner.finish_with_message("[★] AI планировщик активирован");
-            client
-        },
-        Err(e) => {
-            spinner.finish_with_message("[✗] AI планировщик недоступен");
-            eprintln!("{} {}", 
-                style(ERROR_ICON).red(),
-                style(format!("Ошибка: {}", e)).red()
-            );
-            eprintln!("{} Требуется настройка .env файла с LLM API ключом", 
-                style("[i]").yellow()
-            );
-            return Err(e.into());
-        }
-    };
-    
-    let smart_router = SmartRouter::new(llm_client);
-    let result = smart_router.process_smart_request(action).await?;
-    println!("{}", result);
-    
-    Ok(())
+    // Эффект печатания
+    for char in text.chars() {
+        print!("{}", style(char).bright());
+        io::stdout().flush().unwrap();
+        sleep(Duration::from_millis(20)).await;
+    }
+    println!();
 }
 
-// Fallback функция для случаев когда AI недоступен
-async fn handle_smart_task(task: &str) -> Result<()> {
-    // Принудительное использование AI планировщика
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::default_spinner()
-            .tick_chars("[◐][◓][◑][◒]")
-            .template("{spinner} {msg}")
-            .unwrap()
-    );
-    
-    spinner.set_message("Запускаю AI планировщик...");
-    
-    let llm_client = match LlmClient::from_env() {
-        Ok(client) => {
-            spinner.finish_with_message("[★] AI планировщик активирован");
-            client
-        },
-        Err(e) => {
-            spinner.finish_with_message("[✗] AI планировщик недоступен");
-            eprintln!("{} {}", 
-                style(ERROR_ICON).red(),
-                style(format!("Ошибка: {}", e)).red()
-            );
-            eprintln!("{} Для умного режима требуется настройка .env файла", 
-                style("[i]").yellow()
-            );
-            eprintln!("{} Используйте команду 'tool' для простого режима", 
-                style("[i]").yellow()
-            );
-            return Err(e.into());
-        }
-    };
-    
-    let smart_router = SmartRouter::new(llm_client);
-    
-    let result = smart_router.process_smart_request(task).await?;
-    println!("{}", result);
-    
-    Ok(())
-}
+
+
+
 
 
 

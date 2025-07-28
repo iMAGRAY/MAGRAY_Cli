@@ -15,9 +15,13 @@ impl Tool for ShellExec {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: "shell_exec".to_string(),
-            description: "Выполняет команды в shell".to_string(),
+            description: "Выполняет команды в системной оболочке (cmd на Windows, sh на Unix)".to_string(),
             usage: "shell_exec <команда>".to_string(),
-            examples: vec!["shell_exec 'ls -la'".to_string()],
+            examples: vec![
+                "shell_exec 'mkdir new_folder'".to_string(),
+                "shell_exec 'dir' (Windows) или 'ls' (Unix)".to_string(),
+                "shell_exec 'echo Hello World'".to_string(),
+            ],
             input_schema: r#"{"command": "string"}"#.to_string(),
         }
     }
@@ -38,17 +42,27 @@ impl Tool for ShellExec {
             });
         }
 
-        // Выполняем команду через /bin/bash -c
-        let output = Command::new("/bin/bash")
-            .args(["-c", &cmd_str])
-            .output()
-            .await?;
+        // Кроссплатформенное выполнение команд
+        let output = if cfg!(target_os = "windows") {
+            // Windows: используем cmd.exe /C
+            Command::new("cmd")
+                .args(["/C", &cmd_str])
+                .output()
+                .await?
+        } else {
+            // Unix-системы: используем /bin/sh -c (более универсально чем bash)
+            Command::new("/bin/sh")
+                .args(["-c", &cmd_str])
+                .output()
+                .await?
+        };
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
         let mut metadata = HashMap::new();
         metadata.insert("status_code".to_string(), output.status.code().unwrap_or(-1).to_string());
+        metadata.insert("platform".to_string(), if cfg!(target_os = "windows") { "windows" } else { "unix" }.to_string());
 
         if output.status.success() {
             Ok(ToolOutput {
