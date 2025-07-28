@@ -3,10 +3,12 @@ use clap::{Parser, Subcommand};
 use console::{style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
 use llm::LlmClient;
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::time::Duration;
 use tokio::time::sleep;
 use tokio_stream::{StreamExt, wrappers::IntervalStream};
+use tools::{ToolRegistry, ToolInput};
 
 
 // Анимированные ASCII иконки
@@ -59,6 +61,28 @@ enum Commands {
         /// Сообщение для отправки (если не указано - интерактивный режим)
         message: Option<String>,
     },
+    /// [●] Читает файл с красивой подсветкой синтаксиса
+    Read {
+        /// Путь к файлу
+        path: String,
+    },
+    /// [►] Записывает содержимое в файл
+    Write {
+        /// Путь к файлу
+        path: String,
+        /// Содержимое файла
+        content: String,
+    },
+    /// [●] Показывает содержимое директории
+    List {
+        /// Путь к директории (по умолчанию текущая)
+        path: Option<String>,
+    },
+    /// [AI] Выполняет команду с помощью инструментов
+    Tool {
+        /// Описание действия на естественном языке
+        action: String,
+    },
 }
 
 #[tokio::main]
@@ -78,6 +102,18 @@ async fn main() -> Result<()> {
     match cli.command {
         Some(Commands::Chat { message }) => {
             handle_chat(message).await?;
+        }
+        Some(Commands::Read { path }) => {
+            handle_file_read(&path).await?;
+        }
+        Some(Commands::Write { path, content }) => {
+            handle_file_write(&path, &content).await?;
+        }
+        Some(Commands::List { path }) => {
+            handle_dir_list(path.as_deref().unwrap_or(".")).await?;
+        }
+        Some(Commands::Tool { action }) => {
+            handle_tool_action(&action).await?;
         }
         None => {
             // По умолчанию запускаем интерактивный чат
@@ -300,6 +336,129 @@ async fn send_message_with_animation(client: &LlmClient, message: &str) -> Resul
             }
         }
     }
+}
+
+async fn handle_file_read(path: &str) -> Result<()> {
+    let registry = ToolRegistry::new();
+    let tool = registry.get("file_read").unwrap();
+    
+    let mut args = HashMap::new();
+    args.insert("path".to_string(), path.to_string());
+    
+    let input = ToolInput {
+        command: "file_read".to_string(),
+        args,
+        context: None,
+    };
+    
+    let output = tool.execute(input).await?;
+    
+    if output.success {
+        if let Some(formatted) = output.formatted_output {
+            println!("{}", formatted);
+        } else {
+            println!("{}", output.result);
+        }
+    } else {
+        println!("{} {}", 
+            style(ERROR_ICON).red(),
+            style(output.result).red()
+        );
+    }
+    
+    Ok(())
+}
+
+async fn handle_file_write(path: &str, content: &str) -> Result<()> {
+    let registry = ToolRegistry::new();
+    let tool = registry.get("file_write").unwrap();
+    
+    let mut args = HashMap::new();
+    args.insert("path".to_string(), path.to_string());
+    args.insert("content".to_string(), content.to_string());
+    
+    let input = ToolInput {
+        command: "file_write".to_string(),
+        args,
+        context: None,
+    };
+    
+    let output = tool.execute(input).await?;
+    
+    if output.success {
+        if let Some(formatted) = output.formatted_output {
+            println!("{}", formatted);
+        } else {
+            println!("{} {}", 
+                style(SUCCESS_ICON).green(),
+                style(output.result).green()
+            );
+        }
+    } else {
+        println!("{} {}", 
+            style(ERROR_ICON).red(),
+            style(output.result).red()
+        );
+    }
+    
+    Ok(())
+}
+
+async fn handle_dir_list(path: &str) -> Result<()> {
+    let registry = ToolRegistry::new();
+    let tool = registry.get("dir_list").unwrap();
+    
+    let mut args = HashMap::new();
+    args.insert("path".to_string(), path.to_string());
+    
+    let input = ToolInput {
+        command: "dir_list".to_string(),
+        args,
+        context: None,
+    };
+    
+    let output = tool.execute(input).await?;
+    
+    if output.success {
+        if let Some(formatted) = output.formatted_output {
+            println!("{}", formatted);
+        } else {
+            println!("{}", output.result);
+        }
+    } else {
+        println!("{} {}", 
+            style(ERROR_ICON).red(),
+            style(output.result).red()
+        );
+    }
+    
+    Ok(())
+}
+
+async fn handle_tool_action(action: &str) -> Result<()> {
+    let registry = ToolRegistry::new();
+    
+    println!("{} {}", 
+        style("[●]").cyan(),
+        style("Анализирую запрос...").dim()
+    );
+    
+    let output = registry.execute_natural(action).await?;
+    
+    if output.success {
+        if let Some(formatted) = output.formatted_output {
+            println!("{}", formatted);
+        } else {
+            println!("{}", output.result);
+        }
+    } else {
+        println!("{} {}", 
+            style(ERROR_ICON).red(),
+            style(output.result).red()
+        );
+    }
+    
+    Ok(())
 }
 
 async fn show_goodbye_animation() -> Result<()> {
