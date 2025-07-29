@@ -61,3 +61,4 @@ embed_cache.db
 # Local settings
 .claude/settings.local.json
 *.local.json
+models/Qwen3-Embedding-0.6B-ONNX/model_fp16_data

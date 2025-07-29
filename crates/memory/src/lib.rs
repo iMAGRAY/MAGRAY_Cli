@@ -13,6 +13,8 @@ pub mod onnx_models;
 pub mod chunking;
 pub mod ingestion;
 pub mod vector_index;
+pub mod code_search;
+pub mod mock_models;
 
 pub use coordinator::MemoryCoordinator;
 pub use semantic::{SemanticRouter, VectorizerService, RerankerService};
@@ -20,6 +22,7 @@ pub use types::*;
 pub use chunking::{UniversalChunker, ChunkingStrategy, ContentChunk, ChunkType};
 pub use ingestion::{IngestionPipeline, IngestionConfig, IngestionEvent};
 pub use vector_index::VectorIndex;
+pub use code_search::{CodeSearchAPI, CodeSearchResult, CodeQueryBuilder};
 
 /// Основные слои памяти согласно архитектуре
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

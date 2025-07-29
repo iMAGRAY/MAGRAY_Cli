@@ -2,6 +2,7 @@ use crate::chunking::{UniversalChunker, ChunkingStrategy, ContentChunk};
 use crate::{MemoryCoordinator, MemMeta, ExecutionContext};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{info, debug, warn};
 use walkdir::WalkDir;
@@ -79,14 +80,14 @@ impl Default for IngestionConfig {
 
 /// Pipeline для индексации кода и документов
 pub struct IngestionPipeline {
-    memory: MemoryCoordinator,
+    memory: Arc<MemoryCoordinator>,
     chunker: UniversalChunker,
     config: IngestionConfig,
 }
 
 impl IngestionPipeline {
     pub fn new(
-        memory: MemoryCoordinator,
+        memory: Arc<MemoryCoordinator>,
         config: IngestionConfig,
     ) -> Self {
         let chunker = UniversalChunker::new(config.chunking_strategy.clone());

@@ -1,0 +1,6 @@
+[target.x86_64-pc-windows-msvc]
+# Используем динамическую CRT для совместимости с ONNX Runtime
+rustflags = ["-C", "target-feature=-crt-static"]
+
+[env]
+ORT_USE_CUDA = "0"

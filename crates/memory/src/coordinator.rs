@@ -65,13 +65,13 @@ impl MemoryCoordinator {
         // =8F80;878@C5< A5<0=B8G5A:85 A5@28AK
         let vectorizer = Arc::new(
             VectorizerService::new(
-                config.base_path.join("src/Qwen3-Embedding-0.6B-ONNX")
+                std::path::PathBuf::from("C:/Users/1/Documents/GitHub/MAGRAY_Cli/models/Qwen3-Embedding-0.6B-ONNX")
             ).await.context("Failed to initialize vectorizer service")?
         ) as Arc<dyn Vectorizer>;
         
         let reranker = Arc::new(
             RerankerService::new(
-                config.base_path.join("src/Qwen3-Reranker-0.6B-ONNX")
+                std::path::PathBuf::from("C:/Users/1/Documents/GitHub/MAGRAY_Cli/models/Qwen3-Reranker-0.6B-ONNX")
             ).await.context("Failed to initialize reranker service")?
         ) as Arc<dyn Reranker>;
         

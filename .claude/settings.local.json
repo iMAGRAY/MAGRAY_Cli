@@ -19,7 +19,9 @@
       "Bash(mv:*)",
       "Bash(rm:*)",
       "Bash(grep:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(set RUST_BACKTRACE=1)",
+      "Bash(set ORT_USE_CUDA=0)"
     ],
     "deny": []
   }
