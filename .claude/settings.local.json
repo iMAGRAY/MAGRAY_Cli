@@ -29,7 +29,8 @@
       "Bash(copy:*)",
       "Bash(cp:*)",
       "Bash(where:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }

@@ -25,6 +25,30 @@ impl VectorizerService {
     pub async fn new<P: AsRef<Path>>(model_path: P) -> Result<Self> {
         let model_path = model_path.as_ref().to_path_buf();
         
+        // Проверяем наличие модели и конфигурации
+        if !model_path.exists() {
+            return Err(anyhow::anyhow!("Model path does not exist: {}", model_path.display()));
+        }
+        
+        let config_file = model_path.join("config.json");
+        if !config_file.exists() {
+            return Err(anyhow::anyhow!("Config file not found: {}", config_file.display()));
+        }
+        
+        // Загружаем конфигурацию для диагностики
+        let config_content = tokio::fs::read_to_string(&config_file).await
+            .context("Failed to read model config")?;
+        let config: serde_json::Value = serde_json::from_str(&config_content)
+            .context("Failed to parse model config")?;
+        
+        let model_type = config["model_type"].as_str().unwrap_or("unknown");
+        let use_cache = config["use_cache"].as_bool().unwrap_or(false);
+        
+        tracing::info!("Initializing VectorizerService:");
+        tracing::info!("  - Model type: {}", model_type);
+        tracing::info!("  - Use cache: {}", use_cache);
+        tracing::info!("  - Model path: {}", model_path.display());
+        
         // Загружаем Qwen3 модель
         let model = Qwen3EmbeddingModel::new(model_path).await
             .context("Failed to initialize Qwen3 embedding model")?;
@@ -169,13 +193,42 @@ impl RerankerService {
     pub async fn new<P: AsRef<Path>>(model_path: P) -> Result<Self> {
         let model_path = model_path.as_ref().to_path_buf();
         
+        // Проверяем наличие модели и конфигурации
+        if !model_path.exists() {
+            return Err(anyhow::anyhow!("Model path does not exist: {}", model_path.display()));
+        }
+        
+        let config_file = model_path.join("config.json");
+        if !config_file.exists() {
+            return Err(anyhow::anyhow!("Config file not found: {}", config_file.display()));
+        }
+        
+        // Загружаем конфигурацию для диагностики
+        let config_content = tokio::fs::read_to_string(&config_file).await
+            .context("Failed to read model config")?;
+        let config: serde_json::Value = serde_json::from_str(&config_content)
+            .context("Failed to parse model config")?;
+        
+        let model_type = config["model_type"].as_str().unwrap_or("unknown");
+        let use_cache = config["use_cache"].as_bool().unwrap_or(false);
+        let max_pos_emb = config["max_position_embeddings"].as_u64().unwrap_or(4096);
+        
+        tracing::info!("Initializing RerankerService:");
+        tracing::info!("  - Model type: {}", model_type);
+        tracing::info!("  - Use cache: {}", use_cache);
+        tracing::info!("  - Max position embeddings: {}", max_pos_emb);
+        tracing::info!("  - Model path: {}", model_path.display());
+        
         // Загружаем Qwen3 reranker модель
         let model = Qwen3RerankerModel::new(model_path).await
             .context("Failed to initialize Qwen3 reranker model")?;
         
+        // Адаптируем max_documents на основе конфигурации модели
+        let max_documents = if use_cache { 32 } else { 64 }; // KV-cache модели медленнее
+        
         Ok(Self {
             model: Arc::new(model),
-            max_documents: 64, // Лимит для производительности
+            max_documents,
         })
     }
     

@@ -80,16 +80,18 @@ impl MemoryCoordinator {
         let models_path = std::path::PathBuf::from(&models_base_path);
         info!("Using models path: {}", models_path.display());
         
+        // Используем ONNX модели
+        let embedding_path = models_path.join("Qwen3-Embedding-0.6B-ONNX");
+        let reranker_path = models_path.join("Qwen3-Reranker-0.6B-ONNX");
+        
         let vectorizer = Arc::new(
-            VectorizerService::new(
-                models_path.join("Qwen3-Embedding-0.6B-ONNX")
-            ).await.context("Failed to initialize vectorizer service")?
+            VectorizerService::new(embedding_path)
+                .await.context("Failed to initialize vectorizer service")?
         ) as Arc<dyn Vectorizer>;
         
         let reranker = Arc::new(
-            RerankerService::new(
-                models_path.join("Qwen3-Reranker-0.6B-ONNX")
-            ).await.context("Failed to initialize reranker service")?
+            RerankerService::new(reranker_path)
+                .await.context("Failed to initialize reranker service")?
         ) as Arc<dyn Reranker>;
         
         let semantic_router = Arc::new(SemanticRouter::new(vectorizer, reranker));

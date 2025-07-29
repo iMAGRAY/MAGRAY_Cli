@@ -22,14 +22,12 @@ pub trait Reranker: Send + Sync {
 }
 
 /// Enum для выбора между реальной и mock моделью эмбеддингов
-#[derive(Debug)]
 enum EmbeddingModelImpl {
     Real(Arc<Qwen3EmbeddingModel>),
     Mock(Arc<MockEmbeddingModel>),
 }
 
 /// Сервис для генерации эмбеддингов с fallback на mock
-#[derive(Debug)]
 pub struct VectorizerService {
     model: EmbeddingModelImpl,
     cache: Arc<RwLock<HashMap<String, Vec<f32>>>>,
@@ -39,17 +37,14 @@ impl VectorizerService {
     pub async fn new<P: AsRef<Path>>(model_path: P) -> Result<Self> {
         let model_path = model_path.as_ref().to_path_buf();
         
-        // Пытаемся загрузить реальную модель, если не получается - используем mock
-        let model = match Qwen3EmbeddingModel::new(model_path.clone()).await {
-            Ok(model) => {
-                tracing::info!("Loaded real Qwen3 embedding model");
-                EmbeddingModelImpl::Real(Arc::new(model))
-            }
-            Err(e) => {
-                tracing::warn!("Failed to load real model: {}. Using mock model instead", e);
-                let mock = MockEmbeddingModel::new(model_path).await?;
-                EmbeddingModelImpl::Mock(Arc::new(mock))
-            }
+        // Пытаемся загрузить модели в порядке приоритета: ONNX -> Mock
+        let model = if let Ok(onnx_model) = Qwen3EmbeddingModel::new(model_path.clone()).await {
+            tracing::info!("Loaded Qwen3 embedding model from ONNX");
+            EmbeddingModelImpl::Real(Arc::new(onnx_model))
+        } else {
+            tracing::warn!("Failed to load real models, using mock model instead");
+            let mock = MockEmbeddingModel::new(model_path).await?;
+            EmbeddingModelImpl::Mock(Arc::new(mock))
         };
         
         Ok(Self {
@@ -133,14 +128,12 @@ impl Vectorizer for VectorizerService {
 }
 
 /// Enum для выбора между реальной и mock моделью reranker
-#[derive(Debug)]
 enum RerankerModelImpl {
     Real(Arc<Qwen3RerankerModel>),
     Mock(Arc<MockRerankerModel>),
 }
 
 /// Сервис для reranking документов с fallback на mock
-#[derive(Debug)]
 pub struct RerankerService {
     model: RerankerModelImpl,
     max_documents: usize,
@@ -150,17 +143,14 @@ impl RerankerService {
     pub async fn new<P: AsRef<Path>>(model_path: P) -> Result<Self> {
         let model_path = model_path.as_ref().to_path_buf();
         
-        // Пытаемся загрузить реальную модель, если не получается - используем mock
-        let model = match Qwen3RerankerModel::new(model_path.clone()).await {
-            Ok(model) => {
-                tracing::info!("Loaded real Qwen3 reranker model");
-                RerankerModelImpl::Real(Arc::new(model))
-            }
-            Err(e) => {
-                tracing::warn!("Failed to load real reranker: {}. Using mock model instead", e);
-                let mock = MockRerankerModel::new(model_path).await?;
-                RerankerModelImpl::Mock(Arc::new(mock))
-            }
+        // Пытаемся загрузить модели в порядке приоритета: ONNX -> Mock
+        let model = if let Ok(onnx_model) = Qwen3RerankerModel::new(model_path.clone()).await {
+            tracing::info!("Loaded Qwen3 reranker model from ONNX");
+            RerankerModelImpl::Real(Arc::new(onnx_model))
+        } else {
+            tracing::warn!("Failed to load real reranker models, using mock model instead");
+            let mock = MockRerankerModel::new(model_path).await?;
+            RerankerModelImpl::Mock(Arc::new(mock))
         };
         
         Ok(Self {

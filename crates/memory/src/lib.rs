@@ -28,6 +28,7 @@ pub mod mock_models;
 pub mod semantic_with_fallback;
 #[cfg(feature = "use_real_onnx")]
 pub mod model_downloader;
+pub mod tokenizer_utils;
 
 pub use coordinator::MemoryCoordinator;
 pub use semantic::{SemanticRouter, VectorizerService, RerankerService};

@@ -9,6 +9,7 @@ use tracing::{debug, info};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, Mutex};
+use crate::tokenizer_utils::load_tokenizer;
 
 /// Настоящая Qwen3 модель для эмбеддингов через ONNX Runtime
 /// 
@@ -22,6 +23,11 @@ pub struct Qwen3EmbeddingModel {
     max_length: usize,
     pad_token_id: u32,
     cache: Arc<RwLock<HashMap<String, Vec<f32>>>>,
+    use_kv_cache: bool,
+    num_layers: usize,
+    num_attention_heads: usize,
+    num_key_value_heads: usize,
+    head_dim: usize,
 }
 
 impl Qwen3EmbeddingModel {
@@ -45,11 +51,6 @@ impl Qwen3EmbeddingModel {
             return Err(anyhow::anyhow!("Model file not found in: {}", model_path.display()));
         };
 
-        let tokenizer_file = model_path.join("tokenizer.json");
-        if !tokenizer_file.exists() {
-            return Err(anyhow::anyhow!("Tokenizer file not found: {}", tokenizer_file.display()));
-        }
-
         // Загружаем конфигурацию модели
         let config_file = model_path.join("config.json");
         let config_content = tokio::fs::read_to_string(&config_file).await
@@ -61,6 +62,13 @@ impl Qwen3EmbeddingModel {
             .ok_or_else(|| anyhow::anyhow!("hidden_size not found in config"))? as usize;
         let max_position_embeddings = config["max_position_embeddings"].as_u64()
             .ok_or_else(|| anyhow::anyhow!("max_position_embeddings not found in config"))? as usize;
+        
+        // Читаем параметры для KV-cache
+        let use_kv_cache = config["use_cache"].as_bool().unwrap_or(false);
+        let num_layers = config["num_hidden_layers"].as_u64().unwrap_or(28) as usize;
+        let num_attention_heads = config["num_attention_heads"].as_u64().unwrap_or(16) as usize;
+        let num_key_value_heads = config["num_key_value_heads"].as_u64().unwrap_or(8) as usize;
+        let head_dim = config["head_dim"].as_u64().unwrap_or(128) as usize;
 
         // В ORT 2.0 инициализация происходит автоматически
         // Загружаем ONNX сессию напрямую
@@ -70,9 +78,9 @@ impl Qwen3EmbeddingModel {
             .commit_from_file(&model_file)
             .with_context(|| format!("Failed to load ONNX model: {}", model_file.display()))?;
 
-        // Загружаем токенизатор
-        let tokenizer = Tokenizer::from_file(&tokenizer_file)
-            .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))?;
+        // Загружаем токенизатор (поддерживаем разные форматы)
+        let tokenizer = load_tokenizer(&model_path).await
+            .with_context(|| format!("Failed to load tokenizer from: {}", model_path.display()))?;
 
         // Для Qwen3 pad_token это "<|endoftext|>" с ID 151643
         let pad_token_id = 151643u32;
@@ -81,6 +89,9 @@ impl Qwen3EmbeddingModel {
         info!("  - Hidden size: {}", hidden_size);
         info!("  - Max length: {}", max_position_embeddings);
         info!("  - Pad token ID: {}", pad_token_id);
+        info!("  - Use KV-cache: {}", use_kv_cache);
+        info!("  - Layers: {}, Heads: {}, KV heads: {}, Head dim: {}", 
+              num_layers, num_attention_heads, num_key_value_heads, head_dim);
 
         Ok(Self {
             session: Arc::new(Mutex::new(session)),
@@ -89,6 +100,11 @@ impl Qwen3EmbeddingModel {
             max_length: max_position_embeddings.min(32768), // Ограничиваем для производительности
             pad_token_id,
             cache: Arc::new(RwLock::new(HashMap::new())),
+            use_kv_cache,
+            num_layers,
+            num_attention_heads,
+            num_key_value_heads,
+            head_dim,
         })
     }
 
@@ -189,17 +205,46 @@ impl Qwen3EmbeddingModel {
         // Конвертируем в формат для ONNX
         let input_ids_i64: Vec<i64> = input_ids.iter().map(|&x| x as i64).collect();
         let attention_mask_i64: Vec<i64> = attention_mask.iter().map(|&x| x as i64).collect();
+        
+        // Создаем position_ids (последовательные индексы позиций)
+        let position_ids: Vec<i64> = (0..target_length as i64).collect();
 
         // Создаем тензоры - используем правильный формат для ORT
         let input_ids_value = Value::from_array(([1, target_length], input_ids_i64))?;
         let attention_mask_value = Value::from_array(([1, target_length], attention_mask_i64))?;
+        let position_ids_value = Value::from_array(([1, target_length], position_ids))?;
         
-        // Выполняем инференс
+        // Выполняем инференс с учетом KV-cache
         let mut session = self.session.lock().await;
-        let outputs = session.run(ort::inputs![
-            "input_ids" => &input_ids_value,
-            "attention_mask" => &attention_mask_value,
-        ])?;
+        let outputs = if self.use_kv_cache {
+            // Модель с KV-cache - создаем пустые past_key_values для всех слоев
+            let mut inputs = ort::inputs![
+                "input_ids" => &input_ids_value,
+                "attention_mask" => &attention_mask_value,
+                "position_ids" => &position_ids_value,
+            ];
+            
+            // Добавляем past_key_values для всех слоев
+            // Размер: [batch_size, num_key_value_heads, seq_len, head_dim]
+            let kv_shape = [1, self.num_key_value_heads, 0, self.head_dim];
+            let empty_kv = Value::from_array((kv_shape, vec![0.0f32; 0]))?;
+            
+            for layer_idx in 0..self.num_layers {
+                let key_name = format!("past_key_values.{}.key", layer_idx);
+                let value_name = format!("past_key_values.{}.value", layer_idx);
+                inputs.insert(key_name.as_str(), &empty_kv);
+                inputs.insert(value_name.as_str(), &empty_kv);
+            }
+            
+            session.run(inputs)?
+        } else {
+            // Модель без KV-cache - только основные входы
+            session.run(ort::inputs![
+                "input_ids" => &input_ids_value,
+                "attention_mask" => &attention_mask_value,
+                "position_ids" => &position_ids_value,
+            ])?
+        };
 
         // Извлекаем эмбеддинги из последнего скрытого состояния
         let (shape, data) = outputs["last_hidden_state"]
@@ -278,6 +323,11 @@ pub struct Qwen3RerankerModel {
     tokenizer: Tokenizer,
     max_length: usize,
     pad_token_id: u32,
+    use_kv_cache: bool,
+    num_layers: usize,
+    num_attention_heads: usize,
+    num_key_value_heads: usize,
+    head_dim: usize,
 }
 
 impl Qwen3RerankerModel {
@@ -301,11 +351,6 @@ impl Qwen3RerankerModel {
             return Err(anyhow::anyhow!("Model file not found in: {}", model_path.display()));
         };
 
-        let tokenizer_file = model_path.join("tokenizer.json");
-        if !tokenizer_file.exists() {
-            return Err(anyhow::anyhow!("Tokenizer file not found: {}", tokenizer_file.display()));
-        }
-
         // Загружаем конфигурацию модели
         let config_file = model_path.join("config.json");
         let config_content = tokio::fs::read_to_string(&config_file).await
@@ -315,6 +360,13 @@ impl Qwen3RerankerModel {
         
         let max_position_embeddings = config["max_position_embeddings"].as_u64()
             .ok_or_else(|| anyhow::anyhow!("max_position_embeddings not found in config"))? as usize;
+        
+        // Читаем параметры для KV-cache для reranker
+        let use_kv_cache = config["use_cache"].as_bool().unwrap_or(false);
+        let num_layers = config["num_hidden_layers"].as_u64().unwrap_or(28) as usize;
+        let num_attention_heads = config["num_attention_heads"].as_u64().unwrap_or(16) as usize;
+        let num_key_value_heads = config["num_key_value_heads"].as_u64().unwrap_or(8) as usize;
+        let head_dim = config["head_dim"].as_u64().unwrap_or(128) as usize;
 
         // В ORT 2.0 инициализация происходит автоматически
         // Загружаем ONNX сессию напрямую
@@ -324,21 +376,29 @@ impl Qwen3RerankerModel {
             .commit_from_file(&model_file)
             .with_context(|| format!("Failed to load ONNX model: {}", model_file.display()))?;
 
-        // Загружаем токенизатор
-        let tokenizer = Tokenizer::from_file(&tokenizer_file)
-            .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))?;
+        // Загружаем токенизатор (поддерживаем разные форматы)
+        let tokenizer = load_tokenizer(&model_path).await
+            .with_context(|| format!("Failed to load tokenizer from: {}", model_path.display()))?;
 
         let pad_token_id = 151643u32; // "<|endoftext|>" для Qwen3
 
         info!("Successfully loaded Qwen3 reranker model");
         info!("  - Max length: {}", max_position_embeddings);
         info!("  - Pad token ID: {}", pad_token_id);
+        info!("  - Use KV-cache: {}", use_kv_cache);
+        info!("  - Layers: {}, Heads: {}, KV heads: {}, Head dim: {}", 
+              num_layers, num_attention_heads, num_key_value_heads, head_dim);
 
         Ok(Self {
             session: Arc::new(Mutex::new(session)),
             tokenizer,
             max_length: max_position_embeddings.min(40960),
             pad_token_id,
+            use_kv_cache,
+            num_layers,
+            num_attention_heads,
+            num_key_value_heads,
+            head_dim,
         })
     }
 
@@ -394,17 +454,46 @@ impl Qwen3RerankerModel {
         // Конвертируем в формат для ONNX
         let input_ids_i64: Vec<i64> = input_ids.iter().map(|&x| x as i64).collect();
         let attention_mask_i64: Vec<i64> = attention_mask.iter().map(|&x| x as i64).collect();
+        
+        // Создаем position_ids (последовательные индексы позиций)
+        let position_ids: Vec<i64> = (0..target_length as i64).collect();
 
         // Создаем тензоры - используем правильный формат для ORT
         let input_ids_value = Value::from_array(([1, target_length], input_ids_i64))?;
         let attention_mask_value = Value::from_array(([1, target_length], attention_mask_i64))?;
+        let position_ids_value = Value::from_array(([1, target_length], position_ids))?;
         
-        // Выполняем инференс
+        // Выполняем инференс с учетом KV-cache
         let mut session = self.session.lock().await;
-        let outputs = session.run(ort::inputs![
-            "input_ids" => &input_ids_value,
-            "attention_mask" => &attention_mask_value,
-        ])?;
+        let outputs = if self.use_kv_cache {
+            // Модель с KV-cache - создаем пустые past_key_values для всех слоев
+            let mut inputs = ort::inputs![
+                "input_ids" => &input_ids_value,
+                "attention_mask" => &attention_mask_value,
+                "position_ids" => &position_ids_value,
+            ];
+            
+            // Добавляем past_key_values для всех слоев
+            // Размер: [batch_size, num_key_value_heads, seq_len, head_dim]
+            let kv_shape = [1, self.num_key_value_heads, 0, self.head_dim];
+            let empty_kv = Value::from_array((kv_shape, vec![0.0f32; 0]))?;
+            
+            for layer_idx in 0..self.num_layers {
+                let key_name = format!("past_key_values.{}.key", layer_idx);
+                let value_name = format!("past_key_values.{}.value", layer_idx);
+                inputs.insert(key_name.as_str(), &empty_kv);
+                inputs.insert(value_name.as_str(), &empty_kv);
+            }
+            
+            session.run(inputs)?
+        } else {
+            // Модель без KV-cache - только основные входы
+            session.run(ort::inputs![
+                "input_ids" => &input_ids_value,
+                "attention_mask" => &attention_mask_value,
+                "position_ids" => &position_ids_value,
+            ])?
+        };
 
         // Извлекаем logits для классификации релевантности
         let (shape, data) = outputs["logits"]

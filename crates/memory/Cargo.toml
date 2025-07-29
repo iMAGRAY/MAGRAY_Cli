@@ -26,6 +26,7 @@ reqwest = { workspace = true, features = ["stream"] }
 ort = { version = "2.0.0-rc.10", features = ["download-binaries", "load-dynamic", "cuda", "tensorrt", "coreml", "directml"] }
 tokenizers = "0.21"
 
+
 # Для криптографии и хеширования
 blake3 = "1.5"
 
