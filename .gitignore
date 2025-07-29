@@ -63,3 +63,5 @@ embed_cache.db
 *.local.json
 models/Qwen3-Embedding-0.6B-ONNX/model_fp16_data
 models/Qwen3-Embedding-0.6B-ONNX/model_fp16.onnx_data
+models/1/Qwen3-Embedding-0.6B/
+models/1/Qwen3-Reranker-0.6B/
