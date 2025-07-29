@@ -1,0 +1,9 @@
+# Ignore large ONNX model files
+*.onnx
+*.onnx_data
+
+# These files are too large for GitHub (>100MB)
+# Download them separately from HuggingFace:
+# - Qwen3-Embedding-0.6B-ONNX/model_fp16.onnx
+# - Qwen3-Embedding-0.6B-ONNX/model_fp16.onnx_data  
+# - Qwen3-Reranker-0.6B-ONNX/model.onnx

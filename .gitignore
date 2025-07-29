@@ -1,6 +1,8 @@
 # Rust
 target/
 Cargo.lock
+**/*.rs.bk
+*.pdb
 
 # IDE
 .vscode/
@@ -9,10 +11,53 @@ Cargo.lock
 *.swo
 *~
 
+# Environment
+
+# Logs
+logs/
+*.log
+
+# User data
+~/.ourcli/
+~/.magray/
+
+# ONNX Models (they're large)
+models/**/*.onnx
+*.onnx
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Test artifacts
+test_memory_db/
+temp/
+tmp/
+
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-logs/
+# Backup files
+*.bak
+*.backup
+
+# Build artifacts
+dist/
+build/
+
+# Documentation build
+docs/_build/
+docs/site/
+
+# Cache
+.cache/
+*.cache
+embed_cache.db
+
+# Local settings
+.claude/settings.local.json
+*.local.json

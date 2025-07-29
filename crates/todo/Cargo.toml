@@ -1,0 +1,40 @@
+[package]
+name = "todo"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Core
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+# Database
+rusqlite = { workspace = true }
+r2d2 = "0.8"
+r2d2_sqlite = "0.24"
+
+# Internal crates
+memory = { path = "../memory" }
+llm = { path = "../llm" }
+
+# Graph operations
+petgraph = "0.6"
+
+# Caching
+lru = "0.12"
+dashmap = "6.0"
+
+# Events (уже есть tokio выше)
+
+# Performance
+parking_lot = "0.12"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio-test = "0.4"

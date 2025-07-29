@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Documentation Update",
+  "description": "Monitors documentation changes and ensures they align with current project state and functionality",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "README.md",
+      "PROPER_SOLUTION.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Project documentation has been updated. Please review the changes and ensure they accurately reflect the current state of the MAGRAY CLI project. Verify that: 1) Installation and usage instructions are correct, 2) Feature descriptions match actual implementation, 3) Examples work with the current codebase, 4) Dependencies and requirements are up to date. Consider if any code changes are needed to match the documented behavior."
+  }
+}
