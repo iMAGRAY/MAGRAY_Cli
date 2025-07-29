@@ -30,7 +30,8 @@
       "Bash(cp:*)",
       "Bash(where:*)",
       "Bash(powershell:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(timeout 30 cargo run --example test_full_memory_system -p memory)"
     ],
     "deny": []
   }
