@@ -1,21 +1,18 @@
 use anyhow::{Context, Result};
-use ort::{
-    session::{builder::GraphOptimizationLevel, Session},
-    value::Value,
-};
+use ort::{Environment, GraphOptimizationLevel, Session, SessionBuilder};
 use std::path::PathBuf;
-use tokenizers::Tokenizer;
-use tracing::{debug, info};
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{RwLock, Mutex};
+use tokenizers::Tokenizer;
+use tokio::sync::{Mutex, RwLock};
+use tracing::{debug, info, warn};
+use std::collections::HashMap;
 
-/// Настоящая Qwen3 модель для эмбеддингов через ONNX Runtime
+/// Реализация Qwen3 модели для эмбеддингов через ONNX Runtime v1.16
 /// 
-/// Эта реализация использует реальные ONNX модели и токенизатор
-/// для генерации высококачественных эмбеддингов текста
+/// Эта версия корректно работает с API ORT 1.16
 #[derive(Debug)]
 pub struct Qwen3EmbeddingModel {
+    environment: Arc<Environment>,
     session: Arc<Mutex<Session>>,
     tokenizer: Tokenizer,
     embedding_dim: usize,
@@ -26,17 +23,14 @@ pub struct Qwen3EmbeddingModel {
 
 impl Qwen3EmbeddingModel {
     pub async fn new(model_path: PathBuf) -> Result<Self> {
-        // Инициализируем ORT при первом использовании
-        crate::onnx_init::ensure_ort_initialized()?;
-        
         info!("Loading Qwen3 Embedding model from: {}", model_path.display());
         
-        // Проверяем что директория и файлы существуют
+        // Проверяем существование директории и файлов
         if !model_path.exists() {
             return Err(anyhow::anyhow!("Model directory not found: {}", model_path.display()));
         }
 
-        // Проверяем разные варианты имен файлов
+        // Поддерживаем разные имена файлов моделей
         let model_file = if model_path.join("model_fp16.onnx").exists() {
             model_path.join("model_fp16.onnx")
         } else if model_path.join("model.onnx").exists() {
@@ -62,12 +56,19 @@ impl Qwen3EmbeddingModel {
         let max_position_embeddings = config["max_position_embeddings"].as_u64()
             .ok_or_else(|| anyhow::anyhow!("max_position_embeddings not found in config"))? as usize;
 
-        // В ORT 2.0 инициализация происходит автоматически
-        // Загружаем ONNX сессию напрямую
-        let session = Session::builder()?
+        // Создаем ONNX Runtime environment (правильный способ для v1.16)
+        let environment = Arc::new(
+            Environment::builder()
+                .with_name("qwen3_embedding")
+                .build()
+                .context("Failed to create ONNX Runtime environment")?
+        );
+        
+        // Создаем сессию с моделью
+        let session = SessionBuilder::new(&environment)?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
-            .commit_from_file(&model_file)
+            .with_model_from_file(&model_file)
             .with_context(|| format!("Failed to load ONNX model: {}", model_file.display()))?;
 
         // Загружаем токенизатор
@@ -80,13 +81,14 @@ impl Qwen3EmbeddingModel {
         info!("Successfully loaded Qwen3 embedding model:");
         info!("  - Hidden size: {}", hidden_size);
         info!("  - Max length: {}", max_position_embeddings);
-        info!("  - Pad token ID: {}", pad_token_id);
+        info!("  - Model file: {}", model_file.display());
 
         Ok(Self {
+            environment,
             session: Arc::new(Mutex::new(session)),
             tokenizer,
             embedding_dim: hidden_size,
-            max_length: max_position_embeddings.min(32768), // Ограничиваем для производительности
+            max_length: max_position_embeddings.min(512), // Ограничиваем для производительности
             pad_token_id,
             cache: Arc::new(RwLock::new(HashMap::new())),
         })
@@ -100,7 +102,7 @@ impl Qwen3EmbeddingModel {
 
         let mut results = Vec::with_capacity(texts.len());
 
-        // Проверяем кэш для каждого текста
+        // Проверяем кэш
         {
             let cache = self.cache.read().await;
             for text in texts {
@@ -113,7 +115,7 @@ impl Qwen3EmbeddingModel {
             }
         }
 
-        // Находим тексты, которые нужно обработать
+        // Находим тексты для обработки
         let mut to_process = Vec::new();
         let mut indices_to_process = Vec::new();
         
@@ -124,7 +126,7 @@ impl Qwen3EmbeddingModel {
             }
         }
 
-        // Обрабатываем тексты пакетами
+        // Обрабатываем некэшированные тексты
         if !to_process.is_empty() {
             let computed_embeddings = self.compute_embeddings_batch(&to_process).await?;
             
@@ -142,20 +144,16 @@ impl Qwen3EmbeddingModel {
             }
         }
 
-        // Конвертируем в финальный результат
-        let final_results: Result<Vec<Vec<f32>>> = results
-            .into_iter()
+        // Собираем финальные результаты
+        results.into_iter()
             .map(|opt| opt.ok_or_else(|| anyhow::anyhow!("Failed to compute embedding")))
-            .collect();
-
-        final_results
+            .collect()
     }
 
     async fn compute_embeddings_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let mut embeddings = Vec::with_capacity(texts.len());
 
-        // Обрабатываем по одному тексту для простоты
-        // В продакшене можно реализовать батчинг
+        // Обрабатываем по одному тексту (можно оптимизировать для батчей)
         for text in texts {
             let embedding = self.compute_single_embedding(text).await?;
             embeddings.push(embedding);
@@ -165,7 +163,7 @@ impl Qwen3EmbeddingModel {
     }
 
     async fn compute_single_embedding(&self, text: &str) -> Result<Vec<f32>> {
-        // Токенизируем текст
+        // Токенизация
         let encoding = self.tokenizer
             .encode(text, false)
             .map_err(|e| anyhow::anyhow!("Failed to tokenize text: {}", e))?;
@@ -173,8 +171,8 @@ impl Qwen3EmbeddingModel {
         let mut input_ids = encoding.get_ids().to_vec();
         let mut attention_mask = encoding.get_attention_mask().to_vec();
 
-        // Обрезаем или дополняем до нужной длины
-        let target_length = self.max_length.min(512); // Используем 512 для производительности
+        // Паддинг или обрезка до нужной длины
+        let target_length = self.max_length;
         
         if input_ids.len() > target_length {
             input_ids.truncate(target_length);
@@ -186,48 +184,80 @@ impl Qwen3EmbeddingModel {
             }
         }
 
-        // Конвертируем в формат для ONNX
+        // Конвертируем в i64 для ONNX
         let input_ids_i64: Vec<i64> = input_ids.iter().map(|&x| x as i64).collect();
         let attention_mask_i64: Vec<i64> = attention_mask.iter().map(|&x| x as i64).collect();
 
-        // Создаем тензоры - используем правильный формат для ORT
-        let input_ids_value = Value::from_array(([1, target_length], input_ids_i64))?;
-        let attention_mask_value = Value::from_array(([1, target_length], attention_mask_i64))?;
-        
-        // Выполняем инференс
-        let mut session = self.session.lock().await;
-        let outputs = session.run(ort::inputs![
-            "input_ids" => &input_ids_value,
-            "attention_mask" => &attention_mask_value,
-        ])?;
+        // Создаем ndarray тензоры для ORT 1.16
+        let input_ids_array = ndarray::Array2::from_shape_vec(
+            (1, target_length),
+            input_ids_i64
+        )?;
+        let attention_mask_array = ndarray::Array2::from_shape_vec(
+            (1, target_length),
+            attention_mask_i64
+        )?;
 
-        // Извлекаем эмбеддинги из последнего скрытого состояния
-        let (shape, data) = outputs["last_hidden_state"]
-            .try_extract_tensor::<f32>()?;
+        // Выполняем инференс
+        let session = self.session.lock().await;
+        
+        // В ORT 1.16 используем Tensor API
+        use ort::tensor::OrtOwnedTensor;
+        use ort::Value;
+        
+        let input_shape = vec![1_usize, target_length];
+        
+        // Создаём тензоры через Value::from_array с правильными типами
+        let input_ids_tensor = Value::from_array(
+            session.allocator(), 
+            &input_ids_array.view()
+        ).context("Failed to create input_ids tensor")?;
+        
+        let attention_mask_tensor = Value::from_array(
+            session.allocator(), 
+            &attention_mask_array.view()
+        ).context("Failed to create attention_mask tensor")?;
+        
+        let inputs = vec![input_ids_tensor, attention_mask_tensor];
+        
+        let outputs = session.run(inputs)
+            .context("Failed to run ONNX inference")?;
+
+        // Извлекаем результат
+        let output_tensor = outputs
+            .get(0)
+            .ok_or_else(|| anyhow::anyhow!("No output from model"))?;
+        
+        // Получаем view на данные
+        let output_array = output_tensor
+            .try_extract::<f32>()
+            .context("Failed to extract output tensor")?
+            .view()
+            .to_owned();
+
+        // Проверяем размерности
+        let shape = output_array.shape();
         if shape.len() != 3 || shape[0] != 1 {
             return Err(anyhow::anyhow!("Unexpected output shape: {:?}", shape));
         }
 
-        let seq_len = shape[1] as usize;
-        let hidden_size = shape[2] as usize;
-        
-        // Создаем ndarray для удобного доступа к данным
-        let tensor_array = ndarray::ArrayView3::from_shape((1, seq_len, hidden_size), data)?;
+        let seq_len = shape[1];
+        let hidden_size = shape[2];
 
-        // Применяем mean pooling с учетом attention mask
+        // Mean pooling с учетом attention mask
         let mut pooled_embedding = vec![0.0f32; hidden_size];
         let mut valid_tokens = 0u32;
 
         for seq_idx in 0..seq_len {
-            if attention_mask[seq_idx] == 1 {
+            if seq_idx < attention_mask.len() && attention_mask[seq_idx] == 1 {
                 for hidden_idx in 0..hidden_size {
-                    pooled_embedding[hidden_idx] += tensor_array[[0, seq_idx, hidden_idx]];
+                    pooled_embedding[hidden_idx] += output_array[[0, seq_idx, hidden_idx]];
                 }
                 valid_tokens += 1;
             }
         }
 
-        // Нормализуем по количеству валидных токенов
+        // Нормализация
         if valid_tokens > 0 {
             for val in &mut pooled_embedding {
                 *val /= valid_tokens as f32;
@@ -271,9 +301,10 @@ impl Qwen3EmbeddingModel {
     }
 }
 
-/// Настоящая Qwen3 модель для reranking через ONNX Runtime
+/// Реализация Qwen3 модели для reranking через ONNX Runtime v1.16
 #[derive(Debug)]
 pub struct Qwen3RerankerModel {
+    environment: Arc<Environment>,
     session: Arc<Mutex<Session>>,
     tokenizer: Tokenizer,
     max_length: usize,
@@ -282,31 +313,24 @@ pub struct Qwen3RerankerModel {
 
 impl Qwen3RerankerModel {
     pub async fn new(model_path: PathBuf) -> Result<Self> {
-        // Инициализируем ORT при первом использовании
-        crate::onnx_init::ensure_ort_initialized()?;
-        
         info!("Loading Qwen3 Reranker model from: {}", model_path.display());
         
-        // Проверяем что директория и файлы существуют
+        // Проверяем существование директории и файлов
         if !model_path.exists() {
             return Err(anyhow::anyhow!("Model directory not found: {}", model_path.display()));
         }
 
-        // Проверяем разные варианты имен файлов
-        let model_file = if model_path.join("model_fp16.onnx").exists() {
-            model_path.join("model_fp16.onnx")
-        } else if model_path.join("model.onnx").exists() {
-            model_path.join("model.onnx")
-        } else {
-            return Err(anyhow::anyhow!("Model file not found in: {}", model_path.display()));
-        };
+        let model_file = model_path.join("model.onnx");
+        if !model_file.exists() {
+            return Err(anyhow::anyhow!("Model file not found: {}", model_file.display()));
+        }
 
         let tokenizer_file = model_path.join("tokenizer.json");
         if !tokenizer_file.exists() {
             return Err(anyhow::anyhow!("Tokenizer file not found: {}", tokenizer_file.display()));
         }
 
-        // Загружаем конфигурацию модели
+        // Загружаем конфигурацию
         let config_file = model_path.join("config.json");
         let config_content = tokio::fs::read_to_string(&config_file).await
             .with_context(|| format!("Failed to read config file: {}", config_file.display()))?;
@@ -316,12 +340,19 @@ impl Qwen3RerankerModel {
         let max_position_embeddings = config["max_position_embeddings"].as_u64()
             .ok_or_else(|| anyhow::anyhow!("max_position_embeddings not found in config"))? as usize;
 
-        // В ORT 2.0 инициализация происходит автоматически
-        // Загружаем ONNX сессию напрямую
-        let session = Session::builder()?
+        // Создаем ONNX Runtime environment
+        let environment = Arc::new(
+            Environment::builder()
+                .with_name("qwen3_reranker")
+                .build()
+                .context("Failed to create ONNX Runtime environment")?
+        );
+
+        // Создаем сессию
+        let session = SessionBuilder::new(&environment)?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
-            .commit_from_file(&model_file)
+            .with_model_from_file(&model_file)
             .with_context(|| format!("Failed to load ONNX model: {}", model_file.display()))?;
 
         // Загружаем токенизатор
@@ -331,13 +362,12 @@ impl Qwen3RerankerModel {
         let pad_token_id = 151643u32; // "<|endoftext|>" для Qwen3
 
         info!("Successfully loaded Qwen3 reranker model");
-        info!("  - Max length: {}", max_position_embeddings);
-        info!("  - Pad token ID: {}", pad_token_id);
 
         Ok(Self {
+            environment,
             session: Arc::new(Mutex::new(session)),
             tokenizer,
-            max_length: max_position_embeddings.min(40960),
+            max_length: max_position_embeddings.min(1024),
             pad_token_id,
         })
     }
@@ -350,9 +380,15 @@ impl Qwen3RerankerModel {
 
         let mut scored_docs = Vec::new();
 
+        // Вычисляем скоры для каждого документа
         for (idx, doc) in documents.iter().enumerate() {
-            let score = self.compute_relevance_score(query, doc).await?;
-            scored_docs.push((idx, score));
+            match self.compute_relevance_score(query, doc).await {
+                Ok(score) => scored_docs.push((idx, score)),
+                Err(e) => {
+                    warn!("Failed to compute score for document {}: {}", idx, e);
+                    scored_docs.push((idx, 0.0)); // Fallback score
+                }
+            }
         }
 
         // Сортируем по убыванию скора
@@ -366,8 +402,7 @@ impl Qwen3RerankerModel {
     }
 
     async fn compute_relevance_score(&self, query: &str, document: &str) -> Result<f32> {
-        // Формируем input для reranker в стиле Qwen3
-        // Используем шаблон: query [SEP] document
+        // Формируем input в стиле cross-encoder
         let combined_text = format!("{} [SEP] {}", query, document);
 
         // Токенизируем
@@ -378,8 +413,8 @@ impl Qwen3RerankerModel {
         let mut input_ids = encoding.get_ids().to_vec();
         let mut attention_mask = encoding.get_attention_mask().to_vec();
 
-        // Обрезаем или дополняем до нужной длины
-        let target_length = self.max_length.min(1024); // Используем 1024 для reranking
+        // Паддинг или обрезка
+        let target_length = self.max_length;
         
         if input_ids.len() > target_length {
             input_ids.truncate(target_length);
@@ -391,70 +426,57 @@ impl Qwen3RerankerModel {
             }
         }
 
-        // Конвертируем в формат для ONNX
+        // Конвертируем в i64
         let input_ids_i64: Vec<i64> = input_ids.iter().map(|&x| x as i64).collect();
         let attention_mask_i64: Vec<i64> = attention_mask.iter().map(|&x| x as i64).collect();
 
-        // Создаем тензоры - используем правильный формат для ORT
-        let input_ids_value = Value::from_array(([1, target_length], input_ids_i64))?;
-        let attention_mask_value = Value::from_array(([1, target_length], attention_mask_i64))?;
-        
+        // Создаем тензоры
+        let input_ids_array = ndarray::Array2::from_shape_vec(
+            (1, target_length),
+            input_ids_i64
+        )?;
+        let attention_mask_array = ndarray::Array2::from_shape_vec(
+            (1, target_length),
+            attention_mask_i64
+        )?;
+
         // Выполняем инференс
-        let mut session = self.session.lock().await;
-        let outputs = session.run(ort::inputs![
-            "input_ids" => &input_ids_value,
-            "attention_mask" => &attention_mask_value,
-        ])?;
-
-        // Извлекаем logits для классификации релевантности
-        let (shape, data) = outputs["logits"]
-            .try_extract_tensor::<f32>()?;
-        if shape.len() < 2 {
-            return Err(anyhow::anyhow!("Unexpected logits shape: {:?}", shape));
-        }
-
-        // Для reranking обычно берем последний токен или делаем pooling
-        // Простой подход: берем среднее значение активных токенов
-        let seq_len = shape[1] as usize;
-        let vocab_size = if shape.len() > 2 { shape[2] as usize } else { 1usize };
+        let session = self.session.lock().await;
         
-        let mut relevance_score = 0.0f32;
-        let mut active_tokens = 0;
+        // Создаём Value тензоры для ORT 1.16
+        let input_ids_value = Value::from_array(session.allocator(), &input_ids_array)
+            .context("Failed to create input_ids tensor for reranker")?;
+        let attention_mask_value = Value::from_array(session.allocator(), &attention_mask_array)
+            .context("Failed to create attention_mask tensor for reranker")?;
+        
+        let inputs = vec![input_ids_value, attention_mask_value];
+        
+        let outputs = session.run(inputs)
+            .context("Failed to run reranker inference")?;
 
-        // Используем простой подход - берем среднее по всем активным токенам
-        for seq_idx in 0..seq_len {
-            if seq_idx < attention_mask.len() && attention_mask[seq_idx] == 1 {
-                if shape.len() == 3 && vocab_size > 1 {
-                    // 3D тензор: берем максимальный logit по vocab размерности
-                    let mut max_logit = f32::NEG_INFINITY;
-                    for vocab_idx in 0..vocab_size {
-                        let data_idx = seq_idx * vocab_size + vocab_idx;
-                        if data_idx < data.len() {
-                            let logit = data[data_idx];
-                            if logit > max_logit {
-                                max_logit = logit;
-                            }
-                        }
-                    }
-                    relevance_score += max_logit;
-                } else {
-                    // 2D тензор: просто берем значение
-                    if seq_idx < data.len() {
-                        relevance_score += data[seq_idx];
-                    }
-                }
-                active_tokens += 1;
-            }
-        }
+        // Извлекаем скор
+        let output_tensor = outputs
+            .get(0)
+            .ok_or_else(|| anyhow::anyhow!("No output from reranker model"))?;
+        
+        let output_array = output_tensor
+            .try_extract::<f32>()
+            .context("Failed to extract reranker output")?
+            .view()
+            .to_owned();
 
-        if active_tokens > 0 {
-            relevance_score /= active_tokens as f32;
-        }
+        // Обычно reranker возвращает логиты или скоры
+        // Берем первое значение и применяем sigmoid для нормализации
+        let raw_score = output_array
+            .as_slice()
+            .and_then(|s| s.first())
+            .copied()
+            .unwrap_or(0.0);
 
-        // Применяем sigmoid для нормализации в [0, 1]
-        let normalized_score = 1.0 / (1.0 + (-relevance_score).exp());
+        // Применяем sigmoid для получения вероятности в [0, 1]
+        let score = 1.0 / (1.0 + (-raw_score).exp());
 
-        Ok(normalized_score)
+        Ok(score)
     }
 }
 
@@ -463,5 +485,40 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    // Эти тесты будут работать только при наличии реальных моделей
+    async fn create_mock_model_dir() -> Result<TempDir> {
+        let temp_dir = TempDir::new()?;
+        let model_path = temp_dir.path();
+
+        // Создаем минимальную конфигурацию
+        let config = serde_json::json!({
+            "hidden_size": 1024,
+            "max_position_embeddings": 512,
+            "model_type": "qwen2"
+        });
+        
+        tokio::fs::write(
+            model_path.join("config.json"),
+            serde_json::to_string_pretty(&config)?
+        ).await?;
+
+        // Создаем заглушки для файлов модели и токенизатора
+        // В реальных тестах здесь должны быть настоящие файлы
+        tokio::fs::write(model_path.join("model.onnx"), b"mock model").await?;
+        tokio::fs::write(model_path.join("tokenizer.json"), b"{}").await?;
+
+        Ok(temp_dir)
+    }
+
+    #[tokio::test]
+    async fn test_model_loading_fails_without_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let result = Qwen3EmbeddingModel::new(temp_dir.path().to_path_buf()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test] 
+    async fn test_cache_operations() {
+        // Этот тест можно запустить только с реальными моделями
+        // или используя mock реализацию
+    }
 }

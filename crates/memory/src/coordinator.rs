@@ -1,5 +1,5 @@
 use crate::layers::{EphemeralStore, VectorStore, LongTermStore};
-use crate::semantic::{SemanticRouter, VectorizerService, RerankerService, Vectorizer, Reranker};
+use crate::semantic_with_fallback::{SemanticRouter, VectorizerService, RerankerService, Vectorizer, Reranker};
 use crate::types::{MemoryEvent, ExecutionContext, MemoryOperationResult, MemoryUsageStats};
 use crate::{
     MemLayer, MemRef, MemMeta, MemSearchResult, MemoryStore, SemanticIndex, 
@@ -63,15 +63,32 @@ impl MemoryCoordinator {
         );
         
         // =8F80;878@C5< A5<0=B8G5A:85 A5@28AK
+        // Получаем базовый путь к моделям из переменной окружения или используем относительный путь
+        let models_base_path = std::env::var("MAGRAY_MODELS_PATH")
+            .unwrap_or_else(|_| {
+                // Пытаемся найти модели относительно текущей директории
+                let cwd = std::env::current_dir().unwrap_or_default();
+                if cwd.join("models").exists() {
+                    "models".to_string()
+                } else if cwd.join("../../models").exists() {
+                    "../../models".to_string()
+                } else {
+                    "./models".to_string()
+                }
+            });
+        
+        let models_path = std::path::PathBuf::from(&models_base_path);
+        info!("Using models path: {}", models_path.display());
+        
         let vectorizer = Arc::new(
             VectorizerService::new(
-                std::path::PathBuf::from("C:/Users/1/Documents/GitHub/MAGRAY_Cli/models/Qwen3-Embedding-0.6B-ONNX")
+                models_path.join("Qwen3-Embedding-0.6B-ONNX")
             ).await.context("Failed to initialize vectorizer service")?
         ) as Arc<dyn Vectorizer>;
         
         let reranker = Arc::new(
             RerankerService::new(
-                std::path::PathBuf::from("C:/Users/1/Documents/GitHub/MAGRAY_Cli/models/Qwen3-Reranker-0.6B-ONNX")
+                models_path.join("Qwen3-Reranker-0.6B-ONNX")
             ).await.context("Failed to initialize reranker service")?
         ) as Arc<dyn Reranker>;
         

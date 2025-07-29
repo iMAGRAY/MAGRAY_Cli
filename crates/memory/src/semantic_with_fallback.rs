@@ -22,6 +22,7 @@ pub trait Reranker: Send + Sync {
 }
 
 /// Enum для выбора между реальной и mock моделью эмбеддингов
+#[derive(Debug)]
 enum EmbeddingModelImpl {
     Real(Arc<Qwen3EmbeddingModel>),
     Mock(Arc<MockEmbeddingModel>),
@@ -132,6 +133,7 @@ impl Vectorizer for VectorizerService {
 }
 
 /// Enum для выбора между реальной и mock моделью reranker
+#[derive(Debug)]
 enum RerankerModelImpl {
     Real(Arc<Qwen3RerankerModel>),
     Mock(Arc<MockRerankerModel>),

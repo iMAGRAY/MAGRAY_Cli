@@ -9,12 +9,25 @@ pub mod layers;
 pub mod coordinator;
 pub mod semantic;
 pub mod types;
+pub mod ort_backend;
+#[cfg(feature = "use_real_onnx")]
+pub mod onnx_init;
+// Выбираем реализацию в зависимости от переменной окружения
+#[cfg(not(feature = "use_real_onnx"))]
+pub mod onnx_models_simplified;
+#[cfg(not(feature = "use_real_onnx"))]
+pub use onnx_models_simplified as onnx_models;
+
+#[cfg(feature = "use_real_onnx")]
 pub mod onnx_models;
 pub mod chunking;
 pub mod ingestion;
 pub mod vector_index;
 pub mod code_search;
 pub mod mock_models;
+pub mod semantic_with_fallback;
+#[cfg(feature = "use_real_onnx")]
+pub mod model_downloader;
 
 pub use coordinator::MemoryCoordinator;
 pub use semantic::{SemanticRouter, VectorizerService, RerankerService};

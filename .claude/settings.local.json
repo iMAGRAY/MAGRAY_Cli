@@ -21,7 +21,15 @@
       "Bash(grep:*)",
       "Bash(sed:*)",
       "Bash(set RUST_BACKTRACE=1)",
-      "Bash(set ORT_USE_CUDA=0)"
+      "Bash(set ORT_USE_CUDA=0)",
+      "Bash(MAGRAY_USE_MOCK_MODELS=true cargo test mock)",
+      "Bash(set MAGRAY_USE_MOCK_MODELS=true)",
+      "Bash(set ORT_DYLIB_PATH=C:Users1DocumentsGitHubMAGRAY_Clitargetdebug)",
+      "Bash(copy onnxruntime.dll deps\\ )",
+      "Bash(copy:*)",
+      "Bash(cp:*)",
+      "Bash(where:*)",
+      "Bash(powershell:*)"
     ],
     "deny": []
   }
