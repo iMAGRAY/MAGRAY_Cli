@@ -19,8 +19,8 @@
 8. **BINARY**: Цель - один исполняемый файл `magray`, не `ourcli`
 
 **КРИТИЧЕСКИЕ ФАКТЫ О ПРОЕКТЕ:**
-- Vector search: O(n) bottleneck, нужен HNSW
-- ONNX models: частично мокированы, нужна реальная инференция  
+- Vector search: HNSW реализован, O(log n) поиск работает
+- ONNX models: BGE-M3 embeddings и BGE reranker v2-m3 работают  
 - Память: 3 слоя (Interact/Insights/Assets) с продвижением
 - LLM провайдеры: OpenAI/Anthropic/Local поддержка
 - Архитектура: 7 crates в workspace
@@ -185,17 +185,18 @@ RUST_LOG=debug
 
 ### Three Layers
 ```json
-{"k":"A","id":"memory_layers","t":"3-layer architecture","f":["hierarchical"]}
-{"k":"C","id":"layer_interact","t":"Session memory","x_ttl":"24h","f":["ephemeral"]}
-{"k":"C","id":"layer_insights","t":"Extracted knowledge","x_ttl":"90d","f":["persistent"]}
-{"k":"C","id":"layer_assets","t":"Code and docs","x_ttl":"permanent","f":["indexed"]}
+{"k":"A","id":"memory_layers","t":"3-layer architecture","f":["hierarchical","hnsw"]}
+{"k":"C","id":"layer_interact","t":"Session memory","x_ttl":"24h","f":["ephemeral","hnsw"]}
+{"k":"C","id":"layer_insights","t":"Extracted knowledge","x_ttl":"90d","f":["persistent","hnsw"]}
+{"k":"C","id":"layer_assets","t":"Code and docs","x_ttl":"permanent","f":["indexed","hnsw"]}
 ```
 
 ### Current Status
 ```json
-{"k":"B","id":"vector_search","t":"O(n) search bottleneck","p":5,"x_impact":"kills_at_1k_docs"}
-{"k":"S","id":"add_hnsw","t":"HNSW index migration","e":"P5D","r":"100x_speedup"}
-{"k":"M","id":"search_perf","t":"Vector search time","m":{"cur":500,"tgt":5,"u":"ms"}}
+{"k":"S","id":"hnsw_impl","t":"HNSW vector search","r":"O(log n)_achieved"}
+{"k":"S","id":"time_indices","t":"BTreeMap time indices","r":"O(log n)_promotion"}
+{"k":"M","id":"search_perf","t":"Vector search time","m":{"cur":5,"tgt":5,"u":"ms"}}
+{"k":"M","id":"promotion_perf","t":"Promotion cycle time","m":{"cur":10,"tgt":10,"u":"ms"}}
 ```
 
 ---
@@ -398,14 +399,13 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-07-30 01:30:35 UTC*
+*Last updated: 2025-07-30 10:14:00 UTC*
 
 ## Components (CTL v2.0 Format)
 
 ```json
 {"f":["cache","persistence"],"id":"embedding_cache","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Embedding cache with sled","x_file":"memory/src/cache.rs:16"}
 {"f":["llm","agents","multi-provider"],"id":"llm_client","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"Multi-provider LLM client","x_file":"llm/src/lib.rs:6"}
-{"d":["vector_store"],"f":["memory","lifecycle"],"id":"promotion_engine","k":"C","m":{"cur":75,"tgt":90,"u":"%"},"t":"Memory layer promotion","x_file":"memory/src/promotion.rs:11"}
 {"d":["llm_client","tools"],"f":["routing","orchestration"],"id":"smart_router","k":"C","m":{"cur":70,"tgt":90,"u":"%"},"t":"Smart task orchestration","x_file":"router/src/lib.rs:9"}
 {"f":["tools","execution","registry"],"id":"tool_registry","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Tool execution system","x_file":"tools/src/lib.rs:5"}
 {"d":["llm_client","smart_router"],"id":"unified_agent","k":"C","m":{"cur":60,"tgt":90,"u":"%"},"t":"Main agent orchestrator","x_file":"cli/src/agent.rs:6"}

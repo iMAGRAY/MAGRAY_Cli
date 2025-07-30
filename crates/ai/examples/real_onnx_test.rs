@@ -100,7 +100,7 @@ async fn test_reranking_service(model_loader: &ModelLoader) -> Result<(), Box<dy
         use_gpu: false,
     };
     
-    let reranking_service = match RerankingService::new(model_loader, config.clone()) {
+    let reranking_service = match RerankingService::new(&config) {
         Ok(service) => {
             println!("✓ Created real reranking service");
             service

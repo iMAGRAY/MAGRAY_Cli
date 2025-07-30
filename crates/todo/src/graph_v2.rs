@@ -359,7 +359,7 @@ mod tests {
                         id: Uuid::new_v4(),
                         title: format!("Task {}", i),
                         state: TaskState::Ready,
-                        priority: Priority::Medium,
+                        priority: crate::Priority::Medium,
                         ..Default::default()
                     };
                     g.upsert_task(&task).unwrap();

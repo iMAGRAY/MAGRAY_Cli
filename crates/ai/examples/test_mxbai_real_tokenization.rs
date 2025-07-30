@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ai::reranker_mxbai::MxbaiRerankerService;
+use ai::reranker_mxbai::BgeRerankerService;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {

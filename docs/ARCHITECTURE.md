@@ -25,7 +25,7 @@ workspace/
 ├─ crates/
 │  ├─ cli            # main binary (clap)
 │  ├─ core           # planner, executor, event bus
-│  ├─ memory         # LanceDB wrapper + promotion
+│  ├─ memory         # HNSW vector store + time-based promotion
 │  ├─ ai             # embedding, rerank, llm clients
 │  ├─ tools          # common Tool traits + wasm host
 │  └─ scheduler      # cron jobs / maintenance
@@ -70,15 +70,16 @@ All links are **`async`/await** powered by **Tokio** runtime; EventBus is `tokio
 
 ---
 
-## 3. Memory Service (LanceDB + Rust)
+## 3. Memory Service (HNSW + Rust)
 
-| Table | Purpose | Retention | Index | Weight |
-|-------|---------|-----------|-------|--------|
-| `interact` (L1) | session chat & tool logs | ≤ 24 h | HNSW | 1.2 |
-| `insights` (L2) | distilled decisions | ≤ 90 d | IVF‑PQ | 1.0 |
-| `assets` (L3) | docs / code chunks | long‑term | IVF‑PQ segmented | 0.8 |
+| Layer | Purpose | Retention | Index | Algorithm |
+|-------|---------|-----------|-------|----------|
+| `interact` (L1) | session chat & tool logs | ≤ 24 h | HNSW | O(log n) search |
+| `insights` (L2) | distilled decisions | ≤ 90 d | HNSW | O(log n) search |
+| `assets` (L3) | docs / code chunks | permanent | HNSW | O(log n) search |
 
-Implemented using **`lancedb` crate** — zero‑copy Arrow columns, embedded storage.
+Implemented using **`hnsw_rs`** crate — fast approximate nearest neighbor search.
+Promotion uses **time-based BTreeMap indices** for O(log n) candidate selection.
 
 ### Rust schema
 
@@ -172,18 +173,27 @@ Environment flags:
 
 ---
 
-## 7. Promotion & Decay Logic
+## 7. Promotion Logic (Time-based Indexing)
 
 ```rust
-if layer == Layer::Interact && age > 24h && rec.tags.contains("decision") {
-    memsvc.promote(&rec.id, Layer::Insights).await?;
-}
-if layer == Layer::Insights && last_used > 90d {
-    memsvc.demote_summary(&rec.id, Layer::Assets).await?;
+// PromotionEngine with O(log n) time-based indices
+let candidates = self.find_candidates_by_time(
+    Layer::Interact,
+    threshold_time,
+    min_score,
+    min_access_count,
+).await?;
+
+// Automatic promotion based on age, score, and access patterns
+for record in candidates {
+    record.layer = Layer::Insights;
+    record.score *= decay_factor;
+    self.store.insert(&record).await?;
 }
 ```
 
-Scheduler wires these into cron.
+Time indices use BTreeMap for efficient range queries.
+No O(n) scans - everything is indexed.
 
 ---
 

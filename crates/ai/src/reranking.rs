@@ -1,4 +1,4 @@
-use crate::{Result, ModelLoader, TokenizerService, RerankingConfig, models::OnnxSession};
+use crate::{Result, TokenizerService, RerankingConfig, models::OnnxSession};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -21,38 +21,52 @@ pub struct RerankResult {
 }
 
 impl RerankingService {
-    /// Create a new reranking service
-    pub fn new(
-        model_loader: &ModelLoader,
-        config: RerankingConfig,
-    ) -> Result<Self> {
-        info!("Initializing reranking service with model: {}", config.model_name);
+    /// Create a new reranking service with BGE reranker v2-m3
+    pub fn new(config: &RerankingConfig) -> Result<Self> {
+        info!("Initializing BGE reranking service with model: {}", config.model_name);
         
-        // Load model
-        let session = model_loader.load_model(&config.model_name, config.use_gpu)?;
+        // Direct path to BGE model
+        let model_path = std::path::PathBuf::from("models")
+            .join(&config.model_name)
+            .join("model.onnx");
+            
+        if !model_path.exists() {
+            warn!("BGE model not found at: {}, using mock", model_path.display());
+            return Self::new_mock(config.clone());
+        }
         
-        // Try to load tokenizer
-        let tokenizer = if model_loader.model_exists(&config.model_name) {
-            let tokenizer_path = model_loader.get_tokenizer_path(&config.model_name);
-            if tokenizer_path.exists() {
-                match TokenizerService::from_file(tokenizer_path, config.max_length) {
-                    Ok(t) => Some(Arc::new(t)),
-                    Err(e) => {
-                        debug!("Failed to load tokenizer: {}, using mock", e);
-                        None
-                    }
+        // Load BGE model directly
+        let session = crate::models::OnnxSession::new(
+            config.model_name.clone(),
+            model_path,
+            config.use_gpu
+        )?;
+        
+        // Try to load BGE tokenizer
+        let tokenizer_path = std::path::PathBuf::from("models")
+            .join(&config.model_name)
+            .join("tokenizer.json");
+            
+        let tokenizer = if tokenizer_path.exists() {
+            match TokenizerService::from_file(tokenizer_path, config.max_length) {
+                Ok(t) => {
+                    info!("BGE tokenizer loaded successfully");
+                    Some(Arc::new(t))
+                },
+                Err(e) => {
+                    debug!("Failed to load BGE tokenizer: {}, using mock", e);
+                    None
                 }
-            } else {
-                None
             }
         } else {
+            debug!("BGE tokenizer not found at: {}", tokenizer_path.display());
             None
         };
         
         Ok(Self {
             session: Arc::new(session),
             tokenizer,
-            config,
+            config: config.clone(),
         })
     }
     

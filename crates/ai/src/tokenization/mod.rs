@@ -250,7 +250,7 @@ mod tests {
                 "Second longer test text with more words",
                 "Third text"
             ];
-            let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
+            let text_refs: Vec<&str> = texts.iter().map(|s| s.as_ref()).collect();
             
             let mut batch = tokenizer.encode_batch(&text_refs).unwrap();
             

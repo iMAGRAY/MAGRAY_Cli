@@ -1,5 +1,5 @@
 use crate::{Result, ModelLoader, TokenizerService, EmbeddingConfig, models::OnnxSession};
-use crate::reranker_mxbai::{MxbaiRerankerService, RerankResult as MxbaiRerankResult};
+use crate::reranker_mxbai::{BgeRerankerService, RerankResult as BgeRerankResult};
 use crate::tokenization::OptimizedTokenizer;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -161,7 +161,7 @@ impl BgeM3EmbeddingService {
 /// Embedding service with real BGE-M3 ONNX inference and MXBai reranker
 pub struct EmbeddingService {
     bge_m3: Option<Arc<BgeM3EmbeddingService>>,
-    mxbai_reranker: Option<Arc<MxbaiRerankerService>>,
+    bge_reranker: Option<Arc<BgeRerankerService>>,
     session: Arc<OnnxSession>, // Fallback legacy session
     tokenizer: Option<Arc<TokenizerService>>,
     config: EmbeddingConfig,
@@ -208,12 +208,12 @@ impl EmbeddingService {
         };
         
         // Try to load MXBai reranker
-        let mxbai_reranker = {
+        let bge_reranker = {
             let mxbai_model_path = PathBuf::from("crates/memory/models/mxbai_rerank_base_v2/model.onnx");
             
             if mxbai_model_path.exists() {
                 info!("🎯 Loading real MXBai reranker model");
-                match MxbaiRerankerService::new(mxbai_model_path) {
+                match BgeRerankerService::new(mxbai_model_path) {
                     Ok(service) => {
                         info!("✅ MXBai reranker service loaded successfully");
                         Some(Arc::new(service))
@@ -252,7 +252,7 @@ impl EmbeddingService {
         
         Ok(Self {
             bge_m3,
-            mxbai_reranker,
+            bge_reranker,
             session: Arc::new(session),
             tokenizer,
             config,
@@ -271,7 +271,7 @@ impl EmbeddingService {
         
         Ok(Self {
             bge_m3: None,
-            mxbai_reranker: None,
+            bge_reranker: None,
             session: Arc::new(mock_session),
             tokenizer: None,
             config,
@@ -507,12 +507,12 @@ impl EmbeddingService {
     
     /// Check if MXBai reranker is available
     pub fn has_reranker(&self) -> bool {
-        self.mxbai_reranker.is_some()
+        self.bge_reranker.is_some()
     }
     
     /// Rerank documents using MXBai reranker
-    pub fn rerank(&self, query: &str, documents: &[String], top_k: Option<usize>) -> Result<Vec<MxbaiRerankResult>> {
-        if let Some(ref reranker) = self.mxbai_reranker {
+    pub fn rerank(&self, query: &str, documents: &[String], top_k: Option<usize>) -> Result<Vec<BgeRerankResult>> {
+        if let Some(ref reranker) = self.bge_reranker {
             info!("🎯 Using real MXBai reranker for {} documents", documents.len());
             reranker.rerank(query, documents, top_k)
                 .map_err(|e| crate::errors::AiError::InferenceError(e.to_string()))
@@ -523,8 +523,8 @@ impl EmbeddingService {
     }
     
     /// Mock reranking implementation
-    fn mock_rerank(&self, query: &str, documents: &[String], top_k: Option<usize>) -> Result<Vec<MxbaiRerankResult>> {
-        let mut results: Vec<MxbaiRerankResult> = documents.iter().enumerate()
+    fn mock_rerank(&self, query: &str, documents: &[String], top_k: Option<usize>) -> Result<Vec<BgeRerankResult>> {
+        let mut results: Vec<BgeRerankResult> = documents.iter().enumerate()
             .map(|(index, doc)| {
                 // Simple similarity based on shared words
                 let query_words: std::collections::HashSet<&str> = query.split_whitespace().collect();
@@ -538,7 +538,7 @@ impl EmbeddingService {
                     0.0
                 };
                 
-                MxbaiRerankResult {
+                BgeRerankResult {
                     query: query.to_string(),
                     document: doc.clone(),
                     score,

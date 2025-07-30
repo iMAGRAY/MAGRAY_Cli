@@ -5,9 +5,9 @@ use tracing::{debug, info};
 
 use crate::{
     cache::EmbeddingCache,
+    health::{HealthMonitor, HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus},
     metrics::{MetricsCollector, LayerMetrics},
     promotion::{PromotionEngine, PromotionStats},
-    promotion_optimized::{OptimizedPromotionEngine, OptimizedPromotionStats},
     storage::VectorStore,
     types::{Layer, PromotionConfig, Record, SearchOptions},
 };
@@ -18,10 +18,10 @@ pub struct MemoryService {
     store: Arc<VectorStore>,
     cache: Arc<EmbeddingCache>,
     promotion: Arc<PromotionEngine>,
-    optimized_promotion: Arc<OptimizedPromotionEngine>,
     embedding_service: Arc<OptimizedEmbeddingService>,
     reranking_service: Option<Arc<RerankingService>>,
     metrics: Option<Arc<MetricsCollector>>,
+    health_monitor: Arc<HealthMonitor>,
 }
 
 pub struct MemoryConfig {
@@ -29,6 +29,7 @@ pub struct MemoryConfig {
     pub cache_path: PathBuf,
     pub promotion: PromotionConfig,
     pub ai_config: AiConfig,
+    pub health_config: HealthConfig,
 }
 
 impl Default for MemoryConfig {
@@ -42,6 +43,7 @@ impl Default for MemoryConfig {
             cache_path: base_dir.join("cache").join("embeddings"),
             promotion: PromotionConfig::default(),
             ai_config: AiConfig::default(),
+            health_config: HealthConfig::default(),
         }
     }
 }
@@ -62,7 +64,7 @@ impl MemoryService {
         let cache = Arc::new(EmbeddingCache::new(&config.cache_path)?);
 
         // Initialize AI services with fallback to mock
-        let model_loader = ModelLoader::new(&config.ai_config.models_dir)?;
+        let _model_loader = ModelLoader::new(&config.ai_config.models_dir)?;
         
         let embedding_service = match OptimizedEmbeddingService::new(
             config.ai_config.embedding.clone(),
@@ -79,8 +81,7 @@ impl MemoryService {
 
         // Try to initialize reranking service with fallback to mock
         let reranking_service = match RerankingService::new(
-            &model_loader,
-            config.ai_config.reranking.clone(),
+            &config.ai_config.reranking,
         ) {
             Ok(service) => {
                 info!("Real reranking service initialized successfully");
@@ -98,52 +99,88 @@ impl MemoryService {
             }
         };
 
-        // Initialize promotion engines (both legacy and optimized)
-        let promotion = Arc::new(PromotionEngine::new(
-            store.clone(),
-            config.promotion.clone(),
-        ));
-
-        // Initialize optimized promotion engine with time-based indexing
+        // Initialize promotion engine with time-based indexing
         let promotion_db = sled::open(config.db_path.join("promotion_indices"))?;
-        let optimized_promotion = Arc::new(OptimizedPromotionEngine::new(
+        let promotion = Arc::new(PromotionEngine::new(
             store.clone(),
             config.promotion,
             Arc::new(promotion_db)
         ).await?);
 
-        info!("✅ OptimizedPromotionEngine successfully integrated into MemoryService");
+        // Initialize health monitoring
+        let health_monitor = Arc::new(HealthMonitor::new(config.health_config));
+        
+        // Record initial component status
+        health_monitor.record_operation(ComponentType::VectorStore, true, 0.0, None);
+        health_monitor.record_operation(ComponentType::EmbeddingService, true, 0.0, None);
+        health_monitor.record_operation(ComponentType::Cache, true, 0.0, None);
+        health_monitor.record_operation(ComponentType::PromotionEngine, true, 0.0, None);
+        
+        if reranking_service.is_some() {
+            health_monitor.record_operation(ComponentType::RerankingService, true, 0.0, None);
+        }
+        
+        info!("✅ PromotionEngine successfully integrated into MemoryService");
+        info!("✅ Health monitoring system initialized and running");
 
         Ok(Self {
             store,
             cache,
             promotion,
-            optimized_promotion,
             embedding_service,
             reranking_service,
             metrics: None,
+            health_monitor,
         })
     }
 
     pub async fn insert(&self, mut record: Record) -> Result<()> {
-        // Generate embedding if not provided
-        if record.embedding.is_empty() {
-            record.embedding = self.get_or_compute_embedding(&record.text).await?;
-        }
+        let start_time = std::time::Instant::now();
+        
+        let result: Result<()> = async {
+            // Generate embedding if not provided
+            if record.embedding.is_empty() {
+                record.embedding = self.get_or_compute_embedding(&record.text).await?;
+            }
 
-        // Set defaults
-        if record.id == uuid::Uuid::nil() {
-            record.id = uuid::Uuid::new_v4();
-        }
-        if record.ts == chrono::DateTime::<chrono::Utc>::default() {
-            record.ts = chrono::Utc::now();
-        }
-        record.last_access = record.ts;
+            // Set defaults
+            if record.id == uuid::Uuid::nil() {
+                record.id = uuid::Uuid::new_v4();
+            }
+            if record.ts == chrono::DateTime::<chrono::Utc>::default() {
+                record.ts = chrono::Utc::now();
+            }
+            record.last_access = record.ts;
 
-        debug!("Inserting record {} into layer {:?}", record.id, record.layer);
-        self.store.insert(&record).await?;
+            debug!("Inserting record {} into layer {:?}", record.id, record.layer);
+            self.store.insert(&record).await?;
 
-        Ok(())
+            Ok(())
+        }.await;
+        
+        // Record operation metrics
+        let duration = start_time.elapsed().as_millis() as f64;
+        match &result {
+            Ok(_) => {
+                self.health_monitor.record_operation(ComponentType::VectorStore, true, duration, None);
+                // Record insert latency metric
+                let metric = crate::health::HealthMetric {
+                    component: ComponentType::VectorStore,
+                    metric_name: "insert_latency".to_string(),
+                    value: duration,
+                    unit: "ms".to_string(),
+                    timestamp: chrono::Utc::now(),
+                    threshold_warning: Some(100.0),
+                    threshold_critical: Some(500.0),
+                };
+                let _ = self.health_monitor.record_metric(metric);
+            },
+            Err(e) => {
+                self.health_monitor.record_operation(ComponentType::VectorStore, false, duration, Some(e.to_string()));
+            }
+        }
+        
+        result
     }
 
     pub async fn insert_batch(&self, records: Vec<Record>) -> Result<()> {
@@ -268,8 +305,9 @@ impl MemoryService {
         self.store.get_by_id(id, layer).await
     }
 
+    /// Run promotion cycle with time-based indexing
     pub async fn run_promotion_cycle(&self) -> Result<PromotionStats> {
-        info!("Running legacy promotion cycle");
+        info!("🚀 Running promotion cycle with time-based indexing");
         let start = std::time::Instant::now();
         
         let stats = self.promotion.run_promotion_cycle().await?;
@@ -281,30 +319,13 @@ impl MemoryService {
             metrics.record_expired((stats.expired_interact + stats.expired_insights) as u64);
         }
         
+        info!("✅ Promotion cycle completed in {}ms", stats.total_time_ms);
         Ok(stats)
     }
 
-    /// Run optimized promotion cycle with time-based indexing
-    pub async fn run_optimized_promotion_cycle(&self) -> Result<OptimizedPromotionStats> {
-        info!("🚀 Running optimized promotion cycle with time-based indexing");
-        let start = std::time::Instant::now();
-        
-        let stats = self.optimized_promotion.run_optimized_promotion_cycle().await?;
-        
-        if let Some(ref metrics) = self.metrics {
-            metrics.record_promotion_cycle(start.elapsed());
-            metrics.record_promotion("interact", "insights", stats.interact_to_insights as u64);
-            metrics.record_promotion("insights", "assets", stats.insights_to_assets as u64);
-            metrics.record_expired((stats.expired_interact + stats.expired_insights) as u64);
-        }
-        
-        info!("✅ Optimized promotion cycle completed in {}ms", stats.total_time_ms);
-        Ok(stats)
-    }
-
-    /// Get performance statistics from optimized promotion engine
-    pub async fn get_promotion_performance_stats(&self) -> Result<crate::promotion_optimized::PromotionPerformanceStats> {
-        self.optimized_promotion.get_performance_stats().await
+    /// Get performance statistics from promotion engine
+    pub async fn get_promotion_performance_stats(&self) -> Result<crate::promotion::PromotionPerformanceStats> {
+        self.promotion.get_performance_stats().await
     }
 
     pub fn cache_stats(&self) -> (u64, u64, u64) {
@@ -407,6 +428,109 @@ impl MemoryService {
 
         Ok(embedding)
     }
+
+    /// Получает текущий health статус системы
+    pub fn get_system_health(&self) -> SystemHealthStatus {
+        self.health_monitor.get_system_health()
+    }
+    
+    /// Получает health статус конкретного компонента
+    pub fn get_component_health(&self, component: ComponentType) -> Option<crate::health::ComponentPerformanceStats> {
+        self.health_monitor.get_component_performance(component)
+    }
+    
+    /// Получает метрики компонента
+    pub fn get_component_metrics(&self, component: ComponentType, metric_name: &str, limit: Option<usize>) -> Vec<crate::health::HealthMetric> {
+        self.health_monitor.get_component_metrics(component, metric_name, limit)
+    }
+    
+    /// Создает custom alert
+    pub fn create_health_alert(&self, component: ComponentType, severity: AlertSeverity, title: String, description: String) {
+        self.health_monitor.create_alert(component, severity, title, description)
+    }
+    
+    /// Проверяет здоровье всех компонентов системы памяти
+    pub async fn run_health_check(&self) -> Result<SystemHealthStatus> {
+        let start_time = std::time::Instant::now();
+        
+        // Тестируем VectorStore
+        let vector_health = match self.store.search(&vec![0.1; 1024], Layer::Interact, 1).await {
+            Ok(_) => {
+                let duration = start_time.elapsed().as_millis() as f64;
+                self.health_monitor.record_operation(ComponentType::VectorStore, true, duration, None);
+                true
+            },
+            Err(e) => {
+                let duration = start_time.elapsed().as_millis() as f64;
+                self.health_monitor.record_operation(ComponentType::VectorStore, false, duration, Some(e.to_string()));
+                false
+            }
+        };
+        
+        // Тестируем Cache
+        let cache_health = match self.cache.get("test_key", "test_model") {
+            Some(_) => {
+                self.health_monitor.record_operation(ComponentType::Cache, true, 1.0, None);
+                true
+            },
+            None => {
+                self.health_monitor.record_operation(ComponentType::Cache, false, 1.0, Some("Cache miss".to_string()));
+                false
+            }
+        };
+        
+        // Тестируем EmbeddingService
+        let embedding_health = match self.embedding_service.embed("test text") {
+            Ok(_) => {
+                let duration = start_time.elapsed().as_millis() as f64;
+                self.health_monitor.record_operation(ComponentType::EmbeddingService, true, duration, None);
+                true
+            },
+            Err(e) => {
+                let duration = start_time.elapsed().as_millis() as f64;
+                self.health_monitor.record_operation(ComponentType::EmbeddingService, false, duration, Some(e.to_string()));
+                false
+            }
+        };
+        
+        // Создаем alerts при проблемах
+        if !vector_health {
+            self.health_monitor.create_alert(
+                ComponentType::VectorStore,
+                AlertSeverity::Critical,
+                "VectorStore Health Check Failed".to_string(),
+                "VectorStore is not responding to basic operations".to_string()
+            );
+        }
+        
+        if !cache_health {
+            self.health_monitor.create_alert(
+                ComponentType::Cache,
+                AlertSeverity::Warning,
+                "Cache Health Check Failed".to_string(),
+                "Embedding cache is not accessible".to_string()
+            );
+        }
+        
+        if !embedding_health {
+            self.health_monitor.create_alert(
+                ComponentType::EmbeddingService,
+                AlertSeverity::Critical,
+                "EmbeddingService Health Check Failed".to_string(),
+                "Embedding service is not generating embeddings".to_string()
+            );
+        }
+        
+        info!("Health check completed - VectorStore: {}, Cache: {}, EmbeddingService: {}", 
+              vector_health, cache_health, embedding_health);
+        
+        Ok(self.health_monitor.get_system_health())
+    }
+    
+    /// Получить VectorStore для прямого доступа (используется в API)
+    pub fn get_store(&self) -> Arc<VectorStore> {
+        self.store.clone()
+    }
 }
 
 pub struct SearchBuilder<'a> {
@@ -451,6 +575,11 @@ impl<'a> SearchBuilder<'a> {
 
     pub fn in_project(mut self, project: String) -> Self {
         self.options.project = Some(project);
+        self
+    }
+    
+    pub fn with_project(mut self, project: &str) -> Self {
+        self.options.project = Some(project.to_string());
         self
     }
 

@@ -30,7 +30,7 @@ pub use embeddings_ort2::{OrtEmbeddingService, OrtEmbeddingConfig};
 pub use errors::AiError;
 pub use models::ModelLoader;
 pub use reranking::{RerankingService, RerankResult};
-pub use reranker_mxbai::{MxbaiRerankerService, RerankResult as MxbaiRerankResult};
+pub use reranker_mxbai::{BgeRerankerService, RerankResult as BgeRerankResult};
 pub use reranker_mxbai_optimized::{OptimizedMxbaiRerankerService, OptimizedRerankResult, BatchRerankResult, RerankBatch, RerankServiceStats};
 pub use tokenizer::{TokenizerService, TokenizedInput, SpecialTokens};
 pub use tokenization::{OptimizedTokenizer, TokenizedInput as OptTokenizedInput, BatchTokenized};

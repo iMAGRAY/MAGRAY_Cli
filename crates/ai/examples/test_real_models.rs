@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             // Test reranking model
             println!("\nTesting reranking model: {}", config.reranking.model_name);
-            match RerankingService::new(&loader, config.reranking.clone()) {
+            match RerankingService::new(&config.reranking) {
                 Ok(reranking_service) => {
                     println!("✓ Real reranking service loaded successfully!");
                     

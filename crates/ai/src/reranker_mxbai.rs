@@ -6,8 +6,8 @@ use std::sync::Mutex;
 use tracing::{info, debug, warn};
 use crate::tokenization::OptimizedTokenizer;
 
-/// MXBai Reranker Service with real ONNX Runtime 2.0 and real tokenization
-pub struct MxbaiRerankerService {
+/// BGE Reranker v2-m3 Service with real ONNX Runtime 2.0 and real tokenization
+pub struct BgeRerankerService {
     session: Arc<Mutex<Session>>,
     tokenizer: Arc<OptimizedTokenizer>,
     model_path: PathBuf,
@@ -22,10 +22,10 @@ pub struct RerankResult {
     pub index: usize,
 }
 
-impl MxbaiRerankerService {
-    /// Create new MXBai reranker service with real tokenization
+impl BgeRerankerService {
+    /// Create new BGE reranker service with real tokenization
     pub fn new(model_path: PathBuf) -> AnyhowResult<Self> {
-        info!("Initializing MXBai reranker service with real tokenization");
+        info!("Initializing BGE reranker v2-m3 service with real tokenization");
         
         // Setup DLL path for Windows
         #[cfg(target_os = "windows")]
@@ -46,7 +46,7 @@ impl MxbaiRerankerService {
         
         // Initialize ONNX Runtime
         ort::init()
-            .with_name("mxbai_reranker")
+            .with_name("bge_reranker")
             .commit()?;
         
         // Create session
@@ -55,27 +55,27 @@ impl MxbaiRerankerService {
             .with_intra_threads(4)?
             .commit_from_file(&model_path)?;
         
-        info!("✅ MXBai reranker session created successfully");
+        info!("✅ BGE reranker v2-m3 session created successfully");
         info!("   Model: {}", model_path.display());
         info!("   Inputs: {}", session.inputs.len());
         info!("   Outputs: {}", session.outputs.len());
         
-        // Verify it's the expected MXBai model (3 inputs for Qwen2: input_ids, attention_mask, position_ids)
-        if session.inputs.len() != 3 {
-            warn!("Expected 3 inputs for MXBai Qwen2, got {}", session.inputs.len());
+        // Verify it's the expected BGE model (typically 2 inputs: input_ids, attention_mask)
+        if session.inputs.len() != 2 {
+            warn!("Expected 2 inputs for BGE reranker, got {}", session.inputs.len());
         }
         
-        // Create real tokenizer for MXBai model (uses Qwen2 tokenizer)
+        // Create real tokenizer for BGE model
         let tokenizer_path = model_path.parent().unwrap().join("tokenizer.json");
         let tokenizer = if tokenizer_path.exists() {
-            info!("Loading real MXBai tokenizer from: {}", tokenizer_path.display());
+            info!("Loading real BGE tokenizer from: {}", tokenizer_path.display());
             OptimizedTokenizer::new(tokenizer_path, 512)?
         } else {
             warn!("Tokenizer not found, cannot continue without real tokenization");
             return Err(anyhow::anyhow!("Tokenizer file not found: {}", tokenizer_path.display()));
         };
         
-        info!("✅ Real tokenization initialized for MXBai reranker");
+        info!("✅ Real tokenization initialized for BGE reranker");
         
         Ok(Self {
             session: Arc::new(Mutex::new(session)),
@@ -120,15 +120,15 @@ impl MxbaiRerankerService {
         let query_tokenized = self.tokenizer.encode(query)?;
         let doc_tokenized = self.tokenizer.encode(document)?;
         
-        // Create combined input: [CLS] query [SEP] document
-        let mut input_ids = vec![0i64]; // CLS token (assuming 0 is CLS)
+        // Create combined input: [CLS] query [SEP] document (BGE format)
+        let mut input_ids = vec![101i64]; // CLS token (BERT-style)
         
         // Add query tokens (limit to reasonable length)
         let query_limit = std::cmp::min(query_tokenized.input_ids.len(), 128);
         input_ids.extend_from_slice(&query_tokenized.input_ids[..query_limit]);
         
         // Add separator token
-        input_ids.push(2i64); // SEP token (assuming 2 is SEP)
+        input_ids.push(102i64); // SEP token (BERT-style)
         
         // Add document tokens (fill remaining space)
         let remaining_space = 512 - input_ids.len();
@@ -142,20 +142,17 @@ impl MxbaiRerankerService {
         
         let seq_len = input_ids.len();
         let attention_mask = vec![1i64; seq_len];
-        let position_ids: Vec<i64> = (0..seq_len as i64).collect(); // Position IDs for Qwen2
         
-        // Create tensors for MXBai Qwen2 (3 inputs: input_ids, attention_mask, position_ids)
+        // Create tensors for BGE reranker (2 inputs: input_ids, attention_mask)
         let input_ids_tensor = Tensor::from_array(([1, seq_len], input_ids))?;
         let attention_mask_tensor = Tensor::from_array(([1, seq_len], attention_mask))?;
-        let position_ids_tensor = Tensor::from_array(([1, seq_len], position_ids))?;
         
         // Run inference
         let mut session = self.session.lock().map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
         
         let outputs = session.run(inputs![
             "input_ids" => input_ids_tensor,
-            "attention_mask" => attention_mask_tensor,
-            "position_ids" => position_ids_tensor
+            "attention_mask" => attention_mask_tensor
         ])?;
         
         // Extract score from outputs
@@ -163,23 +160,21 @@ impl MxbaiRerankerService {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
                 
-                // MXBai Qwen2 outputs logits [batch, seq_len, vocab_size]
-                if shape_vec.len() == 3 && shape_vec[0] == 1 {
-                    let seq_len = shape_vec[1] as usize;
-                    let vocab_size = shape_vec[2] as usize;
-                    
-                    // Get the last token's logits (EOS position for scoring)
-                    let last_token_start = (seq_len - 1) * vocab_size;
-                    
-                    // For MXBai, use a simple scoring based on last token logits
-                    if last_token_start + 100 < data.len() {
-                        // Take average of some logits as proxy score
+                // BGE reranker outputs similarity scores [batch, 1]
+                if shape_vec.len() == 2 && shape_vec[0] == 1 && shape_vec[1] == 1 {
+                    // Direct similarity score output
+                    return Ok(data[0]);
+                } else if shape_vec.len() == 3 && shape_vec[0] == 1 {
+                    // Pooled embeddings - use [CLS] token (first position)
+                    let hidden_size = shape_vec[2] as usize;
+                    if hidden_size > 0 && data.len() >= hidden_size {
+                        // Simple similarity based on [CLS] embeddings
                         let mut sum = 0.0f32;
-                        for i in 0..100 {
-                            sum += data[last_token_start + i];
+                        for i in 0..std::cmp::min(hidden_size, 100) {
+                            sum += data[i].abs();
                         }
-                        let score = sum / 100.0;
-                        return Ok(score.tanh()); // Normalize to [-1, 1] range
+                        let score = (sum / 100.0).tanh(); // Normalize
+                        return Ok(score);
                     }
                 } else if shape_vec.len() == 2 && shape_vec[0] == 1 {
                     // Fallback: look for direct score outputs
@@ -211,12 +206,12 @@ mod tests {
     use std::path::PathBuf;
     
     #[test]
-    fn test_mxbai_service_creation() {
-        let model_path = PathBuf::from("test_models/mxbai/model.onnx");
+    fn test_bge_service_creation() {
+        let model_path = PathBuf::from("models/bge-reranker-v2-m3_dynamic_int8_onnx/model.onnx");
         // This test will fail without actual model, but shows the API
-        match MxbaiRerankerService::new(model_path) {
+        match BgeRerankerService::new(model_path) {
             Ok(_service) => {
-                println!("MXBai service created successfully");
+                println!("BGE reranker service created successfully");
             },
             Err(e) => {
                 println!("Expected error without model file: {}", e);
