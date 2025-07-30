@@ -89,26 +89,62 @@ impl VectorStore {
     }
     
     /// Rebuild the vector index for a specific layer
+    /// Now supports incremental updates - only rebuilds if necessary
     async fn rebuild_index(&self, layer: Layer) -> Result<()> {
         let tree = self.get_tree(layer).await?;
-        let mut embeddings = Vec::new();
         
-        // Collect all embeddings from the layer
-        for result in tree.iter() {
-            let (key, value) = result?;
-            if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
-                let id = String::from_utf8_lossy(&key).to_string();
-                embeddings.push((id, stored.record.embedding));
-            }
-        }
-        
-        // Build the index using batch add
         if let Some(index) = self.indices.get(&layer) {
-            index.clear(); // Clear existing data
-            if !embeddings.is_empty() {
-                index.add_batch(embeddings)?;
+            let index_size = index.len();
+            let tree_size = tree.len();
+            
+            // Only rebuild if there's a significant mismatch
+            if index_size == 0 || (tree_size > 0 && index_size < tree_size / 2) {
+                info!("Full rebuild needed for layer {:?}: index_size={}, tree_size={}", 
+                      layer, index_size, tree_size);
+                
+                let mut embeddings = Vec::new();
+                
+                // Collect all embeddings from the layer
+                for result in tree.iter() {
+                    let (key, value) = result?;
+                    if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
+                        let id = String::from_utf8_lossy(&key).to_string();
+                        embeddings.push((id, stored.record.embedding));
+                    }
+                }
+                
+                // Build the index using batch add
+                index.clear(); // Clear existing data
+                if !embeddings.is_empty() {
+                    index.add_batch(embeddings)?;
+                }
+                debug!("Rebuilt index for layer {:?}", layer);
+            } else {
+                // Incremental sync: add missing records
+                let mut missing_count = 0;
+                let mut missing_embeddings = Vec::new();
+                
+                for result in tree.iter() {
+                    let (key, value) = result?;
+                    let id = String::from_utf8_lossy(&key).to_string();
+                    
+                    // Check if this ID exists in the index
+                    if !index.contains(&id) {
+                        if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
+                            missing_embeddings.push((id, stored.record.embedding));
+                            missing_count += 1;
+                        }
+                    }
+                }
+                
+                if missing_count > 0 {
+                    info!("Incremental update for layer {:?}: adding {} missing records", 
+                          layer, missing_count);
+                    index.add_batch(missing_embeddings)?;
+                } else {
+                    debug!("Index for layer {:?} is up to date", layer);
+                }
             }
-            debug!("Rebuilt index for layer {:?}", layer);
         }
         
         Ok(())

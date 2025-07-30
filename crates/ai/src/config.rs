@@ -24,6 +24,8 @@ pub struct EmbeddingConfig {
     /// GPU configuration (if use_gpu is true)
     #[serde(skip)]
     pub gpu_config: Option<crate::GpuConfig>,
+    /// Embedding dimension (optional, defaults based on model)
+    pub embedding_dim: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +61,7 @@ impl Default for EmbeddingConfig {
             max_length: 512,
             use_gpu: false,
             gpu_config: None,
+            embedding_dim: Some(1024), // BGE-M3 default
         }
     }
 }

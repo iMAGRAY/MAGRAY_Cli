@@ -8,7 +8,10 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 mod agent;
+mod commands;
+
 use agent::{UnifiedAgent, AgentResponse};
+use commands::GpuCommand;
 
 
 // Иконки для CLI интерфейса
@@ -73,6 +76,8 @@ enum Commands {
         /// Сложная задача на естественном языке
         task: String,
     },
+    /// [🎮] Управление GPU ускорением
+    Gpu(GpuCommand),
 }
 
 #[tokio::main]
@@ -125,6 +130,9 @@ async fn main() -> Result<()> {
             let agent = UnifiedAgent::new(llm_client);
             let response = agent.process_message(&task).await?;
             display_response(response).await;
+        }
+        Some(Commands::Gpu(gpu_command)) => {
+            gpu_command.execute().await?;
         }
         None => {
             // По умолчанию запускаем интерактивный чат

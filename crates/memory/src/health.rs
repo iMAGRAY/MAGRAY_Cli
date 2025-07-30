@@ -87,6 +87,7 @@ pub struct ComponentPerformanceStats {
 }
 
 /// Health Monitor - основной класс для мониторинга системы
+// @component: {"k":"C","id":"health_monitor","t":"System health monitoring","m":{"cur":80,"tgt":95,"u":"%"},"f":["monitoring","alerts"]}
 pub struct HealthMonitor {
     component_stats: Arc<RwLock<HashMap<ComponentType, ComponentPerformanceStats>>>,
     metrics_history: Arc<RwLock<HashMap<String, VecDeque<HealthMetric>>>>,

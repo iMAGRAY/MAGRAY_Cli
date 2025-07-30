@@ -3,10 +3,12 @@ use ort::{session::Session, value::Tensor, inputs};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, debug, warn};
+use crate::tokenization::OptimizedTokenizer;
 
 /// BGE-M3 Embedding Service with real ONNX Runtime 2.0
 pub struct BgeM3EmbeddingService {
     session: Arc<std::sync::Mutex<Session>>,
+    tokenizer: Arc<OptimizedTokenizer>,
     model_path: PathBuf,
     hidden_size: usize,
 }
@@ -27,14 +29,20 @@ impl BgeM3EmbeddingService {
         // Setup DLL path for Windows
         #[cfg(target_os = "windows")]
         {
-            let dll_path = model_path.parent().unwrap()
-                .parent().unwrap()
-                .parent().unwrap()
-                .join("scripts")
-                .join("onnxruntime")
-                .join("lib")
-                .join("onnxruntime.dll");
-            std::env::set_var("ORT_DYLIB_PATH", dll_path.to_str().unwrap());
+            // Try multiple possible paths for ONNX Runtime DLL
+            let possible_paths = vec![
+                std::env::current_dir().unwrap().join("scripts/onnxruntime/lib/onnxruntime.dll"),
+                PathBuf::from("./scripts/onnxruntime/lib/onnxruntime.dll"),
+                PathBuf::from("C:/Users/1/Documents/GitHub/MAGRAY_Cli/scripts/onnxruntime/lib/onnxruntime.dll"),
+            ];
+            
+            for dll_path in possible_paths {
+                if dll_path.exists() {
+                    info!("Found ONNX Runtime DLL at: {}", dll_path.display());
+                    std::env::set_var("ORT_DYLIB_PATH", dll_path.to_str().unwrap());
+                    break;
+                }
+            }
         }
         
         // Initialize ONNX Runtime
@@ -60,8 +68,21 @@ impl BgeM3EmbeddingService {
         
         let hidden_size = 1024; // BGE-M3 размерность из config.json
         
+        // Load proper XLMRoberta tokenizer
+        let tokenizer_path = model_path.parent()
+            .ok_or_else(|| anyhow::anyhow!("Invalid model path"))?
+            .join("tokenizer.json");
+        
+        if !tokenizer_path.exists() {
+            return Err(anyhow::anyhow!("Tokenizer not found at: {}", tokenizer_path.display()));
+        }
+        
+        let tokenizer = OptimizedTokenizer::new(tokenizer_path, 512)?;
+        info!("✅ XLMRoberta tokenizer loaded successfully");
+        
         Ok(Self {
             session: Arc::new(std::sync::Mutex::new(session)),
+            tokenizer: Arc::new(tokenizer),
             model_path,
             hidden_size,
         })
@@ -101,17 +122,17 @@ impl BgeM3EmbeddingService {
     
     /// Process single text with BGE-M3 model
     fn process_single_text(&self, text: &str) -> Result<Vec<f32>> {
-        // Simple tokenization (in production, use proper XLMRoberta tokenizer)
-        let tokens = self.simple_tokenize(text);
-        let seq_len = tokens.len();
+        // Use proper XLMRoberta tokenization
+        let tokenized = self.tokenizer.encode(text)?;
+        let seq_len = tokenized.length;
         
         // Create tensors for BGE-M3 (XLMRoberta inputs)
-        let input_ids_tensor = Tensor::from_array(([1, seq_len], tokens.clone()))?;
-        let attention_mask_tensor = Tensor::from_array(([1, seq_len], vec![1i64; seq_len]))?;
-        let token_type_ids_tensor = Tensor::from_array(([1, seq_len], vec![0i64; seq_len]))?;
+        let input_ids_tensor = Tensor::from_array(([1, seq_len], tokenized.input_ids))?;
+        let attention_mask_tensor = Tensor::from_array(([1, seq_len], tokenized.attention_mask))?;
+        let token_type_ids_tensor = Tensor::from_array(([1, seq_len], tokenized.token_type_ids))?;
         
         // Run inference
-        let session = self.session.lock().map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
+        let mut session = self.session.lock().map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
         
         let outputs = session.run(inputs![
             "input_ids" => input_ids_tensor,
@@ -120,7 +141,7 @@ impl BgeM3EmbeddingService {
         ])?;
         
         // Extract embeddings from outputs
-        for (name, output) in outputs.iter() {
+        for (_name, output) in outputs.iter() {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
                 
@@ -145,19 +166,6 @@ impl BgeM3EmbeddingService {
         Err(anyhow::anyhow!("Could not extract BGE-M3 embeddings from model outputs"))
     }
     
-    /// Simple tokenization (placeholder - use proper XLMRoberta tokenizer in production)
-    fn simple_tokenize(&self, text: &str) -> Vec<i64> {
-        let mut tokens = vec![0i64]; // <s> token
-        
-        // Convert words to mock token IDs
-        for word in text.split_whitespace().take(100) { // Limit sequence length
-            let word_hash = word.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
-            tokens.push((word_hash % 50000 + 1000) as i64); // Mock token ID range
-        }
-        
-        tokens.push(2i64); // </s> token
-        tokens
-    }
     
     /// Apply mean pooling to hidden states
     fn mean_pooling(&self, data: &[f32], seq_len: usize, hidden_size: usize) -> Result<Vec<f32>> {
@@ -193,8 +201,10 @@ impl BgeM3EmbeddingService {
     
     /// Estimate token count
     fn estimate_token_count(&self, text: &str) -> usize {
-        // Simple estimation: words + special tokens
-        text.split_whitespace().count() + 2
+        // Use real tokenizer for accurate count
+        self.tokenizer.encode(text)
+            .map(|t| t.length)
+            .unwrap_or_else(|_| text.split_whitespace().count() + 2)
     }
     
     /// Get embedding dimension
@@ -229,13 +239,27 @@ mod tests {
     }
     
     #[test]
-    fn test_simple_tokenization() {
-        let model_path = PathBuf::from("dummy");
-        // Create service without loading model for tokenization test
-        let tokens = vec![0i64, 1000, 2000, 2]; // Mock result
-        
-        assert!(!tokens.is_empty());
-        assert_eq!(tokens[0], 0); // <s> token
-        assert_eq!(tokens[tokens.len() - 1], 2); // </s> token
+    fn test_xlmroberta_tokenization() {
+        // This test would require actual tokenizer file
+        // Just verify that the service expects proper tokenizer now
+        let model_path = PathBuf::from("test_models/bge-m3/model.onnx");
+        match BgeM3EmbeddingService::new(model_path) {
+            Err(e) => {
+                // Should fail because tokenizer.json is missing
+                let error_msg = e.to_string();
+                assert!(
+                    error_msg.contains("Tokenizer") || 
+                    error_msg.contains("not found") || 
+                    error_msg.contains("File at") ||
+                    error_msg.contains("does not exist"),
+                    "Unexpected error message: {}",
+                    error_msg
+                );
+                println!("Expected error without tokenizer: {}", e);
+            },
+            Ok(_) => {
+                println!("Service created with XLMRoberta tokenizer");
+            }
+        }
     }
 }

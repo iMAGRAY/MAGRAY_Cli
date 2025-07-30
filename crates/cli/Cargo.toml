@@ -13,6 +13,7 @@ default = []
 [dependencies]
 llm = { path = "../llm" }
 router = { path = "../router" }
+ai = { path = "../ai" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }

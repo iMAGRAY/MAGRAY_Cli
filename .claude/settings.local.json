@@ -56,7 +56,17 @@
       "Bash(./test_watch_mode.ps1)",
       "Bash(rg:*)",
       "Bash(ln:*)",
-      "Bash(mklink:*)"
+      "Bash(mklink:*)",
+      "Bash(move:*)",
+      "Bash(ren:*)",
+      "Bash(git checkout:*)",
+      "Bash(echo $env:ORT_DYLIB_PATH)",
+      "Bash($env:ORT_DYLIB_PATH = \"$pwd\\scripts\\onnxruntime\\lib\\onnxruntime.dll\")",
+      "Bash($env:ORT_DYLIB_PATH = \"$pwd\\onnxruntime\\lib\\onnxruntime.dll\")",
+      "Bash(set ORT_DYLIB_PATH=%cd%onnxruntimelibonnxruntime.dll)",
+      "Bash(export ORT_DYLIB_PATH=\"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\onnxruntime\\lib\\onnxruntime.dll\")",
+      "Bash(echo $ORT_DYLIB_PATH)",
+      "Bash(unzip:*)"
     ],
     "deny": []
   }

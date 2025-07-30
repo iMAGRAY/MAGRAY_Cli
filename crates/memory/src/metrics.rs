@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use tracing::{debug, info};
 
 /// Metrics collector for the memory system
+// @component: {"k":"C","id":"metrics_collector","t":"Memory system metrics","m":{"cur":85,"tgt":95,"u":"%"},"f":["metrics","monitoring"]}
 pub struct MetricsCollector {
     metrics: Arc<RwLock<MemoryMetrics>>,
     start_time: Instant,

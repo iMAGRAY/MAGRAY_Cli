@@ -6,7 +6,7 @@ edition.workspace = true
 [features]
 default = []
 gpu = ["ort/cuda", "ort/tensorrt"]  # GPU support with CUDA and TensorRT
-openai = ["reqwest", "tokio-stream"]
+openai = []
 
 [dependencies]
 # Core dependencies
@@ -24,9 +24,9 @@ ndarray = "0.15"
 # Tokenization
 tokenizers = "0.15"
 
-# HTTP client for remote APIs (optional)
-reqwest = { workspace = true, optional = true }
-tokio-stream = { workspace = true, optional = true }
+# HTTP client for remote APIs and model downloading
+reqwest = { workspace = true, features = ["stream"] }
+tokio-stream = { workspace = true }
 
 # Utilities
 parking_lot = "0.12"

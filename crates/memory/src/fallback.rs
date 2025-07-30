@@ -105,6 +105,7 @@ pub trait EmbeddingProvider {
     fn is_available(&self) -> bool;
 }
 
+// @component: {"k":"C","id":"graceful_embedding","t":"Fallback embedding service","m":{"cur":90,"tgt":95,"u":"%"},"f":["fallback","resilience"]}
 impl GracefulEmbeddingService {
     pub fn new(
         primary: Option<Box<dyn EmbeddingProvider>>, 

@@ -12,6 +12,9 @@ Cargo.lock
 *~
 
 # Environment
+.env
+.env.local
+.env.*.local
 
 # Logs
 logs/
@@ -24,6 +27,8 @@ logs/
 # ONNX Models (they're large)
 models/**/*.onnx
 *.onnx
+!crates/memory/models/**/*.onnx
+!crates/memory/examples/models/**/*.onnx
 
 # Database files
 *.db
@@ -57,9 +62,12 @@ docs/site/
 .cache/
 *.cache
 embed_cache.db
+cache.json
+sled_cache/
+lru_cache/
 
 # Local settings
-.claude/settings.local.json
+.claude/
 *.local.json
 models/Qwen3-Embedding-0.6B-ONNX/model_fp16_data
 models/Qwen3-Embedding-0.6B-ONNX/model_fp16.onnx_data
@@ -67,3 +75,49 @@ models/1/Qwen3-Embedding-0.6B/
 models/1/Qwen3-Reranker-0.6B/
 models/bge-m3/
 crates/memory/models/bge-m3/
+
+# Temporary files
+*.tmp
+*.temp
+temp_*
+tmp_*
+NUL
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# ONNX Runtime copies (keep only in scripts/)
+crates/memory/onnxruntime/
+crates/memory/onnxruntime-gpu/
+onnxruntime.dll
+!scripts/onnxruntime/lib/onnxruntime.dll
+!target/debug/deps/onnxruntime.dll
+
+# Benchmarks and test outputs
+bench_results/
+test_results/
+perf/
+
+# Doc sync artifacts  
+docs-daemon/target/
+docs-daemon/cache.json
+docs-daemon/Cargo.lock
+
+# Report files
+*_REPORT.md
+*_SUCCESS.md
+CTL_*.md
+TENSOR_*.md
+WATCH_*.md
+
+# Test scripts
+test_*.ps1
+test_*.sh
+cleanup_test.rs
+test_*.rs
+!crates/*/tests/**/*.rs
+!crates/*/src/**/*test*.rs
+!run_ctl_*.ps1
+!run_doc_sync.ps1

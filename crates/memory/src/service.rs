@@ -5,24 +5,29 @@ use tracing::{debug, info};
 
 use crate::{
     cache::EmbeddingCache,
+    cache_lru::{EmbeddingCacheLRU, CacheConfig as LruCacheConfig},
+    cache_interface::EmbeddingCacheInterface,
     health::{HealthMonitor, HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus},
     metrics::{MetricsCollector, LayerMetrics},
     promotion::{PromotionEngine, PromotionStats},
     storage::VectorStore,
     types::{Layer, PromotionConfig, Record, SearchOptions},
+    gpu_accelerated::{GpuBatchProcessor, BatchProcessorConfig},
 };
 
-use ai::{AiConfig, OptimizedEmbeddingService, ModelLoader, RerankingService};
+use ai::{AiConfig, ModelLoader, RerankingService};
 
+// @component: {"k":"C","id":"memory_service","t":"Main memory service orchestrator","m":{"cur":70,"tgt":95,"u":"%"},"f":["memory","orchestration"]}
 pub struct MemoryService {
     store: Arc<VectorStore>,
-    cache: Arc<EmbeddingCache>,
+    cache: Arc<dyn EmbeddingCacheInterface>,
     promotion: Arc<PromotionEngine>,
-    embedding_service: Arc<OptimizedEmbeddingService>,
+    batch_processor: Arc<GpuBatchProcessor>,
     reranking_service: Option<Arc<RerankingService>>,
     metrics: Option<Arc<MetricsCollector>>,
     health_monitor: Arc<HealthMonitor>,
 }
+
 
 pub struct MemoryConfig {
     pub db_path: PathBuf,
@@ -30,20 +35,28 @@ pub struct MemoryConfig {
     pub promotion: PromotionConfig,
     pub ai_config: AiConfig,
     pub health_config: HealthConfig,
+    pub cache_config: CacheConfigType,
+}
+
+#[derive(Debug, Clone)]
+pub enum CacheConfigType {
+    Simple,
+    Lru(LruCacheConfig),
 }
 
 impl Default for MemoryConfig {
     fn default() -> Self {
         let base_dir = dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("ourcli");
+            .join("magray");
 
         Self {
-            db_path: base_dir.join("hnswdb"), // Изменено с lancedb на hnswdb
+            db_path: base_dir.join("hnswdb"),
             cache_path: base_dir.join("cache").join("embeddings"),
             promotion: PromotionConfig::default(),
             ai_config: AiConfig::default(),
             health_config: HealthConfig::default(),
+            cache_config: CacheConfigType::Lru(LruCacheConfig::default()),
         }
     }
 }
@@ -60,24 +73,38 @@ impl MemoryService {
             store.init_layer(layer).await?;
         }
 
-        // Initialize cache
-        let cache = Arc::new(EmbeddingCache::new(&config.cache_path)?);
-
-        // Initialize AI services with fallback to mock
-        let _model_loader = ModelLoader::new(&config.ai_config.models_dir)?;
-        
-        let embedding_service = match OptimizedEmbeddingService::new(
-            config.ai_config.embedding.clone(),
-        ) {
-            Ok(service) => {
-                info!("Optimized embedding service initialized successfully");
-                Arc::new(service)
+        // Initialize cache based on config
+        let cache: Arc<dyn EmbeddingCacheInterface> = match &config.cache_config {
+            CacheConfigType::Simple => {
+                info!("Using simple embedding cache");
+                Arc::new(EmbeddingCache::new(&config.cache_path)?)
             }
-            Err(e) => {
-                debug!("Failed to initialize embedding service: {}", e);
-                return Err(anyhow::anyhow!("Failed to initialize embedding service: {}", e));
+            CacheConfigType::Lru(lru_config) => {
+                info!("Using LRU embedding cache with eviction policy");
+                Arc::new(EmbeddingCacheLRU::new(&config.cache_path, lru_config.clone())?)
             }
         };
+
+        // Initialize AI services with GPU batch processor
+        let _model_loader = ModelLoader::new(&config.ai_config.models_dir)?;
+        
+        // Initialize batch processor with GPU support
+        let batch_config = BatchProcessorConfig {
+            use_gpu_if_available: config.ai_config.embedding.use_gpu,
+            max_batch_size: 128,
+            batch_timeout_ms: 50,
+            cache_embeddings: true,
+        };
+        
+        let batch_processor = Arc::new(
+            GpuBatchProcessor::new(
+                batch_config,
+                config.ai_config.embedding.clone(),
+                cache.clone(),
+            ).await?
+        );
+        
+        info!("✅ Batch processor initialized (GPU: {})", batch_processor.has_gpu());
 
         // Try to initialize reranking service with fallback to mock
         let reranking_service = match RerankingService::new(
@@ -127,7 +154,7 @@ impl MemoryService {
             store,
             cache,
             promotion,
-            embedding_service,
+            batch_processor,
             reranking_service,
             metrics: None,
             health_monitor,
@@ -188,24 +215,46 @@ impl MemoryService {
             return Ok(());
         }
 
-        // Process records to add embeddings
-        let processed = futures::future::join_all(
-            records.into_iter().map(|mut record| async move {
-                if record.embedding.is_empty() {
-                    record.embedding = self.get_or_compute_embedding(&record.text).await?;
+        // Collect texts that need embeddings
+        let texts_to_embed: Vec<(usize, String)> = records.iter()
+            .enumerate()
+            .filter_map(|(i, r)| {
+                if r.embedding.is_empty() {
+                    Some((i, r.text.clone()))
+                } else {
+                    None
                 }
-                if record.id == uuid::Uuid::nil() {
-                    record.id = uuid::Uuid::new_v4();
-                }
-                if record.ts == chrono::DateTime::<chrono::Utc>::default() {
-                    record.ts = chrono::Utc::now();
-                }
-                record.last_access = record.ts;
-                Ok::<_, anyhow::Error>(record)
             })
-        ).await;
-
-        let processed: Vec<_> = processed.into_iter().collect::<Result<_>>()?;
+            .collect();
+        
+        // Generate embeddings in batch
+        let embeddings = if !texts_to_embed.is_empty() {
+            let texts: Vec<String> = texts_to_embed.iter()
+                .map(|(_, text)| text.clone())
+                .collect();
+            self.batch_processor.embed_batch(texts).await?
+        } else {
+            Vec::new()
+        };
+        
+        // Process records with embeddings
+        let mut processed_records = records;
+        for ((idx, _), embedding) in texts_to_embed.iter().zip(embeddings.iter()) {
+            processed_records[*idx].embedding = embedding.clone();
+        }
+        
+        // Set defaults for all records
+        for record in &mut processed_records {
+            if record.id == uuid::Uuid::nil() {
+                record.id = uuid::Uuid::new_v4();
+            }
+            if record.ts == chrono::DateTime::<chrono::Utc>::default() {
+                record.ts = chrono::Utc::now();
+            }
+            record.last_access = record.ts;
+        }
+        
+        let processed = processed_records;
         
         info!("Inserting batch of {} records", processed.len());
         self.store.insert_batch(&processed.iter().collect::<Vec<_>>()).await?;
@@ -403,30 +452,8 @@ impl MemoryService {
     }
 
     async fn get_or_compute_embedding(&self, text: &str) -> Result<Vec<f32>> {
-        let model = "default"; // In real impl, this would come from config
-
-        // Check cache first
-        if let Some(embedding) = self.cache.get(text, model) {
-            if let Some(ref metrics) = self.metrics {
-                metrics.record_cache_hit();
-            }
-            return Ok(embedding);
-        }
-        
-        if let Some(ref metrics) = self.metrics {
-            metrics.record_cache_miss();
-        }
-
-        // Compute embedding using AI service
-        let embedding_result = self.embedding_service.embed(text)
-            .map_err(|e| anyhow::anyhow!("Embedding generation failed: {}", e))?;
-        
-        let embedding = embedding_result.embedding;
-
-        // Cache for future use
-        self.cache.insert(text, model, embedding.clone())?;
-
-        Ok(embedding)
+        // Batch processor handles caching internally
+        self.batch_processor.embed(text).await
     }
 
     /// Получает текущий health статус системы
@@ -479,8 +506,8 @@ impl MemoryService {
             }
         };
         
-        // Тестируем EmbeddingService
-        let embedding_health = match self.embedding_service.embed("test text") {
+        // Тестируем EmbeddingService через batch processor
+        let embedding_health = match self.batch_processor.embed("test text").await {
             Ok(_) => {
                 let duration = start_time.elapsed().as_millis() as f64;
                 self.health_monitor.record_operation(ComponentType::EmbeddingService, true, duration, None);

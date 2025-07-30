@@ -130,8 +130,10 @@ impl GpuMemoryPool {
         }
         
         // Если пул переполнен, просто освобождаем память
-        *self.current_size.lock().unwrap() -= size;
-        stats.current_buffers -= 1;
+        let mut current = self.current_size.lock().unwrap();
+        *current = current.saturating_sub(size);
+        drop(current);
+        stats.current_buffers = stats.current_buffers.saturating_sub(1);
         debug!("🗑️ Буфер {}KB удалён (пул переполнен)", size / 1024);
     }
     
@@ -192,8 +194,8 @@ impl GpuMemoryPool {
     }
 }
 
-/// Глобальный GPU memory pool
 lazy_static::lazy_static! {
+    /// Глобальный GPU memory pool
     pub static ref GPU_MEMORY_POOL: GpuMemoryPool = {
         // Определяем размер на основе доступной GPU памяти
         let pool_size = if let Ok(detector) = std::panic::catch_unwind(|| {

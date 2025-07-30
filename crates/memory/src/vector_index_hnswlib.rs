@@ -104,6 +104,7 @@ impl HnswRsStats {
 }
 
 /// Максимально эффективный векторный индекс на базе профессиональной hnsw_rs от Jean-Pierre Both
+// @component: {"k":"C","id":"vector_index_hnsw","t":"HNSW vector index","m":{"cur":85,"tgt":95,"u":"%"},"f":["vector","hnsw","search"]}
 pub struct VectorIndexHnswRs {
     config: HnswRsConfig,
     hnsw: Arc<RwLock<Option<Hnsw<'static, f32, DistCosine>>>>,
@@ -426,6 +427,11 @@ impl VectorIndexHnswRs {
     /// Проверка пустоты индекса
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+    
+    /// Проверка существования ID в индексе
+    pub fn contains(&self, id: &str) -> bool {
+        self.id_to_point.read().contains_key(id)
     }
     
     /// Очистка индекса

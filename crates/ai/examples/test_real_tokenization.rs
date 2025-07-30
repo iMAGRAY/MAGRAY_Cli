@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ai::embeddings::BgeM3EmbeddingService;
+use ai::BgeM3EmbeddingService;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {

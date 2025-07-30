@@ -1,40 +1,32 @@
-use ai::{
-    EmbeddingConfig, 
-    GpuConfig,
-    auto_device_selector::{AutoDeviceSelector, SmartEmbeddingFactory},
-    gpu_detector::GpuDetector,
-    gpu_memory_pool::GPU_MEMORY_POOL,
-    embeddings_optimized_v2::OptimizedEmbeddingServiceV2,
-};
-use std::time::Instant;
-use tracing::{info, error, warn};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use anyhow::Result;
+use memory::{MemoryService, MemoryConfig, Record, Layer, BatchProcessorStats};
+use ai::gpu_detector::GpuDetector;
+use std::time::Instant;
+use tracing::info;
+use uuid::Uuid;
+use chrono::Utc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Настройка логирования
-    tracing_subscriber::registry()
-        .with(EnvFilter::from_default_env().add_directive("info".parse().unwrap()))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    // Инициализация логирования
+    tracing_subscriber::fmt::init();
 
-    info!("🚀 Тестирование GPU ускорения для MAGRAY CLI");
+    info!("🚀 Тестирование GPU ускорения для системы памяти MAGRAY CLI");
     
     // 1. Проверка доступности GPU
     test_gpu_detection()?;
     
-    // 2. Тест автоматического выбора устройства
-    test_auto_device_selection().await?;
+    // 2. Тест интеграции GPU с системой памяти
+    test_memory_gpu_integration().await?;
     
-    // 3. Тест производительности CPU vs GPU
+    // 3. Тест батчевой обработки
+    test_batch_processing().await?;
+    
+    // 4. Тест производительности CPU vs GPU
     test_performance_comparison().await?;
     
-    // 4. Тест memory pooling
-    test_memory_pooling()?;
-    
-    // 5. Тест динамической оптимизации
-    test_dynamic_optimization().await?;
+    // 5. Тест векторного поиска с GPU эмбеддингами
+    test_vector_search().await?;
     
     info!("✅ Все тесты завершены успешно!");
     
@@ -77,193 +69,246 @@ fn test_gpu_detection() -> Result<()> {
     Ok(())
 }
 
-/// Тест автоматического выбора устройства
-async fn test_auto_device_selection() -> Result<()> {
-    info!("\n📍 Тест 2: Автоматический выбор CPU/GPU");
+/// Тест интеграции GPU с системой памяти
+async fn test_memory_gpu_integration() -> Result<()> {
+    info!("\n📍 Тест 2: Интеграция GPU с системой памяти");
     
-    let mut selector = AutoDeviceSelector::new();
-    let config = EmbeddingConfig {
-        model_name: "bge-m3".to_string(),
-        use_gpu: false, // Автоматически определится
-        batch_size: 32,
-        ..Default::default()
+    // Создаем конфигурацию с GPU
+    let mut config = MemoryConfig::default();
+    config.ai_config.embedding.use_gpu = true;
+    
+    // Инициализируем сервис
+    let service = MemoryService::new(config).await?;
+    
+    // Тестируем одиночную вставку
+    let record = Record {
+        id: Uuid::new_v4(),
+        text: "Testing GPU-accelerated embeddings in memory system".to_string(),
+        embedding: vec![],
+        layer: Layer::Interact,
+        kind: "test".to_string(),
+        tags: vec!["gpu".to_string()],
+        project: "gpu_test".to_string(),
+        session: Uuid::new_v4().to_string(),
+        score: 0.5,
+        access_count: 1,
+        ts: Utc::now(),
+        last_access: Utc::now(),
     };
     
-    let decision = selector.select_device(&config).await?;
+    let start = Instant::now();
+    service.insert(record).await?;
+    info!("  Одиночная вставка с GPU: {:?}", start.elapsed());
     
-    info!("📊 Результат автоматического выбора:");
-    info!("  - Устройство: {}", if decision.use_gpu { "GPU" } else { "CPU" });
-    info!("  - Причина: {}", decision.reason);
-    info!("  - CPU score: {:.2} items/sec", decision.cpu_score);
-    if let Some(gpu_score) = decision.gpu_score {
-        info!("  - GPU score: {:.2} items/sec", gpu_score);
-        info!("  - Ускорение: {:.1}x", gpu_score / decision.cpu_score);
-    }
-    info!("  - Рекомендуемый batch size: {}", decision.recommended_batch_size);
+    // Проверяем статистику кэша
+    let (hits, misses, size) = service.cache_stats();
+    info!("  Cache stats - Hits: {}, Misses: {}, Size: {} bytes", hits, misses, size);
     
     Ok(())
 }
 
-/// Тест сравнения производительности
-async fn test_performance_comparison() -> Result<()> {
-    info!("\n📍 Тест 3: Сравнение производительности CPU vs GPU");
+/// Тест батчевой обработки
+async fn test_batch_processing() -> Result<()> {
+    info!("\n📍 Тест 3: Батчевая обработка эмбеддингов");
     
-    let test_sizes = vec![10, 50, 100, 500];
-    let test_texts: Vec<String> = (0..500)
-        .map(|i| format!("This is a test sentence number {} for benchmarking the embedding performance of our optimized service.", i))
+    let mut config = MemoryConfig::default();
+    config.ai_config.embedding.use_gpu = true;
+    let service = MemoryService::new(config).await?;
+    
+    let batch_sizes = vec![10, 50, 100, 200];
+    
+    for size in batch_sizes {
+        let records: Vec<Record> = (0..size)
+            .map(|i| Record {
+                id: Uuid::new_v4(),
+                text: format!("Batch test record #{}: Testing GPU batch processing with meaningful text content for better embeddings", i),
+                embedding: vec![],
+                layer: Layer::Interact,
+                kind: "batch_test".to_string(),
+                tags: vec!["batch".to_string(), "gpu".to_string()],
+                project: "gpu_test".to_string(),
+                session: Uuid::new_v4().to_string(),
+                score: 0.5,
+                access_count: 1,
+                ts: Utc::now(),
+                last_access: Utc::now(),
+            })
+            .collect();
+        
+        let start = Instant::now();
+        service.insert_batch(records).await?;
+        let elapsed = start.elapsed();
+        
+        info!("  Batch size {}: {:.2}ms ({:.1} records/sec)", 
+            size, 
+            elapsed.as_millis(),
+            size as f64 / elapsed.as_secs_f64()
+        );
+    }
+    
+    Ok(())
+}
+
+/// Тест сравнения производительности  
+async fn test_performance_comparison() -> Result<()> {
+    info!("\n📍 Тест 4: Сравнение производительности CPU vs GPU");
+    
+    let test_data: Vec<String> = (0..100)
+        .map(|i| format!("Test text #{}: This is a meaningful sentence for testing embedding performance with both CPU and GPU implementations", i))
         .collect();
+    
+    // CPU конфигурация
+    let mut cpu_config = MemoryConfig::default();
+    cpu_config.ai_config.embedding.use_gpu = false;
+    cpu_config.db_path = cpu_config.db_path.parent().unwrap().join("cpu_test_db");
+    cpu_config.cache_path = cpu_config.cache_path.parent().unwrap().join("cpu_test_cache");
+    
+    // GPU конфигурация
+    let mut gpu_config = MemoryConfig::default();
+    gpu_config.ai_config.embedding.use_gpu = true;
+    gpu_config.db_path = gpu_config.db_path.parent().unwrap().join("gpu_test_db");
+    gpu_config.cache_path = gpu_config.cache_path.parent().unwrap().join("gpu_test_cache");
     
     // Тест CPU
     info!("\n💻 Тестирование CPU:");
+    let cpu_service = MemoryService::new(cpu_config).await?;
     
-    let cpu_config = EmbeddingConfig {
-        model_name: "bge-m3".to_string(),
-        use_gpu: false,
-        batch_size: 32,
-        ..Default::default()
-    };
+    let cpu_records: Vec<Record> = test_data.iter()
+        .map(|text| Record {
+            id: Uuid::new_v4(),
+            text: text.clone(),
+            embedding: vec![],
+            layer: Layer::Interact,
+            kind: "perf_test".to_string(),
+            tags: vec!["cpu".to_string()],
+            project: "perf_test".to_string(),
+            session: Uuid::new_v4().to_string(),
+            score: 0.5,
+            access_count: 1,
+            ts: Utc::now(),
+            last_access: Utc::now(),
+        })
+        .collect();
     
-    if let Ok(cpu_service) = OptimizedEmbeddingServiceV2::new(cpu_config) {
-        for &size in &test_sizes {
-            let batch = test_texts.iter().take(size).cloned().collect();
-            let start = Instant::now();
-            
-            match cpu_service.embed_batch(batch).await {
-                Ok(embeddings) => {
-                    let elapsed = start.elapsed();
-                    info!("  {} текстов: {:.2}ms ({:.1} texts/sec)", 
-                        size, 
-                        elapsed.as_millis(),
-                        size as f64 / elapsed.as_secs_f64()
-                    );
-                }
-                Err(e) => {
-                    error!("  Ошибка для {} текстов: {}", size, e);
-                }
-            }
-        }
+    let start = Instant::now();
+    cpu_service.insert_batch(cpu_records).await?;
+    let cpu_time = start.elapsed();
+    info!("  CPU время: {:?} ({:.1} texts/sec)", cpu_time, test_data.len() as f64 / cpu_time.as_secs_f64());
+    
+    // Тест GPU
+    info!("\n🎮 Тестирование GPU:");
+    let gpu_service = MemoryService::new(gpu_config).await?;
+    
+    let gpu_records: Vec<Record> = test_data.iter()
+        .map(|text| Record {
+            id: Uuid::new_v4(),
+            text: text.clone(),
+            embedding: vec![],
+            layer: Layer::Interact,
+            kind: "perf_test".to_string(),
+            tags: vec!["gpu".to_string()],
+            project: "perf_test".to_string(),
+            session: Uuid::new_v4().to_string(),
+            score: 0.5,
+            access_count: 1,
+            ts: Utc::now(),
+            last_access: Utc::now(),
+        })
+        .collect();
+    
+    let start = Instant::now();
+    gpu_service.insert_batch(gpu_records).await?;
+    let gpu_time = start.elapsed();
+    info!("  GPU время: {:?} ({:.1} texts/sec)", gpu_time, test_data.len() as f64 / gpu_time.as_secs_f64());
+    
+    // Сравнение
+    if gpu_time < cpu_time {
+        let speedup = cpu_time.as_secs_f64() / gpu_time.as_secs_f64();
+        info!("\n📊 GPU ускорение: {:.2}x быстрее", speedup);
+    } else {
+        info!("\n📊 CPU оказался быстрее (возможно, GPU не доступен)");
+    }
+    
+    Ok(())
+}
+
+/// Тест векторного поиска с GPU эмбеддингами
+async fn test_vector_search() -> Result<()> {
+    info!("\n📍 Тест 5: Векторный поиск с GPU эмбеддингами");
+    
+    let mut config = MemoryConfig::default();
+    config.ai_config.embedding.use_gpu = true;
+    let service = MemoryService::new(config).await?;
+    
+    // Добавляем тестовые документы
+    let documents = vec![
+        "GPU acceleration enables faster machine learning model training",
+        "CUDA cores are specialized processors designed for parallel computing",
+        "TensorRT optimizes neural network inference on NVIDIA GPUs",
+        "Vector databases use embeddings for semantic search capabilities",
+        "HNSW algorithm provides efficient approximate nearest neighbor search",
+        "Memory caching reduces latency in embedding generation pipelines",
+        "Rust provides memory safety without garbage collection overhead",
+        "The quick brown fox jumps over the lazy dog",
+    ];
+    
+    info!("  Добавление {} документов...", documents.len());
+    let records: Vec<Record> = documents.iter()
+        .map(|text| Record {
+            id: Uuid::new_v4(),
+            text: text.to_string(),
+            embedding: vec![],
+            layer: Layer::Insights,
+            kind: "document".to_string(),
+            tags: vec!["search_test".to_string()],
+            project: "gpu_search".to_string(),
+            session: Uuid::new_v4().to_string(),
+            score: 0.5,
+            access_count: 1,
+            ts: Utc::now(),
+            last_access: Utc::now(),
+        })
+        .collect();
+    
+    service.insert_batch(records).await?;
+    
+    // Тестируем поиск
+    let queries = vec![
+        "GPU parallel computing",
+        "vector search algorithm",
+        "memory safety Rust",
+    ];
+    
+    for query in queries {
+        info!("\n  Поиск: '{}'", query);
+        let start = Instant::now();
         
-        // Выводим метрики
-        cpu_service.print_metrics();
-    }
-    
-    // Тест GPU (если доступен)
-    #[cfg(feature = "gpu")]
-    {
-        let detector = GpuDetector::detect();
-        if detector.available {
-            info!("\n🎮 Тестирование GPU:");
-            
-            let gpu_config = EmbeddingConfig {
-                model_name: "bge-m3".to_string(),
-                use_gpu: true,
-                gpu_config: Some(GpuConfig::auto_optimized()),
-                batch_size: 128,
-                ..Default::default()
-            };
-            
-            match OptimizedEmbeddingServiceV2::new(gpu_config) {
-                Ok(gpu_service) => {
-                    for &size in &test_sizes {
-                        let batch = test_texts.iter().take(size).cloned().collect();
-                        let start = Instant::now();
-                        
-                        match gpu_service.embed_batch(batch).await {
-                            Ok(embeddings) => {
-                                let elapsed = start.elapsed();
-                                info!("  {} текстов: {:.2}ms ({:.1} texts/sec)", 
-                                    size, 
-                                    elapsed.as_millis(),
-                                    size as f64 / elapsed.as_secs_f64()
-                                );
-                            }
-                            Err(e) => {
-                                error!("  Ошибка для {} текстов: {}", size, e);
-                            }
-                        }
-                    }
-                    
-                    // Выводим метрики
-                    gpu_service.print_metrics();
-                }
-                Err(e) => {
-                    error!("❌ Не удалось создать GPU сервис: {}", e);
-                }
-            }
+        let results = service.search(query)
+            .with_layer(Layer::Insights)
+            .top_k(3)
+            .execute()
+            .await?;
+        
+        let search_time = start.elapsed();
+        info!("    Время поиска: {:?}", search_time);
+        
+        for (i, result) in results.iter().enumerate() {
+            info!("    {}. Score: {:.3} - {}", 
+                i + 1, 
+                result.score,
+                &result.text[..result.text.len().min(60)]
+            );
         }
     }
     
-    Ok(())
-}
-
-/// Тест memory pooling
-fn test_memory_pooling() -> Result<()> {
-    info!("\n📍 Тест 4: GPU Memory Pooling");
+    // Статистика
+    info!("\n📊 Статистика системы:");
+    let (hits, misses, size) = service.cache_stats();
+    info!("  Cache - Hits: {}, Misses: {}, Size: {} KB", hits, misses, size / 1024);
+    info!("  Cache hit rate: {:.1}%", service.cache_hit_rate() * 100.0);
     
-    // Тестируем выделение и освобождение памяти
-    let sizes = vec![1024, 4096, 1024*1024, 4*1024*1024];
-    
-    for size in sizes {
-        let buffer = GPU_MEMORY_POOL.acquire_buffer(size)?;
-        info!("  Выделен буфер: {} KB", buffer.capacity() / 1024);
-        GPU_MEMORY_POOL.release_buffer(buffer);
-    }
-    
-    // Тестируем with_buffer
-    let result = GPU_MEMORY_POOL.with_buffer(1024*1024, |buffer| {
-        buffer.extend_from_slice(&vec![42u8; 1000]);
-        Ok(buffer.len())
-    })?;
-    info!("  Обработано с временным буфером: {} байт", result);
-    
-    // Выводим статистику
-    GPU_MEMORY_POOL.print_stats();
-    
-    Ok(())
-}
-
-/// Тест динамической оптимизации
-async fn test_dynamic_optimization() -> Result<()> {
-    info!("\n📍 Тест 5: Динамическая оптимизация");
-    
-    // Используем SmartEmbeddingFactory
-    let base_config = EmbeddingConfig {
-        model_name: "bge-m3".to_string(),
-        ..Default::default()
-    };
-    
-    match SmartEmbeddingFactory::create_optimized(base_config).await {
-        Ok((service, decision)) => {
-            info!("✅ Создан оптимизированный сервис:");
-            info!("  - Устройство: {}", if decision.use_gpu { "GPU" } else { "CPU" });
-            info!("  - Batch size: {}", decision.recommended_batch_size);
-            
-            // Тестируем несколько запросов
-            let test_batches = vec![
-                vec!["Short text".to_string()],
-                vec!["Medium length text that contains more words".to_string(); 10],
-                vec!["This is a longer text that simulates real world usage with multiple sentences and various complexity levels.".to_string(); 50],
-            ];
-            
-            for (idx, batch) in test_batches.into_iter().enumerate() {
-                let size = batch.len();
-                let start = Instant::now();
-                
-                match service.embed_batch(batch).await {
-                    Ok(embeddings) => {
-                        let elapsed = start.elapsed();
-                        info!("  Batch {}: {} текстов за {:.2}ms", idx + 1, size, elapsed.as_millis());
-                    }
-                    Err(e) => {
-                        error!("  Ошибка в batch {}: {}", idx + 1, e);
-                    }
-                }
-            }
-        }
-        Err(e) => {
-            error!("❌ Не удалось создать оптимизированный сервис: {}", e);
-        }
-    }
+    let health = service.get_system_health();
+    info!("  System health: {:?}", health);
     
     Ok(())
 }
@@ -271,14 +316,34 @@ async fn test_dynamic_optimization() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
     
     #[tokio::test]
-    async fn test_gpu_system() {
-        // Просто проверяем что основные компоненты компилируются
-        let detector = GpuDetector::detect();
-        assert!(detector.cuda_version.is_empty() || !detector.cuda_version.is_empty());
+    async fn test_memory_gpu_basic() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut config = MemoryConfig::default();
+        config.db_path = temp_dir.path().join("test_db");
+        config.cache_path = temp_dir.path().join("test_cache");
         
-        let selector = AutoDeviceSelector::new();
-        assert!(true); // Просто проверка создания
+        // Должен создаться с CPU fallback если нет GPU
+        let service = MemoryService::new(config).await.unwrap();
+        
+        // Базовый тест вставки
+        let record = Record {
+            id: Uuid::new_v4(),
+            text: "Test".to_string(),
+            embedding: vec![],
+            layer: Layer::Interact,
+            kind: "test".to_string(),
+            tags: vec![],
+            project: "test".to_string(),
+            session: Uuid::new_v4().to_string(),
+            score: 0.5,
+            access_count: 1,
+            ts: Utc::now(),
+            last_access: Utc::now(),
+        };
+        
+        assert!(service.insert(record).await.is_ok());
     }
 }

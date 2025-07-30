@@ -399,21 +399,34 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-07-30 11:06:14 UTC*
+*Last updated: 2025-07-30 13:57:39 UTC*
 
 ## Components (CTL v2.0 Format)
 
 ```json
 {"id":"auto_device_selector","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Auto CPU/GPU selector","x_file":"ai/src/auto_device_selector.rs:9"}
 {"f":["cache","persistence"],"id":"embedding_cache","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Embedding cache with sled","x_file":"memory/src/cache.rs:16"}
-{"id":"embeddings_v2","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Optimized embeddings v2","x_file":"ai/src/embeddings_optimized_v2.rs:17"}
+{"f":["cache","lru","eviction"],"id":"embedding_cache_lru","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"LRU cache with eviction policy","x_file":"memory/src/cache_lru.rs:44"}
+{"id":"embeddings_cpu","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"CPU-based embeddings","x_file":"ai/src/embeddings_cpu.rs:15"}
+{"id":"embeddings_gpu","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"GPU-accelerated embeddings","x_file":"ai/src/embeddings_gpu.rs:16"}
+{"f":["gpu","batch","embeddings"],"id":"gpu_batch_processor","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"GPU batch embedding processor","x_file":"memory/src/gpu_accelerated.rs:14"}
+{"id":"gpu_commands","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"GPU management CLI","x_file":"cli/src/commands/gpu.rs:13"}
 {"id":"gpu_config","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"GPU configuration for ONNX","x_file":"ai/src/gpu_config.rs:13"}
 {"id":"gpu_detector","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"GPU detection and info","x_file":"ai/src/gpu_detector.rs:6"}
 {"id":"gpu_memory_pool","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"GPU memory pool manager","x_file":"ai/src/gpu_memory_pool.rs:6"}
+{"f":["fallback","resilience"],"id":"graceful_embedding","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Fallback embedding service","x_file":"memory/src/fallback.rs:108"}
+{"f":["monitoring","alerts"],"id":"health_monitor","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"System health monitoring","x_file":"memory/src/health.rs:90"}
 {"f":["llm","agents","multi-provider"],"id":"llm_client","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"Multi-provider LLM client","x_file":"llm/src/lib.rs:6"}
+{"f":["memory","orchestration"],"id":"memory_service","k":"C","m":{"cur":70,"tgt":95,"u":"%"},"t":"Main memory service orchestrator","x_file":"memory/src/service.rs:20"}
+{"f":["metrics","monitoring"],"id":"metrics_collector","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Memory system metrics","x_file":"memory/src/metrics.rs:9"}
+{"id":"model_downloader","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Auto model downloader","x_file":"ai/src/model_downloader.rs:11"}
+{"f":["promotion","time-index"],"id":"promotion_engine","k":"C","m":{"cur":75,"tgt":90,"u":"%"},"t":"Time-based memory promotion","x_file":"memory/src/promotion.rs:14"}
 {"d":["llm_client","tools"],"f":["routing","orchestration"],"id":"smart_router","k":"C","m":{"cur":70,"tgt":90,"u":"%"},"t":"Smart task orchestration","x_file":"router/src/lib.rs:9"}
+{"id":"tensorrt_cache","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"TensorRT model cache","x_file":"ai/src/tensorrt_cache.rs:8"}
 {"f":["tools","execution","registry"],"id":"tool_registry","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Tool execution system","x_file":"tools/src/lib.rs:5"}
 {"d":["llm_client","smart_router"],"id":"unified_agent","k":"C","m":{"cur":60,"tgt":90,"u":"%"},"t":"Main agent orchestrator","x_file":"cli/src/agent.rs:6"}
+{"f":["vector","hnsw","search"],"id":"vector_index_hnsw","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"HNSW vector index","x_file":"memory/src/vector_index_hnswlib.rs:107"}
 {"f":["storage","hnsw"],"id":"vector_store","k":"C","m":{"cur":65,"tgt":100,"u":"%"},"t":"Vector storage with HNSW","x_file":"memory/src/storage.rs:15"}
+{"id":"test_memory_gpu","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Memory GPU integration test","x_file":"memory/examples/test_memory_gpu_integration.rs:9"}
 ```
 

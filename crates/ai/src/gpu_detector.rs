@@ -1,7 +1,7 @@
 use std::process::Command;
 use std::str;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn, debug};
+use tracing::{info, debug};
 
 /// @component: {"k":"C","id":"gpu_detector","t":"GPU detection and info","m":{"cur":95,"tgt":100,"u":"%"}}
 #[derive(Debug, Clone, Serialize, Deserialize)]

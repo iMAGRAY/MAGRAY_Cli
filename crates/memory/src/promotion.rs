@@ -11,6 +11,7 @@ use crate::{
 };
 
 /// Promotion engine с time-based индексированием
+// @component: {"k":"C","id":"promotion_engine","t":"Time-based memory promotion","m":{"cur":75,"tgt":90,"u":"%"},"f":["promotion","time-index"]}
 pub struct PromotionEngine {
     store: Arc<VectorStore>,
     config: PromotionConfig,
