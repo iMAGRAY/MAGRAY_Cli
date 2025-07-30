@@ -16,6 +16,11 @@ pub mod reranker_mxbai;
 pub mod reranker_mxbai_optimized;
 pub mod tokenizer;
 pub mod tokenization;
+pub mod gpu_config;
+pub mod gpu_detector;
+pub mod gpu_memory_pool;
+pub mod embeddings_optimized_v2;
+pub mod auto_device_selector;
 
 pub use config::{AiConfig, EmbeddingConfig, RerankingConfig};
 pub use embeddings::{EmbeddingService, EmbeddingResult};
@@ -34,6 +39,7 @@ pub use reranker_mxbai::{BgeRerankerService, RerankResult as BgeRerankResult};
 pub use reranker_mxbai_optimized::{OptimizedMxbaiRerankerService, OptimizedRerankResult, BatchRerankResult, RerankBatch, RerankServiceStats};
 pub use tokenizer::{TokenizerService, TokenizedInput, SpecialTokens};
 pub use tokenization::{OptimizedTokenizer, TokenizedInput as OptTokenizedInput, BatchTokenized};
+pub use gpu_config::{GpuConfig, GpuInfo};
 
 /// Result type for AI operations
 pub type Result<T> = std::result::Result<T, AiError>;

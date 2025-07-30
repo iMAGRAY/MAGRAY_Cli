@@ -1,4 +1,6 @@
 use crate::EmbeddingConfig;
+#[cfg(feature = "gpu")]
+use crate::{GpuConfig, GpuInfo};
 use crate::tokenization::{OptimizedTokenizer, TokenizedInput as OptTokenizedInput, BatchTokenized};
 use crate::memory_pool::{GLOBAL_MEMORY_POOL, PoolStats};
 use anyhow::Result as AnyhowResult;
@@ -7,6 +9,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tracing::{info, debug};
+#[cfg(feature = "gpu")]
+use tracing::warn;
 
 /// Optimized BGE-M3 Embedding Service with real tokenization and batching
 pub struct OptimizedEmbeddingService {
@@ -83,12 +87,65 @@ impl OptimizedEmbeddingService {
             .with_name("optimized_bge_m3")
             .commit()?;
         
+        // Проверяем доступность GPU
+        #[cfg(feature = "gpu")]
+        if config.use_gpu {
+            let gpu_info = GpuInfo::detect();
+            gpu_info.print_info();
+            
+            if !gpu_info.available {
+                warn!("⚠️ GPU запрошен, но не доступен. Используем CPU.");
+            }
+        }
+        
         // Create optimized session
-        let session = Session::builder()?
+        #[cfg(feature = "gpu")]
+        let mut session_builder = Session::builder()?
             .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
-            .with_memory_pattern(true)? // Enable memory pattern optimization
-            .commit_from_file(&model_path)?;
+            .with_memory_pattern(true)?; // Enable memory pattern optimization
+            
+        #[cfg(not(feature = "gpu"))]
+        let session_builder = Session::builder()?
+            .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
+            .with_intra_threads(4)?
+            .with_memory_pattern(true)?; // Enable memory pattern optimization
+        
+        // Добавляем GPU провайдеры если нужно
+        #[cfg(feature = "gpu")]
+        if config.use_gpu {
+            if let Some(ref gpu_config) = config.gpu_config {
+                match gpu_config.create_providers() {
+                    Ok(providers) => {
+                        if !providers.is_empty() {
+                            info!("🚀 Добавляем {} GPU провайдеров", providers.len());
+                            session_builder = session_builder.with_execution_providers(providers)?;
+                        } else {
+                            warn!("⚠️ GPU провайдеры не созданы, используем CPU");
+                        }
+                    }
+                    Err(e) => {
+                        warn!("⚠️ Ошибка создания GPU провайдеров: {}. Используем CPU.", e);
+                    }
+                }
+            } else if config.use_gpu {
+                // Если use_gpu=true но gpu_config=None, создаём дефолтный
+                let default_gpu_config = GpuConfig::default();
+                match default_gpu_config.create_providers() {
+                    Ok(providers) => {
+                        if !providers.is_empty() {
+                            info!("🚀 Используем дефолтную GPU конфигурацию");
+                            session_builder = session_builder.with_execution_providers(providers)?;
+                        }
+                    }
+                    Err(e) => {
+                        warn!("⚠️ Ошибка создания дефолтных GPU провайдеров: {}", e);
+                    }
+                }
+            }
+        }
+        
+        let session = session_builder.commit_from_file(&model_path)?;
         
         info!("✅ Optimized ONNX session created");
         info!("   Model: {}", model_path.display());
@@ -424,11 +481,42 @@ mod tests {
             max_length: 512,
             batch_size: 8,
             use_gpu: false,
+            gpu_config: None,
         };
         
         match OptimizedEmbeddingService::new(config) {
             Ok(_service) => {
                 println!("✅ Optimized service created successfully");
+            },
+            Err(e) => {
+                println!("Expected error without models: {}", e);
+            }
+        }
+    }
+    
+    #[test]
+    fn test_gpu_service_creation() {
+        let mut config = EmbeddingConfig {
+            model_name: "bge-m3".to_string(),
+            max_length: 512,
+            batch_size: 32, // Больше batch для GPU
+            use_gpu: true,
+            gpu_config: Some(GpuConfig::default()),
+        };
+        
+        // Проверяем доступность GPU
+        let gpu_info = GpuConfig::check_gpu_availability();
+        println!("GPU доступность: {:?}", gpu_info);
+        
+        if !gpu_info.available {
+            println!("⚠️ GPU не доступен, тест будет использовать CPU fallback");
+            config.use_gpu = false;
+            config.gpu_config = None;
+        }
+        
+        match OptimizedEmbeddingService::new(config) {
+            Ok(_service) => {
+                println!("✅ GPU-enabled service created successfully");
             },
             Err(e) => {
                 println!("Expected error without models: {}", e);

@@ -1,3 +1,6 @@
+use crate::RerankingConfig;
+#[cfg(feature = "gpu")]
+use crate::{GpuConfig, GpuInfo};
 use crate::memory_pool::{GLOBAL_MEMORY_POOL, PoolStats};
 use anyhow::Result as AnyhowResult;
 use ort::{session::Session, value::Tensor, inputs};
@@ -41,8 +44,11 @@ pub struct BatchRerankResult {
 }
 
 impl OptimizedMxbaiRerankerService {
-    /// Create new optimized MXBai reranker service
-    pub fn new(model_path: PathBuf, max_seq_length: usize, batch_size: usize) -> AnyhowResult<Self> {
+    /// Create new optimized MXBai reranker service with GPU support
+    pub fn new_with_config(config: RerankingConfig) -> AnyhowResult<Self> {
+        let model_path = PathBuf::from(format!("crates/memory/models/{}/model.onnx", config.model_name));
+        let max_seq_length = config.max_length;
+        let batch_size = config.batch_size;
         info!("Initializing OPTIMIZED MXBai reranker service");
         info!("   Max sequence length: {}", max_seq_length);
         info!("   Batch size: {}", batch_size);
@@ -69,12 +75,65 @@ impl OptimizedMxbaiRerankerService {
             .with_name("optimized_mxbai_reranker")
             .commit()?;
         
+        // Проверяем доступность GPU
+        #[cfg(feature = "gpu")]
+        if config.use_gpu {
+            let gpu_info = GpuInfo::detect();
+            gpu_info.print_info();
+            
+            if !gpu_info.available {
+                warn!("⚠️ GPU запрошен, но не доступен. Используем CPU.");
+            }
+        }
+        
         // Create optimized session
-        let session = Session::builder()?
+        #[cfg(feature = "gpu")]
+        let mut session_builder = Session::builder()?
             .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
-            .with_memory_pattern(true)? // Enable memory pattern optimization
-            .commit_from_file(&model_path)?;
+            .with_memory_pattern(true)?; // Enable memory pattern optimization
+            
+        #[cfg(not(feature = "gpu"))]
+        let session_builder = Session::builder()?
+            .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
+            .with_intra_threads(4)?
+            .with_memory_pattern(true)?; // Enable memory pattern optimization
+            
+        // Добавляем GPU провайдеры если нужно
+        #[cfg(feature = "gpu")]
+        if config.use_gpu {
+            if let Some(ref gpu_config) = config.gpu_config {
+                match gpu_config.create_providers() {
+                    Ok(providers) => {
+                        if !providers.is_empty() {
+                            info!("🚀 Добавляем {} GPU провайдеров для reranker", providers.len());
+                            session_builder = session_builder.with_execution_providers(providers)?;
+                        } else {
+                            warn!("⚠️ GPU провайдеры не созданы для reranker, используем CPU");
+                        }
+                    }
+                    Err(e) => {
+                        warn!("⚠️ Ошибка создания GPU провайдеров для reranker: {}. Используем CPU.", e);
+                    }
+                }
+            } else if config.use_gpu {
+                // Если use_gpu=true но gpu_config=None, создаём дефолтный
+                let default_gpu_config = GpuConfig::default();
+                match default_gpu_config.create_providers() {
+                    Ok(providers) => {
+                        if !providers.is_empty() {
+                            info!("🚀 Используем дефолтную GPU конфигурацию для reranker");
+                            session_builder = session_builder.with_execution_providers(providers)?;
+                        }
+                    }
+                    Err(e) => {
+                        warn!("⚠️ Ошибка создания дефолтных GPU провайдеров для reranker: {}", e);
+                    }
+                }
+            }
+        }
+        
+        let session = session_builder.commit_from_file(&model_path)?;
         
         info!("✅ OPTIMIZED MXBai reranker session created");
         info!("   Model: {}", model_path.display());
@@ -92,6 +151,18 @@ impl OptimizedMxbaiRerankerService {
             max_seq_length,
             batch_size,
         })
+    }
+    
+    /// Create new optimized MXBai reranker service (legacy method)
+    pub fn new(_model_path: PathBuf, max_seq_length: usize, batch_size: usize) -> AnyhowResult<Self> {
+        let config = RerankingConfig {
+            model_name: "bge-reranker-v2-m3_dynamic_int8_onnx".to_string(),
+            batch_size,
+            max_length: max_seq_length,
+            use_gpu: false,
+            gpu_config: None,
+        };
+        Self::new_with_config(config)
     }
     
     /// Optimized batch reranking with memory pooling

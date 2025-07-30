@@ -30,7 +30,7 @@ struct LruEntry {
 // @tests: ✅ Comprehensive tests
 // @production_ready: 95%
 // @issues: None
-// @upgrade_path: Add distributed cache support
+// @upgrade_path: Add more cache eviction strategies
 pub struct EmbeddingCacheLRU {
     db: Arc<Db>,
     stats: Arc<RwLock<CacheStats>>,

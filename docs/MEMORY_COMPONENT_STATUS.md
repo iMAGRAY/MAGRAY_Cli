@@ -43,7 +43,7 @@
 - **Tests**: ✅ Comprehensive tests including TTL and eviction
 - **Production Ready**: 95%
 - **Issues**: None
-- **Upgrade Path**: Add distributed cache support
+- **Upgrade Path**: Add more cache eviction strategies
 
 ### PromotionEngine
 - **File**: crates/memory/src/promotion.rs:11-200

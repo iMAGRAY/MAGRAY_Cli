@@ -3,6 +3,10 @@ name = "memory"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+gpu = ["ai/gpu"]
+
 [dependencies]
 anyhow.workspace = true
 serde.workspace = true

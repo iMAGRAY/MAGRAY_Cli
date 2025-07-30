@@ -5,7 +5,7 @@ edition.workspace = true
 
 [features]
 default = []
-gpu = []  # GPU support would need different ONNX runtime setup
+gpu = ["ort/cuda", "ort/tensorrt"]  # GPU support with CUDA and TensorRT
 openai = ["reqwest", "tokio-stream"]
 
 [dependencies]
