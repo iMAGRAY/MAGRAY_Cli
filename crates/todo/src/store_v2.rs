@@ -1,7 +1,7 @@
 use crate::types::*;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use r2d2::{Pool, PooledConnection};
+use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, Connection, Row, OptionalExtension};
 use serde_json;
@@ -12,7 +12,6 @@ use tracing::{debug, instrument};
 use uuid::Uuid;
 
 type DbPool = Pool<SqliteConnectionManager>;
-type DbConn = PooledConnection<SqliteConnectionManager>;
 
 /// Оптимизированное хранилище задач с батчевыми операциями
 pub struct TodoStoreV2 {

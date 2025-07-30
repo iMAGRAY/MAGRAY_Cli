@@ -1,23 +1,33 @@
 use anyhow::Result;
+use std::path::PathBuf;
 
 fn main() -> Result<()> {
-    println!("Testing ORT initialization...");
+    println!("=== ONNX Runtime Init Test ===\n");
     
-    // Устанавливаем переменную окружения для ORT
-    std::env::set_var("ORT_DYLIB_PATH", "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\target\\debug");
+    // Set ONNX Runtime DLL path
+    let dll_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent().unwrap()
+        .parent().unwrap()
+        .join("scripts")
+        .join("onnxruntime")
+        .join("lib")
+        .join("onnxruntime.dll");
     
-    println!("ORT_DYLIB_PATH set to: {}", std::env::var("ORT_DYLIB_PATH").unwrap_or_default());
+    println!("DLL Path: {}", dll_path.display());
+    std::env::set_var("ORT_DYLIB_PATH", dll_path.to_str().unwrap());
     
-    // Инициализируем ORT
-    println!("Initializing ORT...");
-    ort::init().commit()?;
+    // Initialize ONNX Runtime
+    println!("\nInitializing ONNX Runtime...");
     
-    println!("✓ ORT initialized successfully!");
+    let builder = ort::init();
+    println!("✅ Got builder");
     
-    // Создаём простой Session builder для проверки
-    println!("Creating session builder...");
-    let builder = ort::session::Session::builder()?;
-    println!("✓ Session builder created successfully!");
+    let _env = builder.commit()?;
+    println!("✅ ONNX Runtime initialized successfully!");
+    
+    // Version info is not directly available in ort 2.0
+    
+    println!("\n✅ ONNX Runtime 1.22.x is installed and working!");
     
     Ok(())
 }

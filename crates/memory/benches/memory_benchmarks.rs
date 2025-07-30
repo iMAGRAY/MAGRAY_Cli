@@ -1,0 +1,316 @@
+use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use memory::{
+    VectorStore, Layer, Record, SearchOptions,
+    IncrementalVectorIndex, IncrementalConfig,
+    BatchOperationManager, BatchConfig,
+    EmbeddingCacheLRU, CacheConfig,
+};
+use std::sync::Arc;
+use std::time::Duration;
+use tempfile::TempDir;
+use tokio::runtime::Runtime;
+
+fn generate_embedding(dim: usize, seed: f32) -> Vec<f32> {
+    (0..dim).map(|i| ((i as f32 + seed) * 0.1).sin()).collect()
+}
+
+fn generate_records(count: usize, layer: Layer) -> Vec<Record> {
+    (0..count)
+        .map(|i| Record {
+            id: uuid::Uuid::new_v4(),
+            text: format!("Test document {}", i),
+            embedding: generate_embedding(768, i as f32),
+            layer,
+            kind: "benchmark".to_string(),
+            tags: vec!["bench".to_string()],
+            project: "benchmark".to_string(),
+            session: "bench-session".to_string(),
+            score: 0.8,
+            ts: chrono::Utc::now(),
+            last_access: chrono::Utc::now(),
+            access_count: 0,
+        })
+        .collect()
+}
+
+fn bench_vector_search(c: &mut Criterion) {
+    let rt = Runtime::new().unwrap();
+    let temp_dir = TempDir::new().unwrap();
+    
+    let store = rt.block_on(async {
+        let store = VectorStore::new(temp_dir.path().join("bench_vectors")).await.unwrap();
+        store.init_layer(Layer::Interact).await.unwrap();
+        Arc::new(store)
+    });
+    
+    // Insert test data
+    let records = generate_records(10000, Layer::Interact);
+    rt.block_on(async {
+        let refs: Vec<&Record> = records.iter().collect();
+        store.insert_batch(&refs).await.unwrap();
+    });
+    
+    let query = generate_embedding(768, 42.0);
+    
+    let mut group = c.benchmark_group("vector_search");
+    
+    for k in [1, 10, 100].iter() {
+        group.bench_with_input(BenchmarkId::from_parameter(k), k, |b, &k| {
+            b.to_async(&rt).iter(|| async {
+                let results = store.search(&query, Layer::Interact, k).await.unwrap();
+                black_box(results);
+            });
+        });
+    }
+    
+    group.finish();
+}
+
+fn bench_incremental_index(c: &mut Criterion) {
+    let config = IncrementalConfig {
+        max_pending_ops: 100,
+        max_rebuild_interval: Duration::from_secs(60),
+        batch_size: 50,
+    };
+    
+    let mut group = c.benchmark_group("incremental_index");
+    
+    group.bench_function("add_single", |b| {
+        let index = IncrementalVectorIndex::new(768, config.clone());
+        let mut i = 0;
+        
+        b.iter(|| {
+            let id = format!("doc_{}", i);
+            let embedding = generate_embedding(768, i as f32);
+            index.add(id, embedding).unwrap();
+            i += 1;
+        });
+    });
+    
+    group.bench_function("search_with_pending", |b| {
+        let index = IncrementalVectorIndex::new(768, config.clone());
+        
+        // Build initial index
+        let initial = (0..1000)
+            .map(|i| (format!("doc_{}", i), generate_embedding(768, i as f32)))
+            .collect();
+        index.build(initial).unwrap();
+        
+        // Add some pending
+        for i in 1000..1050 {
+            index.add(format!("doc_{}", i), generate_embedding(768, i as f32)).unwrap();
+        }
+        
+        let query = generate_embedding(768, 500.0);
+        
+        b.iter(|| {
+            let results = index.search(&query, 10).unwrap();
+            black_box(results);
+        });
+    });
+    
+    group.finish();
+}
+
+fn bench_batch_operations(c: &mut Criterion) {
+    let rt = Runtime::new().unwrap();
+    let temp_dir = TempDir::new().unwrap();
+    
+    let store = rt.block_on(async {
+        let store = VectorStore::new(temp_dir.path().join("bench_batch")).await.unwrap();
+        store.init_layer(Layer::Interact).await.unwrap();
+        Arc::new(store)
+    });
+    
+    let mut group = c.benchmark_group("batch_operations");
+    
+    // Compare single vs batch insert
+    group.bench_function("insert_single_1000", |b| {
+        b.to_async(&rt).iter(|| async {
+            for i in 0..1000 {
+                let record = Record {
+                    id: uuid::Uuid::new_v4(),
+                    text: format!("Record {}", i),
+                    embedding: generate_embedding(768, i as f32),
+                    layer: Layer::Interact,
+                    kind: "bench".to_string(),
+                    tags: vec![],
+                    project: "bench".to_string(),
+                    session: "bench".to_string(),
+                    score: 0.8,
+                    ts: chrono::Utc::now(),
+                    last_access: chrono::Utc::now(),
+                    access_count: 0,
+                };
+                store.insert(&record).await.unwrap();
+            }
+        });
+    });
+    
+    group.bench_function("insert_batch_1000", |b| {
+        b.to_async(&rt).iter(|| async {
+            let records = generate_records(1000, Layer::Interact);
+            let refs: Vec<&Record> = records.iter().collect();
+            store.insert_batch(&refs).await.unwrap();
+        });
+    });
+    
+    // Benchmark batch manager
+    let config = BatchConfig {
+        max_batch_size: 100,
+        flush_interval: Duration::from_secs(5),
+        async_flush: false,
+        ..Default::default()
+    };
+    
+    group.bench_function("batch_manager_1000", |b| {
+        b.to_async(&rt).iter(|| async {
+            let manager = BatchOperationManager::new(store.clone(), config.clone(), None);
+            let records = generate_records(1000, Layer::Interact);
+            
+            for record in records {
+                manager.add(record).await.unwrap();
+            }
+            manager.flush_all().await.unwrap();
+        });
+    });
+    
+    group.finish();
+}
+
+fn bench_cache_operations(c: &mut Criterion) {
+    let temp_dir = TempDir::new().unwrap();
+    let config = CacheConfig {
+        max_size_bytes: 100 * 1024 * 1024, // 100MB
+        max_entries: 10000,
+        ttl_seconds: Some(3600),
+        eviction_batch_size: 100,
+    };
+    
+    let cache = EmbeddingCacheLRU::new(temp_dir.path().join("bench_cache"), config).unwrap();
+    
+    let mut group = c.benchmark_group("cache_operations");
+    
+    // Pre-populate cache
+    for i in 0..5000 {
+        let text = format!("Document {}", i);
+        let embedding = generate_embedding(768, i as f32);
+        cache.insert(&text, "model", embedding).unwrap();
+    }
+    
+    group.bench_function("cache_hit", |b| {
+        let mut i = 0;
+        b.iter(|| {
+            let text = format!("Document {}", i % 5000);
+            let result = cache.get(&text, "model");
+            black_box(result);
+            i += 1;
+        });
+    });
+    
+    group.bench_function("cache_miss", |b| {
+        let mut i = 5000;
+        b.iter(|| {
+            let text = format!("Document {}", i);
+            let result = cache.get(&text, "model");
+            black_box(result);
+            i += 1;
+        });
+    });
+    
+    group.bench_function("cache_insert", |b| {
+        let mut i = 10000;
+        b.iter(|| {
+            let text = format!("Document {}", i);
+            let embedding = generate_embedding(768, i as f32);
+            cache.insert(&text, "model", embedding).unwrap();
+            i += 1;
+        });
+    });
+    
+    group.finish();
+}
+
+fn bench_end_to_end(c: &mut Criterion) {
+    let rt = Runtime::new().unwrap();
+    let temp_dir = TempDir::new().unwrap();
+    
+    // Create a full memory service setup
+    let config = memory::MemoryConfig {
+        db_path: temp_dir.path().join("vectors"),
+        cache_path: temp_dir.path().join("cache"),
+        promotion: memory::PromotionConfig::default(),
+        ai_config: ai::AiConfig::default(),
+    };
+    
+    let service = rt.block_on(async {
+        memory::MemoryService::new(config).await.unwrap()
+    });
+    
+    // Pre-populate with data
+    rt.block_on(async {
+        let records = generate_records(5000, Layer::Interact);
+        service.insert_batch(records).await.unwrap();
+    });
+    
+    let mut group = c.benchmark_group("end_to_end");
+    
+    group.bench_function("search_top_10", |b| {
+        b.to_async(&rt).iter(|| async {
+            let results = service.search("Test document 2500")
+                .with_layer(Layer::Interact)
+                .top_k(10)
+                .execute()
+                .await
+                .unwrap();
+            black_box(results);
+        });
+    });
+    
+    group.bench_function("insert_and_search", |b| {
+        let mut i = 10000;
+        b.to_async(&rt).iter(|| async {
+            // Insert new record
+            let record = Record {
+                id: uuid::Uuid::new_v4(),
+                text: format!("New document {}", i),
+                embedding: vec![], // Will be computed
+                layer: Layer::Interact,
+                kind: "bench".to_string(),
+                tags: vec!["new".to_string()],
+                project: "bench".to_string(),
+                session: "bench".to_string(),
+                score: 0.9,
+                ts: chrono::Utc::now(),
+                last_access: chrono::Utc::now(),
+                access_count: 0,
+            };
+            
+            service.insert(record).await.unwrap();
+            
+            // Search for it
+            let results = service.search(&format!("New document {}", i))
+                .with_layer(Layer::Interact)
+                .top_k(1)
+                .execute()
+                .await
+                .unwrap();
+            
+            black_box(results);
+            i += 1;
+        });
+    });
+    
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_vector_search,
+    bench_incremental_index,
+    bench_batch_operations,
+    bench_cache_operations,
+    bench_end_to_end
+);
+
+criterion_main!(benches);

@@ -1,0 +1,20 @@
+[package]
+name = "ctl-sync"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+notify = "6.1"
+walkdir = "2.4"
+regex = "1.10"
+sha2 = "0.10"
+chrono = "0.4"
+jsonschema = "0.18"
+
+[[bin]]
+name = "ctl-sync"
+path = "src/main.rs"

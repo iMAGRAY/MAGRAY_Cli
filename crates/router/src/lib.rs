@@ -6,6 +6,8 @@ use tokio;
 use llm::{LlmClient, ActionPlannerAgent, ToolSelectorAgent, ParameterExtractorAgent};
 use tools::{ToolRegistry, ToolInput, ToolOutput};
 
+// @component: {"k":"C","id":"smart_router","t":"Smart task orchestration","m":{"cur":70,"tgt":90,"u":"%"},"d":["llm_client","tools"],"f":["routing","orchestration"]}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionPlan {
     pub reasoning: String,

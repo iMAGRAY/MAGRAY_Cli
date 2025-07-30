@@ -11,39 +11,24 @@ mod agent;
 use agent::{UnifiedAgent, AgentResponse};
 
 
+// Иконки для CLI интерфейса
+static ROBOT_ICON: AnimatedIcon = AnimatedIcon::new(&["[AI]", "[▲I]", "[●I]", "[♦I]"]);
+static USER_ICON: &str = "[►]";
+
 // Анимированные ASCII иконки
 struct AnimatedIcon {
     frames: &'static [&'static str],
-    current: std::sync::atomic::AtomicUsize,
 }
 
 impl AnimatedIcon {
     const fn new(frames: &'static [&'static str]) -> Self {
-        Self {
-            frames,
-            current: std::sync::atomic::AtomicUsize::new(0),
-        }
-    }
-    
-    fn next_frame(&self) -> &'static str {
-        let current = self.current.load(std::sync::atomic::Ordering::Relaxed);
-        let next = (current + 1) % self.frames.len();
-        self.current.store(next, std::sync::atomic::Ordering::Relaxed);
-        self.frames[current]
+        Self { frames }
     }
     
     fn get_frame(&self, index: usize) -> &'static str {
         self.frames[index % self.frames.len()]
     }
 }
-
-static ROBOT_ICON: AnimatedIcon = AnimatedIcon::new(&["[AI]", "[▲I]", "[●I]", "[♦I]"]);
-static THINKING_ICON: AnimatedIcon = AnimatedIcon::new(&["[●  ]", "[●● ]", "[●●●]", "[ ●●]", "[  ●]", "[   ]"]);
-static USER_ICON: &str = "[►]";
-static SUCCESS_ICON: &str = "[✓]";
-static ERROR_ICON: &str = "[✗]";
-static INFO_ICON: &str = "[i]";
-static LOADING_ICON: AnimatedIcon = AnimatedIcon::new(&["[|]", "[/]", "[-]", "[\\]"]);
 
 #[derive(Parser)]
 #[command(name = "magray")]

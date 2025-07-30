@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use tracing::{info, debug, error};
 
+// @component: {"k":"C","id":"llm_client","t":"Multi-provider LLM client","m":{"cur":80,"tgt":95,"u":"%"},"f":["llm","agents","multi-provider"]}
+
 pub mod agents;
 
 pub use agents::*;

@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// @component: {"k":"C","id":"tool_registry","t":"Tool execution system","m":{"cur":90,"tgt":95,"u":"%"},"f":["tools","execution","registry"]}
 
 pub mod file_ops;
 pub mod git_ops;

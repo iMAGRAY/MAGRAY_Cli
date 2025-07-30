@@ -1,0 +1,41 @@
+[package]
+name = "ai"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+gpu = []  # GPU support would need different ONNX runtime setup
+openai = ["reqwest", "tokio-stream"]
+
+[dependencies]
+# Core dependencies
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+
+# ONNX Runtime for real model inference
+ort = { version = "2.0.0-rc.4", features = ["load-dynamic"] }
+ndarray = "0.15"
+
+# Tokenization
+tokenizers = "0.15"
+
+# HTTP client for remote APIs (optional)
+reqwest = { workspace = true, optional = true }
+tokio-stream = { workspace = true, optional = true }
+
+# Utilities
+parking_lot = "0.12"
+dashmap = "5.5"
+num_cpus = "1.16"
+lazy_static = "1.4"
+thread_local = "1.1"
+
+[dev-dependencies]
+tempfile.workspace = true
+tracing-subscriber.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

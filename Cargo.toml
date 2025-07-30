@@ -6,6 +6,7 @@ members = [
     "crates/router",
     "crates/memory",
     "crates/todo",
+    "crates/ai",
 ]
 resolver = "2"
 

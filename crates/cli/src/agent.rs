@@ -3,6 +3,17 @@ use llm::{LlmClient, IntentAnalyzerAgent};
 use router::SmartRouter;
 // Удален неиспользуемый импорт serde
 
+// @component: {"k":"C","id":"unified_agent","t":"Main agent orchestrator","m":{"cur":60,"tgt":90,"u":"%"},"d":["llm_client","smart_router"]}
+
+// @component: UnifiedAgent
+// @file: crates/cli/src/agent.rs:6-70
+// @status: WORKING
+// @performance: O(1) routing, O(n) downstream
+// @dependencies: LlmClient(✅), SmartRouter(⚠️), IntentAnalyzerAgent(✅)
+// @tests: ❌ No unit tests found
+// @production_ready: 60%
+// @issues: Missing error handling for LLM failures
+// @upgrade_path: Add retry logic, timeout configuration
 pub struct UnifiedAgent {
     llm_client: LlmClient,
     smart_router: SmartRouter,
@@ -67,4 +78,5 @@ impl UnifiedAgent {
         
         tool_indicators.iter().any(|&indicator| message_lower.contains(indicator))
     }
-}
+}// Test comment
+

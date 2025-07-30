@@ -3,44 +3,59 @@ name = "memory"
 version.workspace = true
 edition.workspace = true
 
-[features]
-default = []
-use_real_onnx = []
-
 [dependencies]
-tokio = { workspace = true }
-anyhow = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-uuid = { workspace = true }
-chrono = { workspace = true }
-rusqlite = { workspace = true }
-async-trait = { workspace = true }
-tracing = { workspace = true }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+chrono.workspace = true
 
-# Для векторных операций
-ndarray = "0.16"
+# AI services
+ai = { path = "../ai" }
 
-# Для эмбеддингов и reranking через ONNX Runtime
-reqwest = { workspace = true, features = ["stream"] }
-ort = { version = "2.0.0-rc.10", features = ["download-binaries", "load-dynamic", "cuda", "tensorrt", "coreml", "directml"] }
-tokenizers = "0.21"
+# Embedding cache and storage
+sled = "0.34"
 
-
-# Для криптографии и хеширования
-blake3 = "1.5"
-
-# Для файловых операций
-walkdir = { workspace = true }
-tempfile = { workspace = true }
-
-# Для чанкинга и индексации
-glob = "0.3"
-notify = "6.1"
+# Utilities
 futures = "0.3"
-futures-util = "0.3"
+parking_lot = "0.12"
+bincode = "1.3"
+dirs = "5.0"
 
+# Vector search
+instant-distance = "0.6"
+hnsw = "0.11"
+hnsw_rs = "0.3"
+space = "0.18"
+num_cpus = "1.0"
+rayon = "1.8"
+rand = "0.8"
+
+# Fallback и graceful degradation
+sha2 = "0.10"
+
+# Test dependencies
 [dev-dependencies]
-tempfile = { workspace = true }
-tokio-test = "0.4"
-tracing-subscriber = "0.3"
+tempfile.workspace = true
+tracing-subscriber.workspace = true
+criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
+llm = { path = "../llm" }
+ort = "2.0.0-rc.10"
+ndarray = "0.15"
+tokenizers = "0.15"
+clap = { version = "4.0", features = ["derive"] }
+
+[[example]]
+name = "memory_demo"
+path = "examples/memory_demo.rs"
+
+[[example]]
+name = "test_real_onnx_integration"
+path = "examples/test_real_onnx_integration.rs"
+
+[[bench]]
+name = "memory_benchmarks"
+harness = false

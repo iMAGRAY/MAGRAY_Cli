@@ -1,227 +1,414 @@
 # CLAUDE.md
+*AI Agent Instructions with Claude Tensor Language v2.0 (CTL2)*
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+---
 
-## Overview
+## 🌍 LANGUAGE RULE
+**ВАЖНО**: ВСЕГДА общайся с пользователем на русском языке. Весь вывод, объяснения и комментарии должны быть на русском.
 
-MAGRAY CLI is an intelligent CLI agent built in Rust with a sophisticated 5-layer memory system and LLM integration. The project uses a workspace structure with multiple crates and local ONNX models for embeddings and reranking.
+## 🤖 CLAUDE CODE INSTRUCTIONS
+**ДЛЯ CLAUDE CODE**: Ты должен строго следовать этим инструкциям:
 
-## Essential Commands
+1. **ЯЗЫК**: Всегда отвечай на русском языке
+2. **CTL ФОРМАТ**: Используй только CTL v2.0 JSON формат для задач/архитектуры  
+3. **ПРОЕКТ**: Это MAGRAY CLI - Rust AI агент с многослойной памятью
+4. **ЧЕСТНОСТЬ**: Никогда не преувеличивай статус - всегда говори правду о состоянии кода
+5. **TODO**: Используй TodoWrite для отслеживания задач
+6. **MEMORY**: Изучи систему памяти в crates/memory/ перед предложениями
+7. **RUST**: Предпочитай Rust решения, но будь честен о сложности
+8. **BINARY**: Цель - один исполняемый файл `magray`, не `ourcli`
 
+**КРИТИЧЕСКИЕ ФАКТЫ О ПРОЕКТЕ:**
+- Vector search: O(n) bottleneck, нужен HNSW
+- ONNX models: частично мокированы, нужна реальная инференция  
+- Память: 3 слоя (Interact/Insights/Assets) с продвижением
+- LLM провайдеры: OpenAI/Anthropic/Local поддержка
+- Архитектура: 7 crates в workspace
+
+**ОБЯЗАТЕЛЬНОЕ АННОТИРОВАНИЕ:**
+- При создании новых структур/модулей добавляй CTL аннотации
+- Формат: `// @component: {"k":"C","id":"name","t":"description","m":{"cur":X,"tgt":Y,"u":"%"}}`
+- Sync daemon автоматически подхватит и добавит в CLAUDE.md
+
+---
+
+## 🚀 CTL v2.0 - COMPACT JSON FORMAT
+
+### Core Structure
+```json
+{"k":"<kind>","id":"<slug>","t":"<title>","p":<1-5>,"e":"<ISO8601>","d":["deps"],"r":"<result>","m":{"cur":<val>,"tgt":<val>,"u":"<unit>"},"f":["tags"]}
+```
+
+**Strict key order:** k → id → t → p → e → d → r → m → f
+
+### Key Reference
+| Key | Name | Type | Description |
+|-----|------|------|-------------|
+| k | kind | string | T/A/B/F/M/S/R/P/D/C/E |
+| id | identifier | string≤32 | Unique slug, no spaces |
+| t | title | string≤40 | Brief description |
+| p | priority | 1-5 | 1=low, 5=critical |
+| e | effort | ISO8601 | P3D, PT4H, P1W |
+| d | dependencies | string[] | ["auth","db"] |
+| r | result | string≤20 | Expected outcome |
+| m | metric | object | {cur,tgt,u} |
+| f | flags | string[] | ["critical","security"] |
+
+### Kind Types
+- **T** Task: `{"k":"T","id":"add_auth","t":"Add JWT auth","p":4,"e":"P2D"}`
+- **A** Architecture: `{"k":"A","id":"api_gw","t":"API Gateway","f":["core"]}`
+- **B** Bug: `{"k":"B","id":"mem_leak","t":"Fix memory leak","p":5}`
+- **F** Feature: `{"k":"F","id":"search","t":"Search API","e":"P1W"}`
+- **M** Metric: `{"k":"M","id":"cpu","t":"CPU usage","m":{"cur":85,"tgt":50,"u":"%"}}`
+- **S** Solution: `{"k":"S","id":"cache","t":"Add Redis","r":"10x_speedup"}`
+- **R** Refactor: `{"k":"R","id":"clean_db","t":"Clean DB layer","e":"P3D"}`
+- **P** Performance: `{"k":"P","id":"opt_q","t":"Optimize queries"}`
+- **D** Documentation: `{"k":"D","id":"api_doc","t":"API docs","e":"PT8H"}`
+- **C** Component: `{"k":"C","id":"auth_svc","t":"Auth service"}`
+- **E** Epic: `{"k":"E","id":"v2","t":"Version 2.0","d":["search","ui"]}`
+
+---
+
+## 📋 PROJECT: MAGRAY_CLI
+
+### Overview
+```json
+{"k":"A","id":"magray_cli","t":"Pure-Rust AI agent","f":["cli","memory","ai"]}
+{"k":"M","id":"binary_size","t":"Release binary size","m":{"cur":45,"tgt":30,"u":"MB"}}
+{"k":"M","id":"startup_time","t":"Cold startup time","m":{"cur":150,"tgt":100,"u":"ms"}}
+```
+
+### Architecture Layers
+```json
+{"k":"C","id":"cli","t":"CLI interface layer","f":["interface","animated"]}
+{"k":"C","id":"llm","t":"LLM agent system","d":["cli"],"f":["agents","routing"]}
+{"k":"C","id":"memory","t":"3-layer memory system","d":["llm"],"f":["vector","cache"]}
+{"k":"C","id":"ai","t":"ONNX embedding service","d":["memory"],"f":["bge-m3","onnx"]}
+{"k":"C","id":"tools","t":"Tool execution layer","f":["file","git","web","shell"]}
+{"k":"C","id":"router","t":"Smart orchestration","d":["llm","tools"],"f":["routing"]}
+{"k":"C","id":"todo","t":"Task DAG system","f":["sqlite","dag"]}
+```
+
+---
+
+## 📝 КАК ПОМЕЧАТЬ КОД CTL АННОТАЦИЯМИ
+
+### ОБЯЗАТЕЛЬНО добавляй к каждому новому компоненту:
+
+```rust
+// @component: {"k":"C","id":"component_name","t":"Brief description","m":{"cur":50,"tgt":100,"u":"%"}}
+pub struct MyComponent {
+    // implementation
+}
+```
+
+### Правила аннотирования:
+1. **Размещение**: Прямо над основной структурой/функцией
+2. **Формат**: Строго JSON без переносов строк
+3. **ID**: snake_case, уникальный, ≤32 символа
+4. **Title**: Краткое описание, ≤40 символов
+5. **Метрики**: Честная оценка готовности (cur) и цель (tgt)
+
+### Примеры правильных аннотаций:
+
+```rust
+// @component: {"k":"C","id":"auth_service","t":"JWT authentication service","m":{"cur":85,"tgt":95,"u":"%"},"f":["auth","security"]}
+pub struct AuthService { ... }
+
+// @component: {"k":"C","id":"db_pool","t":"Database connection pool","m":{"cur":70,"tgt":90,"u":"%"},"d":["postgres"]}
+pub struct DatabasePool { ... }
+
+// @component: {"k":"C","id":"api_router","t":"HTTP API router","m":{"cur":60,"tgt":80,"u":"%"},"f":["web","routing"]}
+pub struct ApiRouter { ... }
+```
+
+### ❌ НЕПРАВИЛЬНО:
+```rust
+// @component: ComponentName  <-- не JSON формат
+// @component: {"name": "test"}  <-- неправильные поля
+// @component: {"k":"C","id":"very_long_component_name_that_exceeds_limit",...}  <-- слишком длинный ID
+```
+
+### ✅ ПРАВИЛЬНО:
+```rust
+// @component: {"k":"C","id":"cache_mgr","t":"Cache manager","m":{"cur":75,"tgt":95,"u":"%"}}
+```
+
+---
+
+## ⚡ COMMANDS & USAGE
+
+### Build & Run
 ```bash
-# Build the entire project
-cargo build --release
+cargo build --release          # Build optimized binary
+cargo test --workspace         # Run all tests
+cargo clippy -- -D warnings    # Lint code
 
-# Build specific crates
-cargo build -p cli
-cargo build -p memory
-cargo build -p llm
-cargo build -p tools
-cargo build -p router
-cargo build -p todo
-
-# Run the main CLI
-cargo run --bin magray
-./target/release/magray
-
-# Run tests
-cargo test                # All tests
-cargo test -p memory      # Test specific crate
-cargo test test_name      # Run specific test
-
-# Check code (faster than full build)
-cargo check
-cargo check -p memory     # Check specific crate
-
-# Format code
-cargo fmt
-cargo fmt --check         # Check without modifying
-
-# Lint code
-cargo clippy
-cargo clippy -- -D warnings  # Treat warnings as errors
+magray                         # Interactive mode
+magray chat "question"         # Single chat
+magray smart "complex task"    # Multi-step planning
+magray tool "shell ls -la"     # Direct tool execution
 ```
 
-## Architecture Overview
-
-### Workspace Structure
-The project uses Rust workspaces with 6 main crates:
-
-1. **cli** (`crates/cli/`) - User interface, animations, command handling
-2. **llm** (`crates/llm/`) - LLM integration with multiple providers (OpenAI, Anthropic, local)
-3. **memory** (`crates/memory/`) - 5-layer memory system with semantic search
-4. **router** (`crates/router/`) - Request routing and gateway
-5. **tools** (`crates/tools/`) - File operations, git, shell, web tools
-6. **todo** (`crates/todo/`) - Task management with dependency tracking
-
-### Memory System (5 Layers)
-Located in `memory/` crate:
-
-| Layer | Storage | Purpose | Indexed in M4 | TTL/Policies |
-|-------|---------|---------|---------------|--------------|
-| **M0 Ephemeral** | RAM | Temporary data for current session | Usually not | Until end of run |
-| **M1 ShortTerm** | SQLite KV | Recent facts/responses | Yes (full text) | Hours/days, auto-cleanup |
-| **M2 MediumTerm** | SQLite tables | Structured project knowledge | Yes (text fields) | Weeks/months |
-| **M3 LongTerm** | File blobs | Artifacts, logs, large files | Yes (summary/chunks) | No limit |
-| **M4 Semantic** | Vector index | HNSW index with references to M0-M3 | — | Cleaned by orphan refs |
-
-All layers are indexed through M4 (semantic layer). Search always starts from M4 and returns references to other layers.
-
-### Key Components
-
-**Memory Coordinator** (`memory/src/coordinator.rs`)
-- Routes between memory layers
-- Handles promotion/demotion between layers
-- Manages semantic indexing
-
-**Semantic Router** (`memory/src/semantic.rs`, `memory/src/semantic_flexible.rs`, `memory/src/semantic_with_fallback.rs`)
-- Uses Qwen3 ONNX models for embeddings and reranking
-- Manages vector index with cosine similarity search
-- Handles caching and batching
-- Multiple implementations with fallback support
-
-**LLM Agents** (`llm/src/agents/`)
-- `intent_analyzer.rs` - Analyzes user intent
-- `parameter_extractor.rs` - Extracts parameters from requests
-- `tool_selector.rs` - Selects appropriate tools
-- `action_planner.rs` - Plans action sequences
-
-**Todo System** (`todo/src/`)
-- `graph.rs`, `graph_v2.rs` - DAG-based task dependencies
-- `service_v2.rs` - Task management service
-- `store.rs`, `store_v2.rs` - Persistence layer
-- `types.rs` - Core data types
-
-### Data Storage
-User data is stored outside the project directory:
-```
-~/.ourcli/projects/<project_id>/
-  config.toml
-  sqlite.db
-  tasks.db
-  vectors/
-  blobs/
-  embed_cache.db
-  events.log
-```
-
-## Working with ONNX Models
-
-The project uses local ONNX models for embeddings and reranking:
-- **Qwen3-Embedding-0.6B-ONNX** - For text embeddings (1024 dimensions)
-- **Qwen3-Reranker-0.6B-ONNX** - For cross-encoder reranking
-
-Models are located in `models/Qwen3-*/` directories. The actual `.onnx` files are not tracked in git due to size.
-
-Setup:
-1. Download models from Hugging Face or provided sources
-2. Place in `models/` directory maintaining the structure
-3. Ensure `model_fp16.onnx` exists for embedding model
-4. Ensure `model.onnx` exists for reranker model
-
-## Development Workflow
-
-### Initial Setup
+### Environment Setup
 ```bash
-# Clone and setup
-git clone <repo>
-cd MAGRAY_Cli
-
-# Copy environment config
-cp .env.example .env
-# Edit .env with your API keys
-
-# Build everything
-cargo build --release
-
-# Run tests to verify setup
-cargo test
-```
-
-### Running the CLI
-```bash
-# Interactive mode with animations
-./target/release/magray
-
-# Single command
-./target/release/magray chat "Hello"
-
-# With debug logging
-RUST_LOG=debug ./target/release/magray
-```
-
-### Working with LLM Providers
-Configuration in `.env`:
-```env
-# OpenAI (default)
+# ~/.env
 LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-your-key
+OPENAI_API_KEY=sk-proj-...
 OPENAI_MODEL=gpt-4o-mini
-
-# Anthropic
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-your-key
-ANTHROPIC_MODEL=claude-3-haiku-20240307
-
-# Local models
-LLM_PROVIDER=local
-LOCAL_LLM_URL=http://localhost:1234/v1
-LOCAL_LLM_MODEL=llama-3.2-3b-instruct
+MAX_TOKENS=500
+TEMPERATURE=0.7
+RUST_LOG=debug
 ```
 
-## Common Development Tasks
+---
 
-### Adding a New Tool
-1. Implement the tool in `tools/src/`
-2. Add to the tool registry
-3. Update semantic descriptions for tool selection
-4. Add tests in `tools/src/` or `tools/tests/`
+## 🧠 LLM AGENT SYSTEM
 
-### Modifying Memory Layers
-1. Update layer definitions in `memory/src/layers/`
-2. Adjust coordinator logic in `memory/src/coordinator.rs`
-3. Update semantic indexing if needed
-4. Test with `cargo test -p memory`
+```json
+{"k":"C","id":"unified_agent","t":"Main agent router","f":["entry_point"]}
+{"k":"C","id":"action_planner","t":"Multi-step planner","f":["dag","planning"]}
+{"k":"C","id":"tool_selector","t":"Tool selection agent","f":["nlp","tools"]}
+{"k":"C","id":"param_extractor","t":"Parameter parser","f":["nlp","extraction"]}
+{"k":"C","id":"intent_analyzer","t":"Chat vs tool router","f":["classification"]}
+```
 
-### Working with the Todo System
-1. Core types are in `todo/src/types.rs`
-2. Task graph logic in `todo/src/graph_v2.rs`
-3. Service interface in `todo/src/service_v2.rs`
-4. Test with `cargo test -p todo`
+### Intent Routing Logic
+```json
+{"k":"S","id":"intent_routing","t":"Smart intent detection","r":"accurate_routing"}
+{"k":"M","id":"routing_accuracy","t":"Intent classification","m":{"cur":92,"tgt":98,"u":"%"}}
+```
 
-## Important Files to Review
+---
 
-- `docs/ARCHITECTURE.md` - Detailed system architecture and design
-- `docs/DIAGRAMS.md` - System diagrams and visualizations
-- `docs/TODO_SPEC.md` - Todo system specification
-- `memory/src/lib.rs` - Memory system public API
-- `llm/src/lib.rs` - LLM integration interfaces
-- `cli/src/main.rs` - Entry point and CLI commands
-- `cli/src/agent.rs` - Core agent logic
+## 💾 MEMORY SYSTEM
 
-## Testing Strategy
+### Three Layers
+```json
+{"k":"A","id":"memory_layers","t":"3-layer architecture","f":["hierarchical"]}
+{"k":"C","id":"layer_interact","t":"Session memory","x_ttl":"24h","f":["ephemeral"]}
+{"k":"C","id":"layer_insights","t":"Extracted knowledge","x_ttl":"90d","f":["persistent"]}
+{"k":"C","id":"layer_assets","t":"Code and docs","x_ttl":"permanent","f":["indexed"]}
+```
+
+### Current Status
+```json
+{"k":"B","id":"vector_search","t":"O(n) search bottleneck","p":5,"x_impact":"kills_at_1k_docs"}
+{"k":"S","id":"add_hnsw","t":"HNSW index migration","e":"P5D","r":"100x_speedup"}
+{"k":"M","id":"search_perf","t":"Vector search time","m":{"cur":500,"tgt":5,"u":"ms"}}
+```
+
+---
+
+## 🤖 AI/EMBEDDING STATUS
+
+```json
+{"k":"C","id":"embedding_svc","t":"BGE-M3 embeddings","f":["onnx","real"]}
+{"k":"M","id":"embed_dim","t":"Embedding dimensions","m":{"cur":768,"tgt":768,"u":"dims"}}
+{"k":"B","id":"tokenizer","t":"Simple tokenization","p":3,"x_need":"xlmroberta"}
+{"k":"P","id":"batch_embed","t":"Batch processing","e":"P2D","r":"10x_throughput"}
+```
+
+---
+
+## 🛠️ TOOL SYSTEM
+
+```json
+{"k":"C","id":"tool_registry","t":"Built-in tools","f":["extensible"]}
+{"k":"F","id":"file_ops","t":"File operations","f":["read","write","list"]}
+{"k":"F","id":"git_ops","t":"Git operations","f":["status","commit","diff"]}
+{"k":"F","id":"web_ops","t":"Web operations","f":["search","fetch"]}
+{"k":"F","id":"shell_ops","t":"Shell execution","f":["bash","security"]}
+```
+
+---
+
+## 📊 CRITICAL METRICS
+
+```json
+{"k":"M","id":"prod_ready","t":"Production readiness","m":{"cur":65,"tgt":90,"u":"%"}}
+{"k":"M","id":"perf_score","t":"Performance score","m":{"cur":3,"tgt":5,"u":"score"}}
+{"k":"M","id":"test_coverage","t":"Test coverage","m":{"cur":40,"tgt":80,"u":"%"}}
+{"k":"M","id":"doc_accuracy","t":"Doc accuracy","m":{"cur":35,"tgt":95,"u":"%"}}
+```
+
+### Component Health
+```json
+{"k":"M","id":"h_agent","t":"UnifiedAgent health","m":{"cur":3,"tgt":5,"u":"score"},"f":["no_retry"]}
+{"k":"M","id":"h_vector","t":"VectorStore health","m":{"cur":1,"tgt":5,"u":"score"},"f":["critical"]}
+{"k":"M","id":"h_cache","t":"EmbeddingCache health","m":{"cur":4,"tgt":5,"u":"score"}}
+{"k":"M","id":"h_embed","t":"EmbeddingService health","m":{"cur":4,"tgt":5,"u":"score"}}
+{"k":"M","id":"h_promo","t":"PromotionEngine health","m":{"cur":1,"tgt":5,"u":"score"}}
+```
+
+---
+
+## 🔧 ACTIVE TASKS
+
+```json
+{"k":"T","id":"fix_vector","t":"Fix O(n) vector search","p":5,"e":"P1W","d":["add_hnsw"],"r":"scalable"}
+{"k":"T","id":"add_batch","t":"Add batch embeddings","p":4,"e":"P3D","r":"faster_embed"}
+{"k":"T","id":"fix_promo","t":"Fix promotion engine","p":3,"e":"P2D","d":["fix_vector"],"r":"working_promo"}
+{"k":"T","id":"add_tests","t":"Increase test coverage","p":3,"e":"P1W","r":"80_percent"}
+{"k":"T","id":"gpu_accel","t":"Enable GPU support","p":2,"e":"P1W","r":"10x_inference"}
+```
+
+---
+
+## 🚨 KNOWN ISSUES
+
+```json
+{"k":"B","id":"vector_scale","t":"Vector search O(n)","p":5,"x_limit":"1000_docs"}
+{"k":"B","id":"no_eviction","t":"Cache grows forever","p":3,"x_fix":"add_lru"}
+{"k":"B","id":"no_gpu","t":"CPU only inference","p":2,"x_fix":"ort_cuda"}
+{"k":"B","id":"simple_token","t":"Basic tokenization","p":3,"x_need":"proper_tokenizer"}
+{"k":"B","id":"promo_linear","t":"Promotion O(n) scan","p":3,"x_fix":"time_index"}
+```
+
+---
+
+## 🚨 ОБЯЗАТЕЛЬНЫЕ ПРАВИЛА ДЛЯ CLAUDE CODE
+
+**ЭТИ ПРАВИЛА НЕ ПОДЛЕЖАТ ОБСУЖДЕНИЮ:**
+
+1. **РУССКИЙ ЯЗЫК ВЕЗДЕ** - каждый ответ, комментарий, объяснение
+2. **ЧЕСТНОСТЬ ПРЕЖДЕ ВСЕГО** - никаких преувеличений статуса
+3. **CTL v2.0 ФОРМАТ** - только JSON для задач/архитектуры
+4. **TODOWRITE ОБЯЗАТЕЛЬНО** - для каждой многошаговой задачи
+5. **ИЗУЧАЙ ПЕРЕД ДЕЙСТВИЕМ** - читай код перед предложениями
+6. **ОДНА ЦЕЛЬ = ОДИН ФАЙЛ** - magray binary, а не ourcli
+7. **НЕ ХВАСТАЙСЯ УСПЕХАМИ** - в конце каждой задачи сообщай что НЕ сделано
+8. **ПОМЕЧАЙ КОД CTL АННОТАЦИЯМИ** - добавляй @component к каждому новому компоненту
+
+## 📝 REPORTING FORMAT
+
+When completing tasks, ALWAYS report:
+```json
+{"k":"T","id":"enforce_honesty","t":"Enforce honest task reporting","p":5,"f":["critical","mandatory"]}
+```
+
+**ПРИМЕР ПРАВИЛЬНОГО ОТЧЕТА:**
+
+Задача: Добавить функцию поиска
+
+## ❌ ЧТО НЕ СДЕЛАНО:
+- Индексация для быстрого поиска (пока O(n))
+- Поддержка regex паттернов  
+- Фильтрация по типам файлов
+- Юнит-тесты для edge cases
+
+## ⚠️ ОГРАНИЧЕНИЯ:
+- Работает только с plain text
+- Медленно на файлах >1000 строк
+- Нет кэширования результатов
+
+## 🔧 ТЕХНИЧЕСКИЙ ДОЛГ:
+- Хардкод максимального размера файла
+- Простейший парсинг без AST
+- Mock для бэкенда поиска
+
+## 📋 СЛЕДУЮЩИЕ ШАГИ:
+- Добавить inverted index
+- Реализовать regex поддержку
+- Написать performance тесты
+
+## 📊 ЧЕСТНАЯ ГОТОВНОСТЬ: 40% (основа работает, но медленно и ограниченно)
+
+Include:
+- ❌ What NOT done: specific missing parts
+- ⚠️ Limitations: partial implementations  
+- 🔧 Technical debt: mocks, workarounds
+- 📋 Next steps: concrete actions
+- Readiness: honest percentage
+
+**ЗАПРЕЩЕННЫЕ ФРАЗЫ:**
+- "Successfully completed"
+- "Production-ready"  
+- "Fully implemented"
+- "Works perfectly"
+- "No issues found"
+- "Excellent results"
+- "Great success"
+- "Amazing progress"
+- "Fantastic work"
+- "Everything is working"
+
+**ОБЯЗАТЕЛЬНАЯ КОНЦОВКА КАЖДОЙ ЗАДАЧИ:**
+```
+## ❌ ЧТО НЕ СДЕЛАНО:
+- [конкретный список недостающих частей]
+
+## ⚠️ ОГРАНИЧЕНИЯ:
+- [проблемы и недоработки]
+
+## 🔧 ТЕХНИЧЕСКИЙ ДОЛГ:
+- [моки, хардкод, временные решения]
+
+## 📋 СЛЕДУЮЩИЕ ШАГИ:
+- [что нужно делать дальше]
+
+## 📊 ЧЕСТНАЯ ГОТОВНОСТЬ: X% (объяснить почему не 100%)
+```
+
+---
+
+## 🔄 AUTOMATED SYNC
+
+```json
+{"k":"C","id":"doc_daemon","t":"Doc sync daemon","f":["isolated","auto"]}
+{"k":"T","id":"run_sync","t":"Sync documentation","e":"PT1M","x_cmd":"docs-daemon/sync_daemon.ps1"}
+```
+
+---
+
+## ✅ VALIDATION COMMANDS
 
 ```bash
-# Unit tests for specific functionality
-cargo test unit_test_name
+# Find O(n) algorithms
+rg "\.iter\(\)" crates/memory/src/ -C 2
 
-# Integration tests
-cargo test --test integration_test
+# Count mocks
+rg "mock|Mock|TODO" --type rust | wc -l
 
-# Memory system tests (requires ONNX models)
-cargo test -p memory
+# Check dependencies
+cargo tree | grep -E "(lancedb|onnx|wasmtime)"
 
-# Run all tests with output
-cargo test -- --nocapture
-
-# Run tests in single thread (for debugging)
-cargo test -- --test-threads=1
+# Measure performance
+cargo bench --bench vector_search
 ```
 
-## Performance Considerations
+---
 
-- Memory crate uses batching for embeddings to improve throughput
-- Vector index uses HNSW for efficient similarity search
-- SQLite with bundled feature for consistent performance
-- Async/await throughout for concurrent operations
-- Connection pooling for database access
+## 🎯 SUCCESS CRITERIA
+
+```json
+{"k":"M","id":"success","t":"Project success","m":{"cur":0,"tgt":100,"u":"%"}}
+```
+
+Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies²
+
+**Remember:** Code doesn't lie, documentation does. Always verify.
+
+---
+
+# AUTO-GENERATED SECTIONS BELOW
+# (Updated by doc_sync_daemon - do not edit manually)
+
+---
+
+# AUTO-GENERATED ARCHITECTURE
+
+*Last updated: 2025-07-30 01:30:35 UTC*
+
+## Components (CTL v2.0 Format)
+
+```json
+{"f":["cache","persistence"],"id":"embedding_cache","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Embedding cache with sled","x_file":"memory/src/cache.rs:16"}
+{"f":["llm","agents","multi-provider"],"id":"llm_client","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"Multi-provider LLM client","x_file":"llm/src/lib.rs:6"}
+{"d":["vector_store"],"f":["memory","lifecycle"],"id":"promotion_engine","k":"C","m":{"cur":75,"tgt":90,"u":"%"},"t":"Memory layer promotion","x_file":"memory/src/promotion.rs:11"}
+{"d":["llm_client","tools"],"f":["routing","orchestration"],"id":"smart_router","k":"C","m":{"cur":70,"tgt":90,"u":"%"},"t":"Smart task orchestration","x_file":"router/src/lib.rs:9"}
+{"f":["tools","execution","registry"],"id":"tool_registry","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Tool execution system","x_file":"tools/src/lib.rs:5"}
+{"d":["llm_client","smart_router"],"id":"unified_agent","k":"C","m":{"cur":60,"tgt":90,"u":"%"},"t":"Main agent orchestrator","x_file":"cli/src/agent.rs:6"}
+{"f":["storage","hnsw"],"id":"vector_store","k":"C","m":{"cur":65,"tgt":100,"u":"%"},"t":"Vector storage with HNSW","x_file":"memory/src/storage.rs:15"}
+```
+
