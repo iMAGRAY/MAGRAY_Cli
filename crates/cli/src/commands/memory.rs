@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use colored::*;
 use prettytable::{Table, row};
+use indicatif::{ProgressBar, ProgressStyle};
 
 /// Команда для управления системой памяти
 #[derive(Debug, Args)]
@@ -362,22 +363,36 @@ async fn add_to_memory(
 }
 
 async fn create_backup(service: &MemoryService, name: Option<String>) -> Result<()> {
-    println!("{}", "Creating memory backup...".cyan());
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap()
+    );
+    spinner.set_message("Creating memory backup...");
+    spinner.enable_steady_tick(std::time::Duration::from_millis(120));
     
     let path = service.create_backup(name).await?;
     
-    println!("{} Backup created successfully!", "✓".green());
+    spinner.finish_with_message("✓ Backup created successfully!".green().to_string());
     println!("{}: {}", "Path".cyan(), path.display());
     
     Ok(())
 }
 
 async fn restore_backup(service: &MemoryService, backup_path: PathBuf) -> Result<()> {
-    println!("{} {:?}...", "Restoring from backup".cyan(), backup_path);
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.blue} {msg}")
+            .unwrap()
+    );
+    spinner.set_message(format!("Restoring from backup: {}", backup_path.file_name().unwrap_or_default().to_string_lossy()));
+    spinner.enable_steady_tick(std::time::Duration::from_millis(120));
     
     let metadata = service.restore_backup(&backup_path).await?;
     
-    println!("{} Backup restored successfully!", "✓".green());
+    spinner.finish_with_message("✓ Backup restored successfully!".green().to_string());
     println!("{}: {} records", "Restored".cyan(), metadata.total_records);
     println!("{}: {}", "Created at".cyan(), metadata.created_at.format("%Y-%m-%d %H:%M:%S"));
     
@@ -419,11 +434,18 @@ fn list_backups(service: &MemoryService) -> Result<()> {
 }
 
 async fn run_promotion(service: &MemoryService) -> Result<()> {
-    println!("{}", "Running promotion cycle...".cyan());
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.yellow} {msg}")
+            .unwrap()
+    );
+    spinner.set_message("Running memory promotion cycle...");
+    spinner.enable_steady_tick(std::time::Duration::from_millis(120));
     
     let stats = service.run_promotion_cycle().await?;
     
-    println!("{} Promotion cycle completed!", "✓".green());
+    spinner.finish_with_message("✓ Promotion cycle completed!".green().to_string());
     println!("{}: {} records", "Interact → Insights".cyan(), stats.interact_to_insights);
     println!("{}: {} records", "Insights → Assets".cyan(), stats.insights_to_assets);
     println!("{}: {} records", "Expired".cyan(), stats.expired_interact + stats.expired_insights);
@@ -500,21 +522,35 @@ async fn check_health(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()> {
 }
 
 async fn clear_cache(service: &MemoryService) -> Result<()> {
-    println!("{}", "Clearing embedding cache...".cyan());
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.red} {msg}")
+            .unwrap()
+    );
+    spinner.set_message("Clearing embedding cache...");
+    spinner.enable_steady_tick(std::time::Duration::from_millis(120));
     
     service.clear_cache().await?;
     
-    println!("{} Cache cleared successfully!", "✓".green());
+    spinner.finish_with_message("✓ Cache cleared successfully!".green().to_string());
     
     Ok(())
 }
 
 async fn optimize_memory(api: &UnifiedMemoryAPI) -> Result<()> {
-    println!("{}", "Optimizing memory system...".cyan());
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.magenta} {msg}")
+            .unwrap()
+    );
+    spinner.set_message("Optimizing memory system...");
+    spinner.enable_steady_tick(std::time::Duration::from_millis(120));
     
     let result = api.optimize_memory().await?;
     
-    println!("{} Optimization completed!", "✓".green());
+    spinner.finish_with_message("✓ Optimization completed!".green().to_string());
     println!("{}: {} records", "Promoted to insights".cyan(), result.promoted_to_insights);
     println!("{}: {} records", "Promoted to assets".cyan(), result.promoted_to_assets);
     println!("{}: {} records", "Expired (Interact)".cyan(), result.expired_interact);

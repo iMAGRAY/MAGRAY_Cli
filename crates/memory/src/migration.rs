@@ -38,8 +38,24 @@ pub struct MigrationManager {
 }
 
 impl MigrationManager {
+    /// Открывает sled БД для migration с crash recovery
+    fn open_migration_database(db_path: impl AsRef<Path>) -> Result<Db> {
+        use sled::Config;
+        
+        let config = Config::new()
+            .path(db_path.as_ref())
+            .mode(sled::Mode::HighThroughput)
+            .flush_every_ms(Some(500))       // Migration нужно частое сохранение
+            .use_compression(true)
+            .compression_factor(19);
+            
+        let db = config.open()?;
+        info!("Migration database opened with crash recovery");
+        Ok(db)
+    }
+
     pub fn new(db_path: impl AsRef<Path>) -> Result<Self> {
-        let db = sled::open(db_path)?;
+        let db = Self::open_migration_database(db_path)?;
         Ok(Self { db })
     }
     

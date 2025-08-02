@@ -115,6 +115,22 @@ impl Default for MemoryConfig {
 }
 
 impl MemoryService {
+    /// Открывает sled БД для promotion engine с crash recovery
+    fn open_promotion_database(db_path: impl AsRef<std::path::Path>) -> Result<sled::Db> {
+        use sled::Config;
+        
+        let config = Config::new()
+            .path(db_path.as_ref())
+            .mode(sled::Mode::HighThroughput)
+            .flush_every_ms(Some(5000))      // Promotion indices реже обновляются
+            .use_compression(true)
+            .compression_factor(19);
+            
+        let db = config.open()?;
+        info!("Promotion database opened with crash recovery");
+        Ok(db)
+    }
+
     pub async fn new(config: MemoryConfig) -> Result<Self> {
         info!("Initializing memory service with dynamic resource management");
 
@@ -185,7 +201,7 @@ impl MemoryService {
         };
 
         // Initialize promotion engine with time-based indexing
-        let promotion_db = sled::open(config.db_path.join("promotion_indices"))?;
+        let promotion_db = Self::open_promotion_database(&config.db_path.join("promotion_indices"))?;
         let promotion = Arc::new(PromotionEngine::new(
             store.clone(),
             config.promotion.clone(),

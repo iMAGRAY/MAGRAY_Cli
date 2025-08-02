@@ -30,6 +30,13 @@
 - Формат: `// @component: {"k":"C","id":"name","t":"description","m":{"cur":X,"tgt":Y,"u":"%"}}`
 - Sync daemon автоматически подхватит и добавит в CLAUDE.md
 
+**MEMORY TODO TRACKING:**
+- ВСЕГДА перед вмешательством в систему памяти изучай todo_memory.md
+- ВСЕГДА обновляй memory_todo.md после изменений в системе памяти
+- Обновляй статус компонентов, готовность в % и критические проблемы
+- Добавляй новые задачи в roadmap при обнаружении проблем
+- Отмечай завершённые задачи как COMPLETED ✅
+
 ---
 
 ## 🚀 CTL v2.0 - COMPACT JSON FORMAT
@@ -399,7 +406,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-02 21:56:06 UTC*
+*Last updated: 2025-08-02 22:51:09 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -428,6 +435,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["memory","scaling","adaptive"],"id":"resource_manager","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Dynamic memory resource management","x_file":"memory/src/resource_manager.rs:9"}
 {"id":"simple_qwen3_tokenizer","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Simplified Qwen3 tokenizer for ONNX","x_file":"ai/src/tokenization/simple_qwen3.rs:1"}
 {"d":["llm_client","tools"],"f":["routing","orchestration"],"id":"smart_router","k":"C","m":{"cur":70,"tgt":90,"u":"%"},"t":"Smart task orchestration","x_file":"router/src/lib.rs:9"}
+{"f":["cli","diagnostic"],"id":"status_cmd","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"System status diagnostic command","x_file":"cli/src/main.rs:411"}
 {"f":["logging","json","production"],"id":"structured_logging","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"JSON structured logging system","x_file":"common/src/structured_logging.rs:11"}
 {"id":"tensorrt_cache","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"TensorRT model cache","x_file":"ai/src/tensorrt_cache.rs:8"}
 {"id":"test_qwen3_models","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Test Qwen3 models loading","x_file":"ai/examples/test_qwen3_models.rs:1"}

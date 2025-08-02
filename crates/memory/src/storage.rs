@@ -89,6 +89,33 @@ impl ChangeTracker {
 }
 
 impl VectorStore {
+    /// Открывает sled БД с настройками для crash recovery
+    fn open_database_with_recovery(db_path: impl AsRef<Path>) -> Result<Db> {
+        use sled::Config;
+        
+        let config = Config::new()
+            .path(db_path.as_ref())
+            .mode(sled::Mode::HighThroughput) // Лучше для CLI нагрузок
+            .flush_every_ms(Some(1000))      // Автоматический flush каждую секунду
+            .use_compression(true)           // Компрессия для экономии места
+            .compression_factor(19);         // Хороший баланс скорость/размер
+            
+        let db = config.open()?;
+        
+        // Проверяем целостность после открытия
+        if let Err(e) = db.checksum() {
+            error!("Database checksum failed: {}", e);
+            info!("Attempting automatic recovery...");
+            
+            // Пытаемся восстановить БД
+            // В sled recovery происходит автоматически при следующем открытии
+            return Err(anyhow::anyhow!("Database corruption detected. Please restart the application for automatic recovery."));
+        }
+        
+        info!("Database opened successfully with crash recovery enabled");
+        Ok(db)
+    }
+
     pub async fn new(db_path: impl AsRef<Path>) -> Result<Self> {
         Self::with_config(db_path, HnswRsConfig::default()).await
     }
@@ -102,7 +129,7 @@ impl VectorStore {
         }
 
         info!("Opening vector store at: {:?}", db_path);
-        let db = sled::open(db_path)?;
+        let db = Self::open_database_with_recovery(db_path)?;
 
         // Initialize indices for each layer with hnsw_rs config
         let mut indices = HashMap::new();

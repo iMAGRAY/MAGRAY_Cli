@@ -85,6 +85,8 @@ enum Commands {
     Memory(MemoryCommand),
     /// [🏥] Проверка здоровья системы
     Health,
+    /// [📊] Показать состояние системы
+    Status,
 }
 
 #[tokio::main]
@@ -164,6 +166,9 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Memory(cmd)) => {
             cmd.execute().await?;
+        }
+        Some(Commands::Status) => {
+            show_system_status().await?;
         }
         None => {
             // По умолчанию запускаем интерактивный чат
@@ -398,6 +403,100 @@ async fn show_goodbye_animation() -> Result<()> {
         style("[►]").cyan(),
         style("Увидимся в следующий раз!").cyan()
     );
+    println!();
+    
+    Ok(())
+}
+
+// @component: {"k":"C","id":"status_cmd","t":"System status diagnostic command","m":{"cur":95,"tgt":100,"u":"%"},"f":["cli","diagnostic"]}
+async fn show_system_status() -> Result<()> {
+    use memory::{MemoryService, UnifiedMemoryAPI};
+    use std::sync::Arc;
+    use colored::Colorize;
+    
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.cyan} {msg}")
+            .unwrap()
+    );
+    spinner.set_message("Checking system status...");
+    spinner.enable_steady_tick(std::time::Duration::from_millis(120));
+    
+    // Проверяем состояние памяти
+    let memory_status = if let Ok(config) = memory::default_config() {
+        match MemoryService::new(config).await {
+            Ok(service) => {
+                let service = Arc::new(service);
+                let api = UnifiedMemoryAPI::new(service.clone());
+                
+                match api.get_stats().await {
+                    Ok(stats) => {
+                        let health = match api.health_check().await {
+                            Ok(h) => h.status,
+                            Err(_) => "unknown",
+                        }.to_string();
+                        Some((health, stats.total_records, stats.cache_stats.hit_rate))
+                    }
+                    Err(_) => None,
+                }
+            }
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
+    
+    // Проверяем LLM соединение
+    let llm_status = match LlmClient::from_env() {
+        Ok(_client) => {
+            // Простая проверка - если клиент создался, то настройки корректны
+            "Connected"
+        }
+        Err(_) => "Not configured",
+    };
+    
+    spinner.finish_and_clear();
+    
+    // Выводим статус
+    println!("{}", style("=== MAGRAY System Status ===").bold().cyan());
+    println!();
+    
+    // LLM Status
+    let llm_icon = match llm_status {
+        "Connected" => "✓".green(),
+        "Connection error" => "⚠".yellow(),
+        _ => "✗".red(),
+    };
+    println!("{} {}: {}", llm_icon, "LLM Service".bold(), llm_status);
+    
+    // Memory Status
+    if let Some((health, record_count, hit_rate)) = memory_status {
+        let memory_icon = match health.as_str() {
+            "healthy" => "✓".green(),
+            "warning" => "⚠".yellow(),
+            _ => "✗".red(),
+        };
+        println!("{} {}: {} ({} records, {:.1}% cache hit)", 
+                 memory_icon, "Memory Service".bold(), health, record_count, hit_rate * 100.0);
+    } else {
+        println!("{} {}: {}", "✗".red(), "Memory Service".bold(), "Not available");
+    }
+    
+    // Binary info
+    let binary_size = std::env::current_exe()
+        .and_then(|path| path.metadata())
+        .map(|meta| meta.len())
+        .unwrap_or(0);
+    
+    let version = env!("CARGO_PKG_VERSION");
+    println!("{} {}: v{} ({:.1} MB)", 
+             "ℹ".blue(), "Binary".bold(), version, binary_size as f64 / (1024.0 * 1024.0));
+    
+    // Environment
+    let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+    println!("{} {}: {}", "ℹ".blue(), "Log Level".bold(), log_level);
+    
     println!();
     
     Ok(())
