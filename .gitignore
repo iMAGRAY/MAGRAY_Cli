@@ -125,3 +125,5 @@ crates/memory/models/qwen3emb/model.opt.onnx
 crates/memory/models/qwen3_reranker/model.opt.onnx
 /scripts/onnxruntime_gpu_extracted
 /scripts/onnxruntime
+crates/memory/models/BGE-reranker-v2-m3/
+crates/memory/models/the-stack-smol-xs/
