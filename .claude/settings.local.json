@@ -22,7 +22,8 @@
       "Bash(cargo bench:*)",
       "mcp__archlens__analyze_project",
       "mcp__archlens__export_ai_compact",
-      "mcp__archlens__get_project_structure"
+      "mcp__archlens__get_project_structure",
+      "Bash(ls:*)"
     ],
     "deny": []
   },
