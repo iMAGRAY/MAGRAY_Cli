@@ -196,12 +196,16 @@ impl UnifiedMemoryAPI {
     /// Получить общую статистику системы
     pub async fn get_stats(&self) -> Result<SystemStats> {
         let perf_stats = self.service.get_promotion_performance_stats().await?;
+        let (cache_hits, _cache_misses, cache_total) = self.service.cache_stats();
         
         // Подсчитываем записи по слоям
         let mut layer_counts = std::collections::HashMap::new();
         layer_counts.insert("interact".to_string(), perf_stats.interact_time_index_size);
         layer_counts.insert("insights".to_string(), perf_stats.insights_time_index_size);
         layer_counts.insert("assets".to_string(), perf_stats.assets_time_index_size);
+        
+        // Получаем размеры в байтах (примерные)
+        let avg_record_size = 1024; // Примерно 1KB на запись
         
         Ok(SystemStats {
             total_records: perf_stats.interact_time_index_size + 
@@ -216,6 +220,27 @@ impl UnifiedMemoryAPI {
                               perf_stats.insights_score_index_size + 
                               perf_stats.assets_score_index_size,
             },
+            cache_stats: CacheStats {
+                hit_rate: if cache_total > 0 { cache_hits as f32 / cache_total as f32 } else { 0.0 },
+                size_bytes: self.service.get_cache_size().await.unwrap_or(0),
+                entries: cache_total as usize,
+            },
+            // Статистика по слоям
+            interact_count: perf_stats.interact_time_index_size,
+            interact_size: perf_stats.interact_time_index_size * avg_record_size,
+            interact_avg_access: 1.0, // TODO: Получить реальные данные
+            insights_count: perf_stats.insights_time_index_size,
+            insights_size: perf_stats.insights_time_index_size * avg_record_size,
+            insights_avg_access: 0.5,
+            assets_count: perf_stats.assets_time_index_size,
+            assets_size: perf_stats.assets_time_index_size * avg_record_size,
+            assets_avg_access: 0.3,
+            // Статистика продвижения (примерные значения)
+            interact_to_insights: 0,
+            insights_to_assets: 0,
+            expired_interact: 0,
+            expired_insights: 0,
+            total_time_ms: 0,
         })
     }
 }
@@ -314,6 +339,23 @@ pub struct SystemStats {
     pub total_records: usize,
     pub layer_distribution: std::collections::HashMap<String, usize>,
     pub index_sizes: IndexSizes,
+    pub cache_stats: CacheStats,
+    // Статистика по слоям
+    pub interact_count: usize,
+    pub interact_size: usize,
+    pub interact_avg_access: f32,
+    pub insights_count: usize,
+    pub insights_size: usize,
+    pub insights_avg_access: f32,
+    pub assets_count: usize,
+    pub assets_size: usize,
+    pub assets_avg_access: f32,
+    // Статистика продвижения
+    pub interact_to_insights: usize,
+    pub insights_to_assets: usize,
+    pub expired_interact: usize,
+    pub expired_insights: usize,
+    pub total_time_ms: u64,
 }
 
 /// Размеры индексов
@@ -321,6 +363,14 @@ pub struct SystemStats {
 pub struct IndexSizes {
     pub time_indices: usize,
     pub score_indices: usize,
+}
+
+/// Статистика кэша
+#[derive(Debug, Clone)]
+pub struct CacheStats {
+    pub hit_rate: f32,
+    pub size_bytes: usize,
+    pub entries: usize,
 }
 
 // ========== BUILDER PATTERN ДЛЯ УДОБСТВА ==========

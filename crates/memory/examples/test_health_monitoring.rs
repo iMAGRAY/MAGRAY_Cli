@@ -1,8 +1,8 @@
 use anyhow::Result;
 use memory::{
-    MemoryConfig, MemoryService, Layer, Record, 
+    MemoryService, Layer, Record, 
     ComponentType, AlertSeverity, HealthConfig,
-    HealthMonitor, health_metric
+    HealthMonitor, default_config
 };
 use tracing::info;
 use uuid::Uuid;
@@ -27,13 +27,10 @@ async fn main() -> Result<()> {
         enable_real_time_metrics: true,
     };
     
-    let memory_config = MemoryConfig {
-        db_path: temp_dir.path().join("health_test"),
-        cache_path: temp_dir.path().join("cache"),
-        promotion: Default::default(),
-        ai_config: Default::default(),
-        health_config,
-    };
+    let mut memory_config = default_config().unwrap();
+    memory_config.db_path = temp_dir.path().join("health_test");
+    memory_config.cache_path = temp_dir.path().join("cache");
+    memory_config.health_config = health_config;
     
     println!("✅ Конфигурация health monitoring создана");
     
@@ -160,25 +157,27 @@ async fn main() -> Result<()> {
     let standalone_monitor = HealthMonitor::new(HealthConfig::default());
     
     // Симулируем метрики с превышением порога
-    let high_latency_metric = health_metric!(
-        ComponentType::EmbeddingService,
-        "embedding_latency",
-        250.0,  // значение
-        "ms",
-        200.0,  // warning threshold
-        500.0   // critical threshold
-    );
+    let high_latency_metric = memory::health::HealthMetric {
+        component: ComponentType::EmbeddingService,
+        metric_name: "embedding_latency".to_string(),
+        value: 250.0,
+        unit: "ms".to_string(),
+        threshold_warning: Some(200.0),
+        threshold_critical: Some(500.0),
+        timestamp: chrono::Utc::now(),
+    };
     
     standalone_monitor.record_metric(high_latency_metric)?;
     
-    let critical_error_rate = health_metric!(
-        ComponentType::RerankingService,
-        "error_rate",
-        0.15,   // 15% ошибок
-        "ratio",
-        0.05,   // 5% warning
-        0.10    // 10% critical
-    );
+    let critical_error_rate = memory::health::HealthMetric {
+        component: ComponentType::RerankingService,
+        metric_name: "error_rate".to_string(),
+        value: 0.15,
+        unit: "ratio".to_string(),
+        threshold_warning: Some(0.05),
+        threshold_critical: Some(0.10),
+        timestamp: chrono::Utc::now(),
+    };
     
     standalone_monitor.record_metric(critical_error_rate)?;
     

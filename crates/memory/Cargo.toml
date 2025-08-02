@@ -20,6 +20,9 @@ chrono.workspace = true
 # AI services
 ai = { path = "../ai" }
 
+# Common utilities
+common = { path = "../common" }
+
 # Embedding cache and storage
 sled = "0.34"
 
@@ -30,10 +33,7 @@ bincode = "1.3"
 dirs = "5.0"
 
 # Vector search
-instant-distance = "0.6"
-hnsw = "0.11"
 hnsw_rs = "0.3"
-space = "0.18"
 num_cpus = "1.0"
 rayon = "1.8"
 rand = "0.8"
@@ -41,9 +41,16 @@ rand = "0.8"
 # Fallback и graceful degradation
 sha2 = "0.10"
 
+# System monitoring
+sysinfo = "0.31"
+
+# Backup/restore functionality
+tar = "0.4"
+flate2 = "1.0"
+tempfile = "3.0"
+
 # Test dependencies
 [dev-dependencies]
-tempfile.workspace = true
 tracing-subscriber.workspace = true
 criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
 llm = { path = "../llm" }
@@ -52,14 +59,15 @@ ndarray = "0.15"
 tokenizers = "0.15"
 clap = { version = "4.0", features = ["derive"] }
 rand_chacha = "0.3"
+tempfile = "3.0"
+rand = "0.8"
+fastrand = "2.0"
+futures = "0.3"
 
 [[example]]
 name = "memory_demo"
 path = "examples/memory_demo.rs"
 
-[[example]]
-name = "test_real_onnx_integration"
-path = "examples/test_real_onnx_integration.rs"
 
 [[bench]]
 name = "memory_benchmarks"
@@ -71,4 +79,8 @@ harness = false
 
 [[bench]]
 name = "scalability_benchmarks"
+harness = false
+
+[[bench]]
+name = "vector_benchmarks"
 harness = false

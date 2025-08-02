@@ -1,5 +1,5 @@
 use anyhow::Result;
-use memory::{MemoryConfig, MemoryService, UnifiedMemoryAPI, MemoryContext, ApiSearchOptions, Layer};
+use memory::{MemoryService, UnifiedMemoryAPI, MemoryContext, ApiSearchOptions, Layer, default_config};
 use std::sync::Arc;
 use tracing::info;
 
@@ -13,13 +13,9 @@ async fn main() -> Result<()> {
     
     // Создаем временную директорию для теста
     let temp_dir = tempfile::tempdir()?;
-    let config = MemoryConfig {
-        db_path: temp_dir.path().join("unified_api_test"),
-        cache_path: temp_dir.path().join("cache"),
-        promotion: Default::default(),
-        ai_config: Default::default(),
-        health_config: Default::default(),
-    };
+    let mut config = default_config().unwrap();
+    config.db_path = temp_dir.path().join("unified_api_test");
+    config.cache_path = temp_dir.path().join("cache");
     
     // Инициализируем MemoryService
     println!("🔧 Инициализация системы памяти...");

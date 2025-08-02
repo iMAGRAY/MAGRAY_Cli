@@ -99,7 +99,7 @@ impl LatencyMetric {
         // Calculate percentiles
         if !self.samples.is_empty() {
             let mut sorted = self.samples.clone();
-            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             
             self.p50_ms = sorted[sorted.len() / 2];
             self.p90_ms = sorted[(sorted.len() as f64 * 0.9) as usize];

@@ -335,7 +335,7 @@ impl VectorIndexHnswRs {
         }
         
         // Сортируем по возрастанию расстояния (лучшие результаты первыми)
-        final_results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        final_results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
         
         let duration = start.elapsed().as_micros() as u64;
         self.stats.record_search(duration, final_results.len() as u64);

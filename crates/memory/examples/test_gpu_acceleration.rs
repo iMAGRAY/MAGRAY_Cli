@@ -1,5 +1,5 @@
 use anyhow::Result;
-use memory::{MemoryService, MemoryConfig, Record, Layer, BatchProcessorStats};
+use memory::{MemoryService, MemoryConfig, Record, Layer, default_config};
 use ai::gpu_detector::GpuDetector;
 use std::time::Instant;
 use tracing::info;
@@ -49,19 +49,17 @@ fn test_gpu_detection() -> Result<()> {
             info!("\n  GPU #{}: {}", idx, device.name);
             info!("    - Память: {} MB (свободно: {} MB)", 
                 device.total_memory_mb, device.free_memory_mb);
-            info!("    - Температура: {}°C", device.temperature);
-            info!("    - Загрузка: {}%", device.utilization);
-            info!("    - Compute capability: {}.{}", 
-                device.compute_capability_major, device.compute_capability_minor);
+            if let Some(temp) = device.temperature_c {
+                info!("    - Температура: {}°C", temp);
+            }
+            if let Some(util) = device.utilization_percent {
+                info!("    - Загрузка: {}%", util);
+            }
+            info!("    - Compute capability: {}", device.compute_capability);
         }
         
-        // Проверяем оптимальные параметры
-        let optimal = detector.get_optimal_params(500); // 500MB модель
-        info!("\n  Оптимальные параметры для модели 500MB:");
-        info!("    - Batch size: {}", optimal.batch_size);
-        info!("    - Max sequence: {}", optimal.max_sequence_length);
-        info!("    - FP16: {}", optimal.use_fp16);
-        info!("    - GPU: {}", optimal.gpu_device_id);
+        // Информация о GPU доступности
+        info!("\n  ✅ GPU готов для использования в ONNX Runtime");
     } else {
         info!("❌ GPU не обнаружен, будет использоваться CPU");
     }
@@ -74,7 +72,7 @@ async fn test_memory_gpu_integration() -> Result<()> {
     info!("\n📍 Тест 2: Интеграция GPU с системой памяти");
     
     // Создаем конфигурацию с GPU
-    let mut config = MemoryConfig::default();
+    let mut config = default_config().unwrap();
     config.ai_config.embedding.use_gpu = true;
     
     // Инициализируем сервис
@@ -111,7 +109,7 @@ async fn test_memory_gpu_integration() -> Result<()> {
 async fn test_batch_processing() -> Result<()> {
     info!("\n📍 Тест 3: Батчевая обработка эмбеддингов");
     
-    let mut config = MemoryConfig::default();
+    let mut config = default_config().unwrap();
     config.ai_config.embedding.use_gpu = true;
     let service = MemoryService::new(config).await?;
     
@@ -236,7 +234,7 @@ async fn test_performance_comparison() -> Result<()> {
 async fn test_vector_search() -> Result<()> {
     info!("\n📍 Тест 5: Векторный поиск с GPU эмбеддингами");
     
-    let mut config = MemoryConfig::default();
+    let mut config = default_config().unwrap();
     config.ai_config.embedding.use_gpu = true;
     let service = MemoryService::new(config).await?;
     
@@ -321,7 +319,7 @@ mod tests {
     #[tokio::test]
     async fn test_memory_gpu_basic() {
         let temp_dir = TempDir::new().unwrap();
-        let mut config = MemoryConfig::default();
+        let mut config = default_config().unwrap();
         config.db_path = temp_dir.path().join("test_db");
         config.cache_path = temp_dir.path().join("test_cache");
         

@@ -1,0 +1,21 @@
+[package]
+name = "common"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Core dependencies
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+# Logging
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "fmt"] }
+hostname = "0.3"
+chrono = "0.4"
+uuid = { version = "1.4", features = ["v4", "serde"] }
+
+# Utils
+lazy_static = "1.4"

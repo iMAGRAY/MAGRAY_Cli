@@ -1,4 +1,5 @@
 use crate::{Result, TokenizerService, RerankingConfig, models::OnnxSession};
+use crate::reranker_mxbai_optimized::OptimizedRerankingService;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -6,6 +7,9 @@ use tracing::{info, debug, warn};
 
 /// Reranking service with real ONNX inference
 pub struct RerankingService {
+    // Try to use optimized version first
+    optimized_service: Option<Arc<OptimizedRerankingService>>,
+    // Fallback to basic implementation
     session: Arc<OnnxSession>,
     tokenizer: Option<Arc<TokenizerService>>,
     config: RerankingConfig,
@@ -21,49 +25,91 @@ pub struct RerankResult {
 }
 
 impl RerankingService {
-    /// Create a new reranking service with BGE reranker v2-m3
+    /// Create a new reranking service (supports BGE reranker v2-m3 and Qwen3)
     pub fn new(config: &RerankingConfig) -> Result<Self> {
-        info!("Initializing BGE reranking service with model: {}", config.model_name);
+        info!("Initializing reranking service with model: {}", config.model_name);
         
-        // Direct path to BGE model
-        let model_path = std::path::PathBuf::from("models")
-            .join(&config.model_name)
-            .join("model.onnx");
+        // Try to create optimized service first
+        let optimized_service = match tokio::runtime::Handle::try_current() {
+            Ok(_) => {
+                // We're in an async context, try to create optimized service
+                match tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current().block_on(
+                        OptimizedRerankingService::new(config.clone())
+                    )
+                }) {
+                    Ok(service) => {
+                        info!("✅ Optimized reranking service initialized successfully");
+                        Some(Arc::new(service))
+                    }
+                    Err(e) => {
+                        warn!("Failed to initialize optimized reranking service: {}", e);
+                        None
+                    }
+                }
+            }
+            Err(_) => {
+                warn!("Not in async context, skipping optimized reranking service");
+                None
+            }
+        };
+        
+        // Fallback to basic implementation - check multiple paths
+        let possible_paths = vec![
+            std::path::PathBuf::from("crates/memory/models").join(&config.model_name),
+            std::path::PathBuf::from("models").join(&config.model_name),
+            // Также проверим альтернативные имена
+            std::path::PathBuf::from("crates/memory/models/BGE-reranker-v2-m3"),
+            std::path::PathBuf::from("crates/memory/models/bge-reranker-v2-m3_dynamic_int8_onnx"),
+            std::path::PathBuf::from("crates/memory/models/qwen3_reranker"),
+        ];
+        
+        // Определяем имя файла модели в зависимости от типа
+        let model_filename = match config.model_name.as_str() {
+            "qwen3_reranker" => "model.opt.onnx",
+            _ => "model.onnx",
+        };
+        
+        let model_dir = possible_paths.iter()
+            .find(|p| p.exists() && p.join(model_filename).exists())
+            .cloned()
+            .unwrap_or_else(|| std::path::PathBuf::from("models").join(&config.model_name));
             
-        if !model_path.exists() {
-            warn!("BGE model not found at: {}, using mock", model_path.display());
+        let model_path = model_dir.join(model_filename);
+            
+        if !model_path.exists() && optimized_service.is_none() {
+            warn!("Reranking model not found at: {}, using mock", model_path.display());
             return Self::new_mock(config.clone());
         }
         
-        // Load BGE model directly
+        // Load reranking model directly for fallback
         let session = crate::models::OnnxSession::new(
             config.model_name.clone(),
             model_path,
             config.use_gpu
         )?;
         
-        // Try to load BGE tokenizer
-        let tokenizer_path = std::path::PathBuf::from("models")
-            .join(&config.model_name)
-            .join("tokenizer.json");
+        // Try to load tokenizer
+        let tokenizer_path = model_dir.join("tokenizer.json");
             
         let tokenizer = if tokenizer_path.exists() {
             match TokenizerService::from_file(tokenizer_path, config.max_length) {
                 Ok(t) => {
-                    info!("BGE tokenizer loaded successfully");
+                    info!("Tokenizer loaded successfully");
                     Some(Arc::new(t))
                 },
                 Err(e) => {
-                    debug!("Failed to load BGE tokenizer: {}, using mock", e);
+                    debug!("Failed to load tokenizer: {}, using mock", e);
                     None
                 }
             }
         } else {
-            debug!("BGE tokenizer not found at: {}", tokenizer_path.display());
+            debug!("Tokenizer not found at: {}", tokenizer_path.display());
             None
         };
         
         Ok(Self {
+            optimized_service,
             session: Arc::new(session),
             tokenizer,
             config: config.clone(),
@@ -81,6 +127,7 @@ impl RerankingService {
         );
         
         Ok(Self {
+            optimized_service: None,
             session: Arc::new(mock_session),
             tokenizer: None,
             config,
@@ -97,6 +144,31 @@ impl RerankingService {
             return Ok(vec![]);
         }
         
+        // Use optimized service if available
+        if let Some(ref optimized) = self.optimized_service {
+            debug!("Using optimized reranking service");
+            
+            // Use block_in_place to run async code in sync context
+            let optimized_results = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(
+                    optimized.rerank(query, documents)
+                )
+            })?;
+            
+            // Convert OptimizedRerankResult to RerankResult
+            let results = optimized_results.into_iter()
+                .map(|r| RerankResult {
+                    query: r.query,
+                    document: r.document,
+                    score: r.score,
+                    original_index: r.original_index,
+                })
+                .collect();
+            
+            return Ok(results);
+        }
+        
+        debug!("Using fallback reranking implementation");
         debug!("Reranking {} documents for query", documents.len());
         
         // Process in batches
@@ -250,8 +322,12 @@ impl RerankingService {
         let length_ratio = (query_len.min(doc_len) / query_len.max(doc_len).max(1.0)).sqrt();
         
         // Position bonus for early matches
-        let position_bonus = if doc_lower.starts_with(&query_words.iter().next().unwrap_or(&"")[..3.min(query_words.iter().next().unwrap_or(&"").len())]) {
-            0.1
+        let position_bonus = if let Some(first_word) = query_words.iter().next() {
+            if !first_word.is_empty() && doc_lower.starts_with(first_word) {
+                0.1
+            } else {
+                0.0
+            }
         } else {
             0.0
         };

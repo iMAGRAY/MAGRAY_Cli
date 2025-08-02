@@ -7,6 +7,7 @@ pub mod memory_pool;
 pub mod models;
 pub mod reranking;
 pub mod reranker_mxbai;
+pub mod reranker_mxbai_optimized;
 pub mod tokenizer;
 pub mod tokenization;
 pub mod gpu_config;
@@ -15,6 +16,7 @@ pub mod gpu_memory_pool;
 pub mod auto_device_selector;
 pub mod model_downloader;
 pub mod tensorrt_cache;
+pub mod gpu_fallback;
 
 pub use config::{AiConfig, EmbeddingConfig, RerankingConfig};
 pub use embeddings_bge_m3::BgeM3EmbeddingService;
@@ -29,6 +31,7 @@ pub use tokenizer::{TokenizerService, TokenizedInput, SpecialTokens};
 pub use tokenization::{OptimizedTokenizer, TokenizedInput as OptTokenizedInput, BatchTokenized};
 pub use gpu_config::{GpuConfig, GpuInfo};
 pub use auto_device_selector::EmbeddingServiceTrait;
+pub use gpu_fallback::{GpuFallbackManager, FallbackPolicy};
 
 /// Result type for AI operations
 pub type Result<T> = std::result::Result<T, AiError>;

@@ -80,9 +80,16 @@ impl ModelDownloader {
             return Ok(false);
         }
         
-        // Проверяем наличие основных файлов
+        // Проверяем наличие модели (может быть model.onnx или model.opt.onnx)
+        let model_exists = model_path.join("model.onnx").exists() || 
+                          model_path.join("model.opt.onnx").exists();
+        
+        if !model_exists {
+            return Ok(false);
+        }
+        
+        // Проверяем наличие остальных файлов
         let required_files = vec![
-            "model.onnx",
             "tokenizer.json",
             "config.json",
         ];
@@ -138,8 +145,8 @@ impl ModelDownloader {
                 total_size: 585_000_000,
             }),
             
-            "bge-reranker-v2-m3" => Ok(ModelInfo {
-                name: "bge-reranker-v2-m3".to_string(),
+            "bge-reranker-v2-m3" | "bge-reranker-v2-m3_dynamic_int8_onnx" => Ok(ModelInfo {
+                name: model_name.to_string(),
                 files: vec![
                     ModelFile {
                         filename: "model.onnx".to_string(),
@@ -163,6 +170,56 @@ impl ModelDownloader {
                 total_size: 1_140_555_856,
             }),
             
+            "qwen3emb" => Ok(ModelInfo {
+                name: "qwen3emb".to_string(),
+                files: vec![
+                    ModelFile {
+                        filename: "model.opt.onnx".to_string(),
+                        url: "LOCAL_FILE".to_string(), // Локальные файлы
+                        size: 0, // Будем использовать существующие
+                        sha256: None,
+                    },
+                    ModelFile {
+                        filename: "tokenizer.json".to_string(),
+                        url: "LOCAL_FILE".to_string(),
+                        size: 0,
+                        sha256: None,
+                    },
+                    ModelFile {
+                        filename: "config.json".to_string(),
+                        url: "LOCAL_FILE".to_string(),
+                        size: 0,
+                        sha256: None,
+                    },
+                ],
+                total_size: 0,
+            }),
+            
+            "qwen3_reranker" => Ok(ModelInfo {
+                name: "qwen3_reranker".to_string(),
+                files: vec![
+                    ModelFile {
+                        filename: "model.opt.onnx".to_string(),
+                        url: "LOCAL_FILE".to_string(), // Локальные файлы
+                        size: 0, // Будем использовать существующие
+                        sha256: None,
+                    },
+                    ModelFile {
+                        filename: "tokenizer.json".to_string(),
+                        url: "LOCAL_FILE".to_string(),
+                        size: 0,
+                        sha256: None,
+                    },
+                    ModelFile {
+                        filename: "config.json".to_string(),
+                        url: "LOCAL_FILE".to_string(),
+                        size: 0,
+                        sha256: None,
+                    },
+                ],
+                total_size: 0,
+            }),
+            
             _ => Err(anyhow::anyhow!("Неизвестная модель: {}", model_name)),
         }
     }
@@ -170,6 +227,16 @@ impl ModelDownloader {
     /// Загрузить файл с прогрессом
     async fn download_file(&self, file: &ModelFile, dest_dir: &Path) -> Result<()> {
         let dest_path = dest_dir.join(&file.filename);
+        
+        // Если это локальный файл, просто проверяем его наличие
+        if file.url == "LOCAL_FILE" {
+            if dest_path.exists() {
+                info!("✅ Локальный файл {} найден", file.filename);
+                return Ok(());
+            } else {
+                return Err(anyhow::anyhow!("Локальный файл {} не найден", file.filename));
+            }
+        }
         
         // Проверяем существующий файл
         if dest_path.exists() {

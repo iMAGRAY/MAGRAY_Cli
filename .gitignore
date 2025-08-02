@@ -121,3 +121,7 @@ test_*.rs
 !crates/*/src/**/*test*.rs
 !run_ctl_*.ps1
 !run_doc_sync.ps1
+crates/memory/models/qwen3emb/model.opt.onnx
+crates/memory/models/qwen3_reranker/model.opt.onnx
+/scripts/onnxruntime_gpu_extracted
+/scripts/onnxruntime

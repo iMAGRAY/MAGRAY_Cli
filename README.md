@@ -12,7 +12,7 @@ A blazing-fast, pure-Rust AI agent CLI with local-first memory, semantic search,
 - 🧠 **Multi-Layer Memory** - Smart context management with automatic promotion/decay
 - 🔍 **HNSW Vector Search** - Sub-10ms semantic search with professional hnsw_rs implementation
 - 🤖 **Local AI Stack** - ONNX embeddings/reranking, optional LLM providers
-- 🔌 **WASI Plugins** - Secure, sandboxed extensions in any language
+- 🔧 **Extensible Tools** - File operations, git integration, shell commands
 - 📊 **Observable** - Built-in tracing, metrics, and event logging
 - 🛡️ **Memory Safe** - 100% Rust with zero unsafe blocks in core
 
@@ -20,7 +20,7 @@ A blazing-fast, pure-Rust AI agent CLI with local-first memory, semantic search,
 
 ```bash
 # Install from crates.io (when published)
-cargo install ourcli
+cargo install magray
 
 # Or build from source
 git clone https://github.com/yourusername/MAGRAY_Cli
@@ -28,13 +28,13 @@ cd MAGRAY_Cli
 cargo build --release
 cargo install --path crates/cli
 
-# First run - downloads models automatically
-ourcli init
+# Download models manually (required)
+./download_models.ps1
 
 # Start using
-ourcli ask "How do I implement a Redis cache?"
-ourcli remember "Project uses PostgreSQL 15 with TimescaleDB"
-ourcli search "database configuration"
+magray ask "How do I implement a Redis cache?"
+magray remember "Project uses PostgreSQL 15 with TimescaleDB"
+magray search "database configuration"
 ```
 
 ## 📦 Installation
@@ -53,24 +53,24 @@ git clone https://github.com/yourusername/MAGRAY_Cli
 cd MAGRAY_Cli
 
 # Download required ONNX models
-./scripts/download_models.sh
+./download_models.ps1
 
 # Build and install
 cargo build --release
 cargo install --path crates/cli
 
 # Verify installation
-ourcli --version
+magray --version
 ```
 
 ### With Features
 
 ```bash
 # Enable GPU acceleration
-cargo install --path crates/cli --features gpu
+cargo build --release --features gpu
 
 # Enable all features (GPU, TUI, remote LLMs)
-cargo install --path crates/cli --all-features
+cargo build --release --all-features
 ```
 
 ## 🎯 Usage
@@ -78,37 +78,38 @@ cargo install --path crates/cli --all-features
 ### Basic Commands
 
 ```bash
-# Ask questions with context-aware responses
-ourcli ask "How do I optimize this SQL query?"
+# Interactive chat mode (default)
+magray
 
-# Store information for later retrieval
-ourcli remember "API rate limit is 1000 req/min"
+# Direct chat with message
+magray chat "How do I optimize this SQL query?"
 
-# Search your knowledge base
-ourcli search "rate limiting"
+# File operations
+magray read file.txt
+magray write output.txt "Hello World"
+magray list ./src
 
-# Execute tools
-ourcli run shell "ls -la"
-ourcli run git "status"
+# Tool execution with natural language
+magray tool "show git status"
+magray tool "create a new file with hello world"
 
-# Interactive mode
-ourcli chat
+# Smart AI planning for complex tasks
+magray smart "analyze this codebase and suggest improvements"
 ```
 
 ### Advanced Features
 
 ```bash
-# Use specific LLM model
-ourcli ask "Explain async Rust" --model llama-3.2
+# Memory system operations
+magray memory search "error handling" --layer insights --top-k 20
+magray memory add "API rate limit is 1000 req/min" --layer insights
+magray memory stats
+magray memory backup --name my-backup
 
-# Search with filters
-ourcli search "error handling" --layer insights --limit 20
-
-# Export memory
-ourcli export memory --format json > backup.json
-
-# Install plugin
-ourcli plugin install ./my-plugin.wasm
+# GPU acceleration management
+magray gpu info
+magray gpu benchmark --batch-size 100 --compare
+magray gpu memory status
 ```
 
 ## 🏗️ Architecture
@@ -154,14 +155,38 @@ Dataset Size    HNSW Time    Linear Time    Speedup
 5000 docs       6.0ms        104.8ms        17.4x
 ```
 
+## 🤖 AI Models
+
+MAGRAY CLI использует современные ONNX модели для векторного поиска и ранжирования:
+
+### Embedding Model
+- **[Qwen3-Embedding-0.6B-ONNX](https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX/)**
+  - Размерность: 1024
+  - Поддержка многоязычности (русский, английский, китайский)
+  - Оптимизирован для ONNX Runtime
+  - Размер модели: ~600MB
+
+### Reranking Model  
+- **[Qwen3-Reranker-0.6B-ONNX](https://huggingface.co/zhiqing/Qwen3-Reranker-0.6B-ONNX/)**
+  - Семантическое переранжирование результатов поиска
+  - Высокая точность на многоязычных текстах
+  - INT8 квантизация для производительности
+  - Размер модели: ~600MB
+
+Модели автоматически загружаются при первом запуске или через:
+```powershell
+./download_models.ps1
+```
+
 ## 🔧 Configuration
 
-Configuration file at `~/.ourcli/config.toml`:
+Configuration file at `~/.magray/config.toml`:
 
 ```toml
 [ai]
-embed_model = "bge-small-v1.5"
+embed_model = "qwen3emb"
 embed_batch_size = 32
+rerank_model = "qwen3_reranker"
 
 [ai.llm]
 provider = "local"
@@ -175,42 +200,23 @@ promote_threshold = 0.8
 
 [tools]
 enable_network = false
-plugin_dir = "~/.ourcli/plugins"
+plugin_dir = "~/.magray/plugins"
 ```
 
-## 🔌 Plugin Development
+## 🔧 Tool System
 
-Create WASI plugins in any language:
+MAGRAY CLI includes built-in tools for common development tasks:
 
-```rust
-// Rust plugin example
-use serde_json::{json, Value};
+- **File Operations**: Read, write, and list files with syntax highlighting
+- **Git Integration**: Status, commit, and repository management
+- **Shell Commands**: Cross-platform command execution
+- **Web Search**: Search capabilities for documentation and resources
 
-#[no_mangle]
-pub extern "C" fn invoke(input: *const u8, len: usize) -> *mut u8 {
-    // Parse input, process, return JSON result
-}
-```
-
-```json
-// manifest.json
-{
-  "name": "my-tool",
-  "version": "1.0.0",
-  "description": "Does something useful",
-  "inputs": [
-    {"name": "query", "type": "string", "required": true}
-  ],
-  "outputs": [
-    {"name": "result", "type": "object"}
-  ]
-}
-```
-
-Build and install:
+Tools are accessed through natural language commands:
 ```bash
-cargo build --target wasm32-wasi --release
-ourcli plugin install target/wasm32-wasi/release/my_tool.wasm
+magray tool "show git status"
+magray tool "create a new file called test.rs with a hello world function"
+magray tool "list all .rs files in the src directory"
 ```
 
 ## 🧪 Development
@@ -220,15 +226,16 @@ ourcli plugin install target/wasm32-wasi/release/my_tool.wasm
 ```
 MAGRAY_Cli/
 ├── crates/
-│   ├── cli/        # Main binary
-│   ├── core/       # Business logic
-│   ├── memory/     # Vector store
-│   ├── ai/         # ML models
-│   ├── tools/      # Tool system
-│   └── scheduler/  # Background jobs
-├── plugins/        # Example plugins
+│   ├── cli/        # Main binary (magray)
+│   ├── llm/        # LLM client abstraction
+│   ├── memory/     # Vector store & memory layers
+│   ├── ai/         # ONNX models & embeddings
+│   ├── tools/      # Tool system & operations
+│   ├── router/     # AI routing logic
+│   └── todo/       # Task management
 ├── models/         # ONNX models (git-ignored)
-└── tests/          # Integration tests
+├── scripts/        # Setup & utility scripts
+└── docs/           # Documentation
 ```
 
 ### Building
@@ -273,35 +280,35 @@ Benchmarks on M1 MacBook Air:
 ### Common Issues
 
 **"Model not found" error**
-```bash
+```powershell
 # Re-download models
-./scripts/download_models.sh
+./download_models.ps1
 
 # Verify models
-ls -la models/
+dir models/
 ```
 
 **High memory usage**
-```bash
+```powershell
 # Reduce batch sizes in config
 # Clear vector cache
-rm -rf ~/.ourcli/cache/embeddings.db
+Remove-Item -Recurse -Force ~/.magray/cache/embeddings.db
 ```
 
-**Plugin won't load**
-```bash
-# Verify WASI compatibility
-wasmtime run my-plugin.wasm
+**Tool execution fails**
+```powershell
+# Check tool availability
+magray tool "list available tools"
 
-# Check manifest
-cat my-plugin.wasm.manifest.json | jq
+# Verify environment
+echo $env:PATH
 ```
 
 ## 📚 Documentation
 
 - [Architecture Overview](docs/ARCHITECTURE.md)
 - [API Reference](https://docs.rs/ourcli)
-- [Plugin Development Guide](docs/PLUGINS.md)
+- [Tool System Guide](docs/TOOLS.md)
 - [Memory System Deep Dive](docs/MEMORY.md)
 
 ## 🤝 Community
@@ -318,7 +325,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 
 - [hnsw_rs](https://github.com/jean-pierreBoth/hnswlib-rs) by Jean-Pierre Both for professional HNSW implementation
 - [ONNX Runtime](https://onnxruntime.ai/) for fast inference
-- [Wasmtime](https://wasmtime.dev/) for WASI runtime
+- [Tokio](https://tokio.rs/) for async runtime
 - The Rust community for amazing crates
 
 ---

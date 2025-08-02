@@ -1,6 +1,7 @@
 use anyhow::Result;
 use llm::{LlmClient, IntentAnalyzerAgent};
 use router::SmartRouter;
+use common::OperationTimer;
 // Удален неиспользуемый импорт serde
 
 // @component: {"k":"C","id":"unified_agent","t":"Main agent orchestrator","m":{"cur":60,"tgt":90,"u":"%"},"d":["llm_client","smart_router"]}
@@ -36,32 +37,48 @@ impl UnifiedAgent {
     }
     
     pub async fn process_message(&self, message: &str) -> Result<AgentResponse> {
+        let mut timer = OperationTimer::new("agent_process_message");
+        timer.add_field("message_length", message.len());
+        
         // Используем специализированный агент для анализа намерений
         let decision = self.intent_analyzer.analyze_intent(message).await?;
+        timer.add_field("intent_type", &decision.action_type);
+        timer.add_field("confidence", decision.confidence);
         
         println!("[AI] Анализ намерения: {} (уверенность: {:.1}%)", 
                 decision.action_type, decision.confidence * 100.0);
         
-        match decision.action_type.as_str() {
+        let response = match decision.action_type.as_str() {
             "chat" => {
+                let chat_timer = OperationTimer::new("llm_chat");
                 let response = self.llm_client.chat(message).await?;
+                chat_timer.finish();
                 Ok(AgentResponse::Chat(response))
             }
             "tools" => {
+                let tools_timer = OperationTimer::new("smart_router_process");
                 let result = self.smart_router.process_smart_request(message).await?;
+                tools_timer.finish();
                 Ok(AgentResponse::ToolExecution(result))
             }
             _ => {
                 // Fallback на простую эвристику если агент вернул неожиданный тип
                 if self.simple_heuristic(message) {
+                    let tools_timer = OperationTimer::new("smart_router_fallback");
                     let result = self.smart_router.process_smart_request(message).await?;
+                    tools_timer.finish();
                     Ok(AgentResponse::ToolExecution(result))
                 } else {
+                    let chat_timer = OperationTimer::new("llm_chat_fallback");
                     let response = self.llm_client.chat(message).await?;
+                    chat_timer.finish();
                     Ok(AgentResponse::Chat(response))
                 }
             }
-        }
+        };
+        
+        timer.finish_with_result(response.as_ref().map(|_| ()));
+        response
     }
     
     // Удален захардкоженный analyze_intent - теперь используем IntentAnalyzerAgent

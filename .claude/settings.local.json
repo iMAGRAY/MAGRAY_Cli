@@ -1,73 +1,55 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cargo check:*)",
-      "Bash(cargo test:*)",
-      "Bash(find:*)",
+      "Bash(set ORT_DYLIB_PATH=C:Users1DocumentsGitHubMAGRAY_Cliscriptsonnxruntimelibonnxruntime.dll)",
+      "Bash(cargo build:*)",
       "Bash(cargo run:*)",
       "Bash(rustc:*)",
-      "WebFetch(domain:crates.io)",
-      "Bash(cargo:*)",
-      "WebFetch(domain:docs.rs)",
-      "WebFetch(domain:github.com)",
-      "Bash(mkdir:*)",
-      "Bash(xcopy:*)",
-      "Bash(robocopy:*)",
-      "Bash(rmdir:*)",
-      "Bash(dir:*)",
-      "Bash(ls:*)",
-      "Bash(mv:*)",
       "Bash(rm:*)",
+      "Bash(find:*)",
+      "Bash(cargo test:*)",
+      "Bash(mv:*)",
+      "Bash(cargo check:*)",
       "Bash(grep:*)",
-      "Bash(sed:*)",
-      "Bash(set RUST_BACKTRACE=1)",
-      "Bash(set ORT_USE_CUDA=0)",
-      "Bash(MAGRAY_USE_MOCK_MODELS=true cargo test mock)",
-      "Bash(set MAGRAY_USE_MOCK_MODELS=true)",
-      "Bash(set ORT_DYLIB_PATH=C:Users1DocumentsGitHubMAGRAY_Clitargetdebug)",
-      "Bash(copy onnxruntime.dll deps\\ )",
-      "Bash(copy:*)",
-      "Bash(cp:*)",
-      "Bash(where:*)",
+      "Bash(rustfmt:*)",
+      "Bash(mkdir:*)",
+      "Bash(target/release/magray.exe:*)",
+      "Bash(cargo fix:*)",
+      "Bash(dir:*)",
       "Bash(powershell:*)",
-      "Bash(python:*)",
-      "Bash(timeout 30 cargo run --example test_full_memory_system -p memory)",
-      "Bash(timeout 60 cargo check -p memory --features use_real_onnx)",
-      "Bash(del:*)",
-      "Bash(if exist .env echo \"File exists\" else echo \"File does not exist\")",
-      "Bash(chmod:*)",
-      "Bash(timeout 10 cargo run:*)",
-      "Bash(timeout:*)",
-      "Bash(./tools/sync_daemon.sh:*)",
-      "Bash(.docs-daemonsync_daemon_simple.ps1 help)",
-      "Bash(\".\\docs-daemon\\target\\debug\\doc_sync.exe\" once)",
-      "Bash(cat:*)",
-      "Bash(taskkill:*)",
-      "Bash(.docs-daemonsync_daemon.ps1 once)",
-      "Bash(./setup_ort_env.bat)",
-      "Bash(set ORT_DYLIB_PATH=C:Users1DocumentsGitHubMAGRAY_Cliscriptsonnxruntimelibonnxruntime.dll)",
-      "WebFetch(domain:ort.pyke.io)",
-      "WebFetch(domain:huggingface.co)",
-      "Bash(curl:*)",
-      "Bash(cleanup_test.exe)",
-      "Bash(touch:*)",
-      "Bash(./run_ctl_full_sync.ps1)",
-      "Bash(true)",
-      "Bash(./test_watch_mode.ps1)",
-      "Bash(rg:*)",
-      "Bash(ln:*)",
-      "Bash(mklink:*)",
-      "Bash(move:*)",
-      "Bash(ren:*)",
-      "Bash(git checkout:*)",
-      "Bash(echo $env:ORT_DYLIB_PATH)",
-      "Bash($env:ORT_DYLIB_PATH = \"$pwd\\scripts\\onnxruntime\\lib\\onnxruntime.dll\")",
-      "Bash($env:ORT_DYLIB_PATH = \"$pwd\\onnxruntime\\lib\\onnxruntime.dll\")",
-      "Bash(set ORT_DYLIB_PATH=%cd%onnxruntimelibonnxruntime.dll)",
-      "Bash(export ORT_DYLIB_PATH=\"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\onnxruntime\\lib\\onnxruntime.dll\")",
-      "Bash(echo $ORT_DYLIB_PATH)",
-      "Bash(unzip:*)"
+      "Bash(targetreleasemagray.exe --version)",
+      "Bash(.targetreleasemagray.exe --version)",
+      "Bash(cargo bench:*)",
+      "mcp__archlens__analyze_project",
+      "mcp__archlens__export_ai_compact"
     ],
     "deny": []
+  },
+  "mcpServers": {
+    "context7": {
+      "command": "npx -y @upstash/context7-mcp",
+      "env": {}
+    },
+    "postgresql-api-ssh-mcp-server": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\1\\Documents\\GitHub\\PSQL_SSH_API_MCP\\simple_openmcp_server.cjs",
+        "stdio"
+      ],
+      "cwd": "C:\\Users\\1\\Documents\\GitHub\\PSQL_SSH_API_MCP",
+      "timeout": 30
+    },
+    "archlens": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\1\\Documents\\GitHub\\Archinalysator\\mcp\\archlens_mcp_server.cjs"
+      ],
+      "cwd": "C:\\Users\\1\\Documents\\GitHub\\Archinalysator\\mcp",
+      "env": {
+        "NODE_OPTIONS": "--require=child_process",
+        "ARCHLENS_PATH": "C:\\Users\\1\\Documents\\GitHub\\Archinalysator\\mcp",
+        "ARCHLENS_BINARY": "C:\\Users\\1\\Documents\\GitHub\\Archinalysator\\mcp\\archlens.exe"
+      }
+    }
   }
 }

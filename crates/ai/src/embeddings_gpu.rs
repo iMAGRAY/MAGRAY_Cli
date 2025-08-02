@@ -64,7 +64,11 @@ impl GpuEmbeddingService {
         
         // Определяем оптимальные параметры
         let detector = GpuDetector::detect();
-        let model_size_mb = 500; // Примерный размер BGE-M3 модели
+        let model_size_mb = match config.model_name.as_str() {
+            "qwen3emb" => 600, // Примерный размер Qwen3 модели
+            "bge-m3" => 500, // Примерный размер BGE-M3 модели
+            _ => 500,
+        };
         
         let (optimal_batch_size, use_gpu) = if config.use_gpu && detector.available {
             let gpu_config = if let Some(ref gc) = config.gpu_config {
@@ -92,7 +96,14 @@ impl GpuEmbeddingService {
         let model_name = &config.model_name;
         let model_dir = ensure_model(model_name).await?;
         
-        let model_path = model_dir.join("model.onnx");
+        // Определяем имя файла модели в зависимости от типа
+        let model_filename = match model_name.as_str() {
+            "qwen3emb" => "model.opt.onnx",
+            "bge-m3" => "model.onnx",
+            _ => "model.onnx",
+        };
+        
+        let model_path = model_dir.join(model_filename);
         let tokenizer_path = model_dir.join("tokenizer.json");
         
         if !model_path.exists() {
@@ -146,7 +157,7 @@ impl GpuEmbeddingService {
         info!("✅ Model loaded: {} inputs, {} outputs", inputs, outputs);
         
         if inputs != 3 {
-            tracing::warn!("Expected 3 inputs for BGE-M3 (input_ids, attention_mask, token_type_ids), got {}", inputs);
+            tracing::warn!("Expected 3 inputs for model {} (input_ids, attention_mask, token_type_ids), got {}", model_name, inputs);
         }
         
         let hidden_size = config.embedding_dim.unwrap_or(768);

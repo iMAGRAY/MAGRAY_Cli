@@ -4,14 +4,17 @@ use console::{style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
 use llm::LlmClient;
 use std::io::{self, Write};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use common::{init_structured_logging, LoggingConfig};
 
 mod agent;
 mod commands;
+mod health_checks;
 
 use agent::{UnifiedAgent, AgentResponse};
-use commands::GpuCommand;
+use commands::{GpuCommand, MemoryCommand};
 
 
 // Иконки для CLI интерфейса
@@ -78,16 +81,26 @@ enum Commands {
     },
     /// [🎮] Управление GPU ускорением
     Gpu(GpuCommand),
+    /// [🧠] Управление системой памяти
+    Memory(MemoryCommand),
+    /// [🏥] Проверка здоровья системы
+    Health,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Настройка логирования (скрываем для красоты)
-    tracing_subscriber::fmt()
-        .with_env_filter("error")
-        .with_target(false)
-        .without_time()
-        .init();
+    // Настройка структурированного логирования
+    let log_config = LoggingConfig {
+        level: tracing::Level::INFO,
+        json_output: std::env::var("LOG_FORMAT").as_deref() == Ok("json"),
+        color_output: !std::env::var("NO_COLOR").is_ok(),
+        log_file: std::env::var("LOG_FILE").ok(),
+        include_context: true,
+        include_line_numbers: cfg!(debug_assertions),
+        ..Default::default()
+    };
+    
+    init_structured_logging(log_config)?;
 
     let cli = Cli::parse();
 
@@ -133,6 +146,24 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Gpu(gpu_command)) => {
             gpu_command.execute().await?;
+        }
+        // Some(Commands::Memory(memory_command)) => {
+        //     commands::memory::handle_memory_command(memory_command).await?;
+        // }
+        Some(Commands::Health) => {
+            // Инициализируем сервисы для health check
+            let llm_client = LlmClient::from_env().ok().map(Arc::new);
+            // Создаем базовую конфигурацию памяти для health check
+            let memory_service = if let Ok(config) = memory::default_config() {
+                memory::MemoryService::new(config).await.ok().map(Arc::new)
+            } else {
+                None
+            };
+            
+            health_checks::run_health_checks(llm_client, memory_service).await?;
+        }
+        Some(Commands::Memory(cmd)) => {
+            cmd.execute().await?;
         }
         None => {
             // По умолчанию запускаем интерактивный чат

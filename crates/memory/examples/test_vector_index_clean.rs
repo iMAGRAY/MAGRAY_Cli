@@ -1,6 +1,5 @@
 use anyhow::Result;
-use memory::{MemoryService, MemoryConfig, Record, Layer};
-use ai::AiConfig;
+use memory::{MemoryService, Record, Layer, default_config};
 use std::path::PathBuf;
 
 #[tokio::main]
@@ -22,24 +21,18 @@ async fn main() -> Result<()> {
     println!("  Cache: {:?}\n", cache_path);
     
     // Create config
-    let mut config = MemoryConfig::default();
+    let mut config = default_config().unwrap();
     config.db_path = db_path;
     config.cache_path = cache_path;
-    config.ai_config = AiConfig {
-        models_dir: PathBuf::from("crates/memory/models"),
-        embedding: ai::EmbeddingConfig {
-            model_name: "bge-m3".to_string(),
-            max_length: 512,
-            batch_size: 8,
-            use_gpu: false,
-        },
-        reranking: ai::RerankingConfig {
-            model_name: "mxbai".to_string(),
-            max_length: 512,
-            batch_size: 8,
-            use_gpu: false,
-        },
-    };
+    config.ai_config.models_dir = PathBuf::from("crates/memory/models");
+    config.ai_config.embedding.model_name = "bge-m3".to_string();
+    config.ai_config.embedding.max_length = 512;
+    config.ai_config.embedding.batch_size = 8;
+    config.ai_config.embedding.use_gpu = false;
+    config.ai_config.reranking.model_name = "mxbai".to_string();
+    config.ai_config.reranking.max_length = 512;
+    config.ai_config.reranking.batch_size = 8;
+    config.ai_config.reranking.use_gpu = false;
     
     println!("1. Creating MemoryService with clean database...");
     let memory_service = MemoryService::new(config).await?;
@@ -55,7 +48,7 @@ async fn main() -> Result<()> {
     
     let mut inserted_ids = Vec::new();
     
-    for (i, (text, tags)) in test_docs.iter().enumerate() {
+    for (_i, (text, tags)) in test_docs.iter().enumerate() {
         let id = uuid::Uuid::new_v4();
         let record = Record {
             id,

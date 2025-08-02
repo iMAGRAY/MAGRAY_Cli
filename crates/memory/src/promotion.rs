@@ -3,7 +3,7 @@ use chrono::{DateTime, Duration, Utc};
 use sled::{Db, Tree};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::{
     storage::VectorStore,
@@ -216,10 +216,17 @@ impl PromotionEngine {
                 {
                     candidates.push(record);
                     
-                    // Ограничиваем количество для предотвращения чрезмерного потребления памяти
-                    if candidates.len() >= 1000 {
-                        warn!("⚠️ Достигнут лимит кандидатов (1000), прерываем поиск");
-                        break;
+                    // Динамический лимит на основе доступной памяти
+                    let memory_limit = self.calculate_safe_candidates_limit();
+                    if candidates.len() >= memory_limit {
+                        debug!("🎯 Достигнут безопасный лимит кандидатов ({}), продолжаем с batch обработкой", memory_limit);
+                        
+                        // Обрабатываем текущий batch перед продолжением
+                        if !candidates.is_empty() {
+                            self.process_candidates_batch(&mut candidates, layer).await?;
+                            debug!("✅ Обработан batch из {} кандидатов", candidates.len());
+                            candidates.clear();
+                        }
                     }
                 }
             }
@@ -329,6 +336,173 @@ impl PromotionEngine {
     /// Преобразует score в ключ для индекса
     fn score_to_key(&self, score: f32) -> [u8; 4] {
         score.to_bits().to_be_bytes()
+    }
+    
+    /// Вычисляет безопасный лимит кандидатов на основе доступной памяти
+    fn calculate_safe_candidates_limit(&self) -> usize {
+        // Базовая оценка: 1 запись ≈ 2KB (text + embeddings + metadata)
+        const ESTIMATED_RECORD_SIZE: usize = 2048;
+        
+        // Получаем примерную оценку доступной памяти (в реальности использовать sysinfo)
+        let available_memory_mb = self.estimate_available_memory_mb();
+        
+        // Используем максимум 10% от доступной памяти для кандидатов
+        let memory_for_candidates = (available_memory_mb * 1024 * 1024) / 10;
+        let safe_limit = memory_for_candidates / ESTIMATED_RECORD_SIZE;
+        
+        // Интеллектуальные границы:
+        // - Минимум 500 кандидатов (для эффективности)
+        // - Максимум 50,000 кандидатов (для предотвращения OOM)
+        let final_limit = safe_limit.max(500).min(50_000);
+        
+        debug!("💾 Calculated safe candidates limit: {} (available memory: {}MB)", 
+               final_limit, available_memory_mb);
+        
+        final_limit
+    }
+    
+    /// Простая оценка доступной памяти (в production использовать sysinfo)
+    fn estimate_available_memory_mb(&self) -> usize {
+        // Базовая эвристика - в реальности заменить на:
+        // use sysinfo::{System, SystemExt};
+        // let mut sys = System::new_all();
+        // sys.refresh_memory();
+        // sys.available_memory() / 1024 / 1024
+        
+        #[cfg(target_os = "windows")]
+        {
+            // Windows: консервативная оценка
+            2048 // 2GB доступно
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            use std::fs;
+            
+            // Linux: читаем /proc/meminfo
+            if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
+                for line in meminfo.lines() {
+                    if line.starts_with("MemAvailable:") {
+                        if let Some(kb_str) = line.split_whitespace().nth(1) {
+                            if let Ok(kb) = kb_str.parse::<usize>() {
+                                return kb / 1024; // KB to MB
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Fallback
+            1024 // 1GB
+        }
+    }
+    
+    /// Обрабатывает batch кандидатов для предотвращения переполнения памяти
+    async fn process_candidates_batch(&self, candidates: &mut Vec<Record>, layer: Layer) -> Result<()> {
+        if candidates.is_empty() {
+            return Ok(());
+        }
+        
+        debug!("🔄 Processing candidates batch: {} records from {:?}", candidates.len(), layer);
+        
+        // Сортируем по priority для обработки самых важных первыми
+        candidates.sort_by(|a, b| {
+            let priority_a = self.calculate_promotion_priority(a);
+            let priority_b = self.calculate_promotion_priority(b);
+            priority_b.partial_cmp(&priority_a).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        
+        // Обрабатываем top кандидатов
+        let batch_size = candidates.len().min(1000); // Максимум 1000 за раз
+        let top_candidates = candidates.drain(0..batch_size).collect::<Vec<_>>();
+        
+        info!("📋 Processing {} top priority candidates from batch", top_candidates.len());
+        
+        // В зависимости от layer применяем соответствующую обработку
+        match layer {
+            Layer::Interact => {
+                self.promote_batch_to_insights(top_candidates).await?;
+            }
+            Layer::Insights => {
+                self.promote_batch_to_assets(top_candidates).await?;
+            }
+            Layer::Assets => {
+                // Assets не продвигаются дальше, просто очищаем устаревшие
+                debug!("Assets layer - no promotion needed");
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Продвигает batch записей из Interact в Insights
+    async fn promote_batch_to_insights(&self, candidates: Vec<Record>) -> Result<()> {
+        if candidates.is_empty() {
+            return Ok(());
+        }
+        
+        let promoted: Vec<_> = candidates.into_iter()
+            .map(|mut r| {
+                r.layer = Layer::Insights;
+                r.score *= 0.9; // Decay factor
+                r
+            })
+            .collect();
+        
+        // Batch операция для эффективности
+        self.store.insert_batch(&promoted.iter().collect::<Vec<_>>()).await?;
+        
+        // Удаляем из старого слоя
+        for record in &promoted {
+            self.delete_record_with_index_update(Layer::Interact, &record.id).await?;
+            self.update_indices_for_record(&record, true).await?;
+        }
+        
+        debug!("✅ Promoted {} records: Interact -> Insights", promoted.len());
+        Ok(())
+    }
+    
+    /// Продвигает batch записей из Insights в Assets
+    async fn promote_batch_to_assets(&self, candidates: Vec<Record>) -> Result<()> {
+        if candidates.is_empty() {
+            return Ok(());
+        }
+        
+        let promoted: Vec<_> = candidates.into_iter()
+            .map(|mut r| {
+                r.layer = Layer::Assets;
+                // Assets не имеют decay - это долговременное хранение
+                r
+            })
+            .collect();
+        
+        self.store.insert_batch(&promoted.iter().collect::<Vec<_>>()).await?;
+        
+        for record in &promoted {
+            self.delete_record_with_index_update(Layer::Insights, &record.id).await?;
+            self.update_indices_for_record(&record, true).await?;
+        }
+        
+        debug!("✅ Promoted {} records: Insights -> Assets", promoted.len());
+        Ok(())
+    }
+    
+    /// Вычисляет priority для promotion
+    fn calculate_promotion_priority(&self, record: &Record) -> f32 {
+        use chrono::Utc;
+        
+        // Многофакторная модель priority
+        let base_score = record.score * 0.4;
+        let access_factor = (record.access_count as f32).ln_1p() * 0.3;
+        let recency_factor = {
+            let hours_since_access = (Utc::now() - record.last_access).num_hours() as f32;
+            (1.0 / (1.0 + hours_since_access / 24.0)) * 0.2
+        };
+        let age_factor = {
+            let hours_since_creation = (Utc::now() - record.ts).num_hours() as f32;
+            (1.0 / (1.0 + hours_since_creation / 168.0)) * 0.1 // 168h = 1 week
+        };
+        
+        base_score + access_factor + recency_factor + age_factor
     }
     
     /// Получает статистику производительности

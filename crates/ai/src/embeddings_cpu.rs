@@ -13,7 +13,7 @@ use tracing::{info, debug};
 use tracing::warn;
 
 /// @component: {"k":"C","id":"embeddings_cpu","t":"CPU-based embeddings","m":{"cur":90,"tgt":95,"u":"%"}}
-/// CPU-based BGE-M3 Embedding Service with real tokenization and batching
+/// CPU-based Embedding Service with real tokenization and batching (supports BGE-M3 and Qwen3)
 pub struct CpuEmbeddingService {
     session: Arc<Mutex<Session>>,
     tokenizer: Arc<OptimizedTokenizer>,
@@ -31,15 +31,23 @@ pub struct OptimizedEmbeddingResult {
 }
 
 impl CpuEmbeddingService {
-    /// Create new optimized BGE-M3 embedding service
+    /// Create new optimized embedding service (supports BGE-M3 and Qwen3)
     pub fn new(config: EmbeddingConfig) -> AnyhowResult<Self> {
-        info!("Initializing CPU BGE-M3 embedding service");
+        info!("Initializing CPU embedding service with model: {}", config.model_name);
         
         // Получаем путь относительно корня проекта
         let project_root = std::env::current_dir()
             .unwrap_or_else(|_| PathBuf::from("."));
-        let model_path = project_root.join("crates/memory/models/bge-m3/model.onnx");
-        let tokenizer_path = project_root.join("crates/memory/models/bge-m3/tokenizer.json");
+        
+        // Определяем путь к модели в зависимости от типа
+        let (model_filename, hidden_size) = match config.model_name.as_str() {
+            "qwen3emb" => ("model.opt.onnx", 1024),
+            "bge-m3" => ("model.onnx", 1024),
+            _ => ("model.onnx", config.embedding_dim.unwrap_or(1024)),
+        };
+        
+        let model_path = project_root.join(format!("crates/memory/models/{}/{}", config.model_name, model_filename));
+        let tokenizer_path = project_root.join(format!("crates/memory/models/{}/tokenizer.json", config.model_name));
         
         // Check files exist
         if !model_path.exists() {
@@ -163,7 +171,7 @@ impl CpuEmbeddingService {
             session: Arc::new(Mutex::new(session)),
             tokenizer: Arc::new(tokenizer),
             model_path,
-            hidden_size: 1024, // BGE-M3 размерность из config.json
+            hidden_size, // Размерность эмбеддингов из конфигурации
         })
     }
     
@@ -256,11 +264,21 @@ impl CpuEmbeddingService {
         // Run inference
         let mut session = self.session.lock().map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
         
-        let outputs = session.run(inputs![
-            "input_ids" => input_ids_tensor,
-            "attention_mask" => attention_mask_tensor,
-            "token_type_ids" => token_type_ids_tensor
-        ])?;
+        // Проверяем количество входов модели
+        let outputs = if session.inputs.len() == 2 {
+            // Модель Qwen3 имеет только 2 входа (input_ids и attention_mask)
+            session.run(inputs![
+                "input_ids" => input_ids_tensor,
+                "attention_mask" => attention_mask_tensor
+            ])?
+        } else {
+            // Модель BGE-M3 имеет 3 входа
+            session.run(inputs![
+                "input_ids" => input_ids_tensor,
+                "attention_mask" => attention_mask_tensor,
+                "token_type_ids" => token_type_ids_tensor
+            ])?
+        };
         
         // Return buffers to pool
         GLOBAL_MEMORY_POOL.return_input_buffer(input_ids_buf);
@@ -303,11 +321,21 @@ impl CpuEmbeddingService {
         // Single ONNX call for entire batch
         let mut session = self.session.lock().map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
         
-        let outputs = session.run(inputs![
-            "input_ids" => input_ids_tensor,
-            "attention_mask" => attention_mask_tensor,
-            "token_type_ids" => token_type_ids_tensor
-        ])?;
+        // Проверяем количество входов модели
+        let outputs = if session.inputs.len() == 2 {
+            // Модель Qwen3 имеет только 2 входа
+            session.run(inputs![
+                "input_ids" => input_ids_tensor,
+                "attention_mask" => attention_mask_tensor
+            ])?
+        } else {
+            // Модель BGE-M3 имеет 3 входа
+            session.run(inputs![
+                "input_ids" => input_ids_tensor,
+                "attention_mask" => attention_mask_tensor,
+                "token_type_ids" => token_type_ids_tensor
+            ])?
+        };
         
         // Return large buffers to pool
         GLOBAL_MEMORY_POOL.return_input_buffer(flat_input_ids);

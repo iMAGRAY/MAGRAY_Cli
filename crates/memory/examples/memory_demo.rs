@@ -1,7 +1,6 @@
 use anyhow::Result;
-use memory::{Layer, MemoryConfig, MemoryService, Record};
+use memory::{Layer, MemoryService, Record, default_config};
 use std::path::PathBuf;
-use uuid::Uuid;
 
 // No need for mock embedding function - AI service handles it now
 
@@ -11,11 +10,9 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     // Configure memory service
-    let config = MemoryConfig {
-        db_path: PathBuf::from("./demo_lancedb"),
-        cache_path: PathBuf::from("./demo_cache"),
-        ..Default::default()
-    };
+    let mut config = default_config().unwrap();
+    config.db_path = PathBuf::from("./demo_db");
+    config.cache_path = PathBuf::from("./demo_cache");
 
     println!("Initializing memory service...");
     let service = MemoryService::new(config).await?;

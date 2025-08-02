@@ -56,12 +56,12 @@ impl Default for AiConfig {
 impl Default for EmbeddingConfig {
     fn default() -> Self {
         Self {
-            model_name: "bge-m3".to_string(), // BGE-M3 выдает 1024-размерные эмбеддинги
+            model_name: "qwen3emb".to_string(), // Qwen3 embedding model
             batch_size: 32,
             max_length: 512,
-            use_gpu: false,
-            gpu_config: None,
-            embedding_dim: Some(1024), // BGE-M3 default
+            use_gpu: true,  // Включаем GPU по умолчанию
+            gpu_config: Some(crate::GpuConfig::auto_optimized()), // Автоматическая настройка GPU
+            embedding_dim: Some(1024), // Qwen3 also 1024 dims
         }
     }
 }
@@ -69,11 +69,11 @@ impl Default for EmbeddingConfig {
 impl Default for RerankingConfig {
     fn default() -> Self {
         Self {
-            model_name: "bge-reranker-v2-m3_dynamic_int8_onnx".to_string(),
+            model_name: "qwen3_reranker".to_string(), // Qwen3 reranker model
             batch_size: 16,
             max_length: 512,
-            use_gpu: false,
-            gpu_config: None,
+            use_gpu: true,  // Включаем GPU по умолчанию
+            gpu_config: Some(crate::GpuConfig::auto_optimized()), // Автоматическая настройка GPU
         }
     }
 }
