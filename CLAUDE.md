@@ -406,7 +406,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-03 00:54:10 UTC*
+*Last updated: 2025-08-03 00:56:45 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -449,5 +449,6 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["integration","workflow","testing"],"id":"integration_tests","k":"T","m":{"cur":0,"tgt":90,"u":"%"},"t":"Full workflow integration tests","x_file":"memory/tests/integration_full_workflow.rs:13"}
 {"f":["benchmarks","performance"],"id":"perf_benchmarks","k":"T","m":{"cur":0,"tgt":100,"u":"%"},"t":"Performance benchmarks для memory system","x_file":"memory/benches/vector_benchmarks.rs:10"}
 {"id":"test_memory_gpu","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Memory GPU integration test","x_file":"memory/examples/test_memory_gpu_integration.rs:9"}
+{"id":"test_real_tokenizer","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Test real BPE tokenizer quality","x_file":"ai/examples/test_real_tokenizer.rs:1"}
 ```
 
