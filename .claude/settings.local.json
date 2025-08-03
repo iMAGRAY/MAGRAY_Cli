@@ -31,7 +31,8 @@
       "Bash(RUST_LOG=warn ./target/release/magray.exe status)",
       "Bash(RUST_LOG=info ./target/release/magray.exe status)",
       "Bash(RUST_LOG=debug ./target/release/magray.exe chat \"создай эмбеддинг для слова hello\")",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(./target/release/magray.exe gpu:*)"
     ],
     "deny": []
   },
