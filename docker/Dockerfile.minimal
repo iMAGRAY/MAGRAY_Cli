@@ -1,0 +1,51 @@
+# Minimal Dockerfile for edge/container deployment
+FROM rust:1.75-alpine as builder
+
+# Install dependencies for Alpine
+RUN apk add --no-cache \
+    musl-dev \
+    pkgconfig \
+    openssl-dev \
+    openssl-libs-static \
+    wget
+
+# Setup ONNX Runtime
+WORKDIR /onnx
+RUN wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz
+RUN tar -xzf onnxruntime-linux-x64-1.22.0.tgz
+
+# Copy source code
+WORKDIR /app
+COPY . .
+
+# Setup environment for static linking
+ENV RUSTFLAGS="-C target-feature=+crt-static"
+ENV ORT_DYLIB_PATH=/onnx/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so
+
+# Build minimal static binary
+RUN cargo build --release --features=minimal --target=x86_64-unknown-linux-musl
+
+# Ultra-minimal runtime
+FROM scratch
+
+# Copy CA certificates for HTTPS
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy ONNX Runtime
+COPY --from=builder /onnx/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so /lib/
+
+# Copy static binary
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/magray /magray
+
+# Setup environment
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV RUST_LOG=warn
+
+ENTRYPOINT ["/magray"]
+CMD ["--help"]
+
+# Metadata
+LABEL org.opencontainers.image.title="MAGRAY CLI - Minimal"
+LABEL org.opencontainers.image.description="Ultra-minimal Rust CLI agent for containers"
+LABEL org.opencontainers.image.vendor="MAGRAY Team"
+LABEL org.opencontainers.image.licenses="MIT"

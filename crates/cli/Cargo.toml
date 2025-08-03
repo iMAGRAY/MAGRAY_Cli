@@ -8,7 +8,10 @@ name = "magray"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["cpu"]
+cpu = ["ai/cpu"]  # CPU-only mode 
+gpu = ["ai/gpu", "memory/gpu"]  # GPU acceleration
+minimal = ["ai/minimal"]  # Minimal build for CI/containers
 
 [dependencies]
 llm = { path = "../llm" }

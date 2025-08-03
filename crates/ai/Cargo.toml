@@ -4,9 +4,12 @@ version.workspace = true
 edition.workspace = true
 
 [features]
-default = []
+default = ["cpu"]
+cpu = []  # CPU-only mode (always available)
 gpu = ["ort/cuda", "ort/tensorrt"]  # GPU support with CUDA and TensorRT
-openai = []
+openai = []  # OpenAI API integration
+onnx = []  # Full ONNX Runtime support
+minimal = []  # Minimal build without heavy dependencies
 
 [dependencies]
 # Core dependencies

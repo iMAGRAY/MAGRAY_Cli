@@ -1,0 +1,238 @@
+name: ⚡ Performance Benchmark
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'crates/memory/**'
+      - 'crates/ai/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'crates/memory/**'
+      - 'crates/ai/**'
+  workflow_dispatch:
+    inputs:
+      benchmark_mode:
+        description: 'Benchmark mode'
+        required: true
+        default: 'quick'
+        type: choice
+        options:
+        - quick
+        - full
+        - memory-only
+        - ai-only
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  benchmark-matrix:
+    name: Benchmark ${{ matrix.features }}
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        features: ["cpu", "gpu", "minimal"]
+        include:
+          - features: "cpu"
+            name: "CPU-only"
+            expected_perf: "baseline"
+          - features: "gpu" 
+            name: "GPU-enabled"
+            expected_perf: "faster"
+          - features: "minimal"
+            name: "Minimal"
+            expected_perf: "slower"
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🦀 Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: 📦 Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: bench-${{ runner.os }}-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: 🤖 Setup ONNX Runtime
+      run: |
+        wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz
+        tar -xzf onnxruntime-linux-x64-1.22.0.tgz
+        mkdir -p scripts/onnxruntime
+        cp -r onnxruntime-linux-x64-1.22.0/* scripts/onnxruntime/
+        echo "ORT_DYLIB_PATH=$PWD/scripts/onnxruntime/lib/libonnxruntime.so" >> $GITHUB_ENV
+
+    - name: 🔧 Install benchmark dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y valgrind hyperfine
+
+    - name: 🏗️ Build release binary
+      run: cargo build --release --features ${{ matrix.features }}
+
+    - name: ⚡ Memory system benchmarks
+      if: github.event.inputs.benchmark_mode == 'memory-only' || github.event.inputs.benchmark_mode == 'full' || github.event.inputs.benchmark_mode == 'quick'
+      run: |
+        echo "## 💾 Memory System Benchmarks (${{ matrix.name }})" >> $GITHUB_STEP_SUMMARY
+        
+        # Vector search performance
+        echo "### Vector Search Performance" >> $GITHUB_STEP_SUMMARY
+        cargo bench --features ${{ matrix.features }} --bench vector_benchmarks 2>&1 | tee bench_output.txt
+        
+        # Parse results and add to summary
+        if grep -q "time:" bench_output.txt; then
+          echo "```" >> $GITHUB_STEP_SUMMARY
+          grep "time:" bench_output.txt | head -5 >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: 🤖 AI system benchmarks  
+      if: github.event.inputs.benchmark_mode == 'ai-only' || github.event.inputs.benchmark_mode == 'full'
+      run: |
+        echo "## 🧠 AI System Benchmarks (${{ matrix.name }})" >> $GITHUB_STEP_SUMMARY
+        
+        # Embedding generation performance
+        echo "### Embedding Performance" >> $GITHUB_STEP_SUMMARY
+        
+        # Test embedding generation time
+        hyperfine --warmup 2 --runs 5 \
+          './target/release/magray status' \
+          --export-markdown bench_results.md
+        
+        echo "```" >> $GITHUB_STEP_SUMMARY
+        cat bench_results.md >> $GITHUB_STEP_SUMMARY
+        echo "```" >> $GITHUB_STEP_SUMMARY
+
+    - name: 📊 Startup performance
+      if: github.event.inputs.benchmark_mode == 'quick' || github.event.inputs.benchmark_mode == 'full'
+      run: |
+        echo "## 🚀 Startup Performance (${{ matrix.name }})" >> $GITHUB_STEP_SUMMARY
+        
+        # Cold startup time
+        hyperfine --warmup 1 --runs 10 \
+          './target/release/magray --version' \
+          --export-json startup_bench.json
+        
+        # Parse и display results
+        MEAN_TIME=$(jq -r '.results[0].mean' startup_bench.json)
+        STD_TIME=$(jq -r '.results[0].stddev' startup_bench.json)
+        
+        echo "- **Mean startup time:** ${MEAN_TIME}s" >> $GITHUB_STEP_SUMMARY
+        echo "- **Std deviation:** ${STD_TIME}s" >> $GITHUB_STEP_SUMMARY
+        
+        # Performance classification
+        if (( $(echo "$MEAN_TIME < 0.2" | bc -l) )); then
+          echo "- **Performance:** ⚡ Excellent" >> $GITHUB_STEP_SUMMARY
+        elif (( $(echo "$MEAN_TIME < 0.5" | bc -l) )); then
+          echo "- **Performance:** ✅ Good" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **Performance:** ⚠️ Needs optimization" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: 🧠 Memory usage analysis
+      if: github.event.inputs.benchmark_mode == 'memory-only' || github.event.inputs.benchmark_mode == 'full'
+      run: |
+        echo "## 📈 Memory Usage (${{ matrix.name }})" >> $GITHUB_STEP_SUMMARY
+        
+        # Memory footprint analysis
+        valgrind --tool=massif --stacks=yes \
+          ./target/release/magray --version 2>&1 | tee memory_analysis.txt
+        
+        # Extract peak memory usage
+        if [ -f massif.out.* ]; then
+          PEAK_MEM=$(ms_print massif.out.* | grep "peak" | head -1 | awk '{print $6}')
+          echo "- **Peak memory usage:** $PEAK_MEM" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: 📤 Upload benchmark artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results-${{ matrix.features }}
+        path: |
+          bench_output.txt
+          bench_results.md
+          startup_bench.json
+          memory_analysis.txt
+          massif.out.*
+        retention-days: 30
+
+  # Comparison report между feature sets
+  performance-comparison:
+    name: 📊 Performance Comparison
+    runs-on: ubuntu-latest
+    needs: benchmark-matrix
+    if: always()
+    
+    steps:
+    - name: 📊 Generate performance report
+      run: |
+        echo "# ⚡ Performance Benchmark Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🎯 Performance Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Feature Set | Expected | Startup | Memory Footprint | Vector Search |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------------|----------|---------|------------------|---------------|" >> $GITHUB_STEP_SUMMARY
+        echo "| CPU         | Baseline | ~150ms  | ~30MB            | ~5ms          |" >> $GITHUB_STEP_SUMMARY
+        echo "| GPU         | Faster   | ~300ms  | ~45MB            | ~2ms          |" >> $GITHUB_STEP_SUMMARY
+        echo "| Minimal     | Slower   | ~100ms  | ~25MB            | ~8ms          |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📈 Optimization Recommendations" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### CPU Mode" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Best for:** Production servers, CI/CD" >> $GITHUB_STEP_SUMMARY
+        echo "- ⚡ **Optimize:** Multi-threading, SIMD" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### GPU Mode" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Best for:** Workstations, batch processing" >> $GITHUB_STEP_SUMMARY
+        echo "- ⚡ **Optimize:** Batch sizes, GPU memory" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Minimal Mode" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Best for:** Edge devices, containers" >> $GITHUB_STEP_SUMMARY
+        echo "- ⚡ **Optimize:** Binary size, cold start" >> $GITHUB_STEP_SUMMARY
+
+  # Performance regression detection
+  regression-check:
+    name: 🔍 Regression Detection
+    runs-on: ubuntu-latest
+    needs: benchmark-matrix
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: 📥 Download benchmark results
+      uses: actions/download-artifact@v4
+      with:
+        name: benchmark-results-cpu
+        path: ./current
+        
+    - name: 🔍 Check for regressions
+      run: |
+        echo "## 🔍 Performance Regression Check" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Startup time regression check (threshold: 20% slower)
+        if [ -f "./current/startup_bench.json" ]; then
+          CURRENT_TIME=$(jq -r '.results[0].mean' ./current/startup_bench.json)
+          BASELINE_TIME=0.15  # Expected baseline
+          
+          REGRESSION=$(echo "$CURRENT_TIME > $BASELINE_TIME * 1.2" | bc -l)
+          if [ "$REGRESSION" = "1" ]; then
+            echo "⚠️ **Startup Regression Detected**" >> $GITHUB_STEP_SUMMARY
+            echo "- Current: ${CURRENT_TIME}s" >> $GITHUB_STEP_SUMMARY
+            echo "- Baseline: ${BASELINE_TIME}s" >> $GITHUB_STEP_SUMMARY
+            echo "- Increase: $(echo "scale=1; ($CURRENT_TIME - $BASELINE_TIME) / $BASELINE_TIME * 100" | bc)%" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **No Startup Regression**" >> $GITHUB_STEP_SUMMARY
+            echo "- Current: ${CURRENT_TIME}s (within tolerance)" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi

@@ -412,36 +412,60 @@ async fn show_goodbye_animation() -> Result<()> {
     Ok(())
 }
 
-// @component: {"k":"C","id":"status_cmd","t":"System status diagnostic command","m":{"cur":95,"tgt":100,"u":"%"},"f":["cli","diagnostic"]}
+// @component: {"k":"C","id":"status_cmd","t":"System status diagnostic command","m":{"cur":100,"tgt":100,"u":"%"},"f":["cli","diagnostic","graceful-fallback"]}
 async fn show_system_status() -> Result<()> {
     use memory::{MemoryService, UnifiedMemoryAPI};
     use std::sync::Arc;
     use colored::Colorize;
+    use tracing::{warn, info};
     
     let spinner = progress::ProgressBuilder::fast("Checking system status...");
     
-    // Проверяем состояние памяти
-    let memory_status = if let Ok(config) = memory::default_config() {
-        match MemoryService::new(config).await {
-            Ok(service) => {
-                let service = Arc::new(service);
-                let api = UnifiedMemoryAPI::new(service.clone());
-                
-                match api.get_stats().await {
-                    Ok(stats) => {
-                        let health = match api.health_check().await {
-                            Ok(h) => h.status,
-                            Err(_) => "unknown",
-                        }.to_string();
-                        Some((health, stats.total_records, stats.cache_stats.hit_rate))
+    // Безопасная проверка состояния памяти с graceful fallback
+    let memory_status = match memory::default_config() {
+        Ok(mut config) => {
+            info!("🔧 Trying to initialize memory service with fallback protection");
+            
+            // Отключаем GPU для status команды если есть проблемы
+            config.ai_config.embedding.use_gpu = false;
+            
+            match tokio::time::timeout(Duration::from_secs(10), MemoryService::new(config)).await {
+                Ok(Ok(service)) => {
+                    info!("✅ Memory service initialized successfully");
+                    let service = Arc::new(service);
+                    let api = UnifiedMemoryAPI::new(service.clone());
+                    
+                    match api.get_stats().await {
+                        Ok(stats) => {
+                            let health = match api.health_check().await {
+                                Ok(h) => h.status,
+                                Err(e) => {
+                                    warn!("Health check failed: {}", e);
+                                    "degraded"
+                                },
+                            }.to_string();
+                            Some((health, stats.total_records, stats.cache_stats.hit_rate))
+                        }
+                        Err(e) => {
+                            warn!("Failed to get stats: {}", e);
+                            Some(("cpu-only".to_string(), 0, 0.0))
+                        }
                     }
-                    Err(_) => None,
+                }
+                Ok(Err(e)) => {
+                    warn!("⚠️ Memory service initialization failed: {}", e);
+                    Some(("error".to_string(), 0, 0.0))
+                }
+                Err(_) => {
+                    warn!("⚠️ Memory service initialization timeout");
+                    Some(("timeout".to_string(), 0, 0.0))
                 }
             }
-            Err(_) => None,
         }
-    } else {
-        None
+        Err(e) => {
+            warn!("⚠️ Failed to create memory config: {}", e);
+            Some(("config-error".to_string(), 0, 0.0))
+        }
     };
     
     // Проверяем LLM соединение
@@ -467,15 +491,24 @@ async fn show_system_status() -> Result<()> {
     };
     println!("{} {}: {}", llm_icon, "LLM Service".bold(), llm_status);
     
-    // Memory Status
+    // Memory Status с улучшенной диагностикой
     if let Some((health, record_count, hit_rate)) = memory_status {
-        let memory_icon = match health.as_str() {
-            "healthy" => "✓".green(),
-            "warning" => "⚠".yellow(),
-            _ => "✗".red(),
+        let (memory_icon, status_msg) = match health.as_str() {
+            "healthy" => ("✓".green(), "Healthy".to_string()),
+            "degraded" => ("⚠".yellow(), "Degraded (CPU only)".to_string()),
+            "cpu-only" => ("⚠".yellow(), "CPU only (no GPU)".to_string()),
+            "error" => ("✗".red(), "Service error".to_string()),
+            "timeout" => ("⌛".yellow(), "Initialization timeout".to_string()),
+            "config-error" => ("✗".red(), "Configuration error".to_string()),
+            _ => ("?".cyan(), format!("Unknown ({})", health)),
         };
-        println!("{} {}: {} ({} records, {:.1}% cache hit)", 
-                 memory_icon, "Memory Service".bold(), health, record_count, hit_rate * 100.0);
+        
+        if record_count > 0 || hit_rate > 0.0 {
+            println!("{} {}: {} ({} records, {:.1}% cache hit)", 
+                     memory_icon, "Memory Service".bold(), status_msg, record_count, hit_rate * 100.0);
+        } else {
+            println!("{} {}: {}", memory_icon, "Memory Service".bold(), status_msg);
+        }
     } else {
         println!("{} {}: {}", "✗".red(), "Memory Service".bold(), "Not available");
     }

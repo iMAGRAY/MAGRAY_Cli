@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # CPU-only сервис для production
+  magray-cpu:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.cpu
+    image: magray:cpu
+    container_name: magray-cpu
+    environment:
+      - RUST_LOG=info
+      - LLM_PROVIDER=openai
+    volumes:
+      - magray-cpu-data:/home/magray/.local/share/magray
+    profiles:
+      - cpu
+      - all
+    networks:
+      - magray-network
+
+  # Minimal сервис для edge/containers
+  magray-minimal:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.minimal
+    image: magray:minimal
+    container_name: magray-minimal
+    environment:
+      - RUST_LOG=warn
+    profiles:
+      - minimal
+      - all
+    networks:
+      - magray-network
+
+  # GPU сервис для рабочих станций
+  magray-gpu:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gpu
+    image: magray:gpu
+    container_name: magray-gpu
+    environment:
+      - RUST_LOG=debug
+      - LLM_PROVIDER=openai
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - magray-gpu-data:/home/magray/.local/share/magray
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - gpu
+      - all
+    networks:
+      - magray-network
+
+  # Performance benchmark сервис
+  benchmark:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.cpu
+    image: magray:cpu
+    container_name: magray-benchmark
+    command: |
+      sh -c "
+        echo '=== MAGRAY Performance Benchmark ==='
+        echo 'CPU Mode Benchmark:'
+        time magray status
+        echo ''
+        echo 'Memory Usage:'
+        magray status 2>&1 | grep -E 'Memory|Binary'
+        echo ''
+        echo 'Startup Time (5 runs):'
+        for i in {1..5}; do
+          time magray --version >/dev/null
+        done
+      "
+    profiles:
+      - benchmark
+    networks:
+      - magray-network
+
+volumes:
+  magray-cpu-data:
+    driver: local
+  magray-gpu-data:
+    driver: local
+
+networks:
+  magray-network:
+    driver: bridge
+
+# Usage examples:
+# Build CPU version:       docker-compose --profile cpu build
+# Run CPU version:         docker-compose --profile cpu up
+# Build minimal:           docker-compose --profile minimal build  
+# Run benchmark:           docker-compose --profile benchmark up
+# Build all:               docker-compose --profile all build
+# Run GPU (needs nvidia):  docker-compose --profile gpu up

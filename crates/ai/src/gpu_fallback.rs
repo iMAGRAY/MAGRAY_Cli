@@ -4,13 +4,18 @@ use std::time::{Duration, Instant};
 use tracing::{info, warn, error, debug};
 use async_trait::async_trait;
 
-use crate::{EmbeddingConfig, embeddings_cpu::CpuEmbeddingService, embeddings_gpu::GpuEmbeddingService};
+use crate::{EmbeddingConfig, embeddings_cpu::CpuEmbeddingService};
+#[cfg(feature = "gpu")]
+use crate::embeddings_gpu::GpuEmbeddingService;
 use crate::auto_device_selector::EmbeddingServiceTrait;
 
 /// @component: {"k":"C","id":"gpu_fallback_manager","t":"Reliable GPU fallback system","m":{"cur":100,"tgt":100,"u":"%"},"f":["fallback","resilience","gpu"]}
 pub struct GpuFallbackManager {
     /// Основной GPU сервис (если доступен)
+    #[cfg(feature = "gpu")]
     gpu_service: Option<Arc<GpuEmbeddingService>>,
+    #[cfg(not(feature = "gpu"))]
+    gpu_service: Option<()>, // Placeholder for CPU-only builds
     /// Резервный CPU сервис
     cpu_service: Arc<CpuEmbeddingService>,
     /// Статистика fallback'ов
@@ -169,6 +174,7 @@ impl GpuFallbackManager {
         info!("✅ CPU сервис создан как резервный");
         
         // Пытаемся создать GPU сервис если требуется
+        #[cfg(feature = "gpu")]
         let gpu_service = if config.use_gpu {
             match Self::try_create_gpu_service(&config).await {
                 Ok(service) => {
@@ -185,6 +191,14 @@ impl GpuFallbackManager {
             None
         };
         
+        #[cfg(not(feature = "gpu"))]
+        let gpu_service = {
+            if config.use_gpu {
+                warn!("⚠️ GPU запрошен, но не скомпилирован. Используется CPU-only режим.");
+            }
+            None
+        };
+        
         Ok(Self {
             gpu_service,
             cpu_service,
@@ -195,6 +209,7 @@ impl GpuFallbackManager {
     }
     
     /// Попытка создать GPU сервис с тестированием
+    #[cfg(feature = "gpu")]
     async fn try_create_gpu_service(config: &EmbeddingConfig) -> Result<GpuEmbeddingService> {
         let service = GpuEmbeddingService::new(config.clone()).await?;
         
@@ -226,8 +241,12 @@ impl GpuFallbackManager {
         debug!("🔄 Обработка batch из {} текстов", batch_size);
         
         // Проверяем доступность GPU через circuit breaker
+        #[cfg(feature = "gpu")]
         let use_gpu = self.gpu_service.is_some() && 
                       self.gpu_circuit_breaker.lock().unwrap().is_gpu_available();
+        
+        #[cfg(not(feature = "gpu"))]
+        let use_gpu = false;
         
         if use_gpu {
             // Пытаемся использовать GPU
@@ -249,6 +268,7 @@ impl GpuFallbackManager {
     }
     
     /// Попытка получить embeddings через GPU с timeout
+    #[cfg(feature = "gpu")]
     async fn try_gpu_embed(&self, texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
         let gpu_service = self.gpu_service.as_ref()
             .ok_or_else(|| anyhow::anyhow!("GPU service not available"))?;
@@ -275,6 +295,12 @@ impl GpuFallbackManager {
                 Err(anyhow::anyhow!("GPU embedding timeout"))
             }
         }
+    }
+    
+    /// CPU-only версия метода
+    #[cfg(not(feature = "gpu"))]
+    async fn try_gpu_embed(&self, _texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
+        Err(anyhow::anyhow!("GPU support not compiled"))
     }
     
     /// Получить embeddings через CPU

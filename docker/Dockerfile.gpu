@@ -1,0 +1,69 @@
+# GPU-enabled Dockerfile for workstations
+FROM nvidia/cuda:12.3-devel-ubuntu22.04 as builder
+
+# Install Rust
+RUN apt-get update && apt-get install -y \
+    curl \
+    pkg-config \
+    libssl-dev \
+    wget \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Setup ONNX Runtime with GPU support
+WORKDIR /onnx
+RUN wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-gpu-1.22.0.tgz
+RUN tar -xzf onnxruntime-linux-x64-gpu-1.22.0.tgz
+
+# Copy source code
+WORKDIR /app
+COPY . .
+
+# Setup environment for GPU build
+ENV ORT_DYLIB_PATH=/onnx/onnxruntime-linux-x64-gpu-1.22.0/lib/libonnxruntime.so
+ENV CUDA_ROOT=/usr/local/cuda
+
+# Build with GPU features
+RUN cargo build --release --features=gpu
+
+# Runtime stage with GPU support
+FROM nvidia/cuda:12.3-runtime-ubuntu22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy ONNX Runtime with GPU
+COPY --from=builder /onnx/onnxruntime-linux-x64-gpu-1.22.0/lib/libonnxruntime.so* /usr/local/lib/
+COPY --from=builder /onnx/onnxruntime-linux-x64-gpu-1.22.0/lib/libonnxruntime_providers_* /usr/local/lib/
+
+# Copy binary
+COPY --from=builder /app/target/release/magray /usr/local/bin/magray
+
+# Setup environment
+ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/cuda/lib64
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV RUST_LOG=info
+
+# Create non-root user
+RUN useradd -m -u 1000 magray
+USER magray
+WORKDIR /home/magray
+
+# Health check with GPU awareness
+HEALTHCHECK --interval=30s --timeout=15s --start-period=10s --retries=3 \
+  CMD magray status | grep -q "GPU" || exit 1
+
+ENTRYPOINT ["magray"]
+CMD ["--help"]
+
+# Metadata
+LABEL org.opencontainers.image.title="MAGRAY CLI - GPU Enabled"
+LABEL org.opencontainers.image.description="AI-accelerated Rust CLI agent with GPU support"
+LABEL org.opencontainers.image.vendor="MAGRAY Team"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.nvidia.requirements.cuda=">=12.0"

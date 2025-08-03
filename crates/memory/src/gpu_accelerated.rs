@@ -3,7 +3,8 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use tracing::{info, warn, debug};
 
-use ai::{GpuEmbeddingService, CpuEmbeddingService, EmbeddingConfig};
+use ai::{GpuFallbackManager, EmbeddingConfig, EmbeddingServiceTrait};
+use ai::gpu_fallback::FallbackStats;
 use crate::cache_interface::EmbeddingCacheInterface;
 
 /// Максимальный размер батча для GPU обработки
@@ -11,10 +12,9 @@ const MAX_BATCH_SIZE: usize = 128;
 /// Максимальное количество одновременных GPU операций
 const MAX_CONCURRENT_GPU_OPS: usize = 4;
 
-// @component: {"k":"C","id":"gpu_batch_processor","t":"GPU batch embedding processor","m":{"cur":80,"tgt":95,"u":"%"},"f":["gpu","batch","embeddings"]}
+// @component: {"k":"C","id":"gpu_batch_processor","t":"GPU batch embedding processor","m":{"cur":95,"tgt":100,"u":"%"},"f":["gpu","batch","embeddings","fallback"]}
 pub struct GpuBatchProcessor {
-    gpu_service: Option<Arc<GpuEmbeddingService>>,
-    cpu_service: Arc<CpuEmbeddingService>,
+    embedding_service: Arc<GpuFallbackManager>,
     cache: Arc<dyn EmbeddingCacheInterface>,
     batch_semaphore: Arc<Semaphore>,
     processing_queue: Arc<Mutex<Vec<PendingEmbedding>>>,
@@ -46,34 +46,24 @@ struct PendingEmbedding {
 }
 
 impl GpuBatchProcessor {
-    /// Создать новый процессор с автоматическим выбором GPU/CPU
+    /// Создать новый процессор с надёжным GPU fallback механизмом
     pub async fn new(
         config: BatchProcessorConfig,
         embedding_config: EmbeddingConfig,
         cache: Arc<dyn EmbeddingCacheInterface>,
     ) -> Result<Self> {
-        // Пытаемся инициализировать GPU сервис
-        let gpu_service = if config.use_gpu_if_available {
-            match GpuEmbeddingService::new(embedding_config.clone()).await {
-                Ok(service) => {
-                    info!("✅ GPU batch processor initialized with GPU acceleration");
-                    Some(Arc::new(service))
-                }
-                Err(e) => {
-                    warn!("⚠️ Failed to initialize GPU: {}, falling back to CPU", e);
-                    None
-                }
-            }
-        } else {
-            None
-        };
+        info!("🚀 Инициализация GpuBatchProcessor с надёжным fallback");
+        
+        // Создаём embedding сервис с автоматическим GPU/CPU fallback
+        let embedding_service = Arc::new(
+            GpuFallbackManager::new(embedding_config).await
+                .map_err(|e| anyhow::anyhow!("Failed to create embedding service: {}", e))?
+        );
 
-        // CPU сервис как fallback
-        let cpu_service = Arc::new(CpuEmbeddingService::new(embedding_config)?);
+        info!("✅ GPU batch processor initialized with robust fallback mechanism");
 
         Ok(Self {
-            gpu_service,
-            cpu_service,
+            embedding_service,
             cache,
             batch_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_GPU_OPS)),
             processing_queue: Arc::new(Mutex::new(Vec::new())),
@@ -91,39 +81,19 @@ impl GpuBatchProcessor {
             }
         }
 
-        // Если есть GPU - добавляем в очередь для батчевания
-        if self.gpu_service.is_some() {
-            let (tx, rx) = tokio::sync::oneshot::channel();
-            
-            {
-                let mut queue = self.processing_queue.lock().await;
-                queue.push(PendingEmbedding {
-                    text: text.to_string(),
-                    callback: tx,
-                });
+        // Используем новый fallback сервис для получения embedding
+        let embeddings = self.embedding_service.embed_batch(vec![text.to_string()]).await?;
+        let embedding = embeddings.into_iter().next()
+            .ok_or_else(|| anyhow::anyhow!("No embedding returned"))?;
 
-                // Если очередь достигла размера батча - обрабатываем
-                if queue.len() >= self.config.max_batch_size {
-                    drop(queue);
-                    self.process_batch().await?;
-                }
+        // Кэшируем результат
+        if self.config.cache_embeddings {
+            if let Err(e) = self.cache.insert(text, "bge-m3", embedding.clone()) {
+                warn!("Failed to cache embedding: {}", e);
             }
-
-            // Запускаем таймер для обработки маленьких батчей
-            let processor = self.clone_for_task();
-            tokio::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(
-                    processor.config.batch_timeout_ms
-                )).await;
-                let _ = processor.process_batch().await;
-            });
-
-            // Ждем результат
-            rx.await?
-        } else {
-            // Fallback на CPU для одиночной обработки
-            self.embed_single_cpu(text).await
         }
+
+        Ok(embedding)
     }
 
     /// Обработать батч текстов напрямую
@@ -151,15 +121,9 @@ impl GpuBatchProcessor {
             uncached_indices = (0..texts.len()).collect();
         }
 
-        // Обрабатываем uncached тексты
+        // Обрабатываем uncached тексты через fallback сервис
         if !uncached_texts.is_empty() {
-            let embeddings = if let Some(ref gpu_service) = self.gpu_service {
-                // GPU батчевая обработка
-                self.process_texts_gpu(uncached_texts.clone(), gpu_service).await?
-            } else {
-                // CPU обработка по одному
-                self.process_texts_cpu(uncached_texts.clone()).await?
-            };
+            let embeddings = self.embedding_service.embed_batch(uncached_texts.clone()).await?;
 
             // Сохраняем в кэш и результаты
             for (idx, (text, embedding)) in uncached_texts.iter()
@@ -207,54 +171,10 @@ impl GpuBatchProcessor {
         Ok(())
     }
 
-    /// GPU батчевая обработка
-    async fn process_texts_gpu(
-        &self,
-        texts: Vec<String>,
-        gpu_service: &Arc<GpuEmbeddingService>,
-    ) -> Result<Vec<Vec<f32>>> {
-        let _permit = self.batch_semaphore.acquire().await?;
-        
-        // Разбиваем на батчи если нужно
-        let mut all_embeddings = Vec::new();
-        
-        for chunk in texts.chunks(self.config.max_batch_size) {
-            let chunk_embeddings = gpu_service.embed_batch(chunk.to_vec()).await?;
-            all_embeddings.extend(chunk_embeddings);
-        }
-
-        Ok(all_embeddings)
-    }
-
-    /// CPU обработка по одному
-    async fn process_texts_cpu(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
-        let mut embeddings = Vec::new();
-        
-        for text in texts {
-            let embedding = self.embed_single_cpu(&text).await?;
-            embeddings.push(embedding);
-        }
-
-        Ok(embeddings)
-    }
-
-    /// Обработать один текст через CPU
-    async fn embed_single_cpu(&self, text: &str) -> Result<Vec<f32>> {
-        let result = self.cpu_service.embed(text)
-            .map_err(|e| anyhow::anyhow!("CPU embedding failed: {}", e))?;
-        
-        if self.config.cache_embeddings {
-            self.cache.insert(text, "bge-m3", result.embedding.clone())?;
-        }
-
-        Ok(result.embedding)
-    }
-
     /// Создать клон для фоновых задач
     fn clone_for_task(&self) -> Arc<Self> {
         Arc::new(Self {
-            gpu_service: self.gpu_service.clone(),
-            cpu_service: self.cpu_service.clone(),
+            embedding_service: self.embedding_service.clone(),
             cache: self.cache.clone(),
             batch_semaphore: self.batch_semaphore.clone(),
             processing_queue: self.processing_queue.clone(),
@@ -262,9 +182,22 @@ impl GpuBatchProcessor {
         })
     }
 
-    /// Проверить доступность GPU
+    /// Проверить доступность GPU через fallback manager
     pub fn has_gpu(&self) -> bool {
-        self.gpu_service.is_some()
+        // Получаем статистику от fallback manager
+        let stats = self.embedding_service.get_stats();
+        // Проверяем success rate вместо прямого доступа к полям
+        stats.gpu_success_rate() > 0.0 || stats.fallback_rate() < 1.0
+    }
+    
+    /// Получить статистику fallback
+    pub fn get_fallback_stats(&self) -> FallbackStats {
+        self.embedding_service.get_stats()
+    }
+    
+    /// Принудительно переключиться на CPU режим
+    pub fn force_cpu_mode(&self) {
+        self.embedding_service.force_cpu_mode();
     }
 
     /// Получить статистику

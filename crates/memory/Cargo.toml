@@ -4,8 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [features]
-default = []
-gpu = ["ai/gpu"]
+default = ["cpu"]
+cpu = ["ai/cpu"]  # CPU-only memory operations
+gpu = ["ai/gpu"]  # GPU-accelerated embeddings  
+minimal = ["ai/minimal"]  # Minimal memory system
 
 [dependencies]
 anyhow.workspace = true

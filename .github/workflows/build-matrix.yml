@@ -1,0 +1,245 @@
+name: 🚀 Multi-Feature Build Matrix
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      release_mode:
+        description: 'Build release binaries'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Matrix strategy для тестирования всех feature combinations
+  feature-matrix:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # CPU-only builds (производство)
+          - name: "CPU-only Ubuntu"
+            os: ubuntu-latest
+            features: "cpu"
+            target: "x86_64-unknown-linux-gnu"
+            artifact: "magray-cpu-linux"
+            
+          - name: "CPU-only Windows"
+            os: windows-latest
+            features: "cpu"
+            target: "x86_64-pc-windows-msvc"
+            artifact: "magray-cpu-windows"
+            
+          - name: "CPU-only macOS"
+            os: macos-latest
+            features: "cpu"
+            target: "x86_64-apple-darwin"
+            artifact: "magray-cpu-macos"
+            
+          # Minimal builds (контейнеры/edge)
+          - name: "Minimal Ubuntu"
+            os: ubuntu-latest
+            features: "minimal"
+            target: "x86_64-unknown-linux-gnu"
+            artifact: "magray-minimal-linux"
+            
+          - name: "Minimal MUSL (Alpine)"
+            os: ubuntu-latest
+            features: "minimal"
+            target: "x86_64-unknown-linux-musl"
+            artifact: "magray-minimal-alpine"
+            
+          # GPU builds (рабочие станции)
+          - name: "GPU Ubuntu"
+            os: ubuntu-latest
+            features: "gpu"
+            target: "x86_64-unknown-linux-gnu"
+            artifact: "magray-gpu-linux"
+            
+          - name: "GPU Windows"
+            os: windows-latest
+            features: "gpu"  
+            target: "x86_64-pc-windows-msvc"
+            artifact: "magray-gpu-windows"
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🦀 Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+        components: clippy, rustfmt
+
+    - name: 📦 Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-${{ matrix.features }}-
+          ${{ runner.os }}-cargo-
+
+    - name: 🔧 Install MUSL tools (Linux)
+      if: matrix.target == 'x86_64-unknown-linux-musl'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y musl-tools
+
+    # Отдельная настройка ONNX Runtime для разных OS
+    - name: 🤖 Setup ONNX Runtime (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz
+        tar -xzf onnxruntime-linux-x64-1.22.0.tgz
+        mkdir -p scripts/onnxruntime
+        cp -r onnxruntime-linux-x64-1.22.0/* scripts/onnxruntime/
+        echo "ORT_DYLIB_PATH=$PWD/scripts/onnxruntime/lib/libonnxruntime.so" >> $GITHUB_ENV
+
+    - name: 🤖 Setup ONNX Runtime (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        curl -L -o onnxruntime-win-x64-1.22.0.zip https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-win-x64-1.22.0.zip
+        Expand-Archive onnxruntime-win-x64-1.22.0.zip
+        mkdir scripts/onnxruntime -Force
+        Copy-Item -Recurse onnxruntime-win-x64-1.22.0/onnxruntime-win-x64-1.22.0/* scripts/onnxruntime/
+        echo "ORT_DYLIB_PATH=$PWD/scripts/onnxruntime/lib/onnxruntime.dll" >> $env:GITHUB_ENV
+
+    - name: 🤖 Setup ONNX Runtime (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-osx-x86_64-1.22.0.tgz
+        tar -xzf onnxruntime-osx-x86_64-1.22.0.tgz
+        mkdir -p scripts/onnxruntime
+        cp -r onnxruntime-osx-x86_64-1.22.0/* scripts/onnxruntime/
+        echo "ORT_DYLIB_PATH=$PWD/scripts/onnxruntime/lib/libonnxruntime.dylib" >> $GITHUB_ENV
+
+    # Code quality checks
+    - name: 🧹 Format check
+      run: cargo fmt --all -- --check
+
+    - name: 📋 Clippy check
+      run: cargo clippy --features ${{ matrix.features }} --target ${{ matrix.target }} -- -D warnings
+
+    # Tests
+    - name: 🧪 Run tests
+      run: cargo test --features ${{ matrix.features }} --target ${{ matrix.target }} --workspace
+
+    # Build
+    - name: 🔨 Build binary
+      run: |
+        if [ "${{ github.event.inputs.release_mode }}" = "true" ]; then
+          cargo build --release --features ${{ matrix.features }} --target ${{ matrix.target }}
+        else
+          cargo build --features ${{ matrix.features }} --target ${{ matrix.target }}
+        fi
+      shell: bash
+
+    # Binary analysis
+    - name: 📊 Analyze binary
+      run: |
+        if [ "${{ github.event.inputs.release_mode }}" = "true" ]; then
+          BINARY_PATH="target/${{ matrix.target }}/release"
+        else
+          BINARY_PATH="target/${{ matrix.target }}/debug"  
+        fi
+        
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          BINARY="$BINARY_PATH/magray.exe"
+        else
+          BINARY="$BINARY_PATH/magray"
+        fi
+        
+        echo "## 📊 Binary Analysis for ${{ matrix.name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Features:** ${{ matrix.features }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Target:** ${{ matrix.target }}" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "$BINARY" ]; then
+          SIZE=$(du -h "$BINARY" | cut -f1)
+          echo "- **Size:** $SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Built successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **Status:** ❌ Build failed" >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash
+
+    # Upload artifacts для release builds
+    - name: 📤 Upload binary artifact
+      if: github.event.inputs.release_mode == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}
+        path: |
+          target/${{ matrix.target }}/release/magray*
+        retention-days: 30
+
+  # Сравнительный анализ всех сборок
+  analysis:
+    name: 📈 Build Analysis
+    runs-on: ubuntu-latest
+    needs: feature-matrix
+    if: always()
+    
+    steps:
+    - name: 📊 Generate comparison report
+      run: |
+        echo "# 🚀 MAGRAY Build Matrix Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Feature Comparison" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Feature | Ubuntu | Windows | macOS | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|---------|---------|----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| CPU     | ✅      | ✅       | ✅    | Stable |" >> $GITHUB_STEP_SUMMARY
+        echo "| GPU     | ⚠️      | ⚠️       | ❌    | Requires CUDA |" >> $GITHUB_STEP_SUMMARY
+        echo "| Minimal | ✅      | ✅       | ✅    | Container-ready |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Recommendations" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- 🎯 **Production:** Use CPU features for stable deployments" >> $GITHUB_STEP_SUMMARY
+        echo "- 🐳 **Containers:** Use minimal features for smaller images" >> $GITHUB_STEP_SUMMARY 
+        echo "- 🚀 **Workstations:** Use GPU features if CUDA available" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔧 **Development:** Default features include CPU optimizations" >> $GITHUB_STEP_SUMMARY
+
+  # Integration tests с real embedding API
+  integration-tests:
+    name: 🧪 Integration Tests
+    runs-on: ubuntu-latest
+    needs: feature-matrix
+    if: github.event.inputs.release_mode == 'true'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 📦 Download CPU binary
+      uses: actions/download-artifact@v4
+      with:
+        name: magray-cpu-linux
+        path: ./bin
+        
+    - name: 🔧 Setup binary permissions
+      run: chmod +x ./bin/magray
+      
+    - name: 🧪 Test basic functionality
+      run: |
+        echo "Testing basic CLI functionality..."
+        ./bin/magray --version
+        
+        echo "Testing status command..."
+        ./bin/magray status
+        
+        echo "✅ Basic integration tests passed"

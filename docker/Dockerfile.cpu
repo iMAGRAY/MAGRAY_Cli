@@ -1,0 +1,61 @@
+# CPU-only Dockerfile for production deployment
+FROM rust:1.75-slim as builder
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Setup ONNX Runtime
+WORKDIR /onnx
+RUN wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz
+RUN tar -xzf onnxruntime-linux-x64-1.22.0.tgz
+
+# Copy source code
+WORKDIR /app
+COPY . .
+
+# Setup environment
+ENV ORT_DYLIB_PATH=/onnx/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so
+
+# Build with CPU features only
+RUN cargo build --release --features=cpu
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy ONNX Runtime
+COPY --from=builder /onnx/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so* /usr/local/lib/
+
+# Copy binary
+COPY --from=builder /app/target/release/magray /usr/local/bin/magray
+
+# Setup environment
+ENV LD_LIBRARY_PATH=/usr/local/lib
+ENV RUST_LOG=info
+
+# Create non-root user
+RUN useradd -m -u 1000 magray
+USER magray
+WORKDIR /home/magray
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD magray --version || exit 1
+
+ENTRYPOINT ["magray"]
+CMD ["--help"]
+
+# Metadata
+LABEL org.opencontainers.image.title="MAGRAY CLI - CPU Only"
+LABEL org.opencontainers.image.description="Intelligent Rust CLI agent with CPU-only processing"
+LABEL org.opencontainers.image.vendor="MAGRAY Team"
+LABEL org.opencontainers.image.licenses="MIT"

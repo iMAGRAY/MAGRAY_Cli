@@ -406,7 +406,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-03 00:56:45 UTC*
+*Last updated: 2025-08-03 01:17:46 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -419,11 +419,11 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"id":"embeddings_cpu","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"CPU-based embeddings","x_file":"ai/src/embeddings_cpu.rs:15"}
 {"id":"embeddings_gpu","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"GPU-accelerated embeddings","x_file":"ai/src/embeddings_gpu.rs:16"}
 {"f":["config","performance","reliability"],"id":"flush_config","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Configurable flush intervals","x_file":"memory/src/flush_config.rs:263"}
-{"f":["gpu","batch","embeddings"],"id":"gpu_batch_processor","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"GPU batch embedding processor","x_file":"memory/src/gpu_accelerated.rs:14"}
+{"f":["gpu","batch","embeddings","fallback"],"id":"gpu_batch_processor","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"GPU batch embedding processor","x_file":"memory/src/gpu_accelerated.rs:15"}
 {"id":"gpu_commands","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"GPU management CLI","x_file":"cli/src/commands/gpu.rs:13"}
 {"id":"gpu_config","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"GPU configuration for ONNX","x_file":"ai/src/gpu_config.rs:13"}
 {"id":"gpu_detector","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"GPU detection and info","x_file":"ai/src/gpu_detector.rs:6"}
-{"f":["fallback","resilience","gpu"],"id":"gpu_fallback_manager","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Reliable GPU fallback system","x_file":"ai/src/gpu_fallback.rs:10"}
+{"f":["fallback","resilience","gpu"],"id":"gpu_fallback_manager","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Reliable GPU fallback system","x_file":"ai/src/gpu_fallback.rs:12"}
 {"id":"gpu_memory_pool","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"GPU memory pool manager","x_file":"ai/src/gpu_memory_pool.rs:6"}
 {"f":["fallback","resilience"],"id":"graceful_embedding","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Fallback embedding service","x_file":"memory/src/fallback.rs:108"}
 {"f":["monitoring","production"],"id":"health_checks","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Production health monitoring","x_file":"cli/src/health_checks.rs:11"}
@@ -437,7 +437,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["memory","scaling","adaptive"],"id":"resource_manager","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Dynamic memory resource management","x_file":"memory/src/resource_manager.rs:9"}
 {"id":"simple_qwen3_tokenizer","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Simplified Qwen3 tokenizer for ONNX","x_file":"ai/src/tokenization/simple_qwen3.rs:1"}
 {"d":["llm_client","tools"],"f":["routing","orchestration"],"id":"smart_router","k":"C","m":{"cur":70,"tgt":90,"u":"%"},"t":"Smart task orchestration","x_file":"router/src/lib.rs:9"}
-{"f":["cli","diagnostic"],"id":"status_cmd","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"System status diagnostic command","x_file":"cli/src/main.rs:415"}
+{"f":["cli","diagnostic","graceful-fallback"],"id":"status_cmd","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"System status diagnostic command","x_file":"cli/src/main.rs:415"}
 {"f":["tests","status","cli"],"id":"status_tests","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Unit tests for status command","x_file":"cli/src/status_tests.rs:150"}
 {"f":["logging","json","production"],"id":"structured_logging","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"JSON structured logging system","x_file":"common/src/structured_logging.rs:11"}
 {"id":"tensorrt_cache","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"TensorRT model cache","x_file":"ai/src/tensorrt_cache.rs:8"}
