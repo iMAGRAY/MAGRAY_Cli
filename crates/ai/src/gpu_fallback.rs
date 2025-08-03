@@ -1,7 +1,7 @@
 use anyhow::{Result, Context};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, debug};
 use async_trait::async_trait;
 
 use crate::{EmbeddingConfig, embeddings_cpu::CpuEmbeddingService};
@@ -13,14 +13,17 @@ use crate::auto_device_selector::EmbeddingServiceTrait;
 pub struct GpuFallbackManager {
     /// Основной GPU сервис (если доступен)
     #[cfg(feature = "gpu")]
+    #[allow(dead_code)]
     gpu_service: Option<Arc<GpuEmbeddingService>>,
     #[cfg(not(feature = "gpu"))]
+    #[allow(dead_code)]
     gpu_service: Option<()>, // Placeholder for CPU-only builds
     /// Резервный CPU сервис
     cpu_service: Arc<CpuEmbeddingService>,
     /// Статистика fallback'ов
     fallback_stats: Arc<Mutex<FallbackStats>>,
     /// Конфигурация fallback политики
+    #[allow(dead_code)]
     policy: FallbackPolicy,
     /// Блокировка GPU после серии ошибок
     gpu_circuit_breaker: Arc<Mutex<CircuitBreaker>>,
@@ -108,6 +111,7 @@ struct CircuitBreaker {
 enum CircuitState {
     Closed,    // GPU работает
     Open,      // GPU заблокирован
+    #[allow(dead_code)]
     HalfOpen,  // Пробуем восстановить
 }
 
@@ -136,6 +140,7 @@ impl CircuitBreaker {
         }
     }
     
+    #[allow(dead_code)]
     fn is_gpu_available(&mut self) -> bool {
         match self.state {
             CircuitState::Closed => true,
@@ -168,8 +173,12 @@ impl GpuFallbackManager {
         cpu_config.batch_size = num_cpus::get().min(32);
         
         let cpu_service = Arc::new(
-            CpuEmbeddingService::new(cpu_config)
-                .context("Failed to create CPU embedding service")?
+            CpuEmbeddingService::new(cpu_config.clone())
+                .with_context(|| format!(
+                    "Failed to create CPU embedding service for model: {} at current_dir: {:?}",
+                    cpu_config.model_name,
+                    std::env::current_dir().unwrap_or_default()
+                ))?
         );
         info!("✅ CPU сервис создан как резервный");
         

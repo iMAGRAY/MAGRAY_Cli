@@ -41,7 +41,7 @@ impl CpuEmbeddingService {
         
         // Определяем путь к модели в зависимости от типа
         let (model_filename, hidden_size) = match config.model_name.as_str() {
-            "qwen3emb" => ("model.opt.onnx", 1024),
+            "qwen3emb" => ("model.onnx", 1024),  // Исправлено: используем стандартное имя файла
             "bge-m3" => ("model.onnx", 1024),
             _ => ("model.onnx", config.embedding_dim.unwrap_or(1024)),
         };

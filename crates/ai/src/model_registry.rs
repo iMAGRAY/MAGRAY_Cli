@@ -219,8 +219,8 @@ impl ModelRegistry {
     }
 }
 
-/// Глобальный реестр моделей
 lazy_static::lazy_static! {
+    /// Глобальный реестр моделей
     pub static ref MODEL_REGISTRY: ModelRegistry = {
         let models_dir = std::env::var("MAGRAY_MODELS_DIR")
             .map(PathBuf::from)

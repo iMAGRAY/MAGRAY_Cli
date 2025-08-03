@@ -33,7 +33,11 @@
       "Bash(RUST_LOG=debug ./target/release/magray.exe chat \"создай эмбеддинг для слова hello\")",
       "Bash(make:*)",
       "Bash(./target/release/magray.exe gpu:*)",
-      "Bash(./target/release/magray.exe models:*)"
+      "Bash(./target/release/magray.exe models:*)",
+      "Bash(export ORT_DYLIB_PATH=C:/Users/1/Documents/GitHub/MAGRAY_Cli/scripts/onnxruntime/lib/onnxruntime.dll)",
+      "Bash(RUST_LOG=debug ./target/release/magray.exe status)",
+      "Bash(export RUST_LOG=debug)",
+      "Bash(RUST_LOG=debug ./target/release/magray.exe models check)"
     ],
     "deny": []
   },
