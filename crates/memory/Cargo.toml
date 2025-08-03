@@ -56,7 +56,7 @@ criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
 llm = { path = "../llm" }
 ort = "2.0.0-rc.10"
 ndarray = "0.15"
-tokenizers = "0.15"
+tokenizers = "0.20"
 clap = { version = "4.0", features = ["derive"] }
 rand_chacha = "0.3"
 tempfile = "3.0"

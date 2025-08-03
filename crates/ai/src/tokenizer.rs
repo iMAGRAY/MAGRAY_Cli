@@ -43,10 +43,10 @@ impl TokenizerService {
         let mut tokenizer = Tokenizer::new(BPE::default());
         
         // Basic normalizer
-        tokenizer.with_normalizer(BertNormalizer::default());
+        tokenizer.with_normalizer(Some(BertNormalizer::default()));
         
         // Basic pre-tokenizer
-        tokenizer.with_pre_tokenizer(BertPreTokenizer);
+        tokenizer.with_pre_tokenizer(Some(BertPreTokenizer));
         
         // Basic post-processor
         let special_tokens = vec![
@@ -65,7 +65,7 @@ impl TokenizerService {
             .build()
             .unwrap();
             
-        tokenizer.with_post_processor(post_processor);
+        tokenizer.with_post_processor(Some(post_processor));
         
         info!("Created default tokenizer for testing");
         

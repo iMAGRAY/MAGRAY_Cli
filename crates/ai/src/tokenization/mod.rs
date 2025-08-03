@@ -104,8 +104,8 @@ impl OptimizedTokenizer {
                     let mut tokenizer = Tokenizer::new(model);
                     
                     // Минимальная конфигурация
-                    tokenizer.with_normalizer(tokenizers::normalizers::NFKC);
-                    tokenizer.with_pre_tokenizer(tokenizers::pre_tokenizers::whitespace::Whitespace);
+                    tokenizer.with_normalizer(Some(tokenizers::normalizers::NFKC));
+                    tokenizer.with_pre_tokenizer(Some(tokenizers::pre_tokenizers::whitespace::Whitespace));
                     
                     info!("Created simple WordPiece fallback tokenizer for Qwen3 ONNX model");
                     tokenizer
@@ -363,7 +363,7 @@ impl OptimizedTokenizer {
         use tokenizers::pre_tokenizers::whitespace::Whitespace;
         
         let mut tokenizer = Tokenizer::new(BPE::default());
-        tokenizer.with_pre_tokenizer(Whitespace);
+        tokenizer.with_pre_tokenizer(Some(Whitespace));
         
         // Добавляем базовые токены
         let _vocab = vec![

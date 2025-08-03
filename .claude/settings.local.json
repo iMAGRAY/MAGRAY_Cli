@@ -26,7 +26,8 @@
       "Bash(ls:*)",
       "Bash(.targetreleasemagray.exe status)",
       "Bash(./target/release/magray.exe status:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   },
