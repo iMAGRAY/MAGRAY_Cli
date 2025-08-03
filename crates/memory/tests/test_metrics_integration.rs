@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use memory::{
     CacheConfig, EmbeddingCacheLRU, Layer, MemoryConfig, MemoryService, 
     MetricsCollector, PromotionConfig, Record, VectorStore
@@ -22,6 +22,7 @@ async fn test_metrics_collection() -> Result<()> {
         max_cache_size_bytes: 1024 * 1024 * 1024,
         #[allow(deprecated)]
         max_memory_usage_percent: Some(50),
+        ..Default::default()
     };
     
     // Create service with metrics
@@ -103,6 +104,7 @@ async fn test_promotion_metrics() -> Result<()> {
         max_cache_size_bytes: 100 * 1024 * 1024,
         #[allow(deprecated)]
         max_memory_usage_percent: Some(80),
+        ..Default::default()
     };
     
     let mut service = MemoryService::new(config).await?;

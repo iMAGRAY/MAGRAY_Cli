@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use tracing::{info, warn, debug};
 
-use ai::{GpuFallbackManager, EmbeddingConfig, EmbeddingServiceTrait};
+use ai::{GpuFallbackManager, EmbeddingConfig, EmbeddingServiceTrait, GpuPipelineManager, PipelineConfig};
 use ai::gpu_fallback::FallbackStats;
 use crate::cache_interface::EmbeddingCacheInterface;
 
@@ -16,6 +16,7 @@ const MAX_CONCURRENT_GPU_OPS: usize = 4;
 #[derive(Clone)]
 pub struct GpuBatchProcessor {
     embedding_service: Arc<GpuFallbackManager>,
+    gpu_pipeline: Option<Arc<GpuPipelineManager>>,
     cache: Arc<dyn EmbeddingCacheInterface>,
     #[allow(dead_code)]
     batch_semaphore: Arc<Semaphore>,
@@ -58,19 +59,54 @@ impl GpuBatchProcessor {
         
         // Создаём embedding сервис с автоматическим GPU/CPU fallback
         let embedding_service = Arc::new(
-            GpuFallbackManager::new(embedding_config).await
+            GpuFallbackManager::new(embedding_config.clone()).await
                 .map_err(|e| anyhow::anyhow!("Failed to create embedding service: {}", e))?
         );
+
+        // Пытаемся создать GPU pipeline для максимальной производительности
+        let gpu_pipeline = if config.use_gpu_if_available {
+            match Self::try_create_gpu_pipeline(&config, &embedding_config).await {
+                Ok(pipeline) => {
+                    info!("🚀 GPU Pipeline создан для параллельной обработки");
+                    Some(Arc::new(pipeline))
+                }
+                Err(e) => {
+                    warn!("⚠️ Не удалось создать GPU Pipeline: {}. Используем fallback.", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
         info!("✅ GPU batch processor initialized with robust fallback mechanism");
 
         Ok(Self {
             embedding_service,
+            gpu_pipeline,
             cache,
             batch_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_GPU_OPS)),
             processing_queue: Arc::new(Mutex::new(Vec::new())),
             config,
         })
+    }
+
+    /// Попытка создать GPU pipeline
+    async fn try_create_gpu_pipeline(
+        config: &BatchProcessorConfig,
+        embedding_config: &EmbeddingConfig,
+    ) -> Result<GpuPipelineManager> {
+        let pipeline_config = PipelineConfig {
+            num_gpu_streams: 4,
+            max_batch_size: config.max_batch_size,
+            min_batch_size: 32,
+            batch_timeout: std::time::Duration::from_millis(config.batch_timeout_ms),
+            use_pinned_memory: true,
+            enable_prefetch: true,
+            prefetch_count: 2,
+        };
+        
+        GpuPipelineManager::new(pipeline_config, embedding_config.clone()).await
     }
 
     /// Получить эмбеддинг для одного текста (с батчеванием)
@@ -123,9 +159,17 @@ impl GpuBatchProcessor {
             uncached_indices = (0..texts.len()).collect();
         }
 
-        // Обрабатываем uncached тексты через fallback сервис
+        // Обрабатываем uncached тексты
         if !uncached_texts.is_empty() {
-            let embeddings = self.embedding_service.embed_batch(uncached_texts.clone()).await?;
+            let embeddings = if let Some(ref pipeline) = self.gpu_pipeline {
+                // Используем GPU pipeline для максимальной производительности
+                debug!("🚀 Используем GPU Pipeline для {} текстов", uncached_texts.len());
+                pipeline.process_with_prefetch(uncached_texts.clone()).await?
+            } else {
+                // Fallback на обычный сервис
+                debug!("🔄 Используем Fallback сервис для {} текстов", uncached_texts.len());
+                self.embedding_service.embed_batch(uncached_texts.clone()).await?
+            };
 
             // Сохраняем в кэш и результаты
             for (idx, (text, embedding)) in uncached_texts.iter()
@@ -200,10 +244,18 @@ impl GpuBatchProcessor {
     pub async fn get_stats(&self) -> BatchProcessorStats {
         let queue_size = self.processing_queue.lock().await.len();
         
+        // Получаем статистику pipeline если доступен
+        let pipeline_stats = if let Some(ref pipeline) = self.gpu_pipeline {
+            Some(pipeline.get_stats().await)
+        } else {
+            None
+        };
+        
         BatchProcessorStats {
             has_gpu: self.has_gpu(),
             queue_size,
             cache_stats: self.cache.stats(),
+            pipeline_stats,
         }
     }
 }
@@ -213,6 +265,7 @@ pub struct BatchProcessorStats {
     pub has_gpu: bool,
     pub queue_size: usize,
     pub cache_stats: (u64, u64, u64), // (hits, misses, size)
+    pub pipeline_stats: Option<ai::PipelineStats>,
 }
 
 #[cfg(test)]

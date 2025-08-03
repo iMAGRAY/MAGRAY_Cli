@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use memory::{
     MemoryService, MemoryConfig, Record, Layer, ResourceConfig, HealthConfig,
     CacheConfigType, CacheConfig, PromotionConfig
@@ -36,6 +36,7 @@ async fn test_complete_memory_system_workflow() -> Result<()> {
         max_cache_size_bytes: 100 * 1024 * 1024,
         #[allow(deprecated)]
         max_memory_usage_percent: Some(80),
+        ..Default::default()
     };
     let memory_service = MemoryService::new(memory_config).await?;
     

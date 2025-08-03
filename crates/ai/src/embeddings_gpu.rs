@@ -1,5 +1,6 @@
 use crate::{EmbeddingConfig, GpuConfig};
 use crate::gpu_detector::GpuDetector;
+use crate::gpu_memory_pool::GPU_MEMORY_POOL;
 use crate::model_downloader::ensure_model;
 use anyhow::Result;
 use ort::{session::Session, inputs, value::Tensor};
@@ -78,12 +79,17 @@ impl GpuEmbeddingService {
             };
             
             let optimal_params = gpu_config.get_optimal_params(model_size_mb);
+            
+            // Увеличиваем batch size для GPU - минимум 64
+            let gpu_batch_size = optimal_params.batch_size.max(64);
+            
             info!("🎯 Оптимальные параметры GPU:");
-            info!("  - Batch size: {}", optimal_params.batch_size);
+            info!("  - Batch size: {} (рекомендовано: {})", gpu_batch_size, optimal_params.batch_size);
             info!("  - Max sequence: {}", optimal_params.max_sequence_length);
             info!("  - FP16: {}", optimal_params.use_fp16);
+            info!("  - GPU memory: {}MB available", detector.devices.first().map(|d| d.total_memory_mb).unwrap_or(0));
             
-            (optimal_params.batch_size, true)
+            (gpu_batch_size, true)
         } else {
             // CPU параметры
             let cpu_batch_size = num_cpus::get().min(32);
@@ -98,7 +104,7 @@ impl GpuEmbeddingService {
         
         // Определяем имя файла модели в зависимости от типа
         let model_filename = match model_name.as_str() {
-            "qwen3emb" => "model.opt.onnx",
+            "qwen3emb" => "model.onnx",  // Используем стандартное имя
             "bge-m3" => "model.onnx",
             _ => "model.onnx",
         };
@@ -214,9 +220,25 @@ impl GpuEmbeddingService {
         let num_texts = texts.len();
         
         // Разбиваем на оптимальные батчи
-        let mut all_embeddings = Vec::new();
+        let mut all_embeddings = Vec::with_capacity(num_texts);
         
-        for chunk in texts.chunks(self.optimal_batch_size) {
+        // Динамический batch size основан на количестве текстов
+        let effective_batch_size = if self.use_gpu {
+            // Для GPU: адаптивный размер батча
+            if num_texts <= 16 {
+                num_texts // Маленький батч = без группировки
+            } else if num_texts <= 64 {
+                32 // Средний батч
+            } else {
+                64.min(self.optimal_batch_size) // Большой батч, но разумный лимит
+            }
+        } else {
+            self.optimal_batch_size.min(32) // Меньше для CPU
+        };
+        
+        debug!("🎯 Обработка {} текстов батчами по {}", num_texts, effective_batch_size);
+        
+        for chunk in texts.chunks(effective_batch_size) {
             let batch_embeddings = self.process_batch(chunk.to_vec()).await?;
             all_embeddings.extend(batch_embeddings);
         }
@@ -252,115 +274,136 @@ impl GpuEmbeddingService {
     
     async fn process_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
         let batch_size = texts.len();
-        debug!("Processing batch of {} texts with optimized tokenizer", batch_size);
+        debug!("🏊 Processing batch of {} texts with memory pooling", batch_size);
         
-        // Используем batch tokenization для эффективности
-        let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
-        let mut batch_tokenized = self.tokenizer.encode_batch(&text_refs)
-            .map_err(|e| anyhow::anyhow!("Failed to tokenize batch: {}", e))?;
+        // Оценка размера буферов для memory pool
+        let tensor_size = batch_size * self.max_length * std::mem::size_of::<i64>();
         
-        // Паддинг до единой длины
-        self.tokenizer.pad_batch(&mut batch_tokenized, Some(self.max_length))
-            .map_err(|e| anyhow::anyhow!("Failed to pad batch: {}", e))?;
-        
-        // Подготовка данных для ONNX
-        let mut all_input_ids: Vec<i64> = Vec::new();
-        let mut all_attention_mask: Vec<i64> = Vec::new();
-        let mut all_token_type_ids: Vec<i64> = Vec::new();
-        
-        for i in 0..batch_size {
-            all_input_ids.extend(&batch_tokenized.input_ids[i]);
-            all_attention_mask.extend(&batch_tokenized.attention_masks[i]);
-            all_token_type_ids.extend(&batch_tokenized.token_type_ids[i]);
-        }
-        
-        // Create ndarray tensors
-        let input_ids_array = Array2::from_shape_vec((batch_size, self.max_length), all_input_ids)?;
-        let attention_mask_array = Array2::from_shape_vec((batch_size, self.max_length), all_attention_mask)?;
-        let token_type_ids_array = Array2::from_shape_vec((batch_size, self.max_length), all_token_type_ids)?;
-        
-        // Run inference
-        let mut session = self.session.lock().unwrap();
-        
-        // Convert arrays to tensors using ort 2.0 API
-        let input_ids_shape = input_ids_array.shape().to_vec();
-        let input_ids_data = input_ids_array.into_raw_vec();
-        let input_ids_tensor = Tensor::from_array((input_ids_shape, input_ids_data))?;
-        
-        let attention_mask_shape = attention_mask_array.shape().to_vec();
-        let attention_mask_data = attention_mask_array.into_raw_vec();
-        let attention_mask_tensor = Tensor::from_array((attention_mask_shape, attention_mask_data))?;
-        
-        let token_type_ids_shape = token_type_ids_array.shape().to_vec();
-        let token_type_ids_data = token_type_ids_array.into_raw_vec();
-        let token_type_ids_tensor = Tensor::from_array((token_type_ids_shape, token_type_ids_data))?;
-        
-        let outputs = session.run(inputs![
-            "input_ids" => input_ids_tensor,
-            "attention_mask" => attention_mask_tensor,
-            "token_type_ids" => token_type_ids_tensor
-        ])?;
-        
-        // Extract embeddings from output
-        let output = outputs.iter().next()
-            .ok_or_else(|| anyhow::anyhow!("No output from model"))?
-            .1; // Get the value from (name, value) tuple
-        
-        // Extract raw tensor (shape, data)
-        let (shape, data) = output.try_extract_tensor::<f32>()?;
-        
-        // Determine dimensions from shape
-        let batch_size = shape[0] as usize;
-        let hidden_size = if shape.len() == 3 {
-            // If output is (batch, seq_len, hidden_size), we need to pool
-            shape[2] as usize
-        } else {
-            // If output is (batch, hidden_size), use directly
-            shape[1] as usize
-        };
-        
-        let mut result = Vec::with_capacity(batch_size);
-        
-        // Handle different output shapes
-        if shape.len() == 3 {
-            // Output is (batch, seq_len, hidden_size) - need mean pooling
-            let seq_len = shape[1] as usize;
+        // Используем memory pool для эффективного управления памятью
+        let result = GPU_MEMORY_POOL.with_buffer_async(tensor_size * 3, |mut buffer| async move {
+            // Используем batch tokenization для эффективности
+            let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
+            let mut batch_tokenized = self.tokenizer.encode_batch(&text_refs)
+                .map_err(|e| anyhow::anyhow!("Failed to tokenize batch: {}", e))?;
+            
+            // Паддинг до единой длины
+            self.tokenizer.pad_batch(&mut batch_tokenized, Some(self.max_length))
+                .map_err(|e| anyhow::anyhow!("Failed to pad batch: {}", e))?;
+            
+            // Подготовка данных для ONNX с использованием буфера из пула
+            let mut all_input_ids: Vec<i64> = Vec::with_capacity(batch_size * self.max_length);
+            let mut all_attention_mask: Vec<i64> = Vec::with_capacity(batch_size * self.max_length);
+            let mut all_token_type_ids: Vec<i64> = Vec::with_capacity(batch_size * self.max_length);
+            
             for i in 0..batch_size {
-                let mut embedding = vec![0.0f32; hidden_size];
-                // Mean pooling over sequence length
-                for j in 0..seq_len {
-                    let offset = (i * seq_len + j) * hidden_size;
-                    for k in 0..hidden_size {
-                        embedding[k] += data[offset + k];
+                all_input_ids.extend(&batch_tokenized.input_ids[i]);
+                all_attention_mask.extend(&batch_tokenized.attention_masks[i]);
+                all_token_type_ids.extend(&batch_tokenized.token_type_ids[i]);
+            }
+            
+            // Create ndarray tensors
+            let input_ids_array = Array2::from_shape_vec((batch_size, self.max_length), all_input_ids)?;
+            let attention_mask_array = Array2::from_shape_vec((batch_size, self.max_length), all_attention_mask)?;
+            let token_type_ids_array = Array2::from_shape_vec((batch_size, self.max_length), all_token_type_ids)?;
+            
+            // Run inference
+            let mut session = self.session.lock().unwrap();
+            
+            // Convert arrays to tensors using ort 2.0 API
+            let input_ids_shape = input_ids_array.shape().to_vec();
+            let input_ids_data = input_ids_array.into_raw_vec();
+            let input_ids_tensor = Tensor::from_array((input_ids_shape, input_ids_data))?;
+            
+            let attention_mask_shape = attention_mask_array.shape().to_vec();
+            let attention_mask_data = attention_mask_array.into_raw_vec();
+            let attention_mask_tensor = Tensor::from_array((attention_mask_shape, attention_mask_data))?;
+            
+            let token_type_ids_shape = token_type_ids_array.shape().to_vec();
+            let token_type_ids_data = token_type_ids_array.into_raw_vec();
+            let token_type_ids_tensor = Tensor::from_array((token_type_ids_shape, token_type_ids_data))?;
+            
+            // Проверяем количество входов модели
+            let outputs = if session.inputs.len() == 2 {
+                // Модель Qwen3 имеет только 2 входа (input_ids и attention_mask)
+                session.run(inputs![
+                    "input_ids" => input_ids_tensor,
+                    "attention_mask" => attention_mask_tensor
+                ])?
+            } else {
+                // Модель BGE-M3 имеет 3 входа
+                session.run(inputs![
+                    "input_ids" => input_ids_tensor,
+                    "attention_mask" => attention_mask_tensor,
+                    "token_type_ids" => token_type_ids_tensor
+                ])?
+            };
+            
+            // Extract embeddings from output
+            let output = outputs.iter().next()
+                .ok_or_else(|| anyhow::anyhow!("No output from model"))?
+                .1; // Get the value from (name, value) tuple
+            
+            // Extract raw tensor (shape, data)
+            let (shape, data) = output.try_extract_tensor::<f32>()?;
+            
+            // Determine dimensions from shape
+            let result_batch_size = shape[0] as usize;
+            let hidden_size = if shape.len() == 3 {
+                // If output is (batch, seq_len, hidden_size), we need to pool
+                shape[2] as usize
+            } else {
+                // If output is (batch, hidden_size), use directly
+                shape[1] as usize
+            };
+            
+            let mut result = Vec::with_capacity(result_batch_size);
+            
+            // Handle different output shapes
+            if shape.len() == 3 {
+                // Output is (batch, seq_len, hidden_size) - need mean pooling
+                let seq_len = shape[1] as usize;
+                for i in 0..result_batch_size {
+                    let mut embedding = vec![0.0f32; hidden_size];
+                    // Mean pooling over sequence length
+                    for j in 0..seq_len {
+                        let offset = (i * seq_len + j) * hidden_size;
+                        for k in 0..hidden_size {
+                            embedding[k] += data[offset + k];
+                        }
                     }
+                    // Average
+                    embedding.iter_mut().for_each(|x| *x /= seq_len as f32);
+                    
+                    // L2 normalize
+                    let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+                    if norm > 0.0 {
+                        embedding.iter_mut().for_each(|x| *x /= norm);
+                    }
+                    
+                    result.push(embedding);
                 }
-                // Average
-                embedding.iter_mut().for_each(|x| *x /= seq_len as f32);
-                
-                // L2 normalize
-                let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-                if norm > 0.0 {
-                    embedding.iter_mut().for_each(|x| *x /= norm);
+            } else {
+                // Output is (batch, hidden_size) - use directly
+                for i in 0..result_batch_size {
+                    let start = i * hidden_size;
+                    let end = start + hidden_size;
+                    let mut embedding = data[start..end].to_vec();
+                    
+                    // L2 normalize
+                    let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+                    if norm > 0.0 {
+                        embedding.iter_mut().for_each(|x| *x /= norm);
+                    }
+                    
+                    result.push(embedding);
                 }
-                
-                result.push(embedding);
             }
-        } else {
-            // Output is (batch, hidden_size) - use directly
-            for i in 0..batch_size {
-                let start = i * hidden_size;
-                let end = start + hidden_size;
-                let mut embedding = data[start..end].to_vec();
-                
-                // L2 normalize
-                let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-                if norm > 0.0 {
-                    embedding.iter_mut().for_each(|x| *x /= norm);
-                }
-                
-                result.push(embedding);
-            }
-        }
+            
+            Ok((result, buffer))
+        }).await?;
+        
+        debug!("💾 Memory pool статистика после обработки:");
+        GPU_MEMORY_POOL.print_stats();
         
         Ok(result)
     }

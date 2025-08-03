@@ -1,4 +1,4 @@
-use memory::{
+﻿use memory::{
     MemoryService, MemoryConfig, Layer, Record, PromotionConfig,
     CacheConfigType, CacheConfig, HealthConfig, ResourceConfig,
 };
@@ -46,6 +46,7 @@ async fn test_full_memory_system() -> Result<()> {
         max_cache_size_bytes: 100 * 1024 * 1024,
         #[allow(deprecated)]
         max_memory_usage_percent: Some(80),
+        ..Default::default()
     };
     
     // Создаём сервис памяти
@@ -208,7 +209,7 @@ async fn test_concurrent_memory_operations() -> Result<()> {
     let config = MemoryConfig {
         db_path: temp_dir.path().join("concurrent_db"),
         cache_path: temp_dir.path().join("concurrent_cache"),
-        ..MemoryConfig::default()
+        ..Default::default()
     };
     
     let memory_service = Arc::new(MemoryService::new(config).await?);

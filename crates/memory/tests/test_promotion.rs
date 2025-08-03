@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use chrono::{Duration, Utc};
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -35,6 +35,7 @@ async fn test_promotion_engine() -> Result<()> {
         max_cache_size_bytes: 1024 * 1024 * 1024,
         #[allow(deprecated)]
         max_memory_usage_percent: Some(50),
+        ..Default::default()
     };
     
     // Initialize memory service
@@ -158,6 +159,7 @@ async fn test_layer_ttl_expiration() -> Result<()> {
         max_cache_size_bytes: 1024 * 1024 * 1024,
         #[allow(deprecated)]
         max_memory_usage_percent: Some(50),
+        ..Default::default()
     };
     
     let memory_service = MemoryService::new(config).await?;

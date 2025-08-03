@@ -46,6 +46,10 @@ sha2 = "0.10"
 # System monitoring
 sysinfo = "0.31"
 
+# Notifications
+reqwest = { version = "0.12", features = ["json"] }
+colored = "2.0"
+
 # Backup/restore functionality
 tar = "0.4"
 flate2 = "1.0"

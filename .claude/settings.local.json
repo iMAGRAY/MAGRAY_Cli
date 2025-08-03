@@ -37,7 +37,11 @@
       "Bash(export ORT_DYLIB_PATH=C:/Users/1/Documents/GitHub/MAGRAY_Cli/scripts/onnxruntime/lib/onnxruntime.dll)",
       "Bash(RUST_LOG=debug ./target/release/magray.exe status)",
       "Bash(export RUST_LOG=debug)",
-      "Bash(RUST_LOG=debug ./target/release/magray.exe models check)"
+      "Bash(RUST_LOG=debug ./target/release/magray.exe models check)",
+      "Bash(set RUST_LOG=info)",
+      "Bash(.targetreleasemagray.exe gpu status)",
+      "Bash(set ORT_DYLIB_PATH=\"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\onnxruntime\\lib\\onnxruntime.dll\")",
+      "Bash(set RUST_LOG=warn)"
     ],
     "deny": []
   },

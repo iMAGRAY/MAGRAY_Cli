@@ -80,9 +80,8 @@ impl ModelDownloader {
             return Ok(false);
         }
         
-        // Проверяем наличие модели (может быть model.onnx или model.opt.onnx)
-        let model_exists = model_path.join("model.onnx").exists() || 
-                          model_path.join("model.opt.onnx").exists();
+        // Проверяем наличие модели
+        let model_exists = model_path.join("model.onnx").exists();
         
         if !model_exists {
             return Ok(false);
@@ -174,7 +173,7 @@ impl ModelDownloader {
                 name: "qwen3emb".to_string(),
                 files: vec![
                     ModelFile {
-                        filename: "model.opt.onnx".to_string(),
+                        filename: "model.onnx".to_string(),
                         url: "LOCAL_FILE".to_string(), // Локальные файлы
                         size: 0, // Будем использовать существующие
                         sha256: None,
@@ -199,7 +198,7 @@ impl ModelDownloader {
                 name: "qwen3_reranker".to_string(),
                 files: vec![
                     ModelFile {
-                        filename: "model.opt.onnx".to_string(),
+                        filename: "model.onnx".to_string(),
                         url: "LOCAL_FILE".to_string(), // Локальные файлы
                         size: 0, // Будем использовать существующие
                         sha256: None,

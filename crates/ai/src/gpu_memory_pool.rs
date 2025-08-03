@@ -148,6 +148,18 @@ impl GpuMemoryPool {
         result
     }
     
+    /// Асинхронная версия with_buffer
+    pub async fn with_buffer_async<F, Fut, R>(&self, size: usize, f: F) -> Result<R>
+    where
+        F: FnOnce(Vec<u8>) -> Fut,
+        Fut: std::future::Future<Output = Result<(R, Vec<u8>)>>,
+    {
+        let buffer = self.acquire_buffer(size)?;
+        let (result, returned_buffer) = f(buffer).await?;
+        self.release_buffer(returned_buffer);
+        Ok(result)
+    }
+    
     /// Очистить все неиспользуемые буферы
     pub fn clear_unused(&self) {
         let mut pools = self.pools.lock().unwrap();

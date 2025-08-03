@@ -9,6 +9,7 @@ use tracing::{debug, info, error};
 use parking_lot::RwLock;
 
 use crate::metrics::{MetricsCollector, TimedOperation};
+use crate::{health_metric, health::{HealthMonitor, ComponentType}};
 use crate::types::{Layer, Record};
 use crate::vector_index_hnswlib::{VectorIndexHnswRs, HnswRsConfig};
 use crate::transaction::{TransactionManager, TransactionOp, TransactionGuard};
@@ -36,6 +37,7 @@ pub struct VectorStore {
     db: Arc<Db>,
     indices: HashMap<Layer, Arc<VectorIndexHnswRs>>,
     metrics: Option<Arc<MetricsCollector>>,
+    health_monitor: Option<Arc<HealthMonitor>>,
     transaction_manager: Arc<TransactionManager>,
     // RwLock для координации batch операций и предотвращения race conditions
     batch_lock: Arc<RwLock<()>>,
@@ -150,6 +152,7 @@ impl VectorStore {
             db: Arc::new(db),
             indices,
             metrics: None,
+            health_monitor: None,
             transaction_manager: Arc::new(TransactionManager::new()),
             batch_lock: Arc::new(RwLock::new(())),
             change_tracker: Arc::new(RwLock::new(change_trackers)),
@@ -159,6 +162,11 @@ impl VectorStore {
     /// Set the metrics collector
     pub fn set_metrics(&mut self, metrics: Arc<MetricsCollector>) {
         self.metrics = Some(metrics);
+    }
+    
+    /// Set the health monitor
+    pub fn set_health_monitor(&mut self, health_monitor: Arc<HealthMonitor>) {
+        self.health_monitor = Some(health_monitor);
     }
     
     pub async fn init_layer(&self, layer: Layer) -> Result<()> {
@@ -278,6 +286,8 @@ impl VectorStore {
     }
 
     pub async fn insert(&self, record: &Record) -> Result<()> {
+        let start = Instant::now();
+        
         // Проверяем лимиты перед вставкой
         self.check_insert_limits(1)?;
         
@@ -302,7 +312,26 @@ impl VectorStore {
         // Отслеживаем изменение для умной синхронизации
         self.record_layer_change(record.layer);
         
-        debug!("Inserted record {} into layer {:?}", record.id, record.layer);
+        let duration = start.elapsed();
+        
+        // Record health metrics
+        if let Some(ref health) = self.health_monitor {
+            health.record_operation(ComponentType::VectorStore, true, duration.as_secs_f64() * 1000.0, None);
+            
+            // Record insert latency metric
+            let insert_latency_metric = health_metric!(
+                ComponentType::VectorStore,
+                "insert_latency_ms",
+                duration.as_secs_f64() * 1000.0,
+                "ms",
+                50.0,   // Warning: > 50ms
+                200.0   // Critical: > 200ms
+            );
+            let _ = health.record_metric(insert_latency_metric);
+        }
+        
+        debug!("Inserted record {} into layer {:?} in {:.2}ms", 
+               record.id, record.layer, duration.as_secs_f64() * 1000.0);
         Ok(())
     }
 
@@ -374,6 +403,8 @@ impl VectorStore {
         layer: Layer,
         limit: usize,
     ) -> Result<Vec<Record>> {
+        let start = Instant::now();
+        
         // Start timing
         let _timer = self.metrics.as_ref().map(|m| TimedOperation::new(m, "vector_search"));
         
@@ -404,9 +435,50 @@ impl VectorStore {
                 }
             }
             
-            info!("Search completed: {} records retrieved from layer {:?}", records.len(), layer);
+            let duration = start.elapsed();
+            let success = true;
+            
+            // Record health metrics
+            if let Some(ref health) = self.health_monitor {
+                health.record_operation(ComponentType::VectorStore, success, duration.as_secs_f64() * 1000.0, None);
+                
+                // Record specific search latency metric
+                let search_latency_metric = health_metric!(
+                    ComponentType::VectorStore, 
+                    "search_latency_ms", 
+                    duration.as_secs_f64() * 1000.0, 
+                    "ms",
+                    100.0,  // Warning: > 100ms
+                    500.0   // Critical: > 500ms
+                );
+                let _ = health.record_metric(search_latency_metric);
+                
+                // Record result count
+                let result_count_metric = health_metric!(
+                    ComponentType::VectorStore,
+                    "search_result_count",
+                    records.len() as f64,
+                    "count"
+                );
+                let _ = health.record_metric(result_count_metric);
+            }
+            
+            info!("Search completed: {} records retrieved from layer {:?} in {:.2}ms", 
+                  records.len(), layer, duration.as_secs_f64() * 1000.0);
             Ok(records)
         } else {
+            let duration = start.elapsed();
+            
+            // Record failed operation  
+            if let Some(ref health) = self.health_monitor {
+                health.record_operation(
+                    ComponentType::VectorStore, 
+                    false, 
+                    duration.as_secs_f64() * 1000.0, 
+                    Some("No index found for layer".to_string())
+                );
+            }
+            
             info!("No index found for layer {:?}", layer);
             Ok(Vec::new())
         }

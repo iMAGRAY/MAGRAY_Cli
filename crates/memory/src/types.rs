@@ -63,7 +63,7 @@ impl Default for Record {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchOptions {
     pub layers: Vec<Layer>,
     pub top_k: usize,

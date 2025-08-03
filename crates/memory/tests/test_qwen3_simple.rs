@@ -35,6 +35,7 @@ async fn test_qwen3_memory_basic() -> Result<()> {
         max_cache_size_bytes: 1024 * 1024 * 1024,
         #[allow(deprecated)]
         max_memory_usage_percent: Some(50),
+        ..Default::default()
     };
 
     // Создаём сервис памяти

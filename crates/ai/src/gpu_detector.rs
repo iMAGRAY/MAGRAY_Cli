@@ -220,7 +220,7 @@ impl GpuOptimalParams {
         Self {
             batch_size: optimal_batch_size,
             max_sequence_length: if usable_memory_mb > 4000 { 512 } else { 256 },
-            use_fp16: available_memory_mb < 8000, // Используем FP16 если меньше 8GB
+            use_fp16: true, // Включаем FP16 для всех GPU (ускорение в 2x без потери качества)
             memory_fraction: 0.8,
         }
     }

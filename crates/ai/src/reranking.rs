@@ -71,7 +71,7 @@ impl RerankingService {
         
         // Определяем имя файла модели в зависимости от типа
         let model_filename = match config.model_name.as_str() {
-            "qwen3_reranker" => "model.opt.onnx",
+            "qwen3_reranker" => "model.onnx",  // Используем стандартное имя
             _ => "model.onnx",
         };
         

@@ -1,8 +1,9 @@
 use anyhow::Result;
 use std::path::{PathBuf, Path};
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, error};
 use dirs;
+use uuid;
 
 use crate::{
     cache::EmbeddingCache,
@@ -10,12 +11,16 @@ use crate::{
     cache_interface::EmbeddingCacheInterface,
     health::{HealthMonitor, HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus},
     metrics::{MetricsCollector, LayerMetrics},
+    notifications::NotificationManager,
     promotion::{PromotionEngine, PromotionStats},
+    ml_promotion::{MLPromotionEngine, MLPromotionConfig, MLPromotionStats},
+    streaming::{StreamingMemoryAPI, StreamingConfig},
     storage::VectorStore,
     types::{Layer, PromotionConfig, Record, SearchOptions},
     gpu_accelerated::{GpuBatchProcessor, BatchProcessorConfig},
     backup::{BackupManager, BackupMetadata},
     resource_manager::{ResourceManager, ResourceConfig, ResourceUsage},
+    batch_manager::{BatchOperationManager, BatchConfig, BatchStats, BatchOperationBuilder},
 };
 
 use ai::{AiConfig, ModelLoader, RerankingService};
@@ -33,9 +38,13 @@ pub fn default_config() -> Result<MemoryConfig> {
         db_path: cache_dir.join("memory.db"),
         cache_path: cache_dir.join("embeddings_cache"),
         promotion: PromotionConfig::default(),
+        ml_promotion: Some(MLPromotionConfig::default()),
+        streaming_config: Some(StreamingConfig::default()),
         ai_config: AiConfig::default(),
         health_config: HealthConfig::default(),
+        notification_config: crate::notifications::NotificationConfig::default(),
         cache_config: CacheConfigType::Lru(LruCacheConfig::default()),
+        batch_config: BatchConfig::default(),
         resource_config: ResourceConfig::default(),
         // Legacy поля для обратной совместимости
         #[allow(deprecated)]
@@ -50,10 +59,13 @@ pub struct MemoryService {
     store: Arc<VectorStore>,
     cache: Arc<dyn EmbeddingCacheInterface>,
     promotion: Arc<PromotionEngine>,
+    ml_promotion: Option<Arc<parking_lot::RwLock<MLPromotionEngine>>>,
     batch_processor: Arc<GpuBatchProcessor>,
+    batch_manager: Arc<BatchOperationManager>,
     reranking_service: Option<Arc<RerankingService>>,
     metrics: Option<Arc<MetricsCollector>>,
     health_monitor: Arc<HealthMonitor>,
+    notification_manager: Option<Arc<crate::notifications::NotificationManager>>,
     backup_manager: Arc<BackupManager>,
     resource_manager: Arc<parking_lot::RwLock<ResourceManager>>,
     config: MemoryConfig,
@@ -64,9 +76,13 @@ pub struct MemoryConfig {
     pub db_path: PathBuf,
     pub cache_path: PathBuf,
     pub promotion: PromotionConfig,
+    pub ml_promotion: Option<MLPromotionConfig>,
+    pub streaming_config: Option<StreamingConfig>,
     pub ai_config: AiConfig,
     pub health_config: HealthConfig,
+    pub notification_config: crate::notifications::NotificationConfig,
     pub cache_config: CacheConfigType,
+    pub batch_config: BatchConfig,
     /// Конфигурация динамического управления ресурсами
     pub resource_config: ResourceConfig,
     /// Legacy поля для обратной совместимости
@@ -84,6 +100,27 @@ pub enum CacheConfigType {
     Lru(LruCacheConfig),
 }
 
+/// Результат batch insert операции
+#[derive(Debug, Clone)]
+pub struct BatchInsertResult {
+    pub total_records: usize,
+    pub successful_records: usize,
+    pub failed_records: usize,
+    pub duration: std::time::Duration,
+    pub records_per_second: f64,
+}
+
+/// Результат batch search операции
+#[derive(Debug, Clone)]
+pub struct BatchSearchResult {
+    pub total_queries: usize,
+    pub successful_queries: usize,
+    pub failed_queries: usize,
+    pub results: Vec<Vec<Record>>,
+    pub duration: std::time::Duration,
+    pub queries_per_second: f64,
+}
+
 impl Default for MemoryConfig {
     fn default() -> Self {
         let base_dir = dirs::data_dir()
@@ -94,9 +131,13 @@ impl Default for MemoryConfig {
             db_path: base_dir.join("hnswdb"),
             cache_path: base_dir.join("cache").join("embeddings"),
             promotion: PromotionConfig::default(),
+            ml_promotion: Some(MLPromotionConfig::default()),
+            streaming_config: Some(StreamingConfig::default()),
             ai_config: AiConfig::default(),
             health_config: HealthConfig::default(),
+            notification_config: crate::notifications::NotificationConfig::default(),
             cache_config: CacheConfigType::Lru(LruCacheConfig::default()),
+            batch_config: BatchConfig::default(),
             resource_config: ResourceConfig {
                 base_max_vectors: 1_000_000,
                 base_cache_size_bytes: 1024 * 1024 * 1024, // 1GB
@@ -147,7 +188,7 @@ impl MemoryService {
         // Конфигурируем HNSW индексы с динамическими лимитами
         store.set_max_elements(initial_limits.max_vectors).await?;
         
-        let store = Arc::new(store);
+        let mut store = Arc::new(store);
         
         // Initialize all layer tables
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
@@ -208,6 +249,24 @@ impl MemoryService {
             Arc::new(promotion_db)
         ).await?);
 
+        // Initialize ML-based promotion engine if enabled
+        let ml_promotion = if let Some(ml_config) = &config.ml_promotion {
+            info!("🧠 Инициализация ML-based promotion engine");
+            match MLPromotionEngine::new(store.clone(), ml_config.clone()).await {
+                Ok(engine) => {
+                    info!("✅ ML promotion engine инициализирован успешно");
+                    Some(Arc::new(parking_lot::RwLock::new(engine)))
+                }
+                Err(e) => {
+                    warn!("⚠️ Не удалось инициализировать ML promotion engine: {}. Используем стандартный promotion", e);
+                    None
+                }
+            }
+        } else {
+            info!("🔧 ML promotion отключен, используем стандартный time-based promotion");
+            None
+        };
+
         // Initialize health monitoring
         let health_config = config.health_config.clone();
         let health_monitor = Arc::new(HealthMonitor::new(health_config));
@@ -222,23 +281,67 @@ impl MemoryService {
             health_monitor.record_operation(ComponentType::RerankingService, true, 0.0, None);
         }
         
+        // Set health monitor in store для real-time monitoring
+        if let Some(store_mut) = Arc::get_mut(&mut store) {
+            store_mut.set_health_monitor(health_monitor.clone());
+        }
+        
         info!("✅ PromotionEngine successfully integrated into MemoryService");
         info!("✅ Health monitoring system initialized and running");
+        
+        // Инициализируем notification manager если включен
+        let notification_manager = if config.notification_config.channels.is_empty() {
+            info!("📧 Notifications disabled (no channels configured)");
+            None
+        } else {
+            match crate::notifications::NotificationManager::new(config.notification_config.clone()) {
+                Ok(nm) => {
+                    info!("✅ Notification system initialized with {} channels", 
+                          config.notification_config.channels.len());
+                    // Связываем с health monitor
+                    Some(Arc::new(nm))
+                }
+                Err(e) => {
+                    warn!("Failed to initialize notifications: {}", e);
+                    None
+                }
+            }
+        };
 
         // Инициализируем backup manager
         let backup_dir = config.db_path.parent()
             .unwrap_or(&config.db_path)
             .join("backups");
         let backup_manager = Arc::new(BackupManager::new(backup_dir)?);
+        
+        // Initialize batch operation manager
+        let batch_config = config.batch_config.clone();
+        let batch_manager = BatchOperationManager::new(
+            store.clone(),
+            batch_config,
+            None, // Metrics will be set later
+        );
+        let mut batch_manager = Arc::new(batch_manager);
+        
+        // Start batch manager если включен async flush
+        if config.batch_config.async_flush {
+            if let Some(manager_mut) = Arc::get_mut(&mut batch_manager) {
+                manager_mut.start().await?;
+                info!("✅ Batch operation manager started with async flushing");
+            }
+        }
 
         Ok(Self {
             store,
             cache,
             promotion,
+            ml_promotion,
             batch_processor,
+            batch_manager,
             reranking_service,
             metrics: None,
             health_monitor,
+            notification_manager,
             backup_manager,
             resource_manager: Arc::new(parking_lot::RwLock::new(resource_manager)),
             config,
@@ -482,6 +585,64 @@ impl MemoryService {
         self.promotion.get_performance_stats().await
     }
 
+    /// Run ML-based promotion cycle if available, fallback to standard promotion
+    pub async fn run_ml_promotion_cycle(&self) -> Result<MLPromotionStats> {
+        if let Some(ref ml_promotion) = self.ml_promotion {
+            info!("🧠 Запуск ML-based promotion цикла");
+            let mut engine = ml_promotion.write();
+            engine.run_ml_promotion_cycle().await
+        } else {
+            info!("🔧 ML promotion недоступен, используем стандартный promotion");
+            // Fallback: конвертируем стандартные stats в ML stats
+            let standard_stats = self.promotion.run_promotion_cycle().await?;
+            Ok(MLPromotionStats {
+                total_analyzed: standard_stats.interact_to_insights + standard_stats.insights_to_assets,
+                promoted_interact_to_insights: standard_stats.interact_to_insights,
+                promoted_insights_to_assets: standard_stats.insights_to_assets,
+                ml_inference_time_ms: 0, // No ML inference
+                feature_extraction_time_ms: 0,
+                model_accuracy: 0.0,
+                avg_confidence_score: 0.0,
+                cache_hit_rate: 0.0,
+                gpu_utilization: 0.0,
+            })
+        }
+    }
+
+    /// Check if ML promotion is available
+    pub fn has_ml_promotion(&self) -> bool {
+        self.ml_promotion.is_some()
+    }
+
+    /// Get ML promotion configuration if available
+    pub fn get_ml_promotion_config(&self) -> Option<MLPromotionConfig> {
+        self.config.ml_promotion.clone()
+    }
+
+    /// Enable/disable ML promotion
+    pub async fn configure_ml_promotion(&mut self, config: Option<MLPromotionConfig>) -> Result<()> {
+        self.config.ml_promotion = config.clone();
+        
+        if let Some(ml_config) = config {
+            info!("🧠 Включение ML promotion с новой конфигурацией");
+            match MLPromotionEngine::new(self.store.clone(), ml_config).await {
+                Ok(engine) => {
+                    self.ml_promotion = Some(Arc::new(parking_lot::RwLock::new(engine)));
+                    info!("✅ ML promotion engine успешно переконфигурирован");
+                }
+                Err(e) => {
+                    warn!("⚠️ Ошибка переконфигурации ML promotion: {}", e);
+                    return Err(e);
+                }
+            }
+        } else {
+            info!("🔧 Отключение ML promotion");
+            self.ml_promotion = None;
+        }
+        
+        Ok(())
+    }
+
     pub fn cache_stats(&self) -> (u64, u64, u64) {
         self.cache.stats()
     }
@@ -630,7 +791,30 @@ impl MemoryService {
     
     /// Создает custom alert
     pub fn create_health_alert(&self, component: ComponentType, severity: AlertSeverity, title: String, description: String) {
-        self.health_monitor.create_alert(component, severity, title, description)
+        self.health_monitor.create_alert(component.clone(), severity.clone(), title.clone(), description.clone());
+        
+        // Отправляем через notification manager если включен
+        if let Some(ref nm) = self.notification_manager {
+            let alert = crate::health::HealthAlert {
+                id: format!("{:?}_{}", component, chrono::Utc::now().timestamp()),
+                component,
+                severity,
+                title,
+                description,
+                metric_value: None,
+                threshold: None,
+                timestamp: chrono::Utc::now(),
+                resolved: false,
+                resolved_at: None,
+            };
+            
+            let nm = nm.clone();
+            tokio::spawn(async move {
+                if let Err(e) = nm.handle_alert(alert).await {
+                    error!("Failed to send notification: {}", e);
+                }
+            });
+        }
     }
     
     /// Проверяет здоровье всех компонентов системы памяти
@@ -903,6 +1087,168 @@ impl MemoryService {
     pub fn config(&self) -> &MemoryConfig {
         &self.config
     }
+    
+    /// Получить менеджер уведомлений для тестирования и прямого доступа
+    pub fn notification_manager(&self) -> Option<&NotificationManager> {
+        self.notification_manager.as_ref().map(|v| &**v)
+    }
+    
+    // ========== BATCH OPERATIONS API ==========
+    
+    /// Создать batch builder для оптимизированных batch операций
+    pub fn batch(&self) -> BatchBuilder<'_> {
+        BatchBuilder::new(self)
+    }
+    
+    /// Вставить несколько записей одновременно
+    pub async fn batch_insert(&self, mut records: Vec<Record>) -> Result<BatchInsertResult> {
+        let total_records = records.len();
+        let start_time = std::time::Instant::now();
+        
+        info!("Starting batch insert of {} records", total_records);
+        
+        // Сначала генерируем embeddings для записей, у которых они пустые
+        let texts_to_embed: Vec<(usize, String)> = records.iter()
+            .enumerate()
+            .filter_map(|(i, r)| {
+                if r.embedding.is_empty() {
+                    Some((i, r.text.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        
+        if !texts_to_embed.is_empty() {
+            info!("Generating embeddings for {} records", texts_to_embed.len());
+            let texts: Vec<String> = texts_to_embed.iter()
+                .map(|(_, text)| text.clone())
+                .collect();
+            let embeddings = self.batch_processor.embed_batch(texts).await?;
+            
+            // Обновляем embeddings в записях
+            for ((idx, _), embedding) in texts_to_embed.iter().zip(embeddings.iter()) {
+                records[*idx].embedding = embedding.clone();
+            }
+        }
+        
+        // Устанавливаем значения по умолчанию
+        for record in &mut records {
+            if record.id == uuid::Uuid::nil() {
+                record.id = uuid::Uuid::new_v4();
+            }
+            if record.ts == chrono::DateTime::<chrono::Utc>::default() {
+                record.ts = chrono::Utc::now();
+            }
+            record.last_access = record.ts;
+        }
+        
+        // Добавляем записи в batch manager
+        self.batch_manager.add_batch(records).await?;
+        
+        // Flush все батчи для немедленной вставки
+        self.batch_manager.flush_all().await?;
+        
+        let duration = start_time.elapsed();
+        let stats = self.batch_manager.stats();
+        
+        // Записываем метрики
+        if let Some(metrics) = &self.metrics {
+            metrics.record_batch_operation(
+                "batch_insert",
+                total_records,
+                duration,
+            );
+        }
+        
+        // Создаем health метрику
+        let _ = self.health_monitor.record_metric(crate::health::HealthMetric {
+            component: ComponentType::VectorStore,
+            metric_name: "batch_insert_rate".to_string(),
+            value: (total_records as f64 / duration.as_secs_f64()),
+            unit: "records/sec".to_string(),
+            timestamp: chrono::Utc::now(),
+            threshold_warning: Some(100.0),
+            threshold_critical: Some(10.0),
+        });
+        
+        Ok(BatchInsertResult {
+            total_records,
+            successful_records: stats.total_records as usize,
+            failed_records: (stats.failed_batches * stats.avg_batch_size as u64) as usize,
+            duration,
+            records_per_second: total_records as f64 / duration.as_secs_f64(),
+        })
+    }
+    
+    /// Выполнить batch поиск для нескольких запросов
+    pub async fn batch_search(&self, queries: Vec<String>, options: SearchOptions) -> Result<BatchSearchResult> {
+        let total_queries = queries.len();
+        let start_time = std::time::Instant::now();
+        
+        info!("Starting batch search for {} queries", total_queries);
+        
+        let mut all_results = Vec::new();
+        let mut failed_queries = 0;
+        
+        // Параллельно выполняем поиски используя futures
+        use futures::future::join_all;
+        
+        let search_futures: Vec<_> = queries.into_iter()
+            .map(|query| {
+                let opts = options.clone();
+                async move {
+                    self.search(&query)
+                        .with_layers(&opts.layers)
+                        .top_k(opts.top_k)
+                        .min_score(opts.score_threshold)
+                        .execute()
+                        .await
+                }
+            })
+            .collect();
+        
+        let results = join_all(search_futures).await;
+        
+        // Собираем результаты
+        for result in results {
+            match result {
+                Ok(records) => all_results.push(records),
+                Err(_) => failed_queries += 1,
+            }
+        }
+        
+        let duration = start_time.elapsed();
+        let successful_queries = total_queries - failed_queries;
+        
+        // Записываем метрики
+        if let Some(metrics) = &self.metrics {
+            metrics.record_batch_operation(
+                "batch_search",
+                total_queries,
+                duration,
+            );
+        }
+        
+        Ok(BatchSearchResult {
+            total_queries,
+            successful_queries,
+            failed_queries,
+            results: all_results,
+            duration,
+            queries_per_second: total_queries as f64 / duration.as_secs_f64(),
+        })
+    }
+    
+    /// Получить статистику batch операций
+    pub fn batch_stats(&self) -> BatchStats {
+        self.batch_manager.stats()
+    }
+    
+    /// Вручную запустить flush всех pending batch операций
+    pub async fn flush_batches(&self) -> Result<()> {
+        self.batch_manager.flush_all().await
+    }
 }
 
 pub struct SearchBuilder<'a> {
@@ -957,5 +1303,98 @@ impl<'a> SearchBuilder<'a> {
 
     pub async fn execute(self) -> Result<Vec<Record>> {
         self.service.search_with_options(&self.query, self.options).await
+    }
+}
+
+impl MemoryService {
+    /// Создать streaming API для real-time обработки
+    pub async fn create_streaming_api(self: Arc<Self>) -> Result<StreamingMemoryAPI> {
+        let config = self.config.streaming_config.clone()
+            .unwrap_or_else(StreamingConfig::default);
+            
+        info!("🌊 Creating streaming API with config: max_sessions={}, buffer_size={}", 
+              config.max_concurrent_sessions, config.buffer_size);
+        
+        StreamingMemoryAPI::new(
+            self,
+            config
+        ).await
+    }
+    
+    /// Проверить поддержку streaming API
+    pub fn has_streaming_support(&self) -> bool {
+        self.config.streaming_config.is_some()
+    }
+    
+    /// Получить конфигурацию streaming API
+    pub fn get_streaming_config(&self) -> Option<&StreamingConfig> {
+        self.config.streaming_config.as_ref()
+    }
+}
+
+/// Builder для создания batch операций
+pub struct BatchBuilder<'a> {
+    service: &'a MemoryService,
+    records: Vec<Record>,
+}
+
+impl<'a> BatchBuilder<'a> {
+    fn new(service: &'a MemoryService) -> Self {
+        Self {
+            service,
+            records: Vec::new(),
+        }
+    }
+    
+    /// Добавить одну запись в batch
+    pub fn add_record(mut self, record: Record) -> Self {
+        self.records.push(record);
+        self
+    }
+    
+    /// Добавить несколько записей в batch
+    pub fn add_records(mut self, mut records: Vec<Record>) -> Self {
+        self.records.append(&mut records);
+        self
+    }
+    
+    /// Создать и добавить запись из текста
+    pub fn add_text(mut self, text: String, layer: Layer) -> Self {
+        let record = Record {
+            id: uuid::Uuid::new_v4(),
+            text,
+            embedding: vec![], // Будет вычислен при вставке
+            layer,
+            kind: "text".to_string(),
+            tags: vec![],
+            project: "default".to_string(),
+            session: "batch".to_string(),
+            score: 0.0,
+            ts: chrono::Utc::now(),
+            last_access: chrono::Utc::now(),
+            access_count: 0,
+        };
+        self.records.push(record);
+        self
+    }
+    
+    /// Создать и добавить несколько записей из текстов
+    pub fn add_texts(mut self, texts: Vec<String>, layer: Layer) -> Self {
+        for text in texts {
+            self = self.add_text(text, layer);
+        }
+        self
+    }
+    
+    /// Выполнить batch insert
+    pub async fn insert(self) -> Result<BatchInsertResult> {
+        self.service.batch_insert(self.records).await
+    }
+    
+    /// Создать оптимизированный batch с группировкой по слоям
+    pub fn optimize(self) -> BatchOperationBuilder {
+        BatchOperationBuilder::new()
+            .add_records(self.records)
+            .optimize_for_locality()
     }
 }

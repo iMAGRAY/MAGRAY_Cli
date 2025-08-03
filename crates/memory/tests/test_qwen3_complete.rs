@@ -1,4 +1,4 @@
-use memory::{
+﻿use memory::{
     MemoryService, MemoryConfig, Layer, Record, CacheConfigType, CacheConfig,
     PromotionConfig, HealthConfig, ResourceConfig,
 };
@@ -38,6 +38,7 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
         max_cache_size_bytes: 100 * 1024 * 1024,
         #[allow(deprecated)]
         max_memory_usage_percent: Some(80),
+        ..Default::default()
     };
 
     // Создаём сервис памяти
@@ -366,6 +367,7 @@ async fn test_qwen3_stress() -> Result<()> {
         max_cache_size_bytes: 500 * 1024 * 1024,
         #[allow(deprecated)]
         max_memory_usage_percent: Some(80),
+        ..Default::default()
     };
 
     let memory_service = MemoryService::new(config).await?;

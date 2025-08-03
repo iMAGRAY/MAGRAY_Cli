@@ -225,6 +225,33 @@ impl MetricsCollector {
         metrics.last_error = Some(error);
     }
     
+    /// Record a batch operation
+    pub fn record_batch_operation(&self, operation_type: &str, record_count: usize, duration: Duration) {
+        match operation_type {
+            "batch_insert" => {
+                // Записываем каждую вставку как отдельную операцию с усредненным временем
+                let avg_duration = duration / record_count as u32;
+                for _ in 0..record_count {
+                    self.record_vector_insert(avg_duration);
+                }
+            }
+            "batch_search" => {
+                // Записываем каждый поиск как отдельную операцию
+                let avg_duration = duration / record_count as u32;
+                for _ in 0..record_count {
+                    self.record_vector_search(avg_duration);
+                }
+            }
+            _ => {
+                // Для других типов batch операций просто увеличиваем total_operations
+                let mut metrics = self.metrics.write();
+                metrics.total_operations += record_count as u64;
+            }
+        }
+        
+        debug!("Batch operation '{}': {} records in {:?}", operation_type, record_count, duration);
+    }
+    
     /// Get current metrics snapshot
     pub fn snapshot(&self) -> MemoryMetrics {
         let mut metrics = self.metrics.read().clone();

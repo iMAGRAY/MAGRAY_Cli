@@ -18,6 +18,8 @@ pub mod auto_device_selector;
 pub mod model_downloader;
 pub mod tensorrt_cache;
 pub mod gpu_fallback;
+pub mod gpu_pipeline;
+pub mod gpu_pipeline_optimized;
 
 pub use config::{AiConfig, EmbeddingConfig, RerankingConfig};
 pub use model_registry::{ModelRegistry, ModelInfo, ModelType, MODEL_REGISTRY};
@@ -34,6 +36,8 @@ pub use tokenization::{OptimizedTokenizer, TokenizedInput as OptTokenizedInput, 
 pub use gpu_config::{GpuConfig, GpuInfo};
 pub use auto_device_selector::EmbeddingServiceTrait;
 pub use gpu_fallback::{GpuFallbackManager, FallbackPolicy};
+pub use gpu_pipeline::{GpuPipelineManager, PipelineConfig, PipelineStats};
+pub use gpu_pipeline_optimized::OptimizedGpuPipelineManager;
 
 /// Result type for AI operations
 pub type Result<T> = std::result::Result<T, AiError>;

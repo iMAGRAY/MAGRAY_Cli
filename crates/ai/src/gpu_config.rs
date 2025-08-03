@@ -59,8 +59,8 @@ impl GpuConfig {
                 // Включаем TensorRT для мощных GPU (8GB+)
                 config.use_tensorrt = device.total_memory_mb >= 8000;
                 
-                // FP16 для GPU с меньшим объёмом памяти
-                config.enable_fp16 = device.total_memory_mb < 12000;
+                // Включаем FP16 для всех современных GPU (ускорение в 2x без потери качества)
+                config.enable_fp16 = true;
                 
                 info!("🎯 Автоматически настроена GPU конфигурация:");
                 info!("  - Устройство: GPU {} ({})", device.index, device.name);
@@ -139,6 +139,10 @@ impl GpuConfig {
             .with_device_id(self.device_id)
             .with_max_workspace_size(self.tensorrt_cache_size)
             .with_fp16(self.enable_fp16)
+            .with_engine_cache_enable(true)
+            .with_engine_cache_path("./tensorrt_cache")
+            .with_timing_cache_enable(true)
+            .with_force_sequential_engine_build(false) // Параллельная сборка
             .build();
             
         Ok(provider)
