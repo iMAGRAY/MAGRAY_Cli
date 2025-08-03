@@ -18,7 +18,7 @@ mod progress;
 mod status_tests;
 
 use agent::{UnifiedAgent, AgentResponse};
-use commands::{GpuCommand, MemoryCommand};
+use commands::{GpuCommand, MemoryCommand, ModelsCommand};
 
 
 // Иконки для CLI интерфейса
@@ -87,6 +87,8 @@ enum Commands {
     Gpu(GpuCommand),
     /// [🧠] Управление системой памяти
     Memory(MemoryCommand),
+    /// [📦] Управление моделями AI
+    Models(ModelsCommand),
     /// [🏥] Проверка здоровья системы
     Health,
     /// [📊] Показать состояние системы
@@ -169,6 +171,9 @@ async fn main() -> Result<()> {
             health_checks::run_health_checks(llm_client, memory_service).await?;
         }
         Some(Commands::Memory(cmd)) => {
+            cmd.execute().await?;
+        }
+        Some(Commands::Models(cmd)) => {
             cmd.execute().await?;
         }
         Some(Commands::Status) => {

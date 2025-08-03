@@ -5,6 +5,7 @@ pub mod embeddings_gpu;
 pub mod errors;
 pub mod memory_pool;
 pub mod models;
+pub mod model_registry;
 pub mod reranking;
 pub mod reranker_mxbai;
 pub mod reranker_mxbai_optimized;
@@ -19,6 +20,7 @@ pub mod tensorrt_cache;
 pub mod gpu_fallback;
 
 pub use config::{AiConfig, EmbeddingConfig, RerankingConfig};
+pub use model_registry::{ModelRegistry, ModelInfo, ModelType, MODEL_REGISTRY};
 pub use embeddings_bge_m3::BgeM3EmbeddingService;
 pub use embeddings_cpu::{CpuEmbeddingService, OptimizedEmbeddingResult, ServiceStats};
 pub use embeddings_gpu::GpuEmbeddingService;

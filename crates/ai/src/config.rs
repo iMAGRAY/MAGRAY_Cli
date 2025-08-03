@@ -46,7 +46,7 @@ pub struct RerankingConfig {
 impl Default for AiConfig {
     fn default() -> Self {
         Self {
-            models_dir: PathBuf::from("crates/memory/models"),
+            models_dir: PathBuf::from("models"), // Централизованная папка models в корне
             embedding: EmbeddingConfig::default(),
             reranking: RerankingConfig::default(),
         }
