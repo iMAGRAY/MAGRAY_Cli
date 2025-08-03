@@ -36,7 +36,7 @@ impl CpuEmbeddingService {
         info!("Initializing CPU embedding service with model: {}", config.model_name);
         
         // Получаем путь относительно корня проекта
-        let project_root = std::env::current_dir()
+        let current_dir = std::env::current_dir()
             .unwrap_or_else(|_| PathBuf::from("."));
         
         // Определяем путь к модели в зависимости от типа
@@ -46,16 +46,41 @@ impl CpuEmbeddingService {
             _ => ("model.onnx", config.embedding_dim.unwrap_or(1024)),
         };
         
-        let model_path = project_root.join(format!("crates/memory/models/{}/{}", config.model_name, model_filename));
-        let tokenizer_path = project_root.join(format!("crates/memory/models/{}/tokenizer.json", config.model_name));
+        // Ищем модели в разных возможных местах
+        let possible_paths = vec![
+            // Если запускаемся из корня проекта
+            current_dir.join(format!("crates/memory/models/{}/{}", config.model_name, model_filename)),
+            // Если модели в корне проекта
+            current_dir.join(format!("models/{}/{}", config.model_name, model_filename)),
+            // Если запускаемся из crates/memory
+            current_dir.join(format!("models/{}/{}", config.model_name, model_filename)),
+            // Если запускаемся из другого места
+            current_dir.join(format!("../memory/models/{}/{}", config.model_name, model_filename)),
+            current_dir.join(format!("../../models/{}/{}", config.model_name, model_filename)),
+            // Абсолютный путь из переменной окружения
+            PathBuf::from(format!("models/{}/{}", config.model_name, model_filename)),
+        ];
         
-        // Check files exist
-        if !model_path.exists() {
-            return Err(anyhow::anyhow!("Model file not found: {}", model_path.display()));
-        }
-        if !tokenizer_path.exists() {
-            return Err(anyhow::anyhow!("Tokenizer file not found: {}", tokenizer_path.display()));
-        }
+        let model_path = possible_paths.iter()
+            .find(|p| p.exists())
+            .ok_or_else(|| anyhow::anyhow!("Model file not found. Tried paths: {:?}", possible_paths))?
+            .clone();
+        
+        // Аналогично для tokenizer
+        let tokenizer_possible_paths = vec![
+            current_dir.join(format!("crates/memory/models/{}/tokenizer.json", config.model_name)),
+            current_dir.join(format!("models/{}/tokenizer.json", config.model_name)),
+            current_dir.join(format!("models/{}/tokenizer.json", config.model_name)),
+            current_dir.join(format!("../memory/models/{}/tokenizer.json", config.model_name)),
+            current_dir.join(format!("../../models/{}/tokenizer.json", config.model_name)),
+            PathBuf::from(format!("models/{}/tokenizer.json", config.model_name)),
+        ];
+        
+        let tokenizer_path = tokenizer_possible_paths.iter()
+            .find(|p| p.exists())
+            .ok_or_else(|| anyhow::anyhow!("Tokenizer file not found. Tried paths: {:?}", tokenizer_possible_paths))?
+            .clone();
+        
         
         // Setup DLL path for Windows
         #[cfg(target_os = "windows")]

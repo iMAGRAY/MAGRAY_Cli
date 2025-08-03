@@ -1,6 +1,5 @@
 use anyhow::Result;
 use chrono::{Duration, Utc};
-use std::sync::Arc;
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -27,6 +26,15 @@ async fn test_promotion_engine() -> Result<()> {
             decay_factor: 0.9,
         },
         ai_config: AiConfig::default(),
+        health_config: memory::HealthConfig::default(),
+        cache_config: memory::CacheConfigType::Lru(memory::CacheConfig::default()),
+        resource_config: memory::ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 1_000_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 1024 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(50),
     };
     
     // Initialize memory service
@@ -141,6 +149,15 @@ async fn test_layer_ttl_expiration() -> Result<()> {
             decay_factor: 0.9,
         },
         ai_config: AiConfig::default(),
+        health_config: memory::HealthConfig::default(),
+        cache_config: memory::CacheConfigType::Lru(memory::CacheConfig::default()),
+        resource_config: memory::ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 1_000_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 1024 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(50),
     };
     
     let memory_service = MemoryService::new(config).await?;

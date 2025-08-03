@@ -532,7 +532,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let store = VectorStore::new(temp_dir.path()).await.unwrap();
         
-        let index_config = HnswRsConfig::default();
+        let index_config = crate::HnswRsConfig::default();
         let index = Arc::new(VectorIndexHnswRs::new(index_config).unwrap());
         
         let analysis = manager.analyze_rebuild_requirements(&store, Layer::Interact, &index).await.unwrap();

@@ -31,21 +31,26 @@ impl RerankingService {
         
         // Try to create optimized service first
         let optimized_service = match tokio::runtime::Handle::try_current() {
-            Ok(_) => {
-                // We're in an async context, try to create optimized service
-                match tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current().block_on(
-                        OptimizedRerankingService::new(config.clone())
-                    )
-                }) {
-                    Ok(service) => {
-                        info!("✅ Optimized reranking service initialized successfully");
-                        Some(Arc::new(service))
+            Ok(handle) => {
+                // We're in an async context, check if multi-threaded runtime
+                if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread {
+                    // Multi-threaded runtime - can use block_in_place
+                    match tokio::task::block_in_place(|| {
+                        handle.block_on(OptimizedRerankingService::new(config.clone()))
+                    }) {
+                        Ok(service) => {
+                            info!("✅ Optimized reranking service initialized successfully (multi-threaded)");
+                            Some(Arc::new(service))
+                        },
+                        Err(e) => {
+                            warn!("Failed to initialize optimized reranking service: {}", e);
+                            None
+                        }
                     }
-                    Err(e) => {
-                        warn!("Failed to initialize optimized reranking service: {}", e);
-                        None
-                    }
+                } else {
+                    // Single-threaded runtime - skip optimized service for now
+                    warn!("Single-threaded runtime detected, skipping optimized reranking service");
+                    None
                 }
             }
             Err(_) => {

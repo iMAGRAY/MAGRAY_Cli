@@ -101,6 +101,14 @@ impl HnswRsStats {
     pub fn avg_search_time_ms(&self) -> f64 {
         self.avg_search_time_us() / 1000.0
     }
+    
+    /// Примерная оценка использования памяти в KB
+    pub fn memory_usage_kb(&self) -> u64 {
+        let vectors = self.total_vectors.load(Ordering::Relaxed);
+        // Примерная оценка: каждый вектор занимает ~4KB 
+        // (1024 dimensions * 4 bytes + overhead для графа)
+        vectors * 4
+    }
 }
 
 /// Максимально эффективный векторный индекс на базе профессиональной hnsw_rs от Jean-Pierre Both

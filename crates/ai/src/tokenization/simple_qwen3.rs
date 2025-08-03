@@ -61,30 +61,27 @@ impl SimpleQwen3Tokenizer {
         })
     }
     
-    /// Простая токенизация для ONNX моделей
+    /// Улучшенная токенизация для ONNX моделей
     pub fn encode(&self, text: &str) -> super::TokenizedInput {
-        // Для квантованных ONNX моделей используем упрощённую токенизацию
-        // Модель уже обучена и нам нужны только правильные размерности
-        
-        let words: Vec<&str> = text.split_whitespace().collect();
+        // Улучшенная токенизация с субсловным разбиением
         let mut input_ids = Vec::new();
         
         // Начинаем с BOS токена (для Qwen3 это endoftext)
         input_ids.push(151643i64);
         
-        // Простое хеширование слов в допустимый диапазон
-        for word in words.iter().take(self.max_length - 2) {
-            let hash = word.chars()
-                .enumerate()
-                .fold(0u64, |acc, (i, c)| {
-                    // Используем wrapping_pow чтобы избежать overflow
-                    let pow = if i < 10 { 31u64.wrapping_pow(i as u32) } else { 31u64.wrapping_pow(10) };
-                    acc.wrapping_add((c as u64).wrapping_mul(pow))
-                });
+        // Нормализация текста: lowercase + удаление лишних пробелов
+        let normalized_text = text.to_lowercase().trim().to_string();
+        
+        // Разбиение на слова и символы для лучшей токенизации
+        let mut remaining_length = self.max_length - 2; // Резервируем место для BOS/EOS
+        
+        for word in normalized_text.split_whitespace() {
+            if remaining_length == 0 { break; }
             
-            // Мапим в диапазон vocab_size, избегая специальных токенов
-            let token_id = (hash % (self.vocab_size as u64 - 100) + 100) as i64;
-            input_ids.push(token_id);
+            // Для каждого слова пытаемся разбить на подслова
+            let word_tokens = self.tokenize_word(word, remaining_length);
+            input_ids.extend(word_tokens.iter());
+            remaining_length = remaining_length.saturating_sub(word_tokens.len());
         }
         
         // Добавляем EOS токен
@@ -100,6 +97,91 @@ impl SimpleQwen3Tokenizer {
             token_type_ids,
             length,
         }
+    }
+    
+    /// Улучшенная токенизация отдельного слова
+    fn tokenize_word(&self, word: &str, max_tokens: usize) -> Vec<i64> {
+        if max_tokens == 0 { return vec![]; }
+        
+        let mut tokens = Vec::new();
+        let word_chars: Vec<char> = word.chars().collect();
+        
+        // Если слово очень короткое, обрабатываем как один токен
+        if word.len() <= 3 {
+            let token_id = self.char_sequence_to_token(&word_chars);
+            tokens.push(token_id);
+            return tokens;
+        }
+        
+        // Разбиваем длинные слова на части (субсловная токенизация)
+        let mut i = 0;
+        while i < word_chars.len() && tokens.len() < max_tokens {
+            // Пытаемся найти наибольший возможный субтокен (до 6 символов)
+            let max_len = std::cmp::min(6, word_chars.len() - i);
+            let mut best_len = 1;
+            
+            // Находим оптимальную длину субтокена
+            for len in (2..=max_len).rev() {
+                let subword: String = word_chars[i..i + len].iter().collect();
+                if self.is_good_subword(&subword) {
+                    best_len = len;
+                    break;
+                }
+            }
+            
+            let subword_chars = &word_chars[i..i + best_len];
+            let token_id = self.char_sequence_to_token(subword_chars);
+            tokens.push(token_id);
+            
+            i += best_len;
+        }
+        
+        tokens
+    }
+    
+    /// Определяет является ли подслово "хорошим" для токенизации
+    fn is_good_subword(&self, subword: &str) -> bool {
+        // Предпочитаем подслова которые:
+        // 1. Заканчиваются на гласную
+        // 2. Содержат общие префиксы/суффиксы
+        // 3. Являются целыми морфемами
+        
+        let last_char = subword.chars().last().unwrap_or(' ').to_lowercase().next().unwrap_or(' ');
+        let vowels = ['a', 'e', 'i', 'o', 'u', 'y', 'а', 'е', 'и', 'о', 'у', 'ы', 'э', 'ю', 'я'];
+        
+        // Проверяем общие префиксы/суффиксы
+        let common_endings = ["ing", "ed", "er", "ly", "tion", "ness", "ment", 
+                             "ный", "ком", "тся", "ать", "ить", "еть"];
+        let common_prefixes = ["un", "re", "pre", "de", "dis", 
+                              "не", "пре", "при", "раз", "без"];
+        
+        vowels.contains(&last_char) || 
+        common_endings.iter().any(|&ending| subword.ends_with(ending)) ||
+        common_prefixes.iter().any(|&prefix| subword.starts_with(prefix))
+    }
+    
+    /// Преобразует последовательность символов в токен ID
+    fn char_sequence_to_token(&self, chars: &[char]) -> i64 {
+        // Более качественное хеширование с учетом позиции символов
+        let mut hash = 5381u64; // DJB2 hash base
+        
+        for (i, &ch) in chars.iter().enumerate() {
+            let char_code = ch as u64;
+            hash = hash.wrapping_mul(33).wrapping_add(char_code);
+            
+            // Добавляем вес позиции для лучшего распределения
+            let position_weight = (i + 1) as u64;
+            hash = hash.wrapping_add(position_weight.wrapping_mul(char_code));
+        }
+        
+        // Добавляем длину для различения подслов разной длины
+        hash = hash.wrapping_add(chars.len() as u64 * 97);
+        
+        // Мапим в диапазон vocab_size, избегая специальных токенов (первые 100)
+        let token_range = self.vocab_size as u64 - 200; // Избегаем первые и последние 100 токенов
+        let token_id = (hash % token_range) + 100;
+        
+        token_id as i64
     }
     
     /// Батч токенизация

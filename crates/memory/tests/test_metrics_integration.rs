@@ -13,6 +13,15 @@ async fn test_metrics_collection() -> Result<()> {
         cache_path: temp_dir.path().join("cache"),
         promotion: PromotionConfig::default(),
         ai_config: ai::AiConfig::default(),
+        health_config: memory::HealthConfig::default(),
+        cache_config: memory::CacheConfigType::Lru(CacheConfig::default()),
+        resource_config: memory::ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 1_000_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 1024 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(50),
     };
     
     // Create service with metrics
@@ -85,6 +94,15 @@ async fn test_promotion_metrics() -> Result<()> {
             decay_factor: 0.9,
         },
         ai_config: ai::AiConfig::default(),
+        health_config: memory::HealthConfig::default(),
+        cache_config: memory::CacheConfigType::Lru(memory::CacheConfig::default()),
+        resource_config: memory::ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 10_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 100 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(80),
     };
     
     let mut service = MemoryService::new(config).await?;
@@ -239,7 +257,9 @@ async fn test_cache_metrics() -> Result<()> {
         }
     }
     
-    let (entries, size) = cache.size_info();
+    let (hits, misses, total) = cache.stats();
+    let size = cache.size().unwrap_or(0);
+    let entries = total;
     metrics.update_cache_stats(entries as u64, size as u64);
     
     let snapshot = metrics.snapshot();

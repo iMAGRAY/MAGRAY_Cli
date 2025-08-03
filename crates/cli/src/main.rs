@@ -12,6 +12,10 @@ use common::{init_structured_logging, LoggingConfig};
 mod agent;
 mod commands;
 mod health_checks;
+mod progress;
+
+#[cfg(test)]
+mod status_tests;
 
 use agent::{UnifiedAgent, AgentResponse};
 use commands::{GpuCommand, MemoryCommand};
@@ -414,14 +418,7 @@ async fn show_system_status() -> Result<()> {
     use std::sync::Arc;
     use colored::Colorize;
     
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.cyan} {msg}")
-            .unwrap()
-    );
-    spinner.set_message("Checking system status...");
-    spinner.enable_steady_tick(std::time::Duration::from_millis(120));
+    let spinner = progress::ProgressBuilder::fast("Checking system status...");
     
     // Проверяем состояние памяти
     let memory_status = if let Ok(config) = memory::default_config() {
@@ -456,7 +453,7 @@ async fn show_system_status() -> Result<()> {
         Err(_) => "Not configured",
     };
     
-    spinner.finish_and_clear();
+    spinner.finish_success(Some("System status checked!"));
     
     // Выводим статус
     println!("{}", style("=== MAGRAY System Status ===").bold().cyan());

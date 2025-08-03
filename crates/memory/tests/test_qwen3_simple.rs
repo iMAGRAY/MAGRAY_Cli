@@ -28,6 +28,13 @@ async fn test_qwen3_memory_basic() -> Result<()> {
         ai_config: AiConfig::default(), // Использует qwen3emb и qwen3_reranker по умолчанию
         health_config: Default::default(),
         cache_config: CacheConfigType::Lru(CacheConfig::default()),
+        resource_config: memory::ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 1_000_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 1024 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(50),
     };
 
     // Создаём сервис памяти
@@ -116,7 +123,9 @@ async fn test_qwen3_memory_basic() -> Result<()> {
     }
 
     let start = std::time::Instant::now();
-    memory_service.insert_batch(batch).await?;
+    for record in batch {
+        memory_service.insert(record).await?;
+    }
     let batch_time = start.elapsed();
     
     info!("  Добавлено 10 записей за {:?}", batch_time);
@@ -144,7 +153,7 @@ async fn test_qwen3_memory_basic() -> Result<()> {
     info!("  Статус системы: {:?}", health.overall_status);
     info!("  Компоненты:");
     for (component, status) in &health.component_statuses {
-        info!("    - {:?}: {:?}", component, status.status);
+        info!("    - {:?}: {:?}", component, status);
     }
 
     // Тест 6: Многоязычность
@@ -189,7 +198,8 @@ async fn test_qwen3_memory_basic() -> Result<()> {
         .await?;
     
     for result in results {
-        let lang = result.tags.first().unwrap_or(&"?".to_string());
+        let default_lang = "?".to_string();
+        let lang = result.tags.first().unwrap_or(&default_lang);
         info!("    [{}] {}", lang, result.text);
     }
 

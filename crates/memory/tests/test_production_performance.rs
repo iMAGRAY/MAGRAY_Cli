@@ -1,6 +1,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use memory::*;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio;
 use uuid::Uuid;
@@ -18,12 +19,21 @@ async fn test_large_scale_vector_operations() -> Result<()> {
         ai_config: ai::AiConfig::default(),
         health_config: HealthConfig::default(),
         cache_config: CacheConfigType::Lru(memory::CacheConfig::default()),
-        max_vectors: 100_000, // 100K vectors для теста
-        max_cache_size_bytes: 100 * 1024 * 1024, // 100MB cache
+        resource_config: memory::ResourceConfig {
+            base_max_vectors: 100_000, // 100K vectors для теста
+            base_cache_size_bytes: 100 * 1024 * 1024, // 100MB cache
+            target_memory_usage_percent: 80,
+            ..memory::ResourceConfig::default()
+        },
+        #[allow(deprecated)]
+        max_vectors: 100_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 100 * 1024 * 1024,
+        #[allow(deprecated)]
         max_memory_usage_percent: Some(80),
     };
     
-    let memory_service = MemoryService::new(config).await?;
+    let memory_service = Arc::new(MemoryService::new(config).await?);
     
     println!("🚀 Starting large-scale performance test...");
     
@@ -142,7 +152,7 @@ async fn test_incremental_sync_performance() -> Result<()> {
         ..Default::default()
     };
     
-    let memory_service = MemoryService::new(config).await?;
+    let memory_service = Arc::new(MemoryService::new(config).await?);
     println!("🔄 Testing incremental sync performance...");
     
     // Создаём базовый набор данных
@@ -217,7 +227,7 @@ async fn test_memory_limits_and_scaling() -> Result<()> {
         ..Default::default()
     };
     
-    let memory_service = MemoryService::new(config).await?;
+    let memory_service = Arc::new(MemoryService::new(config).await?);
     println!("🚧 Testing memory limits and error handling...");
     
     // Заполняем до лимита

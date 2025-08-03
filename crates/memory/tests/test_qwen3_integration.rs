@@ -1,7 +1,6 @@
 use memory::{
     MemoryService, MemoryConfig, Layer, Record, CacheConfigType, CacheConfig
 };
-use memory::cache_lru::CacheConfig as LruCacheConfig;
 use ai::AiConfig;
 use anyhow::Result;
 use chrono::Utc;
@@ -30,7 +29,14 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
         promotion: Default::default(),
         ai_config: AiConfig::default(), // Использует qwen3emb и qwen3_reranker по умолчанию
         health_config: Default::default(),
-        cache_config: CacheConfigType::Lru(LruCacheConfig::default()),
+        cache_config: CacheConfigType::Lru(CacheConfig::default()),
+        resource_config: memory::ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 10_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 100 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(80),
     };
 
     // Создаём сервис памяти
@@ -57,11 +63,11 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
             layer,
             text: content.to_string(),
             embedding: Vec::new(), // Будет создан автоматически
-            metadata: serde_json::json!({
-                "test": true,
-                "timestamp": Utc::now().to_rfc3339(),
-                "source": "test_suite",
-            }),
+            kind: "test".to_string(),
+            tags: vec!["test".to_string(), "qwen3".to_string()],
+            project: "test".to_string(),
+            session: "test_session".to_string(),
+            score: 0.0,
             ts: Utc::now(),
             last_access: Utc::now(),
             access_count: 0,
@@ -104,8 +110,8 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
         for (i, result) in results.iter().enumerate() {
             info!("    {}. [score: {:.3}] {}", 
                 i + 1, 
-                0.0, // TODO: добавить score в Record 
-                &result.text[..80.min(result.text.len())]
+                result.score,
+                &result.text[..50.min(result.text.len())]
             );
         }
     }
@@ -119,8 +125,8 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
     let start = std::time::Instant::now();
     let all_results = memory_service
         .search(global_query)
-        .with_limit(5)
-        .with_threshold(0.3)
+        .top_k(5)
+        .min_score(0.3)
         .execute()
         .await?;
     let search_time = start.elapsed();
@@ -130,9 +136,9 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
     
     for result in &all_results {
         info!("    [{:?}] [score: {:.3}] {}", 
-            result.record.layer,
+            result.layer,
             result.score, 
-            &result.record.text[..60.min(result.record.text.len())]
+            &result.text[..60.min(result.text.len())]
         );
     }
 
@@ -145,9 +151,8 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
     let start = std::time::Instant::now();
     let reranked_results = memory_service
         .search(rerank_query)
-        .with_limit(10)
-        .with_threshold(0.2)
-        .with_reranking(3) // Переранжировать топ-3
+        .top_k(10)
+        .min_score(0.2)
         .execute()
         .await?;
     let rerank_time = start.elapsed();
@@ -159,7 +164,7 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
         info!("    {}. [final score: {:.3}] {}", 
             i + 1,
             result.score,
-            &result.record.text[..60.min(result.record.text.len())]
+            &result.text[..60.min(result.text.len())]
         );
     }
 
@@ -175,11 +180,11 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
             layer: Layer::Interact,
             text: format!("Тестовая запись №{} для проверки батч-загрузки. Содержит информацию о тестировании системы памяти MAGRAY.", i),
             embedding: Vec::new(),
-            metadata: serde_json::json!({
-                "batch": true,
-                "index": i,
-                "test_run": "batch_test"
-            }),
+            kind: "batch_test".to_string(),
+            tags: vec!["batch".to_string(), format!("index_{}", i)],
+            project: "test".to_string(),
+            session: "batch_test".to_string(),
+            score: 0.0,
             ts: Utc::now(),
             last_access: Utc::now(),
             access_count: 0,
@@ -188,7 +193,9 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
     }
 
     let start = std::time::Instant::now();
-    memory_service.insert_batch(batch_records).await?;
+    for record in batch_records {
+        memory_service.insert(record).await?;
+    }
     let batch_time = start.elapsed();
     
     info!("  Добавлено {} записей за {:?}", batch_size, batch_time);
@@ -201,7 +208,7 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
     let filtered_results = memory_service
         .search("тестовая запись")
         .with_layer(Layer::Interact)
-        .with_limit(5)
+        .top_k(5)
         .with_tags(vec!["batch".to_string()])
         .execute()
         .await?;
@@ -213,17 +220,17 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
     // Тест 7: Статистика системы
     info!("\n📊 Тест 7: Статистика системы памяти");
     
-    if let Some(stats) = memory_service.get_stats().await {
-        info!("  Общая статистика:");
-        info!("    - Всего записей: {}", stats.total_records);
-        info!("    - Размер кэша: {} элементов", stats.cache_size);
-        info!("    - Попадания в кэш: {}%", stats.cache_hit_rate * 100.0);
-        
-        info!("\n  Статистика по слоям:");
-        for (layer, count) in stats.layer_counts {
-            info!("    - {:?}: {} записей", layer, count);
-        }
-    }
+    let (hits, misses, items) = memory_service.cache_stats();
+    let hit_rate = if hits + misses > 0 {
+        (hits as f64 / (hits + misses) as f64) * 100.0
+    } else {
+        0.0
+    };
+    info!("  Общая статистика:");
+    info!("    - Попадания в кэш: {}", hits);
+    info!("    - Промахи: {}", misses);
+    info!("    - Всего элементов: {}", items);
+    info!("    - Hit rate: {:.1}%", hit_rate);
 
     // Тест 8: Обновление записей
     info!("\n✏️ Тест 8: Обновление записей");
@@ -234,11 +241,11 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
         layer: Layer::Interact,
         text: "Rust - современный системный язык программирования с гарантиями безопасности памяти".to_string(),
         embedding: Vec::new(),
-        metadata: serde_json::json!({
-            "test": true,
-            "updated": true,
-            "version": 2,
-        }),
+        kind: "test".to_string(),
+        tags: vec!["test".to_string(), "updated".to_string()],
+        project: "test".to_string(),
+        session: "test_session".to_string(),
+        score: 0.0,
         ts: Utc::now(),
         last_access: Utc::now(),
         access_count: 5,
@@ -251,21 +258,22 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
     let search_results = memory_service
         .search("безопасность памяти")
         .with_layer(Layer::Interact)
-        .with_limit(1)
+        .top_k(1)
         .execute()
         .await?;
     
-    if !search_results.is_empty() && search_results[0].record.id == first_id {
+    if !search_results.is_empty() && search_results[0].id == first_id {
         info!("  ✓ Обновлённая запись найдена по новому содержимому");
     }
 
     // Тест 9: Производительность embeddings
     info!("\n⚡ Тест 9: Производительность генерации embeddings");
     
+    let long_text = "Длинный текст. ".repeat(50);
     let test_texts = vec![
         "Короткий текст",
         "Средний текст для тестирования производительности embedding сервиса",
-        "Длинный текст. ".repeat(50),
+        long_text.as_str(),
     ];
     
     for (i, text) in test_texts.iter().enumerate() {
@@ -274,7 +282,11 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
             layer: Layer::Interact,
             text: text.to_string(),
             embedding: Vec::new(),
-            metadata: serde_json::json!({"perf_test": i}),
+            kind: "perf_test".to_string(),
+            tags: vec!["perf".to_string(), format!("test_{}", i)],
+            project: "test".to_string(),
+            session: "perf_test".to_string(),
+            score: 0.0,
             ts: Utc::now(),
             last_access: Utc::now(),
             access_count: 0,
@@ -304,7 +316,11 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
             layer: Layer::Assets,
             text: text.to_string(),
             embedding: Vec::new(),
-            metadata: serde_json::json!({"language": lang}),
+            kind: "multilingual".to_string(),
+            tags: vec![lang.to_string()],
+            project: "test".to_string(),
+            session: "multilingual_test".to_string(),
+            score: 0.0,
             ts: Utc::now(),
             last_access: Utc::now(),
             access_count: 0,
@@ -319,14 +335,14 @@ async fn test_memory_system_with_qwen3_complete() -> Result<()> {
     let results = memory_service
         .search(multilingual_query)
         .with_layer(Layer::Assets)
-        .with_limit(5)
+        .top_k(5)
         .execute()
         .await?;
     
     info!("\n  Результаты многоязычного поиска:");
     for result in results {
-        if let Some(lang) = result.record.metadata.get("language") {
-            info!("    [{}: {:.3}] {}", lang, result.score, result.record.text);
+        if let Some(lang) = result.tags.first() {
+            info!("    [{}: {:.3}] {}", lang, result.score, result.text);
         }
     }
 
@@ -352,7 +368,14 @@ async fn test_qwen3_performance_at_scale() -> Result<()> {
         promotion: Default::default(),
         ai_config: AiConfig::default(),
         health_config: Default::default(),
-        cache_config: CacheConfigType::Lru(LruCacheConfig::default()),
+        cache_config: CacheConfigType::Lru(CacheConfig::default()),
+        resource_config: memory::ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 1_000_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 1024 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(50),
     };
 
     let memory_service = MemoryService::new(config).await?;
@@ -377,10 +400,11 @@ async fn test_qwen3_performance_at_scale() -> Result<()> {
                     doc_idx
                 ),
                 embedding: Vec::new(),
-                metadata: serde_json::json!({
-                    "doc_id": doc_idx,
-                    "batch": batch_idx,
-                }),
+                kind: "document".to_string(),
+                tags: vec![format!("batch_{}", batch_idx)],
+                project: "test".to_string(),
+                session: "perf_test".to_string(),
+                score: 0.0,
                 ts: Utc::now(),
                 last_access: Utc::now(),
                 access_count: 0,
@@ -389,7 +413,9 @@ async fn test_qwen3_performance_at_scale() -> Result<()> {
         }
         
         let batch_start = std::time::Instant::now();
-        memory_service.insert_batch(batch).await?;
+        for record in batch {
+            memory_service.insert(record).await?;
+        }
         let batch_time = batch_start.elapsed();
         
         info!("  Батч {}: {} документов за {:?}", batch_idx + 1, batch_size, batch_time);
@@ -435,9 +461,8 @@ async fn test_qwen3_performance_at_scale() -> Result<()> {
     let start = std::time::Instant::now();
     let reranked = memory_service
         .search("машинное обучение и нейронные сети")
-        .with_limit(20)
-        .with_threshold(0.3)
-        .with_reranking(10)
+        .top_k(20)
+        .min_score(0.3)
         .execute()
         .await?;
     let rerank_time = start.elapsed();

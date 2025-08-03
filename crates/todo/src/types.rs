@@ -2,7 +2,26 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use memory::MemRef;
+use memory::{Record, Layer};
+
+/// Современная замена для deprecated MemRef
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryReference {
+    pub layer: Layer,
+    pub record_id: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+impl MemoryReference {
+    /// Создает MemoryReference из Record
+    pub fn from_record(record: &Record) -> Self {
+        Self {
+            layer: record.layer,
+            record_id: record.id,
+            created_at: record.ts,
+        }
+    }
+}
 
 /// Состояние задачи в жизненном цикле
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -96,10 +115,10 @@ pub struct TodoItem {
     pub blocks: Vec<Uuid>,
     
     // Контекст из Memory
-    pub context_refs: Vec<MemRef>,
+    pub context_refs: Vec<MemoryReference>,
     
     // Результаты выполнения
-    pub artifacts: Vec<MemRef>,
+    pub artifacts: Vec<MemoryReference>,
     
     // AI метаданные
     pub auto_generated: bool,
@@ -176,7 +195,7 @@ pub enum TodoEvent {
     TaskCompleted {
         task_id: Uuid,
         duration: chrono::Duration,
-        artifacts: Vec<MemRef>,
+        artifacts: Vec<MemoryReference>,
     },
     TaskFailed {
         task_id: Uuid,

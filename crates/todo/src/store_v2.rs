@@ -1,4 +1,5 @@
 use crate::types::*;
+use memory::Layer;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use r2d2::Pool;
@@ -199,7 +200,7 @@ impl TodoStoreV2 {
                 stmt.execute(params![
                     task.id.to_string(),
                     format!("{:?}", mem_ref.layer),
-                    mem_ref.key,
+                    mem_ref.record_id.to_string(),
                     mem_ref.created_at.to_rfc3339()
                 ])?;
             }
@@ -520,16 +521,20 @@ impl TodoStoreV2 {
                     let key = v["key"].as_str()?;
                     let created_at = v["created_at"].as_str()?;
                     
-                    Some(memory::MemRef {
+                    Some(MemoryReference {
                         layer: match layer {
-                            "Ephemeral" => memory::MemLayer::Ephemeral,
-                            "Short" => memory::MemLayer::Short,
-                            "Medium" => memory::MemLayer::Medium,
-                            "Long" => memory::MemLayer::Long,
-                            "Semantic" => memory::MemLayer::Semantic,
+                            "Interact" => Layer::Interact,
+                            "Insights" => Layer::Insights, 
+                            "Assets" => Layer::Assets,
+                            // Legacy compatibility
+                            "Ephemeral" => Layer::Interact,
+                            "Short" => Layer::Interact,
+                            "Medium" => Layer::Insights,
+                            "Long" => Layer::Insights,
+                            "Semantic" => Layer::Assets,
                             _ => return None,
                         },
-                        key: key.to_string(),
+                        record_id: uuid::Uuid::parse_str(key).ok()?,
                         created_at: DateTime::parse_from_rfc3339(created_at).ok()?.with_timezone(&Utc),
                     })
                 })

@@ -207,6 +207,11 @@ impl UnifiedMemoryAPI {
         // Получаем размеры в байтах (примерные)
         let avg_record_size = 1024; // Примерно 1KB на запись
         
+        // Получаем реальную статистику доступа для каждого слоя
+        let interact_avg_access = self.service.get_layer_average_access(Layer::Interact).await.unwrap_or(0.0);
+        let insights_avg_access = self.service.get_layer_average_access(Layer::Insights).await.unwrap_or(0.0);
+        let assets_avg_access = self.service.get_layer_average_access(Layer::Assets).await.unwrap_or(0.0);
+        
         Ok(SystemStats {
             total_records: perf_stats.interact_time_index_size + 
                           perf_stats.insights_time_index_size + 
@@ -225,16 +230,16 @@ impl UnifiedMemoryAPI {
                 size_bytes: self.service.get_cache_size().await.unwrap_or(0),
                 entries: cache_total as usize,
             },
-            // Статистика по слоям
+            // Статистика по слоям с реальными данными доступа
             interact_count: perf_stats.interact_time_index_size,
             interact_size: perf_stats.interact_time_index_size * avg_record_size,
-            interact_avg_access: 1.0, // TODO: Получить реальные данные
+            interact_avg_access,
             insights_count: perf_stats.insights_time_index_size,
             insights_size: perf_stats.insights_time_index_size * avg_record_size,
-            insights_avg_access: 0.5,
+            insights_avg_access,
             assets_count: perf_stats.assets_time_index_size,
             assets_size: perf_stats.assets_time_index_size * avg_record_size,
-            assets_avg_access: 0.3,
+            assets_avg_access,
             // Статистика продвижения (примерные значения)
             interact_to_insights: 0,
             insights_to_assets: 0,

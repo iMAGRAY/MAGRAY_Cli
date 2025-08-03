@@ -1,5 +1,6 @@
 use memory::{
     MemoryService, MemoryConfig, Layer, Record, CacheConfigType, CacheConfig,
+    PromotionConfig, HealthConfig, ResourceConfig,
 };
 use ai::AiConfig;
 use anyhow::Result;
@@ -26,10 +27,17 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
     let config = MemoryConfig {
         db_path: base_path.join("test_hnswdb"),
         cache_path: base_path.join("test_cache"),
-        promotion: Default::default(),
+        promotion: PromotionConfig::default(),
         ai_config: AiConfig::default(), // Использует qwen3emb и qwen3_reranker по умолчанию
-        health_config: Default::default(),
+        health_config: HealthConfig::default(),
         cache_config: CacheConfigType::Lru(CacheConfig::default()),
+        resource_config: ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 10_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 100 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(80),
     };
 
     // Создаём сервис памяти
@@ -232,11 +240,11 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
     // Тест 8: Проверка здоровья системы
     info!("\n🏥 Тест 8: Проверка здоровья системы");
     
-    let health_status = memory_service.health_check().await?;
-    info!("  Статус системы: {:?}", health_status.status);
+    let health_status = memory_service.run_health_check().await?;
+    info!("  Статус системы: {:?}", health_status.overall_status);
     info!("  Здоровье компонентов:");
-    for (component, health) in &health_status.components {
-        info!("    - {:?}: {:?}", component, health.status);
+    for (component, status) in &health_status.component_statuses {
+        info!("    - {:?}: {:?}", component, status);
     }
 
     // Тест 9: Reranking (если доступен)
@@ -305,9 +313,10 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
             .await?;
         
         for result in results {
+            let default_tag = "??".to_string();
             let lang_tag = result.tags.iter()
                 .find(|t| t.len() == 2)
-                .unwrap_or(&"??".to_string());
+                .unwrap_or(&default_tag);
             info!("    [{}] {}", lang_tag, result.text);
         }
     }
@@ -315,8 +324,8 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
     // Итоговая статистика
     info!("\n📈 Итоговая статистика теста:");
     
-    let final_health = memory_service.health_check().await?;
-    info!("  Финальный статус: {:?}", final_health.status);
+    let final_health = memory_service.run_health_check().await?;
+    info!("  Финальный статус: {:?}", final_health.overall_status);
     
     // Метрики доступны через health check
     info!("  Метрики доступны через систему health monitoring");
@@ -341,14 +350,22 @@ async fn test_qwen3_stress() -> Result<()> {
     let config = MemoryConfig {
         db_path: temp_dir.path().join("stress_test_db"),
         cache_path: temp_dir.path().join("stress_test_cache"),
-        promotion: Default::default(),
+        promotion: PromotionConfig::default(),
         ai_config: AiConfig::default(),
-        health_config: Default::default(),
+        health_config: HealthConfig::default(),
         cache_config: CacheConfigType::Lru(CacheConfig {
-            max_size: 10000,
-            ttl_seconds: 3600,
-            ..Default::default()
+            max_size_bytes: 10 * 1024 * 1024, // 10MB
+            max_entries: 10000,
+            ttl_seconds: Some(3600),
+            eviction_batch_size: 100,
         }),
+        resource_config: ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 100_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 500 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(80),
     };
 
     let memory_service = MemoryService::new(config).await?;

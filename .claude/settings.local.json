@@ -23,7 +23,10 @@
       "mcp__archlens__analyze_project",
       "mcp__archlens__export_ai_compact",
       "mcp__archlens__get_project_structure",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(.targetreleasemagray.exe status)",
+      "Bash(./target/release/magray.exe status:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   },

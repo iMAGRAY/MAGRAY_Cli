@@ -247,6 +247,51 @@ impl IncrementalBackupManager {
         Ok(backup_path)
     }
 
+    /// Построить цепочку backup'ов от базового до текущего (без рекурсии)
+    async fn build_backup_chain(&self, backup_id: &str) -> Result<Vec<String>> {
+        let mut chain = Vec::new();
+        let mut current_id = backup_id.to_string();
+        
+        // Идём от текущего backup'а к базовому, собирая цепочку
+        loop {
+            let backup_path = self.base_path.join(format!("{}.tar.gz", current_id));
+            if !backup_path.exists() {
+                return Err(anyhow!("Backup not found in chain: {}", current_id));
+            }
+            
+            let metadata = self.read_incremental_metadata(&backup_path)?;
+            
+            // Добавляем в начало цепочки для правильного порядка восстановления
+            chain.insert(0, current_id.clone());
+            
+            // Проверяем, есть ли родительский backup
+            match metadata.backup_type {
+                BackupType::Full => {
+                    // Достигли полного backup'а - это база цепочки
+                    break;
+                },
+                BackupType::Incremental { .. } => {
+                    if let Some(parent) = metadata.parent_backup {
+                        current_id = parent;
+                    } else {
+                        // Incremental без parent - ошибка
+                        return Err(anyhow!("Incremental backup {} has no parent", current_id));
+                    }
+                },
+                _ => {
+                    return Err(anyhow!("Unsupported backup type in chain"));
+                }
+            }
+            
+            // Защита от бесконечных циклов
+            if chain.len() > 100 {
+                return Err(anyhow!("Backup chain too long, possible cycle detected"));
+            }
+        }
+        
+        Ok(chain)
+    }
+
     /// Восстановить из инкрементального backup
     pub async fn restore_incremental_backup(
         &self,
@@ -266,15 +311,35 @@ impl IncrementalBackupManager {
             BackupType::Incremental { since } => {
                 info!("📦 Restoring from incremental backup (since: {})", since);
                 
-                // Сначала нужно восстановить базовый backup
+                // Восстанавливаем цепочку backup'ов без рекурсии
                 if let Some(ref parent) = metadata.parent_backup {
-                    let parent_path = self.base_path.join(format!("{}.tar.gz", parent));
-                    if parent_path.exists() {
-                        info!("🔗 Parent backup exists: {}", parent);
-                        // TODO: Implement chain restore without recursion
-                        warn!("Chain restore not fully implemented - restore parent backup manually first");
-                    } else {
-                        return Err(anyhow!("Parent backup not found: {}", parent));
+                    // Собираем всю цепочку backup'ов от базового до текущего
+                    let chain = self.build_backup_chain(parent).await?;
+                    
+                    info!("🔗 Found backup chain with {} elements", chain.len());
+                    
+                    // Восстанавливаем каждый backup в правильном порядке
+                    for backup_id in chain {
+                        let backup_path = self.base_path.join(format!("{}.tar.gz", backup_id));
+                        if !backup_path.exists() {
+                            return Err(anyhow!("Backup in chain not found: {}", backup_id));
+                        }
+                        
+                        let backup_metadata = self.read_incremental_metadata(&backup_path)?;
+                        
+                        match backup_metadata.backup_type {
+                            BackupType::Full => {
+                                info!("  📦 Restoring full backup: {}", backup_id);
+                                self.restore_full_backup_data(&store, &backup_path).await?;
+                            },
+                            BackupType::Incremental { .. } => {
+                                info!("  🔄 Applying incremental changes: {}", backup_id);
+                                self.apply_delta_changes(&store, &backup_path).await?;
+                            },
+                            _ => {
+                                warn!("  ⚠️ Skipping unsupported backup type in chain: {}", backup_id);
+                            }
+                        }
                     }
                 }
                 

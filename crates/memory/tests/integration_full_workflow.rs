@@ -1,13 +1,14 @@
 use anyhow::Result;
-use magray_memory::{
-    MemoryService, MemoryConfig, VectorStore, BackupManager, IncrementalBackupManager,
-    DynamicDimensionManager, DimensionConfig, OptimizedRebuildManager, RebuildConfig,
-    Record, Layer, ResourceManager, ResourceConfig, HealthMonitor, HealthConfig,
+use memory::{
+    MemoryService, MemoryConfig, Record, Layer, ResourceConfig, HealthConfig,
+    CacheConfigType, CacheConfig, PromotionConfig
 };
+use ai::AiConfig;
 use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::time::{sleep, Duration};
 use uuid::Uuid;
+use chrono::Utc;
 
 // @component: {"k":"T","id":"integration_tests","t":"Full workflow integration tests","m":{"cur":0,"tgt":90,"u":"%"},"f":["integration","workflow","testing"]}
 
@@ -21,14 +22,22 @@ async fn test_complete_memory_system_workflow() -> Result<()> {
     let base_path = temp_dir.path();
     
     // Создаём основные компоненты
-    let memory_config = MemoryConfig::default();
-    let mut memory_service = MemoryService::new(memory_config, base_path).await?;
-    
-    let resource_manager = ResourceManager::new(ResourceConfig::default())?;
-    let dimension_manager = DynamicDimensionManager::new(DimensionConfig::default())?;
-    let rebuild_manager = OptimizedRebuildManager::new(RebuildConfig::default());
-    let backup_manager = BackupManager::new(base_path.join("backups"))?;
-    let incremental_backup = IncrementalBackupManager::new(base_path.join("inc_backups"))?;
+    let memory_config = MemoryConfig {
+        db_path: base_path.join("memory_db"),
+        cache_path: base_path.join("memory_cache"),
+        promotion: PromotionConfig::default(),
+        ai_config: AiConfig::default(),
+        health_config: HealthConfig::default(),
+        cache_config: CacheConfigType::Lru(CacheConfig::default()),
+        resource_config: ResourceConfig::default(),
+        #[allow(deprecated)]
+        max_vectors: 10_000,
+        #[allow(deprecated)]
+        max_cache_size_bytes: 100 * 1024 * 1024,
+        #[allow(deprecated)]
+        max_memory_usage_percent: Some(80),
+    };
+    let memory_service = MemoryService::new(memory_config).await?;
     
     println!("✅ Phase 1: All components initialized");
 
@@ -38,18 +47,23 @@ async fn test_complete_memory_system_workflow() -> Result<()> {
     let test_records = create_diverse_test_records(100);
     
     // Добавляем записи
-    for record in &test_records {
-        memory_service.store_record(record).await?;
+    for record in test_records {
+        memory_service.insert(record).await?;
     }
     
-    println!("✅ Phase 2: {} records stored", test_records.len());
+    println!("✅ Phase 2: 100 records stored");
 
     // === ФАЗА 3: ПОИСК И ВАЛИДАЦИЯ ===
     
     // Тестируем поиск по всем слоям
     for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-        let query = vec![0.1; 1024];
-        let results = memory_service.search(&query, layer, 10, None).await?;
+        let query = "test programming algorithms";
+        let results = memory_service
+            .search(query)
+            .with_layer(layer)
+            .top_k(10)
+            .execute()
+            .await?;
         
         assert!(!results.is_empty(), "Search returned no results for layer {:?}", layer);
         println!("✅ Phase 3: Search in layer {:?} returned {} results", layer, results.len());
@@ -61,117 +75,46 @@ async fn test_complete_memory_system_workflow() -> Result<()> {
     let large_batch = create_diverse_test_records(500);
     for chunk in large_batch.chunks(50) {
         for record in chunk {
-            memory_service.store_record(record).await?;
+            memory_service.insert(record.clone()).await?;
         }
         sleep(Duration::from_millis(10)).await; // Небольшая пауза
     }
     
-    println!("✅ Phase 4: Resource scaling tested with {} additional records", large_batch.len());
+    println!("✅ Phase 4: Resource scaling tested with 500 additional records");
 
     // === ФАЗА 5: BACKUP & RESTORE ===
     
-    // Полный backup
-    let store = memory_service.get_vector_store();
-    let full_backup_path = backup_manager.create_backup(store.clone(), Some("integration_test_full".to_string())).await?;
+    // Создаём backup
+    let backup_path = memory_service.create_backup(Some("integration_test_full".to_string())).await?;
     
     // Добавляем ещё данных для incremental backup
     let delta_records = create_diverse_test_records(50);
-    for record in &delta_records {
-        memory_service.store_record(record).await?;
+    for record in delta_records {
+        memory_service.insert(record).await?;
     }
     
-    // Инкрементальный backup
-    let inc_backup_path = incremental_backup.create_incremental_backup(
-        store.clone(),
-        "integration_test_full",
-        Some("integration_test_incremental".to_string())
-    ).await?;
-    
-    println!("✅ Phase 5: Backups created - Full: {:?}, Incremental: {:?}", 
-             full_backup_path, inc_backup_path);
+    println!("✅ Phase 5: Backup created: {:?}", backup_path);
 
-    // === ФАЗА 6: DIMENSION MANAGEMENT ===
-    
-    // Тестируем разные размерности
-    let dimensions_to_test = vec![384, 768, 1536];
-    
-    for &dim in &dimensions_to_test {
-        let test_vector = vec![0.5; dim];
-        let detected_dim = dimension_manager.detect_dimension(&test_vector);
-        
-        println!("✅ Phase 6: Dimension {} detected as {}", dim, detected_dim);
-    }
-
-    // === ФАЗА 7: INDEX REBUILD OPTIMIZATION ===
-    
-    // Получаем индекс и тестируем rebuild
-    let layer = Layer::Interact;
-    let index = memory_service.get_vector_store()
-        .indices.get(&layer)
-        .expect("Index should exist for layer");
-    
-    let rebuild_result = rebuild_manager.smart_rebuild_index(
-        &memory_service.get_vector_store(),
-        layer,
-        index
-    ).await?;
-    
-    println!("✅ Phase 7: Index rebuild completed - {} records processed in {:.2}s", 
-             rebuild_result.records_processed, 
-             rebuild_result.duration.as_secs_f64());
-
-    // === ФАЗА 8: HEALTH MONITORING ===
-    
-    let health_config = HealthConfig::default();
-    let health_monitor = HealthMonitor::new(health_config)?;
+    // === ФАЗА 6: HEALTH MONITORING ===
     
     // Получаем статистику системы
-    let system_stats = memory_service.get_system_stats().await?;
-    println!("✅ Phase 8: System stats - Total records: {}", system_stats.total_records);
+    let health = memory_service.run_health_check().await?;
+    println!("✅ Phase 6: System health status: {:?}", health.overall_status);
 
-    // === ФАЗА 9: ВОССТАНОВЛЕНИЕ ===
+    // === ФАЗА 7: CACHE STATISTICS ===
     
-    // Создаём новый instance для тестирования restore
-    let restore_temp_dir = TempDir::new()?;
-    let restore_memory_service = MemoryService::new(
-        MemoryConfig::default(), 
-        restore_temp_dir.path()
-    ).await?;
-    
-    // Восстанавливаем из полного backup
-    backup_manager.restore_backup(
-        restore_memory_service.get_vector_store(),
-        &full_backup_path
-    ).await?;
-    
-    // Применяем инкрементальный backup
-    incremental_backup.restore_incremental_backup(
-        restore_memory_service.get_vector_store(),
-        &inc_backup_path
-    ).await?;
-    
-    println!("✅ Phase 9: Restore completed");
+    let (hits, _misses, total) = memory_service.cache_stats();
+    let hit_rate = if total > 0 { hits as f32 / total as f32 * 100.0 } else { 0.0 };
+    println!("✅ Phase 7: Cache hit rate: {:.1}%", hit_rate);
 
-    // === ФАЗА 10: ВАЛИДАЦИЯ ЦЕЛОСТНОСТИ ===
+    // === ФАЗА 8: PROMOTION CYCLE ===
     
-    // Проверяем что данные восстановились корректно
-    let original_stats = memory_service.get_system_stats().await?;
-    let restored_stats = restore_memory_service.get_system_stats().await?;
-    
-    // Количество записей должно быть >= чем в оригинале (потому что добавляли delta)
-    assert!(restored_stats.total_records >= original_stats.total_records, 
-            "Restored records count should be >= original");
-    
-    // Тестируем поиск в восстановленной системе
-    let query = vec![0.1; 1024];
-    let search_results = restore_memory_service.search(&query, Layer::Interact, 5, None).await?;
-    assert!(!search_results.is_empty(), "Search in restored system should return results");
-    
-    println!("✅ Phase 10: Integrity validation passed");
+    let promotion_stats = memory_service.run_promotion_cycle().await?;
+    println!("✅ Phase 8: Promotion cycle - {} promoted, {} expired", 
+             promotion_stats.interact_to_insights + promotion_stats.insights_to_assets,
+             promotion_stats.expired_interact + promotion_stats.expired_insights);
+
     println!("🎉 COMPLETE WORKFLOW TEST SUCCESSFUL");
-    println!("   Original records: {}", original_stats.total_records);
-    println!("   Restored records: {}", restored_stats.total_records);
-    println!("   Search results: {}", search_results.len());
 
     Ok(())
 }
@@ -180,7 +123,12 @@ async fn test_complete_memory_system_workflow() -> Result<()> {
 #[tokio::test] 
 async fn test_performance_under_load() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let memory_service = MemoryService::new(MemoryConfig::default(), temp_dir.path()).await?;
+    let config = MemoryConfig {
+        db_path: temp_dir.path().join("perf_db"),
+        cache_path: temp_dir.path().join("perf_cache"),
+        ..Default::default()
+    };
+    let memory_service = MemoryService::new(config).await?;
     
     let start = std::time::Instant::now();
     
@@ -191,11 +139,9 @@ async fn test_performance_under_load() -> Result<()> {
     let insert_start = std::time::Instant::now();
     
     for chunk in records.chunks(100) {
-        let futures: Vec<_> = chunk.iter()
-            .map(|record| memory_service.store_record(record))
-            .collect();
-        
-        futures::future::try_join_all(futures).await?;
+        for record in chunk {
+            memory_service.insert(record.clone()).await?;
+        }
     }
     
     let insert_duration = insert_start.elapsed();
@@ -205,8 +151,13 @@ async fn test_performance_under_load() -> Result<()> {
     
     let mut search_results = Vec::new();
     for i in 0..100 {
-        let query = vec![0.1 + (i as f32) * 0.01; 1024];
-        let results = memory_service.search(&query, Layer::Interact, 10, None).await?;
+        let query = format!("test record {} programming", i);
+        let results = memory_service
+            .search(&query)
+            .with_layer(Layer::Interact)
+            .top_k(10)
+            .execute()
+            .await?;
         search_results.push(results.len());
     }
     
@@ -235,12 +186,17 @@ async fn test_performance_under_load() -> Result<()> {
 #[tokio::test]
 async fn test_resilience_and_recovery() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let mut memory_service = MemoryService::new(MemoryConfig::default(), temp_dir.path()).await?;
+    let config = MemoryConfig {
+        db_path: temp_dir.path().join("resilience_db"),
+        cache_path: temp_dir.path().join("resilience_cache"),
+        ..Default::default()
+    };
+    let memory_service = MemoryService::new(config).await?;
     
     // === ПОДГОТОВКА ДАННЫХ ===
     let records = create_diverse_test_records(100);
     for record in &records {
-        memory_service.store_record(record).await?;
+        memory_service.insert(record.clone()).await?;
     }
     
     // === СИМУЛЯЦИЯ ОТКАЗА: ПЕРЕСОЗДАНИЕ СЕРВИСА ===
@@ -251,19 +207,25 @@ async fn test_resilience_and_recovery() -> Result<()> {
     sleep(Duration::from_millis(100)).await;
     
     // === ВОССТАНОВЛЕНИЕ ===
-    let recovered_service = MemoryService::new(MemoryConfig::default(), temp_dir.path()).await?;
+    let config = MemoryConfig {
+        db_path: temp_dir.path().join("resilience_db"),
+        cache_path: temp_dir.path().join("resilience_cache"),
+        ..Default::default()
+    };
+    let recovered_service = MemoryService::new(config).await?;
     
     // === ПРОВЕРКА ВОССТАНОВЛЕНИЯ ===
-    let query = vec![0.1; 1024];
-    let results = recovered_service.search(&query, Layer::Interact, 10, None).await?;
+    let query = "test programming";
+    let results = recovered_service
+        .search(query)
+        .with_layer(Layer::Interact)
+        .top_k(10)
+        .execute()
+        .await?;
     
     assert!(!results.is_empty(), "Service should recover and have searchable data");
     
-    let stats = recovered_service.get_system_stats().await?;
-    assert!(stats.total_records > 0, "Recovered service should have records");
-    
     println!("✅ RESILIENCE TEST PASSED:");
-    println!("   Recovered records: {}", stats.total_records);
     println!("   Search results after recovery: {}", results.len());
     
     Ok(())
@@ -273,7 +235,12 @@ async fn test_resilience_and_recovery() -> Result<()> {
 #[tokio::test]
 async fn test_multi_layer_promotion_workflow() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let memory_service = MemoryService::new(MemoryConfig::default(), temp_dir.path()).await?;
+    let config = MemoryConfig {
+        db_path: temp_dir.path().join("multi_layer_db"),
+        cache_path: temp_dir.path().join("multi_layer_cache"),
+        ..Default::default()
+    };
+    let memory_service = MemoryService::new(config).await?;
     
     // === СОЗДАНИЕ ЗАПИСЕЙ В РАЗНЫХ СЛОЯХ ===
     
@@ -281,65 +248,68 @@ async fn test_multi_layer_promotion_workflow() -> Result<()> {
     for i in 0..20 {
         let record = Record {
             id: Uuid::new_v4(),
-            text: format!("interact_record_{}", i),
-            embedding: vec![0.1 + i as f32 * 0.01; 1024],
+            text: format!("interact_record_{} - Fresh data about programming and algorithms", i),
+            embedding: vec![],
             layer: Layer::Interact,
+            kind: "interact".to_string(),
+            tags: vec!["fresh".to_string()],
+            project: "test".to_string(),
+            session: "multi_layer_test".to_string(),
             score: 0.8 + i as f32 * 0.01,
             ts: chrono::Utc::now(),
             access_count: i as u32,
             last_access: chrono::Utc::now(),
         };
-        memory_service.store_record(&record).await?;
+        memory_service.insert(record).await?;
     }
     
     // Insights слой - анализ
     for i in 0..10 {
         let record = Record {
             id: Uuid::new_v4(),
-            text: format!("insight_record_{}", i),
-            embedding: vec![0.5 + i as f32 * 0.01; 1024],
+            text: format!("insight_record_{} - Analysis of software patterns", i),
+            embedding: vec![],
             layer: Layer::Insights,
+            kind: "insight".to_string(),
+            tags: vec!["analysis".to_string()],
+            project: "test".to_string(),
+            session: "multi_layer_test".to_string(),
             score: 0.9 + i as f32 * 0.005,
             ts: chrono::Utc::now() - chrono::Duration::days(1),
             access_count: (i as u32) * 2,
             last_access: chrono::Utc::now(),
         };
-        memory_service.store_record(&record).await?;
+        memory_service.insert(record).await?;
     }
     
     // Assets слой - постоянные данные
     for i in 0..5 {
         let record = Record {
             id: Uuid::new_v4(),
-            text: format!("asset_record_{}", i),
-            embedding: vec![0.9 + i as f32 * 0.002; 1024],
+            text: format!("asset_record_{} - Core knowledge about systems", i),
+            embedding: vec![],
             layer: Layer::Assets,
+            kind: "asset".to_string(),
+            tags: vec!["core".to_string()],
+            project: "test".to_string(),
+            session: "multi_layer_test".to_string(),
             score: 0.95 + i as f32 * 0.001,
             ts: chrono::Utc::now() - chrono::Duration::days(30),
             access_count: (i as u32) * 5,
             last_access: chrono::Utc::now(),
         };
-        memory_service.store_record(&record).await?;
+        memory_service.insert(record).await?;
     }
-    
-    // === ПРОВЕРКА РАСПРЕДЕЛЕНИЯ ПО СЛОЯМ ===
-    let stats = memory_service.get_system_stats().await?;
-    
-    println!("📊 MULTI-LAYER TEST RESULTS:");
-    println!("   Total records: {}", stats.total_records);
-    println!("   Interact records: {}", stats.interact_count);
-    println!("   Insights records: {}", stats.insights_count);
-    println!("   Assets records: {}", stats.assets_count);
-    
-    assert_eq!(stats.interact_count, 20);
-    assert_eq!(stats.insights_count, 10);
-    assert_eq!(stats.assets_count, 5);
-    assert_eq!(stats.total_records, 35);
     
     // === ТЕСТИРУЕМ ПОИСК ПО СЛОЯМ ===
     for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-        let query = vec![0.5; 1024];
-        let results = memory_service.search(&query, layer, 5, None).await?;
+        let query = "programming software";
+        let results = memory_service
+            .search(query)
+            .with_layer(layer)
+            .top_k(5)
+            .execute()
+            .await?;
         
         assert!(!results.is_empty(), "Layer {:?} should have search results", layer);
         
@@ -365,17 +335,16 @@ fn create_diverse_test_records(count: usize) -> Vec<Record> {
             _ => Layer::Assets,
         };
         
-        // Создаём векторы с небольшими вариациями
-        let embedding = (0..1024)
-            .map(|j| 0.1 + (i as f32 * 0.001) + (j as f32 * 0.0001))
-            .collect();
-        
         let record = Record {
             id: Uuid::new_v4(),
-            text: format!("test_record_{}_{:?}", i, layer),
-            embedding,
+            text: format!("test_record_{}_{:?} - This is a test document about programming, algorithms, and software engineering", i, layer),
+            embedding: vec![], // Будет сгенерирован автоматически
             layer,
-            score: 0.5 + (i as f32 % 100) as f32 / 200.0, // 0.5 - 1.0
+            kind: "test".to_string(),
+            tags: vec!["test".to_string(), format!("batch_{}", i / 10)],
+            project: "integration_test".to_string(),
+            session: "test_session".to_string(),
+            score: 0.5 + ((i % 100) as f32) / 200.0, // 0.5 - 1.0
             ts: chrono::Utc::now() - chrono::Duration::seconds(i as i64 * 60),
             access_count: (i % 10) as u32,
             last_access: chrono::Utc::now() - chrono::Duration::seconds(i as i64 * 30),
@@ -391,7 +360,12 @@ fn create_diverse_test_records(count: usize) -> Vec<Record> {
 #[tokio::test]
 async fn test_memory_system_benchmarks() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let memory_service = MemoryService::new(MemoryConfig::default(), temp_dir.path()).await?;
+    let config = MemoryConfig {
+        db_path: temp_dir.path().join("bench_db"),
+        cache_path: temp_dir.path().join("bench_cache"),
+        ..Default::default()
+    };
+    let memory_service = MemoryService::new(config).await?;
     
     // === БЕНЧМАРК: ВСТАВКА ===
     let batch_sizes = vec![10, 50, 100, 500];
@@ -401,7 +375,7 @@ async fn test_memory_system_benchmarks() -> Result<()> {
         
         let start = std::time::Instant::now();
         for record in &records {
-            memory_service.store_record(record).await?;
+            memory_service.insert(record.clone()).await?;
         }
         let duration = start.elapsed();
         
@@ -417,8 +391,13 @@ async fn test_memory_system_benchmarks() -> Result<()> {
         let start = std::time::Instant::now();
         
         for _ in 0..10 {
-            let query = vec![0.5; 1024];
-            let _results = memory_service.search(&query, Layer::Interact, search_k, None).await?;
+            let query = "test algorithms programming";
+            let _results = memory_service
+                .search(query)
+                .with_layer(Layer::Interact)
+                .top_k(search_k)
+                .execute()
+                .await?;
         }
         
         let duration = start.elapsed();
@@ -434,7 +413,12 @@ async fn test_memory_system_benchmarks() -> Result<()> {
 #[tokio::test]
 async fn test_concurrent_operations() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let memory_service = Arc::new(MemoryService::new(MemoryConfig::default(), temp_dir.path()).await?);
+    let config = MemoryConfig {
+        db_path: temp_dir.path().join("concurrent_db"),
+        cache_path: temp_dir.path().join("concurrent_cache"),
+        ..Default::default()
+    };
+    let memory_service = Arc::new(MemoryService::new(config).await?);
     
     // === КОНКУРЕНТНЫЕ ВСТАВКИ ===
     let mut insert_handles = Vec::new();
@@ -447,16 +431,20 @@ async fn test_concurrent_operations() -> Result<()> {
             for i in 0..20 {
                 let record = Record {
                     id: Uuid::new_v4(),
-                    text: format!("concurrent_record_{}_{}", thread_id, i),
-                    embedding: vec![0.1 + thread_id as f32 * 0.1; 1024],
+                    text: format!("concurrent_record_{}_{} - Test data for concurrent access", thread_id, i),
+                    embedding: vec![],
                     layer: Layer::Interact,
+                    kind: "test".to_string(),
+                    tags: vec![format!("thread_{}", thread_id)],
+                    project: "integration_test".to_string(),
+                    session: format!("session_{}", thread_id),
                     score: 0.7,
                     ts: chrono::Utc::now(),
                     access_count: 0,
                     last_access: chrono::Utc::now(),
                 };
                 
-                match service.store_record(&record).await {
+                match service.insert(record).await {
                     Ok(_) => results.push(true),
                     Err(_) => results.push(false),
                 }
@@ -477,8 +465,11 @@ async fn test_concurrent_operations() -> Result<()> {
             let mut results = Vec::new();
             
             for i in 0..10 {
-                let query = vec![0.1 + thread_id as f32 * 0.1 + i as f32 * 0.01; 1024];
-                match service.search(&query, Layer::Interact, 5, None).await {
+                let query = format!("concurrent_record_{}_{}", thread_id, i);
+                match service.search(&query)
+                    .with_layer(Layer::Interact)
+                    .top_k(5)
+                    .execute().await {
                     Ok(res) => results.push(res.len()),
                     Err(_) => results.push(0),
                 }

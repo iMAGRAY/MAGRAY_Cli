@@ -12,6 +12,7 @@ use crate::metrics::{MetricsCollector, TimedOperation};
 use crate::types::{Layer, Record};
 use crate::vector_index_hnswlib::{VectorIndexHnswRs, HnswRsConfig};
 use crate::transaction::{TransactionManager, TransactionOp, TransactionGuard};
+use crate::flush_config::FlushConfig;
 
 // @component: {"k":"C","id":"vector_store","t":"Vector storage with HNSW","m":{"cur":65,"tgt":100,"u":"%"},"f":["storage","hnsw"]}
 
@@ -90,15 +91,15 @@ impl ChangeTracker {
 
 impl VectorStore {
     /// Открывает sled БД с настройками для crash recovery
-    fn open_database_with_recovery(db_path: impl AsRef<Path>) -> Result<Db> {
+    fn open_database_with_recovery(db_path: impl AsRef<Path>, flush_config: &FlushConfig) -> Result<Db> {
         use sled::Config;
         
         let config = Config::new()
             .path(db_path.as_ref())
             .mode(sled::Mode::HighThroughput) // Лучше для CLI нагрузок
-            .flush_every_ms(Some(1000))      // Автоматический flush каждую секунду
-            .use_compression(true)           // Компрессия для экономии места
-            .compression_factor(19);         // Хороший баланс скорость/размер
+            .flush_every_ms(Some(flush_config.get_vector_storage_ms()))
+            .use_compression(flush_config.enable_compression)
+            .compression_factor(flush_config.get_compression_factor());
             
         let db = config.open()?;
         
@@ -112,7 +113,9 @@ impl VectorStore {
             return Err(anyhow::anyhow!("Database corruption detected. Please restart the application for automatic recovery."));
         }
         
-        info!("Database opened successfully with crash recovery enabled");
+        info!("Vector database opened with flush interval: {}ms, compression: {}", 
+              flush_config.get_vector_storage_ms(),
+              if flush_config.enable_compression { "enabled" } else { "disabled" });
         Ok(db)
     }
 
@@ -129,7 +132,8 @@ impl VectorStore {
         }
 
         info!("Opening vector store at: {:?}", db_path);
-        let db = Self::open_database_with_recovery(db_path)?;
+        let flush_config = FlushConfig::from_env();
+        let db = Self::open_database_with_recovery(db_path, &flush_config)?;
 
         // Initialize indices for each layer with hnsw_rs config
         let mut indices = HashMap::new();

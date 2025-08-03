@@ -311,7 +311,7 @@ mod tests {
         
         // Test auto-rollback
         {
-            let guard = TransactionGuard::new(&manager).unwrap();
+            let _guard = TransactionGuard::new(&manager).unwrap();
             assert_eq!(manager.active_count(), 1);
             // Guard dropped without commit
         }

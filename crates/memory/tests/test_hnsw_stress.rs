@@ -1,5 +1,6 @@
 use anyhow::Result;
 use memory::*;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio;
 
@@ -18,7 +19,7 @@ async fn test_hnsw_scaling_performance() -> Result<()> {
         use_parallel: true,
     };
     
-    let index = VectorIndexHnswRs::new(config)?;
+    let index = Arc::new(VectorIndexHnswRs::new(config)?);
     
     // Тест 1: Последовательная вставка с измерением деградации
     println!("Phase 1: Sequential insertion performance");
@@ -94,7 +95,7 @@ async fn test_hnsw_scaling_performance() -> Result<()> {
     let mut handles = Vec::new();
     
     for worker_id in 0..8 {
-        let index_clone = &index; // HNSW поддерживает concurrent reads
+        let index_clone = index.clone(); // HNSW поддерживает concurrent reads
         let handle = tokio::spawn(async move {
             let mut worker_results = 0;
             for query_id in 0..25 {

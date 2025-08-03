@@ -715,6 +715,25 @@ impl MemoryService {
     pub fn get_store(&self) -> Arc<VectorStore> {
         self.store.clone()
     }
+    
+    /// Получить среднюю статистику доступа для слоя
+    pub async fn get_layer_average_access(&self, layer: Layer) -> Result<f32> {
+        let mut total_access = 0u32;
+        let mut count = 0usize;
+        
+        // Итерируемся по всем записям слоя
+        let iter = self.store.iter_layer(layer).await?;
+        for result in iter {
+            if let Ok((_, value)) = result {
+                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                    total_access += stored.record.access_count;
+                    count += 1;
+                }
+            }
+        }
+        
+        Ok(if count > 0 { total_access as f32 / count as f32 } else { 0.0 })
+    }
 
     /// Создать backup системы памяти
     pub async fn create_backup(&self, name: Option<String>) -> Result<PathBuf> {

@@ -9,14 +9,14 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Instant;
 use tracing::{info, debug};
-use tokenizers::Tokenizer;
+use crate::tokenization::OptimizedTokenizer;
 #[cfg(feature = "gpu")]
 use tracing::warn;
 
 /// @component: {"k":"C","id":"embeddings_gpu","t":"GPU-accelerated embeddings","m":{"cur":95,"tgt":100,"u":"%"}}
 pub struct GpuEmbeddingService {
     session: Arc<Mutex<Session>>,
-    tokenizer: Arc<Tokenizer>,
+    tokenizer: Arc<OptimizedTokenizer>,
     #[allow(dead_code)]
     model_path: PathBuf,
     #[allow(dead_code)]
@@ -116,7 +116,7 @@ impl GpuEmbeddingService {
         
         // Load tokenizer
         info!("Loading tokenizer from: {:?}", tokenizer_path);
-        let tokenizer = Tokenizer::from_file(&tokenizer_path)
+        let tokenizer = OptimizedTokenizer::new(&tokenizer_path, config.max_length)
             .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))?;
         
         // Create optimized session
@@ -226,8 +226,8 @@ impl GpuEmbeddingService {
         // Подсчитываем реальное количество токенов
         let total_tokens: usize = texts.iter()
             .map(|t| {
-                self.tokenizer.encode(t.as_str(), false)
-                    .map(|enc| enc.len())
+                self.tokenizer.encode(t.as_str())
+                    .map(|tokenized| tokenized.length)
                     .unwrap_or(0)
             })
             .sum();
@@ -252,43 +252,26 @@ impl GpuEmbeddingService {
     
     async fn process_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
         let batch_size = texts.len();
-        debug!("Processing batch of {} texts with real tokenizer", batch_size);
+        debug!("Processing batch of {} texts with optimized tokenizer", batch_size);
         
-        // Tokenize all texts
-        let mut all_input_ids = Vec::new();
-        let mut all_attention_mask = Vec::new();
-        let mut all_token_type_ids = Vec::new();
+        // Используем batch tokenization для эффективности
+        let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
+        let mut batch_tokenized = self.tokenizer.encode_batch(&text_refs)
+            .map_err(|e| anyhow::anyhow!("Failed to tokenize batch: {}", e))?;
         
-        for text in &texts {
-            let encoding = self.tokenizer
-                .encode(text.as_str(), true)
-                .map_err(|e| anyhow::anyhow!("Failed to tokenize text: {}", e))?;
-            
-            let mut input_ids = encoding.get_ids().to_vec();
-            let mut attention_mask = encoding.get_attention_mask().to_vec();
-            let mut token_type_ids = vec![0u32; input_ids.len()]; // All zeros for single sequence
-            
-            // Pad or truncate to max_length
-            if input_ids.len() > self.max_length {
-                input_ids.truncate(self.max_length);
-                attention_mask.truncate(self.max_length);
-                token_type_ids.truncate(self.max_length);
-            } else {
-                while input_ids.len() < self.max_length {
-                    input_ids.push(0); // PAD token
-                    attention_mask.push(0);
-                    token_type_ids.push(0);
-                }
-            }
-            
-            // Convert u32 to i64 for ONNX
-            let input_ids_i64: Vec<i64> = input_ids.iter().map(|&x| x as i64).collect();
-            let attention_mask_i64: Vec<i64> = attention_mask.iter().map(|&x| x as i64).collect();
-            let token_type_ids_i64: Vec<i64> = token_type_ids.iter().map(|&x| x as i64).collect();
-            
-            all_input_ids.extend(input_ids_i64);
-            all_attention_mask.extend(attention_mask_i64);
-            all_token_type_ids.extend(token_type_ids_i64);
+        // Паддинг до единой длины
+        self.tokenizer.pad_batch(&mut batch_tokenized, Some(self.max_length))
+            .map_err(|e| anyhow::anyhow!("Failed to pad batch: {}", e))?;
+        
+        // Подготовка данных для ONNX
+        let mut all_input_ids: Vec<i64> = Vec::new();
+        let mut all_attention_mask: Vec<i64> = Vec::new();
+        let mut all_token_type_ids: Vec<i64> = Vec::new();
+        
+        for i in 0..batch_size {
+            all_input_ids.extend(&batch_tokenized.input_ids[i]);
+            all_attention_mask.extend(&batch_tokenized.attention_masks[i]);
+            all_token_type_ids.extend(&batch_tokenized.token_type_ids[i]);
         }
         
         // Create ndarray tensors
