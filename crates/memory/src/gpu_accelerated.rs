@@ -13,9 +13,11 @@ const MAX_BATCH_SIZE: usize = 128;
 const MAX_CONCURRENT_GPU_OPS: usize = 4;
 
 // @component: {"k":"C","id":"gpu_batch_processor","t":"GPU batch embedding processor","m":{"cur":95,"tgt":100,"u":"%"},"f":["gpu","batch","embeddings","fallback"]}
+#[derive(Clone)]
 pub struct GpuBatchProcessor {
     embedding_service: Arc<GpuFallbackManager>,
     cache: Arc<dyn EmbeddingCacheInterface>,
+    #[allow(dead_code)]
     batch_semaphore: Arc<Semaphore>,
     processing_queue: Arc<Mutex<Vec<PendingEmbedding>>>,
     config: BatchProcessorConfig,
@@ -144,7 +146,7 @@ impl GpuBatchProcessor {
     }
 
     /// Обработать накопленный батч
-    async fn process_batch(&self) -> Result<()> {
+    pub async fn process_batch(&self) -> Result<()> {
         let pending = {
             let mut queue = self.processing_queue.lock().await;
             std::mem::take(&mut *queue)
@@ -172,14 +174,8 @@ impl GpuBatchProcessor {
     }
 
     /// Создать клон для фоновых задач
-    fn clone_for_task(&self) -> Arc<Self> {
-        Arc::new(Self {
-            embedding_service: self.embedding_service.clone(),
-            cache: self.cache.clone(),
-            batch_semaphore: self.batch_semaphore.clone(),
-            processing_queue: self.processing_queue.clone(),
-            config: self.config.clone(),
-        })
+    pub fn clone_for_task(&self) -> Arc<Self> {
+        Arc::new(self.clone())
     }
 
     /// Проверить доступность GPU через fallback manager

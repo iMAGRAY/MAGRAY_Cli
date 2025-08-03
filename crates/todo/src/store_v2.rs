@@ -562,12 +562,16 @@ impl TodoStoreV2 {
                 4 => Priority::Critical,
                 _ => Priority::Medium,
             },
-            created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?).unwrap().with_timezone(&Utc),
-            updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?).unwrap().with_timezone(&Utc),
-            started_at: row.get::<_, Option<String>>(7)?.map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
-            completed_at: row.get::<_, Option<String>>(8)?.map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
-            due_date: row.get::<_, Option<String>>(9)?.map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
-            parent_id: row.get::<_, Option<String>>(10)?.map(|s| Uuid::parse_str(&s).unwrap()),
+            created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                .unwrap_or_else(|_| DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z").unwrap())
+                .with_timezone(&Utc),
+            updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
+                .unwrap_or_else(|_| DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z").unwrap())
+                .with_timezone(&Utc),
+            started_at: row.get::<_, Option<String>>(7)?.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&Utc))),
+            completed_at: row.get::<_, Option<String>>(8)?.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&Utc))),
+            due_date: row.get::<_, Option<String>>(9)?.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&Utc))),
+            parent_id: row.get::<_, Option<String>>(10)?.and_then(|s| Uuid::parse_str(&s).ok()),
             auto_generated: row.get(11)?,
             confidence: row.get(12)?,
             reasoning: row.get(13)?,
@@ -580,5 +584,31 @@ impl TodoStoreV2 {
             artifacts: Vec::new(), // Загружается отдельно при необходимости
             tags,
         })
+    }
+    
+    /// Добавить зависимость между задачами
+    pub async fn add_dependency(&self, task_id: &Uuid, depends_on: &Uuid) -> Result<()> {
+        let conn = self.pool.get()?;
+        
+        conn.execute(
+            "INSERT OR IGNORE INTO todo_dependencies (task_id, depends_on) VALUES (?1, ?2)",
+            params![task_id.to_string(), depends_on.to_string()],
+        )?;
+        
+        debug!("Добавлена зависимость: {} -> {}", task_id, depends_on);
+        Ok(())
+    }
+    
+    /// Удалить зависимость между задачами
+    pub async fn remove_dependency(&self, task_id: &Uuid, depends_on: &Uuid) -> Result<()> {
+        let conn = self.pool.get()?;
+        
+        conn.execute(
+            "DELETE FROM todo_dependencies WHERE task_id = ?1 AND depends_on = ?2",
+            params![task_id.to_string(), depends_on.to_string()],
+        )?;
+        
+        debug!("Удалена зависимость: {} -> {}", task_id, depends_on);
+        Ok(())
     }
 }

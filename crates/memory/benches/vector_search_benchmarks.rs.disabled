@@ -6,10 +6,10 @@ use memory::{
     EmbeddingCache,
 };
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
-use tracing_subscriber;
 
 fn generate_embedding(dim: usize, seed: f32) -> Vec<f32> {
     (0..dim).map(|i| ((i as f32 + seed) * 0.1).sin()).collect()
@@ -50,7 +50,7 @@ fn bench_hnsw_index(c: &mut Criterion) {
             use_parallel: true,
         };
         
-        let index = VectorIndexHnswRs::new(config).unwrap();
+        let index = VectorIndexHnswRs::new(config.clone()).unwrap();
         
         // Prepare test data
         let vectors: Vec<(String, Vec<f32>)> = (0..*size)
@@ -64,7 +64,7 @@ fn bench_hnsw_index(c: &mut Criterion) {
             size,
             |b, _| {
                 b.iter(|| {
-                    let index = VectorIndexHnswRs::new(config).unwrap();
+                    let index = VectorIndexHnswRs::new(config.clone()).unwrap();
                     index.add_batch(vectors.clone()).unwrap();
                 });
             },
@@ -282,52 +282,64 @@ fn bench_memory_service(c: &mut Criterion) {
     });
     
     // Benchmark insert with embedding generation
-    let mut i = 10000;
+    let counter = Arc::new(AtomicUsize::new(10000));
     group.bench_function("insert_with_embedding", |b| {
-        b.to_async(&rt).iter(|| async {
-            let record = Record {
-                id: uuid::Uuid::new_v4(),
-                text: format!("New document {} with content that needs embedding", i),
-                embedding: vec![], // Will be generated
-                layer: Layer::Interact,
-                kind: "bench".to_string(),
-                tags: vec!["new".to_string()],
-                project: "bench".to_string(),
-                session: "bench".to_string(),
-                score: 0.9,
-                ts: chrono::Utc::now(),
-                last_access: chrono::Utc::now(),
-                access_count: 0,
-            };
-            
-            service.insert(record).await.unwrap();
-            i += 1;
+        let counter = counter.clone();
+        let service = Arc::new(service);
+        b.to_async(&rt).iter(|| {
+            let counter = counter.clone();
+            let service = service.clone();
+            async move {
+                let i = counter.fetch_add(1, Ordering::SeqCst);
+                let record = Record {
+                    id: uuid::Uuid::new_v4(),
+                    text: format!("New document {} with content that needs embedding", i),
+                    embedding: vec![], // Will be generated
+                    layer: Layer::Interact,
+                    kind: "bench".to_string(),
+                    tags: vec!["new".to_string()],
+                    project: "bench".to_string(),
+                    session: "bench".to_string(),
+                    score: 0.9,
+                    ts: chrono::Utc::now(),
+                    last_access: chrono::Utc::now(),
+                    access_count: 0,
+                };
+                
+                service.insert(record).await.unwrap();
+            }
         });
     });
     
     // Benchmark batch operations
+    let batch_counter = Arc::new(AtomicUsize::new(20000));
     group.bench_function("batch_insert_100", |b| {
-        let mut j = 20000;
-        b.to_async(&rt).iter(|| async {
-            let records: Vec<Record> = (0..100)
-                .map(|k| Record {
-                    id: uuid::Uuid::new_v4(),
-                    text: format!("Batch record {} - {}", j, k),
-                    embedding: vec![], // Will be generated
-                    layer: Layer::Interact,
-                    kind: "batch".to_string(),
-                    tags: vec!["batch".to_string()],
-                    project: "bench".to_string(),
-                    session: "bench".to_string(),
-                    score: 0.85,
-                    ts: chrono::Utc::now(),
-                    last_access: chrono::Utc::now(),
-                    access_count: 0,
-                })
-                .collect();
-            
-            service.insert_batch(records).await.unwrap();
-            j += 100;
+        let batch_counter = batch_counter.clone();
+        let service = Arc::new(service);
+        b.to_async(&rt).iter(|| {
+            let batch_counter = batch_counter.clone();
+            let service = service.clone();
+            async move {
+                let j = batch_counter.fetch_add(100, Ordering::SeqCst);
+                let records: Vec<Record> = (0..100)
+                    .map(|k| Record {
+                        id: uuid::Uuid::new_v4(),
+                        text: format!("Batch record {} - {}", j, k),
+                        embedding: vec![], // Will be generated
+                        layer: Layer::Interact,
+                        kind: "batch".to_string(),
+                        tags: vec!["batch".to_string()],
+                        project: "bench".to_string(),
+                        session: "bench".to_string(),
+                        score: 0.85,
+                        ts: chrono::Utc::now(),
+                        last_access: chrono::Utc::now(),
+                        access_count: 0,
+                    })
+                    .collect();
+                
+                service.insert_batch(records).await.unwrap();
+            }
         });
     });
     

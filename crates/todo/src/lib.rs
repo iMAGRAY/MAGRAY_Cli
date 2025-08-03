@@ -88,7 +88,7 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
         
         let service = create_service(&db_path, 2, 50).await.unwrap();
-        let mut events = service.subscribe();
+        let events = service.subscribe();
         
         // Создаем задачу
         let task = service.create_task(

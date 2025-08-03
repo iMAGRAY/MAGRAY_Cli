@@ -1,8 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use memory::{
-    VectorStore, Layer, Record, SearchOptions,
-    IncrementalVectorIndex, IncrementalConfig,
-    BatchOperationManager, BatchConfig,
+    VectorStore, Layer, Record,
     EmbeddingCacheLRU, CacheConfig,
 };
 use std::sync::Arc;
@@ -241,6 +239,12 @@ fn bench_end_to_end(c: &mut Criterion) {
         cache_path: temp_dir.path().join("cache"),
         promotion: memory::PromotionConfig::default(),
         ai_config: ai::AiConfig::default(),
+        health_config: memory::HealthConfig::default(),
+        cache_config: memory::CacheConfigType::LRU,
+        resource_config: memory::ResourceConfig::default(),
+        max_vectors: 10000,
+        max_cache_size_bytes: 128 * 1024 * 1024, // 128MB
+        max_memory_usage_percent: Some(50),
     };
     
     let service = rt.block_on(async {

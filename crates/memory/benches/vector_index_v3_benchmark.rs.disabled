@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use memory::{VectorIndexV3, VectorIndexConfigV3};
+use memory::{VectorIndexHnswRs, HnswRsConfig};
 use std::time::Duration;
 
 /// Генерирует случайный эмбеддинг заданной размерности
@@ -20,15 +20,15 @@ fn generate_embeddings(count: usize, dim: usize) -> Vec<(String, Vec<f32>)> {
         .collect()
 }
 
-fn benchmark_vector_index_v3(c: &mut Criterion) {
+fn benchmark_vector_index_hnsw(c: &mut Criterion) {
     let dimension = 1024;
     
     // Конфигурация индекса
-    let config = VectorIndexConfigV3 {
+    let config = HnswRsConfig {
         dimension,
-        rebuild_threshold: 100,
-        linear_search_threshold: 1000,
-        ..Default::default()
+        max_connections: 24,
+        ef_construction: 400,
+        max_elements: 100000,
     };
     
     // Тест 1: Добавление отдельных векторов

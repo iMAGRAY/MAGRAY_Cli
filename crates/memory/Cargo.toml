@@ -72,14 +72,6 @@ path = "examples/memory_demo.rs"
 
 
 [[bench]]
-name = "memory_benchmarks"
-harness = false
-
-[[bench]]
-name = "vector_search_benchmarks"
-harness = false
-
-[[bench]]
 name = "scalability_benchmarks"
 harness = false
 

@@ -246,7 +246,8 @@ impl TodoServiceV2 {
         self.store.get(task_id).await?
             .ok_or_else(|| anyhow::anyhow!("Task not found"))?;
         
-        // TODO: Добавить метод add_dependency в store_v2
+        // Добавляем зависимость в базу данных
+        self.store.add_dependency(task_id, depends_on).await?;
         
         // Обновляем граф
         if let Some(mut task) = self.get_cached(task_id).await? {
@@ -264,6 +265,34 @@ impl TodoServiceV2 {
         self.ready_cache.clear();
         
         self.emit_event(TodoEvent::DependencyAdded {
+            task_id: *task_id,
+            depends_on: *depends_on,
+        });
+        
+        Ok(())
+    }
+    
+    /// Удалить зависимость между задачами
+    pub async fn remove_dependency(&self, task_id: &Uuid, depends_on: &Uuid) -> Result<()> {
+        // Удаляем из базы данных
+        self.store.remove_dependency(task_id, depends_on).await?;
+        
+        // Обновляем граф
+        if let Some(mut task) = self.get_cached(task_id).await? {
+            task.depends_on.retain(|id| id != depends_on);
+            self.graph.upsert_task(&task)?;
+            
+            // Проверяем нужно ли изменить состояние на Ready
+            if task.state == TaskState::Blocked && self.graph.is_ready(task_id)? {
+                self.update_state(task_id, TaskState::Ready).await?;
+            }
+        }
+        
+        // Инвалидируем кэши
+        self.cache.lock().pop(task_id);
+        self.ready_cache.clear();
+        
+        self.emit_event(TodoEvent::DependencyRemoved {
             task_id: *task_id,
             depends_on: *depends_on,
         });
