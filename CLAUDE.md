@@ -423,7 +423,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-04 19:00:15 UTC*
+*Last updated: 2025-08-04 19:22:30 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -478,9 +478,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["benchmark","gpu","optimization"],"id":"test_gpu_optimization","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"GPU optimization benchmark","x_file":"memory/examples/test_gpu_optimization.rs:9"}
 {"f":["test","gpu","pipeline"],"id":"test_gpu_pipeline","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Test GPU pipeline performance","x_file":"memory/examples/test_gpu_pipeline.rs:8"}
 {"f":["profiler","gpu","performance"],"id":"test_gpu_profiler","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Detailed GPU performance profiler","x_file":"memory/examples/test_gpu_profiler.rs:10"}
-{"f":["test","gpu","simple"],"id":"test_gpu_simple","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Simple GPU pipeline test","x_file":"memory/examples/test_gpu_simple.rs:8"}
 {"id":"test_memory_gpu","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Memory GPU integration test","x_file":"memory/examples/test_gpu_memory_pool.rs:9"}
-{"id":"test_memory_gpu","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Memory GPU integration test","x_file":"memory/examples/test_memory_gpu_integration.rs:9"}
 {"id":"test_memory_pool_only","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Memory pool standalone test","x_file":"ai/examples/test_memory_pool_only.rs:7"}
 {"id":"test_ml_promotion","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"ML promotion engine test","x_file":"memory/examples/test_ml_promotion.rs:10"}
 {"f":["test","notifications","alerts"],"id":"test_notification_system","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Test notification system integration","x_file":"memory/examples/test_notification_system.rs:12"}
