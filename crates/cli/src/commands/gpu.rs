@@ -117,7 +117,7 @@ impl GpuCommand {
         
         // Генерируем тестовые данные
         let test_texts: Vec<String> = (0..batch_size)
-            .map(|i| format!("This is test text number {} for benchmarking embedding performance on our optimized service with GPU acceleration.", i))
+            .map(|i| format!("This is test text number {i} for benchmarking embedding performance on our optimized service with GPU acceleration."))
             .collect();
         
         // Конфигурация
@@ -220,7 +220,7 @@ impl GpuCommand {
         
         // Загружаем модель если необходимо
         info!("📥 Проверка наличия модели...");
-        let model_path = MODEL_DOWNLOADER.ensure_model(&model_name).await?;
+        let model_path = MODEL_DOWNLOADER.ensure_model(model_name).await?;
         info!("✅ Модель загружена: {:?}", model_path);
         
         // Создаём оптимизированный сервис

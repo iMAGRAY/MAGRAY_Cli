@@ -55,7 +55,7 @@ impl GpuDetector {
         
         // Получаем версию драйвера
         if let Ok(output) = Command::new("nvidia-smi")
-            .args(&["--query-gpu=driver_version", "--format=csv,noheader,nounits"])
+            .args(["--query-gpu=driver_version", "--format=csv,noheader,nounits"])
             .output()
         {
             if let Ok(driver) = str::from_utf8(&output.stdout) {
@@ -65,7 +65,7 @@ impl GpuDetector {
         
         // Получаем информацию о GPU
         let gpu_query = Command::new("nvidia-smi")
-            .args(&[
+            .args([
                 "--query-gpu=index,name,compute_cap,memory.total,memory.free,temperature.gpu,utilization.gpu,power.draw",
                 "--format=csv,noheader,nounits"
             ])
@@ -214,7 +214,7 @@ impl GpuOptimalParams {
         let optimal_batch_size = (1..=10)
             .map(|i| 1 << i) // 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024
             .filter(|&size| size <= max_batch_size)
-            .last()
+            .next_back()
             .unwrap_or(1);
             
         Self {

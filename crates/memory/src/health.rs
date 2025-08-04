@@ -152,7 +152,7 @@ impl HealthMonitor {
         // Добавляем метрику в историю
         {
             let mut history = self.metrics_history.write().unwrap();
-            let metrics = history.entry(metric_key.clone()).or_insert_with(VecDeque::new);
+            let metrics = history.entry(metric_key.clone()).or_default();
             
             metrics.push_back(metric.clone());
             
@@ -227,7 +227,7 @@ impl HealthMonitor {
     
     /// Получает метрики для компонента
     pub fn get_component_metrics(&self, component: ComponentType, metric_name: &str, limit: Option<usize>) -> Vec<HealthMetric> {
-        let metric_key = format!("{:?}_{}", component, metric_name);
+        let metric_key = format!("{component:?}_{metric_name}");
         let history = self.metrics_history.read().unwrap();
         
         if let Some(metrics) = history.get(&metric_key) {
@@ -430,7 +430,7 @@ impl Clone for HealthMonitor {
 #[macro_export]
 macro_rules! health_metric {
     ($component:expr, $name:expr, $value:expr, $unit:expr) => {
-        crate::health::HealthMetric {
+        $crate::health::HealthMetric {
             component: $component,
             metric_name: $name.to_string(),
             value: $value,
@@ -441,7 +441,7 @@ macro_rules! health_metric {
         }
     };
     ($component:expr, $name:expr, $value:expr, $unit:expr, $warn:expr, $crit:expr) => {
-        crate::health::HealthMetric {
+        $crate::health::HealthMetric {
             component: $component,
             metric_name: $name.to_string(),
             value: $value,

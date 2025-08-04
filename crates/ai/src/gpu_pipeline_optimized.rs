@@ -1,4 +1,4 @@
-use crate::{EmbeddingConfig, gpu_memory_pool::{GpuMemoryPool, GPU_MEMORY_POOL}};
+use crate::{EmbeddingConfig, gpu_memory_pool::GPU_MEMORY_POOL};
 use crate::embeddings_gpu::GpuEmbeddingService;
 use anyhow::Result;
 use std::sync::Arc;
@@ -12,7 +12,6 @@ pub struct OptimizedGpuPipelineManager {
     semaphore: Arc<Semaphore>,
     config: PipelineConfig,
     stats: Arc<Mutex<PipelineStats>>,
-    memory_pool: Arc<GpuMemoryPool>,
 }
 
 #[derive(Debug, Clone)]
@@ -94,7 +93,6 @@ impl OptimizedGpuPipelineManager {
             semaphore: Arc::new(Semaphore::new(config.max_concurrent_batches)),
             config,
             stats: Arc::new(Mutex::new(PipelineStats::default())),
-            memory_pool: Arc::new(GpuMemoryPool::new(2 * 1024 * 1024 * 1024)), // 2GB локальный пул
         })
     }
 

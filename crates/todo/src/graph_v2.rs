@@ -30,6 +30,12 @@ pub struct DependencyGraphV2 {
     path_cache: Arc<DashMap<(Uuid, Uuid), bool>>,
 }
 
+impl Default for DependencyGraphV2 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DependencyGraphV2 {
     pub fn new() -> Self {
         Self {

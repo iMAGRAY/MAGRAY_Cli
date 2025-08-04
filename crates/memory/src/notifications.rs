@@ -298,7 +298,7 @@ impl NotificationSender for SlackSender {
         
         let mentions = if !self.mention_users.is_empty() {
             format!(" cc: {}", self.mention_users.iter()
-                .map(|u| format!("<@{}>", u))
+                .map(|u| format!("<@{u}>"))
                 .collect::<Vec<_>>()
                 .join(" "))
         } else {

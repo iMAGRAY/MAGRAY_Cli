@@ -24,9 +24,9 @@ impl ToolSelectorAgent {
         
         let prompt = format!(r#"Ты - эксперт по выбору инструментов. Проанализируй запрос пользователя и выбери наиболее подходящий инструмент.
 
-ДОСТУПНЫЕ ИНСТРУМЕНТЫ: {}
+ДОСТУПНЫЕ ИНСТРУМЕНТЫ: {tools_list}
 
-ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{}"
+ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{user_query}"
 
 АНАЛИЗ ПО КЛЮЧЕВЫМ СЛОВАМ:
 - "файл", "создать", "записать", "сохранить" → file_write
@@ -47,7 +47,7 @@ impl ToolSelectorAgent {
     "tool_name": "название_инструмента",
     "confidence": 0.9,
     "reasoning": "краткое объяснение выбора"
-}}"#, tools_list, user_query);
+}}"#);
 
         let response = self.llm.chat_simple(&prompt).await?;
         self.parse_tool_selection(&response)

@@ -450,6 +450,7 @@ impl CpuEmbeddingService {
         // Vectorized pooling
         for seq_idx in 0..seq_len {
             let seq_start = seq_idx * hidden_size;
+            #[allow(clippy::needless_range_loop)]
             for hidden_idx in 0..hidden_size {
                 let data_idx = seq_start + hidden_idx;
                 if data_idx < data.len() {

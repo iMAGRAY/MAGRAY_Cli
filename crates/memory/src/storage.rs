@@ -55,16 +55,8 @@ struct ChangeLogEntry {
     version: u64,
     layer: Layer,
     record: Record,
-    operation: ChangeOperation,
-    timestamp: std::time::Instant,
 }
 
-#[derive(Debug, Clone)]
-enum ChangeOperation {
-    Insert,
-    Update,
-    Delete,
-}
 
 /// Отслеживает изменения в слое для умной синхронизации
 #[derive(Debug)]
@@ -336,7 +328,7 @@ impl VectorStore {
         self.record_layer_change(record.layer);
         
         // Логируем изменение для версионирования
-        self.log_change(record.layer, record, ChangeOperation::Insert);
+        self.log_change(record.layer, record);
         
         let duration = start.elapsed();
         
@@ -408,7 +400,7 @@ impl VectorStore {
             for record in &layer_records {
                 self.record_layer_change(layer);
                 // Логируем каждое изменение
-                self.log_change(layer, record, ChangeOperation::Insert);
+                self.log_change(layer, record);
             }
         }
 
@@ -608,15 +600,13 @@ impl VectorStore {
         let mut candidates = Vec::new();
         
         // Ограничиваем количество сканируемых записей для безопасности
-        let mut scanned = 0;
         const MAX_SCAN: usize = 10000;
         
-        for result in tree.iter() {
+        for (scanned, result) in tree.iter().enumerate() {
             if scanned >= MAX_SCAN {
                 tracing::warn!("get_promotion_candidates: достигнут лимит сканирования {} записей", MAX_SCAN);
                 break;
             }
-            scanned += 1;
             
             let (_, value) = result?;
             if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
@@ -649,6 +639,7 @@ impl VectorStore {
     }
 
     /// Выполнить операции транзакции
+    #[allow(clippy::await_holding_lock)]
     pub async fn execute_transaction(&self, operations: Vec<TransactionOp>) -> Result<()> {
         // Захватываем batch lock для атомарности
         let _batch_guard = self.batch_lock.write();
@@ -747,6 +738,7 @@ impl VectorStore {
     }
 
     /// Атомарная batch операция с защитой от race conditions
+    #[allow(clippy::await_holding_lock)]
     pub async fn insert_batch_atomic(&self, records: &[&Record]) -> Result<()> {
         // Используем batch lock для предотвращения race conditions
         let _guard = self.batch_lock.write();
@@ -775,7 +767,7 @@ impl VectorStore {
             let new_index = VectorIndexHnswRs::new(new_config)?;
             
             // Переносим существующие данные если они есть
-            if old_index.len() > 0 {
+            if !old_index.is_empty() {
                 info!("Migrating {} vectors from layer {:?} to new index", old_index.len(), layer);
                 
                 // Собираем все векторы из дерева
@@ -933,16 +925,10 @@ impl VectorStore {
         
         for entry in change_log.iter() {
             if entry.version > since_version {
-                match entry.operation {
-                    ChangeOperation::Insert | ChangeOperation::Update => {
-                        changes.entry(entry.layer)
-                            .or_insert_with(Vec::new)
-                            .push(entry.record.clone());
-                    }
-                    ChangeOperation::Delete => {
-                        // Пропускаем удаленные записи
-                    }
-                }
+                // Все операции сейчас - Insert
+                changes.entry(entry.layer)
+                    .or_default()
+                    .push(entry.record.clone());
             }
         }
         
@@ -977,7 +963,7 @@ impl VectorStore {
     }
     
     /// Записать изменение в журнал
-    fn log_change(&self, layer: Layer, record: &Record, operation: ChangeOperation) {
+    fn log_change(&self, layer: Layer, record: &Record) {
         let version = self.version_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
         
         if let Some(mut log) = self.change_log.try_write() {
@@ -990,8 +976,6 @@ impl VectorStore {
                 version,
                 layer,
                 record: record.clone(),
-                operation,
-                timestamp: std::time::Instant::now(),
             });
         }
     }

@@ -139,9 +139,9 @@ impl GpuConfig {
             .with_device_id(self.device_id)
             .with_max_workspace_size(self.tensorrt_cache_size)
             .with_fp16(self.enable_fp16)
-            .with_engine_cache_enable(true)
+            .with_engine_cache(true)
             .with_engine_cache_path("./tensorrt_cache")
-            .with_timing_cache_enable(true)
+            .with_timing_cache(true)
             .with_force_sequential_engine_build(false) // Параллельная сборка
             .build();
             

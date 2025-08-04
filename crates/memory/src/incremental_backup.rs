@@ -93,8 +93,8 @@ impl IncrementalBackupManager {
         backup_name: Option<String>,
     ) -> Result<PathBuf> {
         let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
-        let backup_name = backup_name.unwrap_or_else(|| format!("full_backup_{}", timestamp));
-        let backup_path = self.base_path.join(format!("{}.tar.gz", backup_name));
+        let backup_name = backup_name.unwrap_or_else(|| format!("full_backup_{timestamp}"));
+        let backup_path = self.base_path.join(format!("{backup_name}.tar.gz"));
         
         info!("🔄 Creating full backup: {:?}", backup_path);
         
@@ -175,8 +175,8 @@ impl IncrementalBackupManager {
         backup_name: Option<String>,
     ) -> Result<PathBuf> {
         let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
-        let backup_name = backup_name.unwrap_or_else(|| format!("incr_backup_{}", timestamp));
-        let backup_path = self.base_path.join(format!("{}.tar.gz", backup_name));
+        let backup_name = backup_name.unwrap_or_else(|| format!("incr_backup_{timestamp}"));
+        let backup_path = self.base_path.join(format!("{backup_name}.tar.gz"));
         
         info!("🔄 Creating incremental backup: {:?}", backup_path);
         
@@ -254,7 +254,7 @@ impl IncrementalBackupManager {
         
         // Идём от текущего backup'а к базовому, собирая цепочку
         loop {
-            let backup_path = self.base_path.join(format!("{}.tar.gz", current_id));
+            let backup_path = self.base_path.join(format!("{current_id}.tar.gz"));
             if !backup_path.exists() {
                 return Err(anyhow!("Backup not found in chain: {}", current_id));
             }
@@ -320,7 +320,7 @@ impl IncrementalBackupManager {
                     
                     // Восстанавливаем каждый backup в правильном порядке
                     for backup_id in chain {
-                        let backup_path = self.base_path.join(format!("{}.tar.gz", backup_id));
+                        let backup_path = self.base_path.join(format!("{backup_id}.tar.gz"));
                         if !backup_path.exists() {
                             return Err(anyhow!("Backup in chain not found: {}", backup_id));
                         }
@@ -366,18 +366,16 @@ impl IncrementalBackupManager {
             let mut count = 0;
             
             let iter = store.iter_layer(layer).await?;
-            for item in iter {
-                if let Ok((_key, value)) = item {
-                    if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
-                        let record_json = serde_json::to_string(&stored.record)?;
-                        let mut hasher = Sha256::new();
-                        hasher.update(record_json.as_bytes());
-                        let checksum = format!("{:x}", hasher.finalize());
-                        
-                        let id = stored.record.id.to_string();
-                        record_checksums.insert(id, checksum);
-                        count += 1;
-                    }
+            for (_key, value) in iter.flatten() {
+                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                    let record_json = serde_json::to_string(&stored.record)?;
+                    let mut hasher = Sha256::new();
+                    hasher.update(record_json.as_bytes());
+                    let checksum = format!("{:x}", hasher.finalize());
+                    
+                    let id = stored.record.id.to_string();
+                    record_checksums.insert(id, checksum);
+                    count += 1;
                 }
             }
             
@@ -396,7 +394,7 @@ impl IncrementalBackupManager {
 
     /// Сохранить snapshot
     async fn save_snapshot(&self, backup_name: &str, snapshots: &[LayerSnapshot]) -> Result<()> {
-        let snapshot_path = self.snapshots_path.join(format!("{}_snapshot.json", backup_name));
+        let snapshot_path = self.snapshots_path.join(format!("{backup_name}_snapshot.json"));
         let file = File::create(snapshot_path)?;
         serde_json::to_writer_pretty(file, snapshots)?;
         Ok(())
@@ -404,7 +402,7 @@ impl IncrementalBackupManager {
 
     /// Загрузить snapshot
     async fn load_snapshot(&self, backup_name: &str) -> Result<Vec<LayerSnapshot>> {
-        let snapshot_path = self.snapshots_path.join(format!("{}_snapshot.json", backup_name));
+        let snapshot_path = self.snapshots_path.join(format!("{backup_name}_snapshot.json"));
         if !snapshot_path.exists() {
             return Err(anyhow!("Snapshot not found: {:?}", snapshot_path));
         }
@@ -503,26 +501,24 @@ impl IncrementalBackupManager {
             let mut records_to_export = Vec::new();
             let iter = store.iter_layer(layer).await?;
             
-            for item in iter {
-                if let Ok((_key, value)) = item {
-                    if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
-                        let id = stored.record.id.to_string();
-                        
-                        // Экспортируем если:
-                        // 1. Новая запись (не было в base)
-                        // 2. Измененная запись (разные checksums)
-                        let should_export = if let Some(current_checksum) = current_checksums.get(&id) {
-                            match base_checksums.get(&id) {
-                                None => true, // Новая запись
-                                Some(base_checksum) => base_checksum != current_checksum, // Изменена
-                            }
-                        } else {
-                            false // Запись была удалена
-                        };
-                        
-                        if should_export {
-                            records_to_export.push(stored.record);
+            for (_key, value) in iter.flatten() {
+                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                    let id = stored.record.id.to_string();
+                    
+                    // Экспортируем если:
+                    // 1. Новая запись (не было в base)
+                    // 2. Измененная запись (разные checksums)
+                    let should_export = if let Some(current_checksum) = current_checksums.get(&id) {
+                        match base_checksums.get(&id) {
+                            None => true, // Новая запись
+                            Some(base_checksum) => base_checksum != current_checksum, // Изменена
                         }
+                    } else {
+                        false // Запись была удалена
+                    };
+                    
+                    if should_export {
+                        records_to_export.push(stored.record);
                     }
                 }
             }
@@ -575,14 +571,12 @@ impl IncrementalBackupManager {
         let mut hasher = Sha256::new();
         
         let iter = store.iter_layer(layer).await?;
-        for item in iter {
-            if let Ok((_, value)) = item {
-                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
-                    let record_json = serde_json::to_string(&stored.record)?;
-                    hasher.update(record_json.as_bytes());
-                    records.push(stored.record);
-                    count += 1;
-                }
+        for (_, value) in iter.flatten() {
+            if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                let record_json = serde_json::to_string(&stored.record)?;
+                hasher.update(record_json.as_bytes());
+                records.push(stored.record);
+                count += 1;
             }
         }
         

@@ -409,7 +409,7 @@ impl EmbeddingCacheLRU {
 
     fn make_key(&self, text: &str, model: &str) -> Vec<u8> {
         let text_hash = self.hash_text(text);
-        format!("{}:{}", model, text_hash).into_bytes()
+        format!("{model}:{text_hash}").into_bytes()
     }
 
     fn hash_text(&self, text: &str) -> u64 {

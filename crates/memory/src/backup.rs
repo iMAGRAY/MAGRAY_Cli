@@ -67,8 +67,8 @@ impl BackupManager {
         backup_name: Option<String>,
     ) -> Result<PathBuf> {
         let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
-        let backup_name = backup_name.unwrap_or_else(|| format!("backup_{}", timestamp));
-        let backup_path = self.base_path.join(format!("{}.tar.gz", backup_name));
+        let backup_name = backup_name.unwrap_or_else(|| format!("backup_{timestamp}"));
+        let backup_path = self.base_path.join(format!("{backup_name}.tar.gz"));
         
         info!("Creating backup: {:?}", backup_path);
         
@@ -250,7 +250,7 @@ impl BackupManager {
                         
                         // Периодически сохраняем для экономии памяти
                         if records.len() >= 1000 {
-                            self.append_records_to_file(&output_path, &records)?;
+                            self.append_records_to_file(output_path, &records)?;
                             records.clear();
                         }
                     } else {
@@ -265,7 +265,7 @@ impl BackupManager {
         
         // Сохраняем оставшиеся записи
         if !records.is_empty() {
-            self.append_records_to_file(&output_path, &records)?;
+            self.append_records_to_file(output_path, &records)?;
         }
         
         let file_size = if output_path.exists() {
@@ -302,7 +302,7 @@ impl BackupManager {
         if let Some(ref layer_checksums) = metadata.layer_checksums {
             for layer_info in &metadata.layers {
                 let layer_name = layer_info.layer.as_str();
-                let layer_file = backup_dir.join(format!("{}_records.json", layer_name));
+                let layer_file = backup_dir.join(format!("{layer_name}_records.json"));
                 
                 if !layer_file.exists() {
                     warn!("⚠️ Layer file missing: {:?}", layer_file);

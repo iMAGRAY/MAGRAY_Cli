@@ -172,6 +172,7 @@ impl BgeM3EmbeddingService {
         let mut pooled = vec![0.0f32; hidden_size];
         
         for seq_idx in 0..seq_len {
+            #[allow(clippy::needless_range_loop)]
             for hidden_idx in 0..hidden_size {
                 let data_idx = seq_idx * hidden_size + hidden_idx;
                 if data_idx < data.len() {

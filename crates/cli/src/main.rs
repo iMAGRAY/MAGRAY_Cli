@@ -111,13 +111,13 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Read { path }) => {
             let agent = UnifiedAgent::new().await?;
-            let message = format!("прочитай файл {}", path);
+            let message = format!("прочитай файл {path}");
             let response = agent.process_message(&message).await?;
             display_response(response).await;
         }
         Some(Commands::Write { path, content }) => {
             let agent = UnifiedAgent::new().await?;
-            let message = format!("создай файл {} с содержимым: {}", path, content);
+            let message = format!("создай файл {path} с содержимым: {content}");
             let response = agent.process_message(&message).await?;
             display_response(response).await;
         }
@@ -248,12 +248,11 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
             println!();
             println!("{} {}", 
                 style("Ошибка:").red().bold(), 
-                style(format!("{}", e)).red()
+                style(format!("{e}")).red()
             );
             println!();
-            println!("{} {}", 
-                style("[i] Решение:").yellow().bold(),
-                "Создайте файл .env с настройками:"
+            println!("{} Создайте файл .env с настройками:", 
+                style("[i] Решение:").yellow().bold()
             );
             println!("   {} {}", 
                 style("$").green(), 
@@ -338,7 +337,7 @@ async fn display_response(response: AgentResponse) {
             display_chat_response(&text).await;
         }
         AgentResponse::ToolExecution(result) => {
-            println!("{}", result);
+            println!("{result}");
         }
     }
 }
@@ -490,7 +489,7 @@ async fn show_system_status() -> Result<()> {
             "error" => ("✗".red(), "Service error".to_string()),
             "timeout" => ("⌛".yellow(), "Initialization timeout".to_string()),
             "config-error" => ("✗".red(), "Configuration error".to_string()),
-            _ => ("?".cyan(), format!("Unknown ({})", health)),
+            _ => ("?".cyan(), format!("Unknown ({health})")),
         };
         
         if record_count > 0 || hit_rate > 0.0 {
@@ -500,7 +499,7 @@ async fn show_system_status() -> Result<()> {
             println!("{} {}: {}", memory_icon, "Memory Service".bold(), status_msg);
         }
     } else {
-        println!("{} {}: {}", "✗".red(), "Memory Service".bold(), "Not available");
+        println!("{} {}: Not available", "✗".red(), "Memory Service".bold());
     }
     
     // Binary info

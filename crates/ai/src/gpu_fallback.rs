@@ -1,7 +1,7 @@
 use anyhow::{Result, Context};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tracing::{info, warn, debug};
+use tracing::{info, warn, debug, error};
 use async_trait::async_trait;
 
 use crate::{EmbeddingConfig, embeddings_cpu::CpuEmbeddingService};
@@ -259,7 +259,7 @@ impl GpuFallbackManager {
         
         if use_gpu {
             // Пытаемся использовать GPU
-            match self.try_gpu_embed(&texts).await {
+            match self.try_gpu_embed(&texts[..]).await {
                 Ok(embeddings) => {
                     self.record_gpu_success();
                     return Ok(embeddings);
@@ -273,12 +273,12 @@ impl GpuFallbackManager {
         }
         
         // Используем CPU
-        self.embed_with_cpu(&texts).await
+        self.embed_with_cpu(&texts[..]).await
     }
     
     /// Попытка получить embeddings через GPU с timeout
     #[cfg(feature = "gpu")]
-    async fn try_gpu_embed(&self, texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
+    async fn try_gpu_embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let gpu_service = self.gpu_service.as_ref()
             .ok_or_else(|| anyhow::anyhow!("GPU service not available"))?;
         
@@ -287,7 +287,7 @@ impl GpuFallbackManager {
         // Применяем timeout
         match tokio::time::timeout(
             self.policy.gpu_timeout, 
-            gpu_service.embed_batch(texts.clone())
+            gpu_service.embed_batch(texts.to_vec())
         ).await {
             Ok(Ok(embeddings)) => {
                 let elapsed = start.elapsed();
@@ -308,16 +308,16 @@ impl GpuFallbackManager {
     
     /// CPU-only версия метода
     #[cfg(not(feature = "gpu"))]
-    async fn try_gpu_embed(&self, _texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
+    async fn try_gpu_embed(&self, _texts: &[String]) -> Result<Vec<Vec<f32>>> {
         Err(anyhow::anyhow!("GPU support not compiled"))
     }
     
     /// Получить embeddings через CPU
-    async fn embed_with_cpu(&self, texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
+    async fn embed_with_cpu(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let start = Instant::now();
         self.fallback_stats.lock().unwrap().cpu_fallback_count += 1;
         
-        let results = self.cpu_service.embed_batch(&texts[..])?;
+        let results = self.cpu_service.embed_batch(texts)?;
         
         // Конвертируем OptimizedEmbeddingResult в Vec<Vec<f32>>
         let embeddings: Vec<Vec<f32>> = results

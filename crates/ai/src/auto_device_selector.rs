@@ -70,7 +70,7 @@ impl AutoDeviceSelector {
         if !detector.has_sufficient_memory(required_memory) {
             let decision = DeviceDecision {
                 use_gpu: false,
-                reason: format!("Недостаточно GPU памяти (нужно {} MB)", required_memory),
+                reason: format!("Недостаточно GPU памяти (нужно {required_memory} MB)"),
                 cpu_score: 0.0,
                 gpu_score: None,
                 recommended_batch_size: num_cpus::get().min(32),
@@ -97,9 +97,9 @@ impl AutoDeviceSelector {
         let decision = DeviceDecision {
             use_gpu,
             reason: if use_gpu {
-                format!("GPU быстрее в {:.1}x раз", speedup)
+                format!("GPU быстрее в {speedup:.1}x раз")
             } else {
-                format!("GPU недостаточно быстрее (только {:.1}x)", speedup)
+                format!("GPU недостаточно быстрее (только {speedup:.1}x)")
             },
             cpu_score,
             gpu_score: Some(gpu_score),
@@ -140,7 +140,7 @@ impl AutoDeviceSelector {
         
         // Генерируем тестовые данные
         let test_texts: Vec<String> = (0..self.benchmark_size)
-            .map(|i| format!("This is test text number {} for benchmarking embedding performance on CPU", i))
+            .map(|i| format!("This is test text number {i} for benchmarking embedding performance on CPU"))
             .collect();
         
         // Прогрев
@@ -161,7 +161,7 @@ impl AutoDeviceSelector {
         #[cfg(not(feature = "gpu"))]
         {
             // Если GPU не включен при компиляции, возвращаем 0
-            return Ok(0.0);
+            Ok(0.0)
         }
         
         #[cfg(feature = "gpu")]

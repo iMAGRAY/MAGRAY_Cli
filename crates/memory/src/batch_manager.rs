@@ -121,6 +121,7 @@ impl BatchOperationManager {
     }
     
     /// Add multiple records to the batch
+    #[allow(clippy::await_holding_lock)]
     pub async fn add_batch(&self, records: Vec<Record>) -> Result<()> {
         if records.is_empty() {
             return Ok(());
@@ -285,7 +286,7 @@ impl BatchOperationManager {
                         stats_guard.failed_batches += 1;
                         
                         if let Some(metrics) = &metrics {
-                            metrics.record_error(format!("Batch flush failed: {}", e));
+                            metrics.record_error(format!("Batch flush failed: {e}"));
                         }
                     }
                 }
@@ -365,6 +366,12 @@ impl BatchOperationManager {
 pub struct BatchOperationBuilder {
     records: Vec<Record>,
     config: Option<BatchConfig>,
+}
+
+impl Default for BatchOperationBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BatchOperationBuilder {

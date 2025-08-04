@@ -60,7 +60,7 @@ impl RerankingService {
         };
         
         // Fallback to basic implementation - check multiple paths
-        let possible_paths = vec![
+        let possible_paths = [
             std::path::PathBuf::from("crates/memory/models").join(&config.model_name),
             std::path::PathBuf::from("models").join(&config.model_name),
             // Также проверим альтернативные имена
@@ -126,9 +126,10 @@ impl RerankingService {
         info!("Creating mock reranking service for testing");
         
         // Create a mock session with dummy path
-        let mock_session = OnnxSession::new_mock(
+        let mock_session = OnnxSession::new_fallback(
             config.model_name.clone(),
-            std::path::PathBuf::from("mock_model.onnx")
+            std::path::PathBuf::from("mock_model.onnx"),
+            "Test fallback session".to_string()
         );
         
         Ok(Self {
@@ -198,7 +199,7 @@ impl RerankingService {
         start_index: usize,
     ) -> Result<Vec<RerankResult>> {
         // Check if we have a real session
-        if self.session.is_mock() {
+        if self.session.is_fallback() {
             debug!("Using mock processing for batch of {} documents", documents.len());
             return self.process_batch_mock(query, documents, start_index);
         }
@@ -258,7 +259,7 @@ impl RerankingService {
         let doc_tokens = tokenizer.encode(document)?;
         
         // Simulate cross-attention scoring
-        let query_doc_combined = format!("{} [SEP] {}", query, document);
+        let query_doc_combined = format!("{query} [SEP] {document}");
         let combined_tokens = tokenizer.encode(&query_doc_combined)?;
         
         // Enhanced scoring based on token overlap and positions
@@ -297,7 +298,7 @@ impl RerankingService {
         document.hash(&mut hasher);
         let hash_noise = ((hasher.finish() % 100) as f32) / 1000.0; // Small random component
         
-        let final_score = (score + hash_noise).min(1.0).max(0.0);
+        let final_score = (score + hash_noise).clamp(0.0, 1.0);
         Ok(final_score)
     }
     
@@ -346,7 +347,7 @@ impl RerankingService {
         document.hash(&mut hasher);
         let hash_noise = ((hasher.finish() % 50) as f32) / 1000.0;
         
-        (base_score + hash_noise).min(1.0).max(0.0)
+        (base_score + hash_noise).clamp(0.0, 1.0)
     }
     
     /// Calculate semantic overlap approximation
@@ -433,6 +434,6 @@ impl RerankingService {
         let base_score = jaccard * 0.7 + length_ratio * 0.2 + hash_noise;
         
         // Normalize to [0, 1] range
-        base_score.min(1.0).max(0.0)
+        base_score.clamp(0.0, 1.0)
     }
 }

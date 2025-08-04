@@ -8,6 +8,12 @@ use walkdir::WalkDir;
 // FileReader - чтение файлов с простым форматированием
 pub struct FileReader;
 
+impl Default for FileReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FileReader {
     pub fn new() -> Self {
         Self
@@ -30,10 +36,10 @@ impl FileReader {
         
         for (i, line) in lines.iter().enumerate() {
             let line_num = format!("{:width$}", i + 1, width = line_width);
-            formatted.push_str(&format!("│ {} │ {}\n", line_num, line));
+            formatted.push_str(&format!("│ {line_num} │ {line}\n"));
         }
         
-        formatted.push_str("└");
+        formatted.push('└');
         for _ in 0..60 {
             formatted.push('─');
         }
@@ -130,6 +136,12 @@ impl Tool for FileReader {
 // FileWriter - запись файлов
 pub struct FileWriter;
 
+impl Default for FileWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FileWriter {
     pub fn new() -> Self {
         Self
@@ -200,8 +212,8 @@ impl Tool for FileWriter {
             // Если не нашли файл с расширением, ищем просто имя файла
             if found_path.is_none() {
                 for (i, word) in words.iter().enumerate() {
-                    if *word == "файл" || *word == "file" {
-                        if i + 1 < words.len() {
+                    if (*word == "файл" || *word == "file")
+                        && i + 1 < words.len() {
                             let mut filename = words[i + 1].to_string();
                             // Добавляем расширение если его нет
                             if !filename.contains('.') {
@@ -210,7 +222,6 @@ impl Tool for FileWriter {
                             found_path = Some(filename);
                             break;
                         }
-                    }
                 }
             }
             
@@ -258,19 +269,25 @@ impl FileWriter {
             "fn main() {\n    println!(\"Hello, world!\");\n}".to_string()
         } else if file_path.ends_with(".md") {
             let name = file_path.replace(".md", "");
-            format!("# {}\n\nОписание проекта...\n\n## Использование\n\nИнструкции по использованию...\n", name)
+            format!("# {name}\n\nОписание проекта...\n\n## Использование\n\nИнструкции по использованию...\n")
         } else if file_path.ends_with(".toml") {
             "[settings]\nname = \"example\"\nversion = \"1.0.0\"\n".to_string()
         } else if file_path.ends_with(".json") {
             "{\n  \"name\": \"example\",\n  \"version\": \"1.0.0\"\n}".to_string()
         } else {
-            format!("# Файл: {}\n\nСодержимое файла...\n", file_path)
+            format!("# Файл: {file_path}\n\nСодержимое файла...\n")
         }
     }
 }
 
 // DirLister - просмотр директорий
 pub struct DirLister;
+
+impl Default for DirLister {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl DirLister {
     pub fn new() -> Self {
@@ -299,7 +316,7 @@ impl DirLister {
                 .to_string_lossy();
                 
             if entry_path.is_dir() {
-                output.push_str(&format!("{}📁 {}\n", indent, name));
+                output.push_str(&format!("{indent}📁 {name}\n"));
             } else {
                 let icon = match entry_path.extension().and_then(|s| s.to_str()) {
                     Some("rs") => "📄",
@@ -310,7 +327,7 @@ impl DirLister {
                     _ => "📄",
                 };
                 
-                output.push_str(&format!("{}{} {}\n", indent, icon, name));
+                output.push_str(&format!("{indent}{icon} {name}\n"));
             }
         }
         

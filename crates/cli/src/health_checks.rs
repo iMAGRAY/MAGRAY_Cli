@@ -42,6 +42,12 @@ pub struct HealthCheckSystem {
     checks: Vec<Box<dyn HealthCheck>>,
 }
 
+impl Default for HealthCheckSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HealthCheckSystem {
     pub fn new() -> Self {
         Self {
@@ -71,7 +77,7 @@ impl HealthCheckSystem {
                 Ok(Err(e)) => HealthCheckResult {
                     component: check.name(),
                     status: HealthStatus::Unhealthy,
-                    message: format!("Check failed: {}", e),
+                    message: format!("Check failed: {e}"),
                     latency_ms: start.elapsed().as_millis() as u64,
                     metadata: HashMap::new(),
                     timestamp: Utc::now(),
@@ -183,7 +189,7 @@ impl HealthCheck for LlmHealthCheck {
             Err(e) => Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Unhealthy,
-                message: format!("LLM service error: {}", e),
+                message: format!("LLM service error: {e}"),
                 latency_ms: 0,
                 metadata: HashMap::new(),
                 timestamp: Utc::now(),
@@ -232,7 +238,7 @@ impl HealthCheck for MemoryHealthCheck {
             Err(e) => Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Degraded,
-                message: format!("Memory service degraded: {}", e),
+                message: format!("Memory service degraded: {e}"),
                 latency_ms: 0,
                 metadata,
                 timestamp: Utc::now(),
@@ -266,7 +272,7 @@ impl HealthCheck for GpuHealthCheck {
             Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Healthy,
-                message: format!("GPU detected: {}", device_name),
+                message: format!("GPU detected: {device_name}"),
                 latency_ms: 0,
                 metadata,
                 timestamp: Utc::now(),
@@ -324,7 +330,7 @@ impl HealthCheck for DiskSpaceCheck {
         let mut metadata = HashMap::new();
         metadata.insert("free_gb".to_string(), free_gb.into());
         metadata.insert("total_gb".to_string(), total_gb.into());
-        metadata.insert("used_percent".to_string(), format!("{:.1}", used_percent).into());
+        metadata.insert("used_percent".to_string(), format!("{used_percent:.1}").into());
         
         let (status, message) = if free_gb < self.min_free_gb {
             (
@@ -334,12 +340,12 @@ impl HealthCheck for DiskSpaceCheck {
         } else if free_gb < self.min_free_gb * 2 {
             (
                 HealthStatus::Degraded,
-                format!("Disk space warning: {}GB free", free_gb),
+                format!("Disk space warning: {free_gb}GB free"),
             )
         } else {
             (
                 HealthStatus::Healthy,
-                format!("Disk space OK: {}GB free", free_gb),
+                format!("Disk space OK: {free_gb}GB free"),
             )
         };
         
@@ -387,7 +393,7 @@ impl HealthCheck for MemoryUsageCheck {
         metadata.insert("total_mb".to_string(), (total_memory / 1024).into());
         metadata.insert("used_mb".to_string(), (used_memory / 1024).into());
         metadata.insert("free_mb".to_string(), (free_memory / 1024).into());
-        metadata.insert("usage_percent".to_string(), format!("{:.1}", usage_percent).into());
+        metadata.insert("usage_percent".to_string(), format!("{usage_percent:.1}").into());
         
         let (status, message) = if usage_percent > self.max_usage_percent {
             (
@@ -397,12 +403,12 @@ impl HealthCheck for MemoryUsageCheck {
         } else if usage_percent > self.max_usage_percent * 0.9 {
             (
                 HealthStatus::Degraded,
-                format!("Memory usage warning: {:.1}%", usage_percent),
+                format!("Memory usage warning: {usage_percent:.1}%"),
             )
         } else {
             (
                 HealthStatus::Healthy,
-                format!("Memory usage OK: {:.1}%", usage_percent),
+                format!("Memory usage OK: {usage_percent:.1}%"),
             )
         };
         

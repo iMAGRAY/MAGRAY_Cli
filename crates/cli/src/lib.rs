@@ -8,7 +8,6 @@ pub mod health_checks;
 pub mod progress;
 
 // Re-export commonly used types
-pub use agent::{UnifiedAgent, AgentConfig, AgentResponseInfo, AgentMetrics, MemoryConfig, AgentContext};
+pub use agent::UnifiedAgent;
 pub use health_checks::{HealthCheckResult, HealthStatus, HealthCheckSystem};
-pub use progress::{ProgressBar, Spinner, ProgressStyle};
 pub use commands::{GpuCommand, ModelsCommand};

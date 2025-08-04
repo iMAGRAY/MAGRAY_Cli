@@ -260,7 +260,7 @@ impl TodoStoreV2 {
         
         // Формируем список ID для SQL
         let id_list = ids.iter()
-            .map(|id| format!("'{}'", id))
+            .map(|id| format!("'{id}'"))
             .collect::<Vec<_>>()
             .join(",");
         
@@ -286,13 +286,12 @@ impl TodoStoreV2 {
                     WHERE task_id = t.id
                 ) as context_refs
             FROM todos t
-            WHERE t.id IN ({})
-            "#,
-            id_list
+            WHERE t.id IN ({id_list})
+            "#
         );
         
         let mut stmt = conn.prepare(&query)?;
-        let tasks = stmt.query_map(params![], |row| Self::parse_todo_row(row))?
+        let tasks = stmt.query_map(params![], Self::parse_todo_row)?
             .collect::<Result<Vec<_>, _>>()?;
         
         Ok(tasks)
@@ -335,7 +334,7 @@ impl TodoStoreV2 {
         "#;
         
         let mut stmt = conn.prepare(query)?;
-        let tasks = stmt.query_map(params![limit as i64], |row| Self::parse_todo_row(row))?
+        let tasks = stmt.query_map(params![limit as i64], Self::parse_todo_row)?
             .collect::<Result<Vec<_>, _>>()?;
         
         Ok(tasks)
@@ -413,7 +412,7 @@ impl TodoStoreV2 {
         let conn = self.pool.get()?;
         
         // Используем LIKE для простого поиска (можно заменить на FTS5)
-        let search_pattern = format!("%{}%", query);
+        let search_pattern = format!("%{query}%");
         
         let sql = r#"
             SELECT 

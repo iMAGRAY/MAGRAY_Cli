@@ -271,18 +271,23 @@ async fn search_memory(
     top_k: usize,
     _min_score: Option<f32>
 ) -> Result<()> {
-    let mut options = memory::api::SearchOptions::default();
-    options.limit = Some(top_k);
-    
-    if let Some(layer_str) = layer {
+    let layers = if let Some(layer_str) = layer {
         let layer = match layer_str.as_str() {
             "interact" => Layer::Interact,
             "insights" => Layer::Insights,
             "assets" => Layer::Assets,
             _ => return Err(anyhow!("Invalid layer: {}", layer_str)),
         };
-        options.layers = Some(vec![layer]);
-    }
+        Some(vec![layer])
+    } else {
+        None
+    };
+    
+    let options = memory::api::SearchOptions {
+        limit: Some(top_k),
+        layers,
+        ..Default::default()
+    };
     
     // Note: min_score filter is not available in current API
     // You can filter results after retrieval if needed
@@ -375,7 +380,7 @@ async fn create_backup(service: &MemoryService, name: Option<String>) -> Result<
 
 async fn restore_backup(service: &MemoryService, backup_path: PathBuf) -> Result<()> {
     let file_name = backup_path.file_name().unwrap_or_default().to_string_lossy();
-    let spinner = ProgressBuilder::backup(&format!("Restoring from backup: {}", file_name));
+    let spinner = ProgressBuilder::backup(&format!("Restoring from backup: {file_name}"));
     
     let metadata = service.restore_backup(&backup_path).await?;
     

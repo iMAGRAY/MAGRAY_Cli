@@ -4,6 +4,12 @@ use std::collections::HashMap;
 
 pub struct GitStatus;
 
+impl Default for GitStatus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GitStatus {
     pub fn new() -> Self {
         Self
@@ -36,14 +42,14 @@ impl Tool for GitStatus {
             Ok(ToolOutput {
                 success: true,
                 result: stdout.clone(),
-                formatted_output: Some(format!("\n📂 Текущий статус репозитория:\n{}", stdout)),
+                formatted_output: Some(format!("\n📂 Текущий статус репозитория:\n{stdout}")),
                 metadata: HashMap::new(),
             })
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
             Ok(ToolOutput {
                 success: false,
-                result: format!("Ошибка выполнения git status: {}", stderr),
+                result: format!("Ошибка выполнения git status: {stderr}"),
                 formatted_output: None,
                 metadata: HashMap::new(),
             })
@@ -60,6 +66,12 @@ impl Tool for GitStatus {
 }
 
 pub struct GitCommit;
+
+impl Default for GitCommit {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl GitCommit {
     pub fn new() -> Self {
@@ -94,7 +106,7 @@ impl Tool for GitCommit {
             let err = String::from_utf8_lossy(&add_status.stderr).to_string();
             return Ok(ToolOutput {
                 success: false,
-                result: format!("Ошибка git add: {}", err),
+                result: format!("Ошибка git add: {err}"),
                 formatted_output: None,
                 metadata: HashMap::new(),
             });
@@ -111,14 +123,14 @@ impl Tool for GitCommit {
             Ok(ToolOutput {
                 success: true,
                 result: stdout.clone(),
-                formatted_output: Some(format!("\n✓ Создан коммит:\n{}", stdout)),
+                formatted_output: Some(format!("\n✓ Создан коммит:\n{stdout}")),
                 metadata: HashMap::from([("message".to_string(), message)]),
             })
         } else {
             let stderr = String::from_utf8_lossy(&commit_status.stderr).to_string();
             Ok(ToolOutput {
                 success: false,
-                result: format!("Ошибка git commit: {}", stderr),
+                result: format!("Ошибка git commit: {stderr}"),
                 formatted_output: None,
                 metadata: HashMap::new(),
             })

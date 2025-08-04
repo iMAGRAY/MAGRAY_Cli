@@ -43,7 +43,16 @@
       "Bash(set ORT_DYLIB_PATH=\"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\onnxruntime\\lib\\onnxruntime.dll\")",
       "Bash(set RUST_LOG=warn)",
       "Bash(cargo install:*)",
-      "Bash(cargo tarpaulin:*)"
+      "Bash(cargo tarpaulin:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(true)",
+      "Bash(nvidia-smi:*)",
+      "Bash(set)",
+      "Bash(export:*)",
+      "Bash(echo:*)",
+      "Bash(timeout 60 cargo run --release --example test_real_gpu_embeddings)",
+      "Bash(cargo tree:*)",
+      "Bash(timeout 60 cargo run --release --example test_real_gpu_embeddings --features \"ai/gpu\")"
     ],
     "deny": []
   },

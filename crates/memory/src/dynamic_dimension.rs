@@ -137,7 +137,7 @@ impl DynamicDimensionManager {
         dimension_group.last_used = std::time::Instant::now();
 
         // Создаём индекс для слоя если не существует
-        if !dimension_group.indices.contains_key(&layer) {
+        if let std::collections::hash_map::Entry::Vacant(e) = dimension_group.indices.entry(layer) {
             let index_config = HnswRsConfig {
                 dimension,
                 max_connections: 24,
@@ -149,7 +149,7 @@ impl DynamicDimensionManager {
             };
 
             let index = Arc::new(VectorIndexHnswRs::new(index_config)?);
-            dimension_group.indices.insert(layer, index.clone());
+            e.insert(index.clone());
 
             info!("🔧 Created new index: dimension={}, layer={:?}", dimension, layer);
         }
@@ -347,7 +347,7 @@ impl DynamicDimensionManager {
         // Проверяем лимит активных размерностей
         if indices.len() >= self.config.max_active_dimensions {
             // Находим наименее используемую группу для удаления
-            if let Some(least_used_dim) = self.find_least_used_dimension(&indices) {
+            if let Some(least_used_dim) = self.find_least_used_dimension(indices) {
                 indices.remove(&least_used_dim);
                 warn!("📉 Evicted dimension {} to make room for {}", least_used_dim, dimension);
             }
@@ -378,9 +378,7 @@ impl DynamicDimensionManager {
     fn update_dimension_stats(&self, dimension: usize) {
         let mut stats = self.stats.write();
         
-        if !stats.active_dimensions.contains_key(&dimension) {
-            stats.active_dimensions.insert(dimension, DimensionUsageStats::default());
-        }
+        stats.active_dimensions.entry(dimension).or_default();
     }
 }
 

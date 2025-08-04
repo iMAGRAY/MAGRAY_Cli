@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::ops::{Deref, DerefMut};
 use thread_local::ThreadLocal;
 use tracing::{debug, info};
 
@@ -275,12 +276,12 @@ impl<T> PooledBuffer<T> {
     }
     
     /// Get mutable reference to the buffer
-    pub fn as_mut(&mut self) -> &mut Vec<T> {
+    pub fn get_mut(&mut self) -> &mut Vec<T> {
         self.buffer.as_mut().unwrap()
     }
     
     /// Get immutable reference to the buffer
-    pub fn as_ref(&self) -> &Vec<T> {
+    pub fn get_ref(&self) -> &Vec<T> {
         self.buffer.as_ref().unwrap()
     }
     
@@ -296,6 +297,20 @@ impl<T> Drop for PooledBuffer<T> {
             let return_fn = std::mem::replace(&mut self.return_fn, Box::new(|_| {}));
             return_fn(buffer);
         }
+    }
+}
+
+impl<T> Deref for PooledBuffer<T> {
+    type Target = Vec<T>;
+    
+    fn deref(&self) -> &Self::Target {
+        self.buffer.as_ref().unwrap()
+    }
+}
+
+impl<T> DerefMut for PooledBuffer<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.buffer.as_mut().unwrap()
     }
 }
 

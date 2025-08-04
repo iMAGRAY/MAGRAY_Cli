@@ -241,6 +241,12 @@ impl VectorIndexHnswRs {
         
         let start = Instant::now();
         
+        // Проверяем capacity заранее
+        if self.check_capacity(vectors.len())? {
+            return Err(anyhow!("Превышен лимит HNSW индекса: {} + {} > {}", 
+                             self.len(), vectors.len(), self.config.max_elements));
+        }
+        
         // Валидация размерности
         for (id, vector) in &vectors {
             if vector.len() != self.config.dimension {
@@ -249,61 +255,78 @@ impl VectorIndexHnswRs {
             }
         }
         
-        // Проверяем емкость перед добавлением
-        if self.check_capacity(vectors.len())? {
-            warn!("Достигнут лимит HNSW индекса, некоторые векторы могут быть отклонены");
+        // Параллельная обработка для больших batch
+        let use_parallel = self.config.use_parallel && vectors.len() > 100;
+        let vectors_len = vectors.len();
+        
+        if use_parallel {
+            info!("🚀 Параллельное добавление {} векторов в HNSW", vectors_len);
+            self.add_batch_parallel(vectors)?;
+        } else {
+            self.add_batch_sequential(vectors)?;
         }
         
+        let duration = start.elapsed().as_micros() as u64;
+        self.stats.record_insertion(vectors_len as u64, duration, use_parallel);
+        
+        info!("✅ Добавлено {} векторов за {:.2}ms (parallel: {})", 
+              vectors_len, duration as f64 / 1000.0, use_parallel);
+        
+        Ok(())
+    }
+    
+    /// Последовательное добавление batch (для малых объемов)
+    fn add_batch_sequential(&self, vectors: Vec<(String, Vec<f32>)>) -> Result<()> {
         // Инициализируем HNSW (только если не существует)
         self.ensure_hnsw_initialized(vectors.len())?;
         
-        let use_parallel = self.config.use_parallel && vectors.len() > 50;
+        // Последовательное добавление одного за другим
+        for (id, vector) in vectors {
+            self.add(id, vector)?;
+        }
         
-        if use_parallel {
-            info!("Параллельная вставка {} векторов", vectors.len());
-            
-            // Подготавливаем данные для параллельной вставки
-            let mut data_for_insertion = Vec::with_capacity(vectors.len());
-            let mut id_mappings = Vec::with_capacity(vectors.len());
-            
-            for (id, vector) in vectors {
-                let point_id = self.next_point_id.fetch_add(1, Ordering::Relaxed) as usize;
-                data_for_insertion.push((vector, point_id));
-                id_mappings.push((id, point_id));
+        Ok(())
+    }
+    
+    /// Параллельное добавление batch (для больших объемов)
+    fn add_batch_parallel(&self, vectors: Vec<(String, Vec<f32>)>) -> Result<()> {
+        use std::sync::atomic::Ordering;
+        
+        // Инициализируем HNSW
+        self.ensure_hnsw_initialized(vectors.len())?;
+        
+        // Подготавливаем данные для параллельной вставки
+        let mut data_for_insertion = Vec::with_capacity(vectors.len());
+        let mut id_mappings = Vec::with_capacity(vectors.len());
+        
+        for (id, vector) in vectors {
+            let point_id = self.next_point_id.fetch_add(1, Ordering::Relaxed) as usize;
+            data_for_insertion.push((vector, point_id));
+            id_mappings.push((id, point_id));
+        }
+        
+        // Параллельная вставка - главное преимущество hnsw_rs
+        {
+            let mut hnsw_guard = self.hnsw.write();
+            if let Some(ref mut hnsw) = hnsw_guard.as_mut() {
+                let data_refs: Vec<_> = data_for_insertion.iter()
+                    .map(|(v, id)| (v, *id))
+                    .collect();
+                hnsw.parallel_insert_data(&data_refs);
+                debug!("Параллельная вставка {} векторов завершена", data_refs.len());
+            } else {
+                return Err(anyhow!("HNSW не инициализирован"));
             }
+        }
+        
+        // Обновляем маппинги атомарно
+        {
+            let mut id_to_point = self.id_to_point.write();
+            let mut point_to_id = self.point_to_id.write();
             
-            // Параллельная вставка - главное преимущество hnsw_rs
-            {
-                let mut hnsw_guard = self.hnsw.write();
-                if let Some(ref mut hnsw) = hnsw_guard.as_mut() {
-                    let data_refs: Vec<_> = data_for_insertion.iter()
-                        .map(|(v, id)| (v, *id))
-                        .collect();
-                    hnsw.parallel_insert_data(&data_refs);
-                    info!("Параллельная вставка {} векторов завершена", data_refs.len());
-                } else {
-                    return Err(anyhow!("HNSW не инициализирован"));
-                }
-            }
-            
-            // Обновляем маппинги
-            {
-                let mut id_to_point = self.id_to_point.write();
-                let mut point_to_id = self.point_to_id.write();
-                
-                for (id, point_id) in id_mappings {
-                    id_to_point.insert(id.clone(), point_id);
-                    point_to_id.insert(point_id, id);
-                }
-            }
-            
-            let duration = start.elapsed().as_micros() as u64;
-            self.stats.record_insertion(data_for_insertion.len() as u64, duration, true);
-            
-        } else {
-            // Последовательная вставка для малых датасетов
-            for (id, vector) in vectors {
-                self.add(id, vector)?;
+            for (id, point_id) in id_mappings {
+                id_to_point.insert(id.clone(), point_id);
+                point_to_id.insert(point_id, id);
             }
         }
         
@@ -321,7 +344,7 @@ impl VectorIndexHnswRs {
         
         let results = {
             let hnsw_guard = self.hnsw.read();
-            if let Some(ref hnsw) = hnsw_guard.as_ref() {
+            if let Some(hnsw) = hnsw_guard.as_ref() {
                 // Используем правильный API для поиска
                 let neighbors = hnsw.search(query, k, self.config.ef_search);
                 
@@ -372,7 +395,7 @@ impl VectorIndexHnswRs {
         
         let batch_results = {
             let hnsw_guard = self.hnsw.read();
-            if let Some(ref hnsw) = hnsw_guard.as_ref() {
+            if let Some(hnsw) = hnsw_guard.as_ref() {
                 hnsw.parallel_search(queries, k, self.config.ef_search)
             } else {
                 return Err(anyhow!("HNSW не инициализирован"));

@@ -117,7 +117,7 @@ where
         };
         
         if let Ok(json) = serde_json::to_string(&entry) {
-            let _ = writeln!(io::stdout(), "{}", json);
+            let _ = writeln!(io::stdout(), "{json}");
         }
     }
 }
@@ -132,11 +132,11 @@ struct JsonVisitor {
 impl Visit for JsonVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         if field.name() == "message" {
-            self.message = Some(format!("{:?}", value));
+            self.message = Some(format!("{value:?}"));
         } else {
             self.fields.insert(
                 field.name().to_string(),
-                Value::String(format!("{:?}", value)),
+                Value::String(format!("{value:?}")),
             );
         }
     }
@@ -219,12 +219,6 @@ pub struct LoggingConfig {
     json_output: bool,
     /// Включить цветной вывод (только для non-JSON)
     color_output: bool,
-    /// Файл для записи логов
-    log_file: Option<String>,
-    /// Максимальный размер файла логов (в байтах)
-    max_file_size: Option<u64>,
-    /// Включить контекст выполнения
-    include_context: bool,
     /// Включить номера строк
     include_line_numbers: bool,
     /// Pretty print для JSON
@@ -237,9 +231,6 @@ impl Default for LoggingConfig {
             level: Level::INFO,
             json_output: false,
             color_output: true,
-            log_file: None,
-            max_file_size: Some(100 * 1024 * 1024), // 100MB
-            include_context: true,
             include_line_numbers: cfg!(debug_assertions),
             pretty_print: false,
         }
@@ -428,7 +419,6 @@ impl OperationTimer {
 pub struct RequestContext {
     request_id: String,
     user_id: Option<String>,
-    start_time: std::time::Instant,
     metadata: HashMap<String, String>,
 }
 
@@ -437,7 +427,6 @@ impl RequestContext {
         Self {
             request_id: request_id.into(),
             user_id: None,
-            start_time: std::time::Instant::now(),
             metadata: HashMap::new(),
         }
     }

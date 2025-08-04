@@ -366,12 +366,10 @@ impl OptimizedTokenizer {
         tokenizer.with_pre_tokenizer(Some(Whitespace));
         
         // Добавляем базовые токены
-        let _vocab = vec![
-            ("<pad>".to_string(), 0),
+        let _vocab = [("<pad>".to_string(), 0),
             ("<unk>".to_string(), 1),
             ("<s>".to_string(), 2),
-            ("</s>".to_string(), 3),
-        ];
+            ("</s>".to_string(), 3)];
         
         // Это временное решение для тестирования
         // В реальной системе нужно использовать правильный токенизатор Qwen3

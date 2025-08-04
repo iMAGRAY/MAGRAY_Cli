@@ -22,7 +22,7 @@ impl IntentAnalyzerAgent {
     pub async fn analyze_intent(&self, user_query: &str) -> Result<IntentDecision> {
         let prompt = format!(r#"Ты - эксперт по анализу намерений пользователя. Определи, требует ли запрос использования инструментов или достаточно обычного чата.
 
-ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{}"
+ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{user_query}"
 
 ДЕТАЛЬНЫЕ КРИТЕРИИ ДЛЯ "tools":
 
@@ -65,7 +65,7 @@ Git операции:
     "action_type": "tools",
     "confidence": 0.9,
     "reasoning": "пользователь просит создать файл"
-}}"#, user_query);
+}}"#);
 
         let response = self.llm.chat_simple(&prompt).await?;
         self.parse_intent_decision(&response)

@@ -356,6 +356,7 @@ pub struct TodoEventStream {
 
 impl TodoEventStream {
     /// Получить следующее событие
+    #[allow(clippy::await_holding_lock)]
     pub async fn next(&self) -> Option<TodoEvent> {
         self.rx.lock().recv().await
     }

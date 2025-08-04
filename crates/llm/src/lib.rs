@@ -220,9 +220,9 @@ impl LlmClient {
         let max_tokens = request.max_tokens.unwrap_or(self.max_tokens);
         let temperature = request.temperature.unwrap_or(self.temperature);
         
-        // Временно сохраняем старые значения
-        let old_max_tokens = self.max_tokens;
-        let old_temperature = self.temperature;
+        // Временно сохраняем старые значения (для возможного будущего использования)
+        let _old_max_tokens = self.max_tokens;
+        let _old_temperature = self.temperature;
         
         // Используем значения из request
         let self_with_overrides = Self {
@@ -281,7 +281,7 @@ impl LlmClient {
         let response = self
             .client
             .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -320,7 +320,7 @@ impl LlmClient {
         let response = self
             .client
             .post("https://api.anthropic.com/v1/messages")
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .header("anthropic-version", "2023-06-01")
             .json(&request)

@@ -165,7 +165,7 @@ fn test_global_memory_pool() {
 
 #[test]
 fn test_pooled_buffer_raii() {
-    use ai::memory_pool::PooledBuffer;
+    use ai::PooledBuffer;
     
     let pool = Arc::new(MemoryPool::new());
     let pool_clone = pool.clone();
@@ -177,8 +177,8 @@ fn test_pooled_buffer_raii() {
         }));
         
         // Use buffer
-        pooled.as_mut().push(42);
-        assert_eq!(pooled.as_ref()[0], 42);
+        pooled.push(42);
+        assert_eq!(pooled[0], 42);
         
         // Buffer automatically returned when pooled goes out of scope
     }
@@ -189,7 +189,7 @@ fn test_pooled_buffer_raii() {
 
 #[test]
 fn test_pooled_buffer_take() {
-    use ai::memory_pool::PooledBuffer;
+    use ai::PooledBuffer;
     
     let pool = Arc::new(MemoryPool::new());
     let pool_clone = pool.clone();

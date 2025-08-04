@@ -2,8 +2,6 @@ use anyhow::Result;
 use std::path::{PathBuf, Path};
 use std::sync::Arc;
 use tracing::{debug, info, warn, error};
-use dirs;
-use uuid;
 
 use crate::{
     cache::EmbeddingCache,
@@ -242,7 +240,7 @@ impl MemoryService {
         };
 
         // Initialize promotion engine with time-based indexing
-        let promotion_db = Self::open_promotion_database(&config.db_path.join("promotion_indices"))?;
+        let promotion_db = Self::open_promotion_database(config.db_path.join("promotion_indices"))?;
         let promotion = Arc::new(PromotionEngine::new(
             store.clone(),
             config.promotion.clone(),
@@ -586,6 +584,7 @@ impl MemoryService {
     }
 
     /// Run ML-based promotion cycle if available, fallback to standard promotion
+    #[allow(clippy::await_holding_lock)]
     pub async fn run_ml_promotion_cycle(&self) -> Result<MLPromotionStats> {
         if let Some(ref ml_promotion) = self.ml_promotion {
             info!("🧠 Запуск ML-based promotion цикла");
@@ -679,21 +678,19 @@ impl MemoryService {
                 let mut access_sum = 0u32;
                 let mut oldest_ts = chrono::Utc::now();
                 
-                for item in iter {
-                    if let Ok((_, value)) = item {
-                        count += 1;
-                        size += value.len() as u64;
-                        
-                        // Local struct for deserialization
-                        #[derive(serde::Deserialize)]
-                        struct StoredRecord {
-                            record: Record,
-                        }
-                        if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
-                            access_sum += stored.record.access_count;
-                            if stored.record.ts < oldest_ts {
-                                oldest_ts = stored.record.ts;
-                            }
+                for (_, value) in iter.flatten() {
+                    count += 1;
+                    size += value.len() as u64;
+                    
+                    // Local struct for deserialization
+                    #[derive(serde::Deserialize)]
+                    struct StoredRecord {
+                        record: Record,
+                    }
+                    if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
+                        access_sum += stored.record.access_count;
+                        if stored.record.ts < oldest_ts {
+                            oldest_ts = stored.record.ts;
                         }
                     }
                 }
@@ -907,12 +904,10 @@ impl MemoryService {
         
         // Итерируемся по всем записям слоя
         let iter = self.store.iter_layer(layer).await?;
-        for result in iter {
-            if let Ok((_, value)) = result {
-                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
-                    total_access += stored.record.access_count;
-                    count += 1;
-                }
+        for (_, value) in iter.flatten() {
+            if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                total_access += stored.record.access_count;
+                count += 1;
             }
         }
         
@@ -1090,7 +1085,7 @@ impl MemoryService {
     
     /// Получить менеджер уведомлений для тестирования и прямого доступа
     pub fn notification_manager(&self) -> Option<&NotificationManager> {
-        self.notification_manager.as_ref().map(|v| &**v)
+        self.notification_manager.as_deref()
     }
     
     // ========== BATCH OPERATIONS API ==========
@@ -1310,7 +1305,7 @@ impl MemoryService {
     /// Создать streaming API для real-time обработки
     pub async fn create_streaming_api(self: Arc<Self>) -> Result<StreamingMemoryAPI> {
         let config = self.config.streaming_config.clone()
-            .unwrap_or_else(StreamingConfig::default);
+            .unwrap_or_default();
             
         info!("🌊 Creating streaming API with config: max_sessions={}, buffer_size={}", 
               config.max_concurrent_sessions, config.buffer_size);

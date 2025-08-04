@@ -31,8 +31,8 @@ impl PromotionEngine {
         
         // Создаем индексы для каждого слоя
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-            let time_tree_name = format!("time_index_{:?}", layer);
-            let score_tree_name = format!("score_index_{:?}", layer);
+            let time_tree_name = format!("time_index_{layer:?}");
+            let score_tree_name = format!("score_index_{layer:?}");
             
             let time_tree = db.open_tree(&time_tree_name)?;
             let score_tree = db.open_tree(&score_tree_name)?;
@@ -122,7 +122,7 @@ impl PromotionEngine {
             // Удаляем из старого слоя и обновляем индексы
             for record in &promoted {
                 self.delete_record_with_index_update(Layer::Interact, &record.id).await?;
-                self.update_indices_for_record(&record, true).await?;
+                self.update_indices_for_record(record, true).await?;
             }
         }
         
@@ -156,7 +156,7 @@ impl PromotionEngine {
             
             for record in &promoted {
                 self.delete_record_with_index_update(Layer::Insights, &record.id).await?;
-                self.update_indices_for_record(&record, true).await?;
+                self.update_indices_for_record(record, true).await?;
             }
         }
         
@@ -353,7 +353,7 @@ impl PromotionEngine {
         // Интеллектуальные границы:
         // - Минимум 500 кандидатов (для эффективности)
         // - Максимум 50,000 кандидатов (для предотвращения OOM)
-        let final_limit = safe_limit.max(500).min(50_000);
+        let final_limit = safe_limit.clamp(500, 50_000);
         
         debug!("💾 Calculated safe candidates limit: {} (available memory: {}MB)", 
                final_limit, available_memory_mb);
@@ -454,7 +454,7 @@ impl PromotionEngine {
         // Удаляем из старого слоя
         for record in &promoted {
             self.delete_record_with_index_update(Layer::Interact, &record.id).await?;
-            self.update_indices_for_record(&record, true).await?;
+            self.update_indices_for_record(record, true).await?;
         }
         
         debug!("✅ Promoted {} records: Interact -> Insights", promoted.len());
@@ -479,7 +479,7 @@ impl PromotionEngine {
         
         for record in &promoted {
             self.delete_record_with_index_update(Layer::Insights, &record.id).await?;
-            self.update_indices_for_record(&record, true).await?;
+            self.update_indices_for_record(record, true).await?;
         }
         
         debug!("✅ Promoted {} records: Insights -> Assets", promoted.len());

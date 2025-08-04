@@ -44,6 +44,12 @@ pub enum RollbackAction {
     RestoreUpdated { record: Record },
 }
 
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Transaction {
     pub fn new() -> Self {
         Self {
@@ -144,6 +150,12 @@ impl Transaction {
 /// Менеджер транзакций
 pub struct TransactionManager {
     active_transactions: Arc<Mutex<HashMap<Uuid, Transaction>>>,
+}
+
+impl Default for TransactionManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TransactionManager {

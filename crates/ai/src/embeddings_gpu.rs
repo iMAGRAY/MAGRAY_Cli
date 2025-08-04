@@ -280,7 +280,7 @@ impl GpuEmbeddingService {
         let tensor_size = batch_size * self.max_length * std::mem::size_of::<i64>();
         
         // Используем memory pool для эффективного управления памятью
-        let result = GPU_MEMORY_POOL.with_buffer_async(tensor_size * 3, |mut buffer| async move {
+        let result = GPU_MEMORY_POOL.with_buffer_async(tensor_size * 3, |buffer| async move {
             // Используем batch tokenization для эффективности
             let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
             let mut batch_tokenized = self.tokenizer.encode_batch(&text_refs)

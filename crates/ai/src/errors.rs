@@ -25,15 +25,15 @@ pub enum AiError {
 impl fmt::Display for AiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AiError::ModelError(msg) => write!(f, "Model error: {}", msg),
-            AiError::ModelLoadError(msg) => write!(f, "Model load error: {}", msg),
-            AiError::ModelNotFound(msg) => write!(f, "Model not found: {}", msg),
-            AiError::InferenceError(msg) => write!(f, "Inference error: {}", msg),
-            AiError::TokenizerError(msg) => write!(f, "Tokenizer error: {}", msg),
-            AiError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
-            AiError::IoError(e) => write!(f, "IO error: {}", e),
-            AiError::ConfigError(msg) => write!(f, "Config error: {}", msg),
-            AiError::NetworkError(msg) => write!(f, "Network error: {}", msg),
+            AiError::ModelError(msg) => write!(f, "Model error: {msg}"),
+            AiError::ModelLoadError(msg) => write!(f, "Model load error: {msg}"),
+            AiError::ModelNotFound(msg) => write!(f, "Model not found: {msg}"),
+            AiError::InferenceError(msg) => write!(f, "Inference error: {msg}"),
+            AiError::TokenizerError(msg) => write!(f, "Tokenizer error: {msg}"),
+            AiError::ValidationError(msg) => write!(f, "Validation error: {msg}"),
+            AiError::IoError(e) => write!(f, "IO error: {e}"),
+            AiError::ConfigError(msg) => write!(f, "Config error: {msg}"),
+            AiError::NetworkError(msg) => write!(f, "Network error: {msg}"),
         }
     }
 }
@@ -60,6 +60,6 @@ impl From<ort::Error> for AiError {
 
 impl From<ndarray::ShapeError> for AiError {
     fn from(e: ndarray::ShapeError) -> Self {
-        AiError::ValidationError(format!("Array shape error: {}", e))
+        AiError::ValidationError(format!("Array shape error: {e}"))
     }
 }

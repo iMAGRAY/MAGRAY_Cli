@@ -1,7 +1,7 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, BTreeMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -78,39 +78,15 @@ pub struct PromotionModel {
 /// Трекер использования для ML features
 #[derive(Debug, Default)]
 pub struct UsageTracker {
-    /// Паттерны доступа по времени суток
-    hourly_access_patterns: BTreeMap<u32, f32>,
-    /// Частота доступа к similar records
-    semantic_clusters: HashMap<String, ClusterStats>,
-    /// Co-occurrence patterns
-    access_sequences: HashMap<String, Vec<String>>,
-    /// User behavior patterns
-    user_sessions: HashMap<String, SessionStats>,
+    // Пустая структура для будущего использования
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct ClusterStats {
-    pub total_accesses: u64,
-    pub avg_promotion_time: f32,
-    pub success_rate: f32,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct SessionStats {
-    pub avg_session_length: f32,
-    pub access_frequency: f32,
-    pub preferred_layers: HashMap<Layer, f32>,
-}
 
 /// Семантический анализатор для определения важности контента
 #[derive(Debug)]
 pub struct SemanticAnalyzer {
     /// Важные keywords и их веса
     keyword_weights: HashMap<String, f32>,
-    /// Topic modeling cache
-    topic_cache: HashMap<String, Vec<f32>>,
-    /// Semantic similarity threshold
-    similarity_threshold: f32,
 }
 
 /// Оптимизатор производительности для ML operations
@@ -119,8 +95,6 @@ pub struct PerformanceOptimizer {
     /// Статистика производительности
     avg_inference_time_ms: f32,
     cache_hit_rate: f32,
-    /// Adaptive batch sizing
-    optimal_batch_size: usize,
     /// GPU utilization stats
     gpu_utilization: f32,
 }
@@ -332,7 +306,6 @@ impl MLPromotionEngine {
                     decisions.push(PromotionDecision {
                         record: record.clone(),
                         confidence: promotion_score,
-                        features,
                         target_layer: self.determine_target_layer(record, promotion_score),
                     });
                 }
@@ -342,14 +315,12 @@ impl MLPromotionEngine {
             }
         }
 
-        let inference_time = start_time.elapsed().as_millis() as u64;
+        let _inference_time = start_time.elapsed().as_millis() as u64;
         let avg_confidence = if candidates.is_empty() { 0.0 } else { total_confidence / candidates.len() as f32 };
 
         let stats = MLInferenceStats {
-            inference_time_ms: inference_time,
             accuracy: self.model.accuracy,
             avg_confidence,
-            batch_size: self.config.ml_batch_size,
         };
 
         info!("🎯 ML анализ завершен: {} promotions из {} кандидатов", 
@@ -366,24 +337,20 @@ impl MLPromotionEngine {
         
         // Получаем кандидатов из Interact слоя
         let interact_iter = self.store.iter_layer(Layer::Interact).await?;
-        for item in interact_iter {
-            if let Ok((_, value)) = item {
-                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
-                    if stored.record.access_count >= self.config.min_access_threshold {
-                        candidates.push(stored.record);
-                    }
+        for (_, value) in interact_iter.flatten() {
+            if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                if stored.record.access_count >= self.config.min_access_threshold {
+                    candidates.push(stored.record);
                 }
             }
         }
 
         // Получаем кандидатов из Insights слоя для promotion в Assets
         let insights_iter = self.store.iter_layer(Layer::Insights).await?;
-        for item in insights_iter {
-            if let Ok((_, value)) = item {
-                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
-                    if stored.record.access_count >= self.config.min_access_threshold * 2 {
-                        candidates.push(stored.record);
-                    }
+        for (_, value) in insights_iter.flatten() {
+            if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                if stored.record.access_count >= self.config.min_access_threshold * 2 {
+                    candidates.push(stored.record);
                 }
             }
         }
@@ -731,17 +698,14 @@ impl MLPromotionEngine {
 pub struct PromotionDecision {
     pub record: Record,
     pub confidence: f32,
-    pub features: PromotionFeatures,
     pub target_layer: Layer,
 }
 
 /// Статистика ML inference
 #[derive(Debug)]
 pub struct MLInferenceStats {
-    pub inference_time_ms: u64,
     pub accuracy: f32,
     pub avg_confidence: f32,
-    pub batch_size: usize,
 }
 
 /// Пример для обучения
@@ -804,8 +768,6 @@ impl SemanticAnalyzer {
 
         Self {
             keyword_weights,
-            topic_cache: HashMap::new(),
-            similarity_threshold: 0.7,
         }
     }
 
@@ -852,7 +814,6 @@ impl PerformanceOptimizer {
         Self {
             avg_inference_time_ms: 0.0,
             cache_hit_rate: 0.0,
-            optimal_batch_size: 32,
             gpu_utilization: 0.0,
         }
     }
@@ -868,8 +829,8 @@ impl UsageTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Record, Layer};
-    use uuid::Uuid;
+    use crate::types::{Record as _, Layer as _};
+    use uuid::Uuid as _;
 
     #[tokio::test]
     async fn test_ml_promotion_features() {
