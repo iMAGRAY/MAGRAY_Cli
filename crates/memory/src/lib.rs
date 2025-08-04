@@ -30,6 +30,7 @@ mod retry;
 mod database_manager;
 // Dependency Injection система
 mod di_container;
+mod di_container_optimized;
 mod di_memory_config;
 // Новая orchestration система
 pub mod orchestration;
@@ -69,6 +70,7 @@ pub use transaction::{Transaction, TransactionManager, TransactionGuard, Transac
 
 // Dependency Injection система
 pub use di_container::{DIContainer, DIContainerBuilder, DIContainerStats, Lifetime};
+pub use di_container_optimized::{OptimizedDIContainer, OptimizedDIContainerBuilder, DIPerformanceMetrics};
 pub use di_memory_config::{MemoryDIConfigurator};
 
 // Профессиональная HNSW реализация - единственная векторная реализация

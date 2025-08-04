@@ -423,7 +423,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-04 23:02:00 UTC*
+*Last updated: 2025-08-04 23:08:45 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -464,6 +464,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["models","config","registry"],"id":"model_registry","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Centralized model registry","x_file":"ai/src/model_registry.rs:6"}
 {"id":"models_commands","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Model management CLI","x_file":"cli/src/commands/models.rs:6"}
 {"f":["alerts","notifications","production"],"id":"notification_system","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Production alert notification system","x_file":"memory/src/notifications.rs:10"}
+{"f":["di","performance","optimization"],"id":"optimized_di_container","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"High-performance DI container","x_file":"memory/src/di_container_optimized.rs:10"}
 {"f":["orchestration","promotion","coordinator"],"id":"promotion_coordinator","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Promotion orchestration coordinator","x_file":"memory/src/orchestration/promotion_coordinator.rs:13"}
 {"f":["promotion","time-index"],"id":"promotion_engine","k":"C","m":{"cur":75,"tgt":90,"u":"%"},"t":"Time-based memory promotion","x_file":"memory/src/promotion.rs:14"}
 {"id":"reranker_optimized","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"Optimized ONNX reranker","x_file":"ai/src/reranker_mxbai_optimized.rs:11"}
@@ -484,6 +485,8 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["vector","hnsw","search","legacy"],"id":"vector_index_hnsw","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"HNSW vector index wrapper","x_file":"memory/src/vector_index_hnswlib.rs:12"}
 {"f":["storage","hnsw"],"id":"vector_store","k":"C","m":{"cur":65,"tgt":100,"u":"%"},"t":"Vector storage with HNSW","x_file":"memory/src/storage.rs:18"}
 {"f":["benchmark","performance","comprehensive"],"id":"comprehensive_bench","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Comprehensive performance benchmarks","x_file":"memory/benches/comprehensive_performance.rs:7"}
+{"f":["test","performance","comparison"],"id":"di_perf_comparison","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"DI container performance comparison","x_file":"memory/tests/test_di_performance_comparison.rs:14"}
+{"f":["benchmark","performance","di"],"id":"di_performance_bench","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"DI performance benchmarking","x_file":"memory/benches/di_performance.rs:15"}
 {"f":["integration","workflow","testing"],"id":"integration_tests","k":"T","m":{"cur":0,"tgt":90,"u":"%"},"t":"Full workflow integration tests","x_file":"memory/tests/integration_full_workflow.rs:13"}
 {"f":["benchmarks","performance"],"id":"perf_benchmarks","k":"T","m":{"cur":0,"tgt":100,"u":"%"},"t":"Performance benchmarks для memory system","x_file":"memory/benches/vector_benchmarks.rs:10"}
 {"f":["test","batch","api"],"id":"test_batch_operations","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Test batch API functionality","x_file":"memory/examples/test_batch_operations.rs:8"}

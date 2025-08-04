@@ -23,12 +23,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "obsidian-v2/02_Components/_Components Hub - Центр всех компонентов системы.md",
+                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "_Components Hub - Центр всех компонентов системы"
+              "title": "_Features Hub - Центр возможностей системы"
             },
             "group": "02159962f55d5146"
           }
@@ -45,7 +45,7 @@
             "state": {
               "type": "localgraph",
               "state": {
-                "file": "obsidian-v2/02_Components/_Components Hub - Центр всех компонентов системы.md",
+                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
                 "options": {
                   "collapse-filter": true,
                   "search": "",
@@ -69,11 +69,11 @@
                   "linkStrength": 1,
                   "linkDistance": 250,
                   "scale": 0.7132754626224439,
-                  "close": false
+                  "close": true
                 }
               },
               "icon": "lucide-git-fork",
-              "title": "Граф _Components Hub - Центр всех компонентов системы"
+              "title": "Граф _Features Hub - Центр возможностей системы"
             },
             "group": "02159962f55d5146"
           }
@@ -150,7 +150,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "obsidian-v2/02_Components/_Components Hub - Центр всех компонентов системы.md",
+                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -160,7 +160,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Обратные ссылки для _Components Hub - Центр всех компонентов системы"
+              "title": "Обратные ссылки для _Features Hub - Центр возможностей системы"
             }
           },
           {
@@ -169,12 +169,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "obsidian-v2/02_Components/_Components Hub - Центр всех компонентов системы.md",
+                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Исходящие ссылки из _Components Hub - Центр всех компонентов системы"
+              "title": "Исходящие ссылки из _Features Hub - Центр возможностей системы"
             }
           },
           {
@@ -198,13 +198,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "obsidian-v2/02_Components/_Components Hub - Центр всех компонентов системы.md",
+                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Структура _Components Hub - Центр всех компонентов системы"
+              "title": "Структура _Features Hub - Центр возможностей системы"
             }
           }
         ]
@@ -226,12 +226,13 @@
       "infranodus-graph-view:InfraNodus Graph View": false
     }
   },
-  "active": "2de39285bdaf7421",
+  "active": "94b790b6061f528c",
   "lastOpenFiles": [
+    "Map of Content.md",
+    "obsidian-v2/02_Components/_Components Hub - Центр всех компонентов системы.md",
     "Без названия/USAGE.md.tmp.31392.1754348452193",
     "Без названия/ARCHITECTURE_NEW.md.tmp.31392.1754348426301",
     "obsidian-v2/02_Components/AI Mind Map - Визуальная карта AI crate.md",
-    "obsidian-v2/02_Components/_Components Hub - Центр всех компонентов системы.md",
     "obsidian-v2/02_Components/Common Mind Map - Визуальная карта Common crate.md",
     "obsidian-v2/00_Home/Home.md",
     "obsidian-v2/README.md",
@@ -244,8 +245,6 @@
     "obsidian-v2/01_Architecture/Memory Layers - Трёхслойная архитектура памяти.md.tmp.31392.1754348079525",
     "obsidian-v2/03_Features/Vector Search - Семантический поиск по векторам.md.tmp.31392.1754348067156",
     "obsidian-v2/03_Features/Vector Search - Семантический поиск по векторам.md.tmp.31392.1754348057731",
-    "Map of Content.md",
-    "obsidian-v2/01_Architecture/System Overview - Обзор всей системы.md.tmp.31392.1754347978283",
     "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
     "obsidian-v2/00_Home/Knowledge Graph - Граф связей проекта.md",
     "Без названия/BUILD_DEPLOYMENT.md",
