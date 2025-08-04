@@ -18,7 +18,7 @@ pub struct GpuPipelineManager {
     config: PipelineConfig,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PipelineConfig {
     /// Количество параллельных GPU потоков
     pub num_gpu_streams: usize,

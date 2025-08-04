@@ -1,7 +1,9 @@
 use anyhow::{Result, Context};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tracing::{info, warn, debug, error};
+use tracing::{info, warn, debug};
+#[cfg(feature = "gpu")]
+use tracing::error;
 use async_trait::async_trait;
 
 use crate::{EmbeddingConfig, embeddings_cpu::CpuEmbeddingService};
@@ -64,6 +66,23 @@ impl FallbackStats {
         } else {
             self.cpu_fallback_count as f32 / total as f32
         }
+    }
+    
+    // Геттеры для приватных полей
+    pub fn gpu_error_count(&self) -> u64 {
+        self.gpu_error_count
+    }
+    
+    pub fn gpu_success_count(&self) -> u64 {
+        self.gpu_success_count
+    }
+    
+    pub fn gpu_timeout_count(&self) -> u64 {
+        self.gpu_timeout_count
+    }
+    
+    pub fn cpu_fallback_count(&self) -> u64 {
+        self.cpu_fallback_count
     }
 }
 
