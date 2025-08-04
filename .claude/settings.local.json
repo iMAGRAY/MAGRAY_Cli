@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(timeout 60 cargo test -p memory test_concurrent_database_access --quiet)"
+      "mcp__archlens__generate_diagram"
     ],
     "deny": []
   },
