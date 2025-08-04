@@ -1,4 +1,4 @@
-# Knowledge Graph
+# Knowledge Graph - Граф связей проекта
 
 > Граф знаний и связей всего проекта MAGRAY
 

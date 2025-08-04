@@ -44,7 +44,7 @@ fn create_test_records(vectors: Vec<Vec<f32>>, layer: Layer) -> Vec<Record> {
 /// Benchmark: HNSW индекс - добавление векторов
 fn bench_hnsw_insert(c: &mut Criterion) {
     let config = HnswRsConfig {
-        dimension: 768,
+        dimension: 1024,
         max_connections: 24,
         ef_construction: 400,
         ef_search: 100,
@@ -98,7 +98,7 @@ fn bench_hnsw_insert(c: &mut Criterion) {
 fn bench_hnsw_search(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let config = HnswRsConfig {
-        dimension: 768,
+        dimension: 1024,
         max_connections: 24,
         ef_construction: 400,
         ef_search: 100,
@@ -229,7 +229,7 @@ fn bench_memory_scaling(c: &mut Criterion) {
 /// Benchmark: Параллельный поиск (эксклюзивная фича hnsw_rs)
 fn bench_parallel_search(c: &mut Criterion) {
     let config = HnswRsConfig {
-        dimension: 768,
+        dimension: 1024,
         max_connections: 24,
         ef_construction: 400,
         ef_search: 100,

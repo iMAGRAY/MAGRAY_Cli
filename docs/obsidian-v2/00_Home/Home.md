@@ -1,4 +1,4 @@
-# MAGRAY CLI
+# Home - Главный центр навигации
 
 > **Production-ready Rust AI агент с многослойной памятью**
 

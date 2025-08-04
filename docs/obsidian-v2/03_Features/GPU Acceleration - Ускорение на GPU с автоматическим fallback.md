@@ -1,6 +1,6 @@
 # GPU Acceleration - Ускорение на GPU с автоматическим fallback
 
-> Лист одуванчика возможностей - GPU ускорение с надежным fallback на CPU
+> **Статус: 100% готово** - GPU ускорение с надежным fallback на CPU
 
 [[_Features Hub - Центр возможностей системы]] → GPU Acceleration
 

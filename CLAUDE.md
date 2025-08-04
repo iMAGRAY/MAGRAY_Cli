@@ -22,7 +22,7 @@
 
 **КРИТИЧЕСКИЕ ФАКТЫ О ПРОЕКТЕ:**
 - Vector search: HNSW реализован с hnsw_rs, O(log n) поиск <5мс
-- ONNX models: BGE-M3 embeddings (768D) и BGE reranker v2-m3 работают  
+- ONNX models: Qwen3 embeddings (1024D) - основная модель, BGE-M3 (1024D) legacy support  
 - Память: 3 слоя (Interact/Insights/Assets) с HNSW индексами
 - LLM провайдеры: OpenAI/Anthropic/Local поддержка
 - Архитектура: 8 crates в workspace
@@ -423,7 +423,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-04 22:21:14 UTC*
+*Last updated: 2025-08-04 23:02:00 UTC*
 
 ## Components (CTL v2.0 Format)
 

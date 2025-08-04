@@ -4,28 +4,30 @@
 
 [[_Architecture Hub - Центр архитектурной информации]] → Memory Layers
 
-## 🧠 Концептуальная модель
+## 🧠 Концептуальная модель (реальная реализация)
+
+**Статус системы памяти: 70% готовности, VectorStore 65%, PromotionEngine 75%**
 
 ```mermaid
 mindmap
-  root((Memory System))
+  root((Memory System [70%]))
     Interact Layer
       TTL: 24 hours
       Session context
       User queries
-      Temporary data
+      HNSW index [85%]
     
     Insights Layer  
       TTL: 90 days
       Extracted knowledge
-      Learned patterns
-      Valuable findings
+      ML promotion [95%]
+      BTreeMap time indices
     
     Assets Layer
       TTL: Permanent
       Core knowledge
-      Critical data
-      User-tagged
+      Permanent storage
+      Manual tagging
 ```
 
 ## 📊 Архитектура слоёв
@@ -74,16 +76,22 @@ graph TB
 
 ## 🔄 Жизненный цикл записи
 
-### 1. Рождение в Interact
+### 1. Рождение в Interact (реальная реализация)
 
 ```rust
 // Новая запись всегда начинается в Interact
-let record = Record {
+let record = MemoryRecord {
+    id: Uuid::new_v4(),
     layer: Layer::Interact,
-    text: "User query about authentication",
-    embedding: vec![...], // 768D vector
-    ts: Utc::now(),
-    ttl: Duration::hours(24),
+    content: "User query about authentication".to_string(),
+    embedding: Some(embedding_1024d), // Qwen3 1024D vector
+    timestamp: Utc::now(),
+    ttl: Some(Duration::hours(24)),
+    metadata: MemoryMetadata {
+        access_count: 1,
+        last_accessed: Utc::now(),
+        promotion_score: 0.0,
+    },
 };
 ```
 
@@ -117,23 +125,28 @@ stateDiagram-v2
 
 ## 💾 Физическая организация
 
-### Структура хранения
+### Структура хранения (реальная архитектура)
 
 ```mermaid
 graph LR
-    subgraph "VectorStore"
-        DB[(Sled DB)]
+    subgraph "VectorStore [65%]"
+        DB[(Sled Database)]
         
-        subgraph "Indexes"
-            HNSW1[HNSW Interact]
-            HNSW2[HNSW Insights]
-            HNSW3[HNSW Assets]
+        subgraph "Vector Indexes"
+            HNSW1[HNSW Interact [85%]]
+            HNSW2[HNSW Insights [85%]]
+            HNSW3[HNSW Assets [85%]]
         end
         
         subgraph "Time Indexes"
             BT1[BTreeMap Interact]
             BT2[BTreeMap Insights]
             BT3[BTreeMap Assets]
+        end
+        
+        subgraph "Caching Layer"
+            CACHE[EmbeddingCache [85%]]
+            LRU[LRU Cache [90%]]
         end
     end
     
@@ -144,15 +157,22 @@ graph LR
     DB --> BT1
     DB --> BT2
     DB --> BT3
+    
+    HNSW1 --> CACHE
+    HNSW2 --> CACHE
+    HNSW3 --> CACHE
+    CACHE --> LRU
 ```
 
-### Ключевые характеристики
+### Ключевые характеристики (реальные метрики)
 
-| Слой | Размер | Операции/сек | Memory |
-|------|--------|--------------|---------|
-| Interact | <100K | 1000+ | ~400MB |
-| Insights | <1M | 500+ | ~4GB |
-| Assets | <10M | 200+ | ~40GB |
+| Слой | Размер | HNSW Поиск | Готовность | Особенности |
+|------|--------|-------------|------------|-------------|
+| Interact | <100K | <5ms | 85% | In-memory индекс |
+| Insights | <1M | <5ms | 85% | Sled + HNSW |
+| Assets | <10M | <5ms | 85% | Disk-based |
+
+**Общая производительность**: O(log n) поиск, hnsw_rs library
 
 ## 🎯 Оптимизации по слоям
 

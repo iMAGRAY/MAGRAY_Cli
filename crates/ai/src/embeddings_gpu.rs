@@ -166,7 +166,7 @@ impl GpuEmbeddingService {
             tracing::warn!("Expected 3 inputs for model {} (input_ids, attention_mask, token_type_ids), got {}", model_name, inputs);
         }
         
-        let hidden_size = config.embedding_dim.unwrap_or(768);
+        let hidden_size = config.embedding_dim.unwrap_or(1024);
         let max_length = config.max_length;
         
         Ok(Self {

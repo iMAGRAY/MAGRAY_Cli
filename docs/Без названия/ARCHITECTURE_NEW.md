@@ -116,7 +116,7 @@ pub struct VectorStore {
 ### 5. AI/Embeddings (`crates/ai/`)
 **Ответственность**: ONNX-based эмбеддинги и ранжирование
 
-- **BGE-M3 Embeddings**: 768-мерные векторы
+- **Qwen3 Embeddings**: 1024-мерные векторы (primary), BGE-M3 1024D (legacy)
 - **BGE Reranker v2-m3**: Переранжирование результатов
 - **GPU Acceleration**: CUDA поддержка с fallback на CPU
 - **Batch Processing**: Эффективная обработка батчами

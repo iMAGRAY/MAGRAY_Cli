@@ -1,6 +1,6 @@
-# Vector Search
+# Vector Search - Семантический поиск по векторам
 
-> HNSW векторный поиск с производительностью <5мс
+> **Статус: 85% готово** - HNSW векторный поиск с производительностью <5мс
 
 [[_Features Hub - Центр возможностей системы]] → Vector Search
 
@@ -35,7 +35,7 @@ graph LR
 
 ### Точность
 - **Recall@10**: >95% (настраиваемый)
-- **Embedding Model**: BGE-M3 (768 dimensions)
+- **Embedding Model**: Qwen3 (1024 dimensions)
 - **Reranking**: Neural reranker для улучшения релевантности
 
 ### Возможности
@@ -98,7 +98,7 @@ pub struct HnswConfig {
 ### Процесс индексации
 
 1. **Текст** → преобразование в tokens
-2. **Tokens** → BGE-M3 embedding (768D)
+2. **Tokens** → Qwen3 embedding (1024D)
 3. **Vector** → добавление в HNSW граф
 4. **Metadata** → сохранение в sled DB
 
@@ -133,7 +133,7 @@ pub struct HnswConfig {
 # ~/.magray/config.toml
 [vector_search]
 algorithm = "hnsw"
-dimensions = 768
+dimensions = 1024
 
 [vector_search.hnsw]
 m = 16

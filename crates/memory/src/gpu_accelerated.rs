@@ -274,7 +274,7 @@ impl GpuBatchProcessor {
         // Валидация входных данных
         if text.trim().is_empty() {
             warn!("Empty text provided for embedding");
-            return Ok(vec![0.0; 768]); // BGE-M3 dimension fallback
+            return Ok(vec![0.0; 1024]); // Qwen3 dimension fallback
         }
         
         if text.len() > 8192 { // Reasonable text length limit
@@ -462,7 +462,7 @@ impl GpuBatchProcessor {
                     warn!("Missing embedding result for index {}, using fallback", i);
                     // Пытаемся получить fallback embedding для этого текста
                     let fallback_embedding = self.get_fallback_embedding(&texts[i]).await?
-                        .unwrap_or_else(|| vec![0.0; 768]); // BGE-M3 dimension fallback
+                        .unwrap_or_else(|| vec![0.0; 1024]); // Qwen3 dimension fallback
                     final_results.push(fallback_embedding);
                 }
             }
@@ -852,7 +852,7 @@ mod tests {
                 match processor.embed("").await {
                     Ok(embedding) => {
                         println!("✅ Got fallback embedding for empty text: length {}", embedding.len());
-                        assert_eq!(embedding.len(), 768, "Should use BGE-M3 dimension fallback");
+                        assert_eq!(embedding.len(), 1024, "Should use Qwen3 dimension fallback");
                     },
                     Err(e) => {
                         println!("⚠️ Even fallback failed: {}", e);

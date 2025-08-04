@@ -88,7 +88,7 @@ impl RetryManager {
     }
     
     /// Вычислить задержку с exponential backoff и jitter
-    fn calculate_delay(&self, attempt: usize) -> Duration {
+    pub fn calculate_delay(&self, attempt: usize) -> Duration {
         let exponential_delay = self.config.base_delay.as_millis() as f64 
             * self.config.backoff_multiplier.powi((attempt - 1) as i32);
         

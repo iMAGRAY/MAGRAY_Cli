@@ -11,72 +11,69 @@ mindmap
   root((Memory System))
     Core Services
       MemoryService[70%]
-        Orchestrator
-        Configuration
-        API Gateway
+        Main orchestrator
+        API coordination
+        Service management
       VectorStore[65%]
-        HNSW Indexes
-        Layer Storage
-        Time Indexes
+        HNSW storage
+        Layer management
+        Search interface
       PromotionEngine[75%]
-        Time-based
-        ML-based
-        Access patterns
+        Time-based rules
+        ML scoring
+        Layer transitions
     
-    Caching Layer
+    Caching & Storage
       EmbeddingCache[85%]
-        Sled backend
-        Persistence
+        Sled persistence
+        Cache interface
+        Migration support
       EmbeddingCacheLRU[90%]
         Eviction policy
         Memory bounds
-        Hit rate tracking
+        Hit tracking
+      DatabaseManager[90%]
+        Sled pooling
+        Concurrent access
+        Resource lifecycle
+    
+    GPU Integration
       GpuBatchProcessor[95%]
         Batch queuing
-        GPU pipeline
-        Fallback logic
-    
-    Infrastructure
-      DatabaseManager[90%]
-        Connection pool
-        Sled instances
-        Lifecycle
-      RetryManager[90%]
-        Exponential backoff
-        Circuit breaker
-        Fallback chain
-      BackupManager[85%]
-        Scheduled backups
-        Restore capability
-        Compression
-    
-    Monitoring
-      HealthMonitor[80%]
-        Component health
-        System metrics
-        Alert thresholds
-      MetricsCollector[85%]
-        Performance stats
-        Usage patterns
-        Trending
-      NotificationSystem[95%]
-        Email alerts
-        Webhook integration
-        Escalation
-    
-    Advanced Features
+        GPU acceleration
+        CPU fallback
       ResourceManager[95%]
         Dynamic scaling
         Memory limits
         Auto-adjustment
+    
+    Advanced Systems
       StreamingAPI[95%]
-        Real-time processing
-        WebSocket support
-        Backpressure
+        Real-time updates
+        Async processing
+        Backpressure handling
       MLPromotionEngine[95%]
         Neural scoring
         Pattern learning
-        Adaptive thresholds
+        Smart promotion
+      NotificationSystem[95%]
+        Alert system
+        Webhook integration
+        Event handling
+    
+    Infrastructure
+      HealthMonitor[80%]
+        System health
+        Alert thresholds
+        Status tracking
+      MetricsCollector[85%]
+        Performance stats
+        Usage analytics
+        Trend analysis
+      RetryManager[90%]
+        Exponential backoff
+        Circuit breaker
+        Error recovery
 ```
 
 ## 🔗 Взаимосвязи компонентов

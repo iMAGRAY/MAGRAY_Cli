@@ -54,7 +54,7 @@ impl Default for DimensionConfig {
                 384,   // sentence-transformers/all-MiniLM-L6-v2
                 512,   // OpenAI text-embedding-ada-002
                 768,   // BERT, RoBERTa
-                1024,  // BGE-M3 (текущий дефолт)
+                1024,  // Qwen3, BGE-M3 (текущий дефолт)
                 1536,  // OpenAI text-embedding-3-small
                 3072,  // OpenAI text-embedding-3-large
             ],

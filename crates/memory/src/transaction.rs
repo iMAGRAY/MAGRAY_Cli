@@ -145,6 +145,21 @@ impl Transaction {
     pub fn add_rollback_action(&mut self, action: RollbackAction) {
         self.rollback_actions.push(action);
     }
+    
+    /// Получить статус транзакции
+    pub fn status(&self) -> TransactionStatus {
+        self.status.clone()
+    }
+    
+    /// Получить количество операций
+    pub fn operations_count(&self) -> usize {
+        self.operations.len()
+    }
+    
+    /// Получить количество rollback actions
+    pub fn rollback_actions_count(&self) -> usize {
+        self.rollback_actions.len()
+    }
 }
 
 /// Менеджер транзакций

@@ -65,6 +65,7 @@ pub use resource_manager::{ResourceManager, ResourceConfig, ResourceUsage, Curre
 pub use flush_config::{FlushConfig, PerformanceMode};
 pub use retry::{RetryManager, RetryConfig};
 pub use database_manager::{DatabaseManager, DatabaseStats};
+pub use transaction::{Transaction, TransactionManager, TransactionGuard, TransactionOp, TransactionStatus, RollbackAction};
 
 // Dependency Injection система
 pub use di_container::{DIContainer, DIContainerBuilder, DIContainerStats, Lifetime};

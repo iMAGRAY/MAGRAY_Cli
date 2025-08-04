@@ -137,7 +137,7 @@ impl EmbeddingCoordinatorTrait for EmbeddingCoordinator {
                 || async { 
                     // Fallback на нулевой вектор в крайнем случае
                     warn!("Используем fallback embedding для: '{}'", text);
-                    Ok(vec![0.0; 768]) // BGE-M3 dimension
+                    Ok(vec![0.0; 1024]) // Qwen3 dimension
                 }
             )
             .await?;

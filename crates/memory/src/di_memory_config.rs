@@ -131,7 +131,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
             max_length: 512,
             use_gpu: config.ai_config.embedding.use_gpu,
             gpu_config: None,
-            embedding_dim: Some(768), // BGE-M3 standard dimension
+            embedding_dim: Some(1024), // Qwen3 standard dimension
         };
 
         let self_with_embedding = self_with_ai
@@ -403,7 +403,7 @@ pub mod test_helpers {
                     batch_size: 16,
                     max_length: 512,
                     gpu_config: None,
-                    embedding_dim: Some(768),
+                    embedding_dim: Some(1024),
                 },
                 reranking: ai::RerankingConfig {
                     model_name: "test-reranker".to_string(),

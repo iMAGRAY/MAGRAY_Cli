@@ -12,7 +12,7 @@ mindmap
     Embedding Services
       EmbeddingsCPU[90%]
         ONNX Runtime
-        BGE-M3 Model
+        Qwen3 Model
         Thread Pool
         SIMD Optimization
       EmbeddingsGPU[95%]
@@ -197,7 +197,7 @@ sequenceDiagram
     Pool-->>GPU: memory_handle
     
     GPU->>Model: run_inference(batch)
-    Model-->>GPU: embeddings[768D]
+    Model-->>GPU: embeddings[1024D]
     
     GPU->>Pool: release_memory()
     GPU-->>Service: embeddings
