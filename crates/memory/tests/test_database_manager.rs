@@ -38,7 +38,7 @@ async fn test_concurrent_database_access() -> Result<()> {
     // Ждем завершения всех задач
     let mut total_records = 0;
     while let Some(result) = set.join_next().await {
-        let record_count = result??;
+        let record_count = result?;
         total_records += record_count;
     }
     
@@ -64,7 +64,7 @@ async fn test_memory_service_concurrent_creation() -> Result<()> {
         let db_path = temp_dir.path().join("shared_memory.db");
         
         set.spawn(async move {
-            let mut config = default_config();
+            let mut config = default_config()?;
             config.db_path = db_path;
             config.batch_config.async_flush = false; // Для стабильности тестов
             
@@ -76,11 +76,14 @@ async fn test_memory_service_concurrent_creation() -> Result<()> {
                 text: format!("Test record from service {}", i),
                 embedding: vec![0.1, 0.2, 0.3],
                 layer: memory::Layer::Interact,
+                kind: "test".to_string(),
                 project: "test".to_string(),
+                session: "test_session".to_string(),
                 tags: vec!["concurrent".to_string()],
                 ts: chrono::Utc::now(),
                 last_access: chrono::Utc::now(),
                 score: 0.0,
+                access_count: 0,
             };
             
             service.insert(record).await?;
