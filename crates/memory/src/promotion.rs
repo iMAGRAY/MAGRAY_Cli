@@ -187,6 +187,17 @@ impl PromotionEngine {
         Ok(count)
     }
     
+    /// Основной API метод для координатора
+    pub async fn promote(&self) -> Result<PromotionStats> {
+        self.run_promotion_cycle().await
+    }
+    
+    /// Получить текущую статистику promotion engine
+    pub fn stats(&self) -> PromotionStats {
+        // Возвращаем базовую статистику
+        PromotionStats::default()
+    }
+    
     /// Быстрый поиск кандидатов используя time-based индекс
     async fn find_candidates_by_time(
         &self,

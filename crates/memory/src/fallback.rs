@@ -27,6 +27,11 @@ impl FallbackEmbeddingService {
             return Ok(cached.clone());
         }
         
+        // Проверяем валидность dimension
+        if self.dimension == 0 {
+            return Err(anyhow::anyhow!("Invalid embedding dimension: 0"));
+        }
+        
         // Создаем детерминистический hash
         let mut hasher = Sha256::new();
         hasher.update(text.as_bytes());
@@ -44,8 +49,12 @@ impl FallbackEmbeddingService {
             let mut value = (hash_byte - 127.5) / 127.5;
             
             // Добавляем вариации на основе позиции в тексте для большей дифференциации
-            let position_factor = (i as f32 / self.dimension as f32) * 0.3;
-            let text_length_factor = (text.len() as f32 / 100.0) * 0.2;
+            let position_factor = if self.dimension > 0 {
+                (i as f32 / self.dimension as f32) * 0.3
+            } else {
+                0.0
+            };
+            let text_length_factor = (text.len().min(1000) as f32 / 100.0) * 0.2; // Ограничиваем длину
             
             value += position_factor + text_length_factor;
             
@@ -61,20 +70,50 @@ impl FallbackEmbeddingService {
             for val in &mut embedding {
                 *val /= norm;
             }
+        } else {
+            // Fallback если norm слишком маленький - создаем unit vector
+            warn!("Generated embedding has very small norm, using fallback unit vector");
+            let default_value = 1.0 / (self.dimension as f32).sqrt();
+            for val in &mut embedding {
+                *val = default_value;
+            }
         }
         
-        // Кэшируем результат
-        self.cache.insert(text.to_string(), embedding.clone());
+        // Кэшируем результат только если кэш не переполнен
+        if self.cache.len() < 10000 { // Ограничиваем размер кэша
+            self.cache.insert(text.to_string(), embedding.clone());
+        } else {
+            warn!("Fallback embedding cache is full, not caching new embeddings");
+        }
         
         Ok(embedding)
     }
     
     /// Batch embedding (просто вызывает embed для каждого элемента)
     pub fn embed_batch(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        let mut results = Vec::with_capacity(texts.len());
+        if texts.is_empty() {
+            return Ok(Vec::new());
+        }
         
-        for text in texts {
-            results.push(self.embed(text)?);
+        let mut results = Vec::with_capacity(texts.len());
+        let mut failed_count = 0;
+        
+        for (i, text) in texts.iter().enumerate() {
+            match self.embed(text) {
+                Ok(embedding) => results.push(embedding),
+                Err(e) => {
+                    error!("Failed to generate fallback embedding for text {}: {}", i, e);
+                    failed_count += 1;
+                    
+                    // Создаем простой fallback embedding если основная функция failed
+                    let fallback_embedding = vec![0.0; self.dimension];
+                    results.push(fallback_embedding);
+                }
+            }
+        }
+        
+        if failed_count > 0 {
+            warn!("Generated {} fallback embeddings out of {} total", failed_count, texts.len());
         }
         
         Ok(results)
@@ -202,13 +241,19 @@ impl GracefulEmbeddingService {
     }
     
     pub fn try_recover(&mut self) -> bool {
-        if self.use_fallback && self.primary.is_some() {
-            if let Some(ref primary) = self.primary {
-                if primary.is_available() {
-                    info!("🔄 Attempting to recover primary embedding service");
-                    self.use_fallback = false;
-                    self.failure_count = 0;
-                    return true;
+        if self.use_fallback {
+            match &self.primary {
+                Some(provider) => {
+                    if provider.is_available() {
+                        info!("🔄 Attempting to recover primary embedding service");
+                        self.use_fallback = false;
+                        self.failure_count = 0;
+                        return true;
+                    }
+                }
+                None => {
+                    // No primary provider to recover to
+                    return false;
                 }
             }
         }
@@ -224,17 +269,28 @@ impl GracefulEmbeddingService {
     }
     
     pub fn embedding_dim(&self) -> usize {
-        if let Some(ref primary) = self.primary {
-            primary.embedding_dim()
-        } else {
-            self.fallback.embedding_dim()
+        match &self.primary {
+            Some(provider) if !self.use_fallback => {
+                let dim = provider.embedding_dim();
+                if dim > 0 {
+                    dim
+                } else {
+                    warn!("Primary provider returned 0 dimension, using fallback");
+                    self.fallback.embedding_dim()
+                }
+            }
+            _ => self.fallback.embedding_dim(),
         }
     }
     
     pub fn status(&self) -> GracefulServiceStatus {
+        let primary_available = match &self.primary {
+            Some(provider) => provider.is_available(),
+            None => false,
+        };
+        
         GracefulServiceStatus {
-            primary_available: self.primary.is_some() && 
-                self.primary.as_ref().unwrap().is_available(),
+            primary_available,
             using_fallback: self.use_fallback,
             failure_count: self.failure_count,
             max_failures: self.max_failures,

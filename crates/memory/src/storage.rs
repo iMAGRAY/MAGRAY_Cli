@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::{debug, info, error};
+use tracing::{debug, info, error, warn};
 use parking_lot::RwLock;
 
 use crate::metrics::{MetricsCollector, TimedOperation};
@@ -437,13 +437,13 @@ impl VectorStore {
                             record.score = score;
                             records.push(record);
                         } else {
-                            debug!("Failed to deserialize record: {}", id_str);
+                            debug!("Failed to deserialize record: {}", &id_str);
                         }
                     } else {
-                        debug!("Record not found in tree: {} (looked up UUID: {})", id_str, uuid);
+                        debug!("Record not found in tree: {} (looked up UUID: {})", &id_str, uuid);
                     }
                 } else {
-                    debug!("Failed to parse UUID from string: {}", id_str);
+                    debug!("Failed to parse UUID from string: {}", &id_str);
                 }
             }
             
@@ -614,11 +614,20 @@ impl VectorStore {
             }
         }
         
-        // Sort by promotion score (highest first)
+        // Sort by promotion score (highest first) with proper NaN handling
         candidates.sort_by(|a, b| {
             let score_a = calculate_promotion_priority(a);
             let score_b = calculate_promotion_priority(b);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b.partial_cmp(&score_a).unwrap_or_else(|| {
+                warn!("NaN values detected in promotion scoring for records {} and {}", a.id, b.id);
+                if score_a.is_nan() && score_b.is_nan() {
+                    std::cmp::Ordering::Equal
+                } else if score_a.is_nan() {
+                    std::cmp::Ordering::Less // NaN records go to end (lower priority)
+                } else {
+                    std::cmp::Ordering::Greater
+                }
+            })
         });
         
         debug!("Found {} promotion candidates in layer {:?}", candidates.len(), layer);

@@ -182,7 +182,10 @@ async fn show_welcome_animation() -> Result<()> {
         ProgressStyle::default_spinner()
             .tick_chars("[|][/][-][\\]")
             .template("{spinner:.cyan} {msg}")
-            .unwrap()
+            .unwrap_or_else(|e| {
+                eprintln!("Warning: Failed to create spinner template: {}", e);
+                ProgressStyle::default_spinner()
+            })
     );
     
     spinner.set_message("Инициализация MAGRAY CLI...");
@@ -232,7 +235,10 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
         ProgressStyle::default_spinner()
             .tick_chars("[●][◐][◑][◒][◓][●]")
             .template("{spinner} {msg}")
-            .unwrap()
+            .unwrap_or_else(|e| {
+                eprintln!("Warning: Failed to create LLM spinner template: {}", e);
+                ProgressStyle::default_spinner()
+            })
     );
     spinner.set_message("Подключение к нейронной сети...");
     
@@ -352,7 +358,9 @@ async fn display_chat_response(text: &str) {
     // Эффект печатания
     for char in text.chars() {
         print!("{}", style(char).bright());
-        io::stdout().flush().unwrap();
+        if let Err(e) = io::stdout().flush() {
+            eprintln!("Warning: Failed to flush stdout: {}", e);
+        }
         sleep(Duration::from_millis(20)).await;
     }
     println!();
@@ -370,7 +378,10 @@ async fn show_goodbye_animation() -> Result<()> {
         ProgressStyle::default_spinner()
             .tick_chars("[◄][◁][◀][■]")
             .template("{spinner} {msg}")
-            .unwrap()
+            .unwrap_or_else(|e| {
+                eprintln!("Warning: Failed to create goodbye spinner template: {}", e);
+                ProgressStyle::default_spinner()
+            })
     );
     
     let goodbye_messages = [

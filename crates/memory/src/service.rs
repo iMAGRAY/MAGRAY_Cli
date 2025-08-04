@@ -19,7 +19,6 @@ use crate::{
     backup::{BackupManager, BackupMetadata},
     resource_manager::{ResourceManager, ResourceConfig, ResourceUsage},
     batch_manager::{BatchOperationManager, BatchConfig, BatchStats, BatchOperationBuilder},
-    retry::RetryManager,
 };
 
 use ai::{AiConfig, ModelLoader, RerankingService};
@@ -71,6 +70,7 @@ pub struct MemoryService {
 }
 
 
+#[derive(Clone)]
 pub struct MemoryConfig {
     pub db_path: PathBuf,
     pub cache_path: PathBuf,
@@ -123,7 +123,10 @@ pub struct BatchSearchResult {
 impl Default for MemoryConfig {
     fn default() -> Self {
         let base_dir = dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
+            .unwrap_or_else(|| {
+                warn!("Could not determine system data directory, falling back to current directory");
+                PathBuf::from(".")
+            })
             .join("magray");
 
         Self {
@@ -301,7 +304,10 @@ impl MemoryService {
 
         // Инициализируем backup manager
         let backup_dir = config.db_path.parent()
-            .unwrap_or(&config.db_path)
+            .unwrap_or_else(|| {
+                warn!("Could not determine parent directory for backup, using database path itself");
+                &config.db_path
+            })
             .join("backups");
         let backup_manager = Arc::new(BackupManager::new(backup_dir)?);
         
@@ -518,8 +524,18 @@ impl MemoryService {
             all_results.extend(results);
         }
 
-        // Sort by initial vector score  
-        all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        // Sort by initial vector score with proper NaN handling
+        all_results.sort_by(|a, b| {
+            b.score.partial_cmp(&a.score).unwrap_or_else(|| {
+                if a.score.is_nan() && b.score.is_nan() {
+                    std::cmp::Ordering::Equal
+                } else if a.score.is_nan() {
+                    std::cmp::Ordering::Greater // NaN values go to end
+                } else {
+                    std::cmp::Ordering::Less
+                }
+            })
+        });
 
         // Second stage: professional reranking if available, otherwise enhanced vector scoring
         let final_results = if let Some(ref reranker) = self.reranking_service {
@@ -780,8 +796,19 @@ impl MemoryService {
                           recency_score * 0.1;        // Свежесть
         }
         
-        // Сортируем по новому комбинированному score
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        // Сортируем по новому комбинированному score с обработкой NaN
+        results.sort_by(|a, b| {
+            b.score.partial_cmp(&a.score).unwrap_or_else(|| {
+                warn!("NaN values detected in enhanced ranking scores");
+                if a.score.is_nan() && b.score.is_nan() {
+                    std::cmp::Ordering::Equal
+                } else if a.score.is_nan() {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Less
+                }
+            })
+        });
         
         let final_results = results.into_iter().take(top_k).collect::<Vec<_>>();
         debug!("✅ Enhanced ranking completed: {} final results", final_results.len());

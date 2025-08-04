@@ -826,11 +826,18 @@ impl UsageTracker {
     }
 }
 
+
+impl MLPromotionEngine {
+    /// Основной API метод для координатора
+    pub async fn promote(&self) -> Result<MLPromotionStats> {
+        // Заглушка, которая возвращает пустую статистику
+        Ok(MLPromotionStats::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Record as _, Layer as _};
-    use uuid::Uuid as _;
 
     #[tokio::test]
     async fn test_ml_promotion_features() {

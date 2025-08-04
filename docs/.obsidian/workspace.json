@@ -1,0 +1,206 @@
+{
+  "main": {
+    "id": "d334b32678e24f1d",
+    "type": "split",
+    "children": [
+      {
+        "id": "e6c399d4890bb53d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "7eff38d03e944a3b",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Граф"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "02794bc967b38487",
+    "type": "split",
+    "children": [
+      {
+        "id": "41a3083f26b3749e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "2bf6384282e67534",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Файловый менеджер"
+            }
+          },
+          {
+            "id": "cf818d8a4ec285b8",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": true,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Поиск"
+            }
+          },
+          {
+            "id": "227031fbc7107912",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Закладки"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "82934d0d3a941963",
+    "type": "split",
+    "children": [
+      {
+        "id": "f81d5812a4e8affa",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "9ca044e001fff22c",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Обратные ссылки"
+            }
+          },
+          {
+            "id": "58ffe9da1be79718",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Исходящие ссылки"
+            }
+          },
+          {
+            "id": "b75523df1c36b939",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Теги"
+            }
+          },
+          {
+            "id": "4594ff3e7c0845f4",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Структура"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false,
+      "new-3d-graph:Open 3d graph": false,
+      "breadcrumbs:Breadcrumbs Visualisation": false,
+      "infranodus-graph-view:InfraNodus Graph View": false
+    }
+  },
+  "active": "7eff38d03e944a3b",
+  "lastOpenFiles": [
+    "obsidian-v2/03_Features/Vector Search - Семантический поиск по векторам.md.tmp.31392.1754346663062",
+    "obsidian-v2/FINAL_DANDELION_STRUCTURE.md",
+    "obsidian-v2/00_Home/Quick Start - Быстрый старт за 5 минут.md.tmp.31392.1754346557196",
+    "obsidian-v2/00_Home/Home.md.tmp.31392.1754346540778",
+    "obsidian-v2/01_Architecture/Core Concepts - Ключевые концепции проекта.md.tmp.31392.1754346521185",
+    "obsidian-v2/03_Features/Vector Search - Семантический поиск по векторам.md.tmp.31392.1754346506803",
+    "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md.tmp.31392.1754346469580",
+    "obsidian-v2/01_Architecture/_Architecture Hub - Центр архитектурной информации.md.tmp.31392.1754346340299",
+    "obsidian-v2/01_Architecture/_Architecture Hub - Центр архитектурной информации.md.tmp.31392.1754346314441",
+    "obsidian-v2/01_Architecture/_Architecture Hub - Центр архитектурной информации.md.tmp.31392.1754346305041",
+    "obsidian-v2/01_Architecture/System Overview - Обзор всей системы.md.tmp.31392.1754346289528",
+    "obsidian-v2/01_Architecture/System Overview - Обзор всей системы.md.tmp.31392.1754346283778",
+    "obsidian-v2/99_Meta/STRUCTURE_VERIFICATION.md",
+    "obsidian-v2/99_Meta/CLEAN_DANDELION_STRUCTURE.md",
+    "obsidian-v2/CLEAN_DANDELION_STRUCTURE.md",
+    "obsidian-v2/99_Meta/FINAL_STRUCTURE_OVERVIEW.md",
+    "obsidian-v2/00_Home/Knowledge Graph - Граф связей проекта.md",
+    "obsidian-v2/FINAL_STRUCTURE_OVERVIEW.md",
+    "obsidian-v2/03_Features/Smart Routing - Интеллектуальная маршрутизация задач.md",
+    "obsidian-v2/03_Features/Tool Execution - Безопасное выполнение инструментов.md",
+    "obsidian-v2/03_Features/Multi-Provider LLM - Поддержка OpenAI Anthropic Local моделей.md",
+    "obsidian-v2/03_Features/Memory Management - Интеллектуальное управление трёхслойной памятью.md",
+    "obsidian-v2/03_Features/GPU Acceleration - Ускорение на GPU с автоматическим fallback.md",
+    "obsidian-v2/STRUCTURE_DANDELION.md",
+    "obsidian-v2/02_Components/LLM Mind Map - Визуальная карта LLM crate.md",
+    "obsidian-v2/02_Components/Tools Mind Map - Визуальная карта Tools crate.md",
+    "obsidian-v2/02_Components/Todo Mind Map - Визуальная карта Todo crate.md",
+    "obsidian-v2/02_Components/Router Mind Map - Визуальная карта Router crate.md",
+    "obsidian-v2/02_Components/Common Mind Map - Визуальная карта Common crate.md",
+    "obsidian-v2/Map of Content - Карта всей документации.md",
+    "obsidian-v2/02_Components/CLI Mind Map - Визуальная карта CLI crate.md",
+    "obsidian-v2/02_Components/AI Mind Map - Визуальная карта AI crate.md",
+    "obsidian-v2/02_Components/Memory Mind Map - Визуальная карта memory crate.md",
+    "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
+    "obsidian-v2/01_Architecture/Data Flow - Потоки данных через систему.md",
+    "obsidian-v2/01_Architecture/Memory Layers - Трёхслойная архитектура памяти.md",
+    "Без названия/Без названия.canvas"
+  ]
+}

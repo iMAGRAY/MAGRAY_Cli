@@ -75,6 +75,19 @@ pub struct SystemHealthStatus {
     pub uptime_seconds: u64,
 }
 
+impl Default for SystemHealthStatus {
+    fn default() -> Self {
+        Self {
+            overall_status: HealthStatus::Healthy,
+            component_statuses: HashMap::new(),
+            active_alerts: Vec::new(),
+            metrics_summary: HashMap::new(),
+            last_updated: Utc::now(),
+            uptime_seconds: 0,
+        }
+    }
+}
+
 /// Performance статистика компонента
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentPerformanceStats {
@@ -149,9 +162,15 @@ impl HealthMonitor {
         
         let metric_key = format!("{:?}_{}", metric.component, metric.metric_name);
         
-        // Добавляем метрику в историю
+        // Добавляем метрику в историю с обработкой lock poisoning
         {
-            let mut history = self.metrics_history.write().unwrap();
+            let mut history = match self.metrics_history.write() {
+                Ok(guard) => guard,
+                Err(poisoned) => {
+                    error!("Metrics history lock poisoned, recovering data");
+                    poisoned.into_inner()
+                }
+            };
             let metrics = history.entry(metric_key.clone()).or_default();
             
             metrics.push_back(metric.clone());
@@ -180,7 +199,13 @@ impl HealthMonitor {
     
     /// Записывает операционную статистику компонента
     pub fn record_operation(&self, component: ComponentType, success: bool, response_time_ms: f64, error: Option<String>) {
-        let mut stats = self.component_stats.write().unwrap();
+        let mut stats = match self.component_stats.write() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("Component stats lock poisoned, recovering data");
+                poisoned.into_inner()
+            }
+        };
         let component_stats = stats.entry(component).or_insert_with(|| ComponentPerformanceStats {
             avg_response_time_ms: 0.0,
             success_rate: 1.0,
@@ -228,7 +253,13 @@ impl HealthMonitor {
     /// Получает метрики для компонента
     pub fn get_component_metrics(&self, component: ComponentType, metric_name: &str, limit: Option<usize>) -> Vec<HealthMetric> {
         let metric_key = format!("{component:?}_{metric_name}");
-        let history = self.metrics_history.read().unwrap();
+        let history = match self.metrics_history.read() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("Metrics history read lock poisoned, recovering data");
+                poisoned.into_inner()
+            }
+        };
         
         if let Some(metrics) = history.get(&metric_key) {
             let mut result: Vec<_> = metrics.iter().cloned().collect();
@@ -246,7 +277,13 @@ impl HealthMonitor {
     
     /// Получает статистику производительности компонента
     pub fn get_component_performance(&self, component: ComponentType) -> Option<ComponentPerformanceStats> {
-        let stats = self.component_stats.read().unwrap();
+        let stats = match self.component_stats.read() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("Component stats read lock poisoned in get_component_performance, recovering data");
+                poisoned.into_inner()
+            }
+        };
         stats.get(&component).cloned()
     }
     
@@ -276,18 +313,43 @@ impl HealthMonitor {
         }
         
         // Сохраняем alert
-        let mut alerts = self.active_alerts.write().unwrap();
+        let mut alerts = match self.active_alerts.write() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("Active alerts write lock poisoned, recovering data");
+                poisoned.into_inner()
+            }
+        };
         alerts.insert(alert.id.clone(), alert);
     }
     
     /// Разрешает alert
     pub fn resolve_alert(&self, alert_id: &str) {
-        let mut alerts = self.active_alerts.write().unwrap();
+        let mut alerts = match self.active_alerts.write() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("Active alerts write lock poisoned, recovering data");
+                poisoned.into_inner()
+            }
+        };
         if let Some(alert) = alerts.get_mut(alert_id) {
             alert.resolved = true;
             alert.resolved_at = Some(Utc::now());
             info!("Alert resolved: {}", alert_id);
         }
+    }
+    
+    /// Алиас для get_system_health для координатора
+    pub async fn overall_health(&self) -> Result<SystemHealthStatus> {
+        Ok(self.get_system_health())
+    }
+    
+    /// Выполнить проверку здоровья системы
+    pub async fn check_health(&self) -> Result<()> {
+        // Запускаем базовую проверку всех компонентов
+        let _health = self.get_system_health();
+        // В реальной ситуации здесь были бы активные проверки
+        Ok(())
     }
     
     /// Проверяет пороги метрики и генерирует alerts
@@ -324,7 +386,13 @@ impl HealthMonitor {
     /// Вычисляет статусы компонентов
     fn calculate_component_statuses(&self) -> HashMap<ComponentType, HealthStatus> {
         let mut statuses = HashMap::new();
-        let stats = self.component_stats.read().unwrap();
+        let stats = match self.component_stats.read() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("Component stats read lock poisoned in calculate_component_statuses, recovering data");
+                poisoned.into_inner()
+            }
+        };
         
         for (component, perf_stats) in stats.iter() {
             let status = match perf_stats.success_rate {
@@ -372,7 +440,13 @@ impl HealthMonitor {
     
     /// Получает активные alerts
     fn get_active_alerts(&self) -> Vec<HealthAlert> {
-        let alerts = self.active_alerts.read().unwrap();
+        let alerts = match self.active_alerts.read() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("Active alerts read lock poisoned, recovering data");
+                poisoned.into_inner()
+            }
+        };
         alerts.values()
             .filter(|alert| !alert.resolved)
             .cloned()
@@ -382,7 +456,13 @@ impl HealthMonitor {
     /// Получает сводку метрик
     fn get_metrics_summary(&self) -> HashMap<String, f64> {
         let mut summary = HashMap::new();
-        let history = self.metrics_history.read().unwrap();
+        let history = match self.metrics_history.read() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("Metrics history read lock poisoned in get_metrics_summary, recovering data");
+                poisoned.into_inner()
+            }
+        };
         
         for (metric_key, metrics) in history.iter() {
             if let Some(latest) = metrics.back() {

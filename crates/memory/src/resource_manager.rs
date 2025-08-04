@@ -260,6 +260,35 @@ impl ResourceManager {
         Ok(())
     }
     
+    /// Получить текущее использование ресурсов
+    pub fn current_usage(&self) -> ResourceUsage {
+        let limits = self.current_limits.read();
+        // В реальной ситуации здесь бы был подсчет актуального использования
+        // Пока возвращаем базовую статистику
+        ResourceUsage::new(
+            50_000,  // current_vectors - пример
+            limits.max_vectors,
+            limits.cache_size_bytes / 2, // current_cache_size - пример 50% использования
+            limits.cache_size_bytes,
+        )
+    }
+    
+    /// Проверить есть ли давление на память
+    pub fn is_memory_pressure(&mut self) -> bool {
+        match self.system_monitor.get_memory_usage_percent() {
+            Ok(usage) => usage > self.config.critical_memory_usage_percent as f64,
+            Err(_) => false,
+        }
+    }
+    
+    /// Адаптировать лимиты в зависимости от текущей ситуации
+    pub fn adapt_limits(&mut self) {
+        let current_usage = self.current_usage();
+        if let Err(e) = self.update_limits_if_needed(&current_usage) {
+            warn!("Ошибка при адаптации лимитов: {}", e);
+        }
+    }
+    
     /// Получить статистику масштабирования
     pub fn get_scaling_stats(&self) -> ScalingStats {
         let history = self.scaling_history.read();

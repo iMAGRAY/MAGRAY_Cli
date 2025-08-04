@@ -4,12 +4,14 @@ mod cache_lru;
 mod cache_interface;
 mod cache_migration;
 pub mod fallback;
+mod hnsw_index; // Модульная HNSW архитектура
 pub mod health;
 mod metrics;
 mod notifications;
 pub mod promotion;
 mod ml_promotion;
 mod service;
+mod service_di; // New DI-based service
 pub mod storage;
 mod types;
 mod vector_index_hnswlib; // Critical for vector storage
@@ -26,6 +28,11 @@ pub mod gpu_accelerated;
 pub mod resource_manager;
 mod retry;
 mod database_manager;
+// Dependency Injection система
+mod di_container;
+mod di_memory_config;
+// Новая orchestration система
+pub mod orchestration;
 
 // Основные компоненты памяти
 pub use cache::EmbeddingCache;
@@ -38,10 +45,17 @@ pub use notifications::{NotificationConfig, NotificationChannel, NotificationMan
 pub use metrics::{MetricsCollector, MemoryMetrics, LayerMetrics};
 pub use promotion::{PromotionEngine, PromotionStats, PromotionPerformanceStats};
 pub use service::{MemoryConfig, MemoryService, SearchBuilder, CacheConfigType, default_config, BatchBuilder, BatchInsertResult, BatchSearchResult};
+pub use service_di::{DIMemoryService, DIMemoryServiceBuilder, MemorySystemStats};
 pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};
 pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 pub use api::{UnifiedMemoryAPI, MemoryContext, SearchOptions as ApiSearchOptions, MemoryResult, OptimizationResult, SystemHealth, DetailedHealth, SystemStats, CacheStats, IndexSizes};
+
+/// Быстрое создание DI Memory Service с конфигурацией по умолчанию
+pub async fn create_di_memory_service() -> anyhow::Result<DIMemoryService> {
+    let config = default_config()?;
+    DIMemoryService::new(config).await
+}
 pub use gpu_accelerated::{GpuBatchProcessor, BatchProcessorConfig, BatchProcessorStats};
 pub use backup::{BackupManager, BackupMetadata, BackupInfo};
 pub use incremental_backup::{IncrementalBackupManager, IncrementalBackupMetadata, BackupType, DeltaInfo};
@@ -51,6 +65,10 @@ pub use resource_manager::{ResourceManager, ResourceConfig, ResourceUsage, Curre
 pub use flush_config::{FlushConfig, PerformanceMode};
 pub use retry::{RetryManager, RetryConfig};
 pub use database_manager::{DatabaseManager, DatabaseStats};
+
+// Dependency Injection система
+pub use di_container::{DIContainer, DIContainerBuilder, DIContainerStats, Lifetime};
+pub use di_memory_config::{MemoryDIConfigurator};
 
 // Профессиональная HNSW реализация - единственная векторная реализация
 pub use vector_index_hnswlib::{VectorIndexHnswRs, HnswRsConfig, HnswRsStats};

@@ -22,10 +22,10 @@
 - Validated all performance targets met
 
 ### 4. ✅ Documentation
-- [Performance Report](./performance_report.md) - System overview
-- [Detailed Analysis](./performance_analysis_detailed.md) - Component deep-dive
-- [Benchmark Results](./performance_benchmark_results.md) - Measured metrics
-- [Technical Debt Summary](./technical_debt_resolution_summary.md) - Resolution details
+- [Performance Report](performance_report.md) - System overview
+- [Detailed Analysis](performance_analysis_detailed.md) - Component deep-dive
+- [Benchmark Results](performance_benchmark_results.md) - Measured metrics
+- [Technical Debt Summary](technical_debt_resolution_summary.md) - Resolution details
 
 ## 📈 Key Achievements
 

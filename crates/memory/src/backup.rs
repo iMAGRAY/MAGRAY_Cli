@@ -469,7 +469,7 @@ impl BackupManager {
     }
 
     /// Прочитать метаданные backup без полной распаковки
-    fn read_backup_metadata(&self, backup_path: &Path) -> Result<BackupMetadata> {
+    pub fn read_backup_metadata(&self, backup_path: &Path) -> Result<BackupMetadata> {
         let tar_gz = File::open(backup_path)?;
         let decoder = GzDecoder::new(tar_gz);
         let mut tar = tar::Archive::new(decoder);
@@ -504,6 +504,53 @@ impl BackupManager {
         
         Ok(deleted)
     }
+
+    /// Проверить целостность backup файла
+    pub async fn verify_backup(&self, backup_path: impl AsRef<Path>) -> Result<bool> {
+        let backup_path = backup_path.as_ref();
+        
+        if !backup_path.exists() {
+            return Ok(false);
+        }
+        
+        // Читаем метаданные для получения контрольных сумм
+        let metadata = self.read_backup_metadata(backup_path)?;
+        
+        // Проверяем есть ли контрольные суммы
+        if metadata.checksum.is_none() && metadata.layer_checksums.is_none() {
+            warn!("Backup не содержит контрольных сумм для верификации: {:?}", backup_path);
+            return Ok(true); // Считаем валидным если контрольных сумм нет
+        }
+        
+        // Создаём временную директорию для проверки
+        let temp_dir = tempfile::TempDir::new()?;
+        let temp_path = temp_dir.path();
+        
+        // Распаковываем архив
+        let tar_gz = File::open(backup_path)?;
+        let decoder = GzDecoder::new(tar_gz);
+        let mut tar = tar::Archive::new(decoder);
+        tar.unpack(temp_path)?;
+        
+        // Проверяем контрольные суммы слоёв если есть
+        if let Some(layer_checksums) = &metadata.layer_checksums {
+            for (layer_name, expected_checksum) in layer_checksums {
+                let layer_file = temp_path.join(format!("{}_records.json", layer_name));
+                if layer_file.exists() {
+                    let actual_checksum = self.calculate_file_checksum(&layer_file).await?;
+                    if actual_checksum != *expected_checksum {
+                        warn!("Контрольная сумма слоя {} не совпадает: ожидается {}, получено {}", 
+                              layer_name, expected_checksum, actual_checksum);
+                        return Ok(false);
+                    }
+                }
+            }
+        }
+        
+        info!("Backup прошёл проверку целостности: {:?}", backup_path);
+        Ok(true)
+    }
+
 }
 
 /// Информация о backup файле

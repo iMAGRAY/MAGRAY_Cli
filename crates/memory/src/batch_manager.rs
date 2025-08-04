@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::time::interval;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::types::{Layer, Record};
 use crate::storage::VectorStore;
@@ -124,8 +124,11 @@ impl BatchOperationManager {
     #[allow(clippy::await_holding_lock)]
     pub async fn add_batch(&self, records: Vec<Record>) -> Result<()> {
         if records.is_empty() {
+            debug!("Attempted to add empty batch, skipping");
             return Ok(());
         }
+        
+        debug!("Adding batch of {} records", records.len());
         
         // Group by layer
         let mut by_layer: HashMap<Layer, Vec<Record>> = HashMap::new();
@@ -133,8 +136,14 @@ impl BatchOperationManager {
             by_layer.entry(record.layer).or_default().push(record);
         }
         
-        // Add to pending batches
-        let mut pending = self.pending_batches.write();
+        // Add to pending batches with detailed logging
+        let mut pending = match self.pending_batches.try_write() {
+            Some(guard) => guard,
+            None => {
+                warn!("Failed to acquire write lock on pending batches, using blocking write");
+                self.pending_batches.write()
+            }
+        };
         let mut needs_flush = Vec::new();
         
         for (layer, mut new_records) in by_layer {
@@ -147,10 +156,20 @@ impl BatchOperationManager {
             }
         }
         
-        // Update stats
+        // Update stats with error handling
         {
-            let mut stats = self.stats.lock();
-            stats.pending_records = pending.values().map(|v| v.len()).sum();
+            let pending_count: usize = pending.values().map(|v| v.len()).sum();
+            match self.stats.try_lock() {
+                Some(mut stats) => {
+                    stats.pending_records = pending_count;
+                    debug!("Updated pending records count to {}", pending_count);
+                }
+                None => {
+                    warn!("Failed to acquire stats lock, using blocking lock");
+                    let mut stats = self.stats.lock();
+                    stats.pending_records = pending_count;
+                }
+            }
         }
         
         drop(pending);
@@ -165,14 +184,37 @@ impl BatchOperationManager {
     
     /// Manually flush all pending batches
     pub async fn flush_all(&self) -> Result<()> {
+        info!("Starting manual flush of all pending batches");
         let layers: Vec<Layer> = {
-            let pending = self.pending_batches.read();
+            let pending = match self.pending_batches.try_read() {
+                Some(guard) => guard,
+                None => {
+                    warn!("Failed to acquire read lock for flush_all, using blocking read");
+                    self.pending_batches.read()
+                }
+            };
+            let layer_count = pending.len();
+            debug!("Found {} layers with pending batches", layer_count);
             pending.keys().cloned().collect()
         };
         
+        let mut flush_errors = Vec::new();
         for layer in layers {
-            self.flush_layer(layer).await?;
+            if let Err(e) = self.flush_layer(layer).await {
+                error!("Failed to flush layer {:?}: {}", layer, e);
+                flush_errors.push((layer, e));
+            } else {
+                debug!("Successfully flushed layer {:?}", layer);
+            }
         }
+        
+        if !flush_errors.is_empty() {
+            let error_msg = format!("Failed to flush {} layers: {:?}", flush_errors.len(), flush_errors);
+            error!("{}", error_msg);
+            return Err(anyhow::anyhow!(error_msg));
+        }
+        
+        info!("Successfully flushed all pending batches");
         
         Ok(())
     }
@@ -186,40 +228,82 @@ impl BatchOperationManager {
     
     /// Flush a specific layer's batch
     async fn flush_layer(&self, layer: Layer) -> Result<()> {
+        debug!("Starting flush for layer {:?}", layer);
         let batch = {
-            let mut pending = self.pending_batches.write();
+            let mut pending = match self.pending_batches.try_write() {
+                Some(guard) => guard,
+                None => {
+                    warn!("Failed to acquire write lock for flush_layer, using blocking write");
+                    self.pending_batches.write()
+                }
+            };
             pending.remove(&layer)
         };
         
         if let Some(records) = batch {
             if records.is_empty() {
+                debug!("No records to flush for layer {:?}, skipping", layer);
                 return Ok(());
             }
             
             let batch_size = records.len();
-            debug!("Flushing batch of {} records for layer {:?}", batch_size, layer);
+            info!("Flushing batch of {} records for layer {:?}", batch_size, layer);
+            
+            // Validate records before processing
+            let invalid_records: Vec<_> = records.iter()
+                .enumerate()
+                .filter(|(_, r)| r.embedding.is_empty() || r.text.is_empty())
+                .collect();
+            
+            if !invalid_records.is_empty() {
+                warn!("Found {} invalid records in batch (empty text/embedding)", invalid_records.len());
+            }
             
             if self.config.async_flush {
                 // Send to background worker
                 if let Some(sender) = &self.flush_sender {
                     let batch = RecordBatch {
                         layer,
-                        records,
+                        records: records.clone(), // Clone to avoid move for fallback
                     };
                     
                     if let Err(e) = sender.send(batch).await {
                         warn!("Failed to send batch to flush worker: {}", e);
-                        return Err(anyhow::anyhow!("Batch flush channel closed"));
+                        // Try to flush synchronously as fallback
+                        warn!("Attempting synchronous fallback flush for {} records", records.len());
+                        let start = Instant::now();
+                        let refs: Vec<&Record> = records.iter().collect();
+                        match self.store.insert_batch(&refs).await {
+                            Ok(_) => {
+                                info!("Fallback synchronous flush successful for {} records", records.len());
+                                self.update_stats(records.len(), start.elapsed());
+                            }
+                            Err(sync_err) => {
+                                error!("Both async and sync batch flush failed: async={}, sync={}", e, sync_err);
+                                return Err(anyhow::anyhow!("Complete batch flush failure: {}", sync_err));
+                            }
+                        }
                     }
                 }
             } else {
-                // Flush synchronously
+                // Flush synchronously with error handling
                 let start = Instant::now();
                 let refs: Vec<&Record> = records.iter().collect();
-                self.store.insert_batch(&refs).await?;
-                
-                // Update stats
-                self.update_stats(batch_size, start.elapsed());
+                match self.store.insert_batch(&refs).await {
+                    Ok(_) => {
+                        let duration = start.elapsed();
+                        info!("Synchronously flushed {} records for layer {:?} in {:?}", batch_size, layer, duration);
+                        self.update_stats(batch_size, duration);
+                    }
+                    Err(e) => {
+                        error!("Synchronous batch flush failed for layer {:?}: {}", layer, e);
+                        // Update failed batch stats
+                        if let Some(mut stats) = self.stats.try_lock() {
+                            stats.failed_batches += 1;
+                        }
+                        return Err(e);
+                    }
+                }
             }
         }
         
@@ -240,7 +324,20 @@ impl BatchOperationManager {
         let semaphore = Arc::new(tokio::sync::Semaphore::new(config.worker_threads));
         
         while let Some(batch) = rx.recv().await {
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            // Try to acquire semaphore permit with graceful error handling
+            let permit = match semaphore.clone().acquire_owned().await {
+                Ok(permit) => permit,
+                Err(e) => {
+                    error!("Failed to acquire semaphore permit for batch processing: {}", e);
+                    // Update failed batch stats
+                    let mut stats_guard = stats.lock();
+                    stats_guard.failed_batches += 1;
+                    if let Some(metrics) = &metrics {
+                        metrics.record_error(format!("Semaphore acquisition failed: {e}"));
+                    }
+                    continue;
+                }
+            };
             let store = store.clone();
             let stats = stats.clone();
             let metrics = metrics.clone();
@@ -328,7 +425,8 @@ impl BatchOperationManager {
                 
                 for batch in batches_to_flush {
                     if let Err(e) = sender.send(batch).await {
-                        warn!("Failed to send periodic batch: {}", e);
+                        warn!("Failed to send periodic batch: {}. Channel likely closed, stopping periodic flush", e);
+                        error!("Periodic flush worker terminating due to channel closure");
                         break;
                     }
                 }
@@ -338,25 +436,42 @@ impl BatchOperationManager {
     
     /// Update statistics after a flush
     fn update_stats(&self, batch_size: usize, duration: Duration) {
-        let mut stats = self.stats.lock();
-        stats.total_batches += 1;
-        stats.total_records += batch_size as u64;
+        let stats_result = match self.stats.try_lock() {
+            Some(mut stats) => {
+                stats.total_batches += 1;
+                stats.total_records += batch_size as u64;
+                
+                // Update moving averages
+                let n = stats.total_batches as f32;
+                stats.avg_batch_size = 
+                    (stats.avg_batch_size * (n - 1.0) + batch_size as f32) / n;
+                stats.avg_flush_time_ms = 
+                    (stats.avg_flush_time_ms * (n - 1.0) + duration.as_millis() as f32) / n;
+                
+                debug!("Updated batch stats: total_batches={}, total_records={}, avg_batch_size={:.1}, avg_flush_time_ms={:.1}", 
+                       stats.total_batches, stats.total_records, stats.avg_batch_size, stats.avg_flush_time_ms);
+                Ok(())
+            }
+            None => {
+                warn!("Failed to acquire stats lock for update, stats may be inconsistent");
+                Err("Stats lock contention")
+            }
+        };
         
-        // Update moving averages
-        let n = stats.total_batches as f32;
-        stats.avg_batch_size = 
-            (stats.avg_batch_size * (n - 1.0) + batch_size as f32) / n;
-        stats.avg_flush_time_ms = 
-            (stats.avg_flush_time_ms * (n - 1.0) + duration.as_millis() as f32) / n;
+        // Update pending count with separate lock to avoid deadlock
+        if stats_result.is_ok() {
+            if let Some(pending) = self.pending_batches.try_read() {
+                let pending_count: usize = pending.values().map(|v| v.len()).sum();
+                if let Some(mut stats) = self.stats.try_lock() {
+                    stats.pending_records = pending_count;
+                }
+            }
+        }
         
-        // Update pending count
-        let pending = self.pending_batches.read();
-        stats.pending_records = pending.values().map(|v| v.len()).sum();
-        
-        // Record metrics
+        // Record metrics with error handling
         if let Some(metrics) = &self.metrics {
             for _ in 0..batch_size {
-                metrics.record_vector_insert(duration / batch_size as u32);
+                metrics.record_vector_insert(duration / batch_size.max(1) as u32);
             }
         }
     }
@@ -419,16 +534,19 @@ mod tests {
     use tempfile::TempDir;
     use uuid::Uuid;
     
-    async fn create_test_store() -> Arc<VectorStore> {
-        let temp_dir = TempDir::new().unwrap();
-        let store = VectorStore::new(temp_dir.path().join("test_vectors")).await.unwrap();
+    async fn create_test_store() -> Result<Arc<VectorStore>> {
+        let temp_dir = TempDir::new()
+            .map_err(|e| anyhow::anyhow!("Failed to create temp directory: {}", e))?;
+        let store = VectorStore::new(temp_dir.path().join("test_vectors")).await
+            .map_err(|e| anyhow::anyhow!("Failed to create VectorStore: {}", e))?;
         
         // Initialize layers
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-            store.init_layer(layer).await.unwrap();
+            store.init_layer(layer).await
+                .map_err(|e| anyhow::anyhow!("Failed to initialize layer {:?}: {}", layer, e))?;
         }
         
-        Arc::new(store)
+        Ok(Arc::new(store))
     }
     
     fn create_test_record(layer: Layer) -> Record {
@@ -449,8 +567,8 @@ mod tests {
     }
     
     #[tokio::test]
-    async fn test_batch_manager_sync() {
-        let store = create_test_store().await;
+    async fn test_batch_manager_sync() -> Result<()> {
+        let store = create_test_store().await?;
         let config = BatchConfig {
             max_batch_size: 10,
             async_flush: false,
@@ -460,8 +578,9 @@ mod tests {
         let manager = BatchOperationManager::new(store, config, None);
         
         // Add records
-        for _ in 0..25 {
-            manager.add(create_test_record(Layer::Interact)).await.unwrap();
+        for i in 0..25 {
+            manager.add(create_test_record(Layer::Interact)).await
+                .map_err(|e| anyhow::anyhow!("Failed to add record {}: {}", i, e))?;
         }
         
         // Check stats
@@ -471,16 +590,19 @@ mod tests {
         assert_eq!(stats.pending_records, 5); // 5 still pending
         
         // Flush remaining
-        manager.flush_all().await.unwrap();
+        manager.flush_all().await
+            .map_err(|e| anyhow::anyhow!("Failed to flush remaining records: {}", e))?;
         
         let final_stats = manager.stats();
         assert_eq!(final_stats.total_batches, 3);
         assert_eq!(final_stats.total_records, 25);
         assert_eq!(final_stats.pending_records, 0);
+        
+        Ok(())
     }
     
     #[tokio::test]
-    async fn test_batch_builder() {
+    async fn test_batch_builder() -> Result<()> {
         let builder = BatchOperationBuilder::new()
             .add_record(create_test_record(Layer::Interact))
             .add_record(create_test_record(Layer::Insights))
@@ -490,8 +612,95 @@ mod tests {
         let grouped = builder.group_by_layer();
         
         assert_eq!(grouped.len(), 3);
-        assert_eq!(grouped.get(&Layer::Interact).unwrap().len(), 2);
-        assert_eq!(grouped.get(&Layer::Insights).unwrap().len(), 1);
-        assert_eq!(grouped.get(&Layer::Assets).unwrap().len(), 1);
+        
+        // Use proper error handling instead of unwrap
+        let interact_records = grouped.get(&Layer::Interact)
+            .ok_or_else(|| anyhow::anyhow!("Interact layer not found in grouped records"))?;
+        assert_eq!(interact_records.len(), 2);
+        
+        let insights_records = grouped.get(&Layer::Insights)
+            .ok_or_else(|| anyhow::anyhow!("Insights layer not found in grouped records"))?;
+        assert_eq!(insights_records.len(), 1);
+        
+        let assets_records = grouped.get(&Layer::Assets)
+            .ok_or_else(|| anyhow::anyhow!("Assets layer not found in grouped records"))?;
+        assert_eq!(assets_records.len(), 1);
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_batch_manager_error_resilience() -> Result<()> {
+        let store = create_test_store().await?;
+        let config = BatchConfig {
+            max_batch_size: 5,
+            async_flush: false,
+            worker_threads: 2,
+            ..Default::default()
+        };
+        
+        let manager = BatchOperationManager::new(store, config, None);
+        
+        // Test adding empty batch
+        manager.add_batch(vec![]).await?;
+        let stats = manager.stats();
+        assert_eq!(stats.total_batches, 0);
+        
+        // Test adding valid records
+        let mut records = Vec::new();
+        for i in 0..7 {
+            let mut record = create_test_record(Layer::Interact);
+            record.text = format!("Test record {}", i);
+            records.push(record);
+        }
+        
+        manager.add_batch(records).await?;
+        
+        // Check stats after batch addition
+        let stats = manager.stats();
+        
+        // Since we added all 7 records at once, they might all be processed in one batch
+        // or split depending on the internal logic
+        if stats.total_batches == 1 {
+            // All records processed at once
+            assert_eq!(stats.total_records, 7, "Expected all 7 records to be processed");
+            assert_eq!(stats.pending_records, 0, "Expected 0 records to be pending");
+        } else {
+            // Records split into batches
+            assert_eq!(stats.total_batches, 1, "Expected 1 batch to be flushed");
+            assert_eq!(stats.total_records, 5, "Expected 5 records to be flushed");
+            assert_eq!(stats.pending_records, 2, "Expected 2 records to be pending");
+        }
+        
+        // Test manual flush of remaining
+        manager.flush_all().await?;
+        let final_stats = manager.stats();
+        
+        // Final check - all records should be processed and no pending
+        assert_eq!(final_stats.total_records, 7, "Expected 7 total records after flush_all");
+        assert_eq!(final_stats.pending_records, 0, "Expected 0 pending records after flush_all");
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_batch_builder_optimization() -> Result<()> {
+        let builder = BatchOperationBuilder::new()
+            .add_record(create_test_record(Layer::Assets))
+            .add_record(create_test_record(Layer::Interact))
+            .add_record(create_test_record(Layer::Insights))
+            .add_record(create_test_record(Layer::Interact))
+            .optimize_for_locality();
+        
+        // Records should be sorted by layer for better locality
+        let grouped = builder.group_by_layer();
+        assert_eq!(grouped.len(), 3);
+        
+        // Verify all layers are present
+        for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+            assert!(grouped.contains_key(&layer), "Layer {:?} should be present", layer);
+        }
+        
+        Ok(())
     }
 }
