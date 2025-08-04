@@ -1,4 +1,3 @@
-use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 use colored::Colorize;
 
@@ -75,7 +74,7 @@ impl ProgressType {
     /// Создать оптимизированный прогресс-бар
     pub fn create_spinner(self, message: &str) -> AdaptiveSpinner {
         let config = self.config();
-        let spinner = ProgressBar::new_spinner();
+        let spinner = indicatif::ProgressBar::new_spinner();
         
         let template = match self {
             ProgressType::Backup | ProgressType::Search | ProgressType::Memory => {
@@ -87,7 +86,7 @@ impl ProgressType {
         };
         
         spinner.set_style(
-            ProgressStyle::default_spinner()
+            indicatif::ProgressStyle::default_spinner()
                 .tick_chars(config.spinner_chars)
                 .template(&template)
                 .unwrap()
@@ -106,7 +105,7 @@ impl ProgressType {
 
 /// Умный спиннер с адаптивным поведением
 pub struct AdaptiveSpinner {
-    spinner: ProgressBar,
+    spinner: indicatif::ProgressBar,
     #[allow(dead_code)]
     progress_type: ProgressType,
     #[allow(dead_code)]
@@ -143,7 +142,8 @@ impl AdaptiveSpinner {
     #[allow(dead_code)]
     pub fn finish_error(&self, message: &str) {
         let error_msg = format!("✗ {}", message);
-        self.spinner.finish_with_message(error_msg.red().to_string());
+        let error_msg_str = error_msg.red().to_string();
+        self.spinner.finish_with_message(error_msg_str);
     }
     
     /// Завершить и очистить
@@ -262,3 +262,118 @@ impl ProgressBuilder {
 }
 
 // @component: {"k":"C","id":"adaptive_progress","t":"Adaptive progress indicators","m":{"cur":95,"tgt":100,"u":"%"},"f":["ui","progress","adaptive"]}
+
+// Простые типы для совместимости с тестами
+
+pub struct ProgressBar {
+    inner: indicatif::ProgressBar,
+    total: u64,
+}
+
+impl ProgressBar {
+    pub fn new(total: u64) -> Self {
+        let inner = if total == 0 {
+            indicatif::ProgressBar::new_spinner()
+        } else {
+            indicatif::ProgressBar::new(total)
+        };
+        
+        Self { inner, total }
+    }
+    
+    pub fn total(&self) -> u64 {
+        self.total
+    }
+    
+    pub fn position(&self) -> u64 {
+        self.inner.position()
+    }
+    
+    pub fn is_finished(&self) -> bool {
+        self.inner.is_finished() || (self.total > 0 && self.position() >= self.total)
+    }
+    
+    pub fn inc(&self, delta: u64) {
+        self.inner.inc(delta);
+    }
+    
+    pub fn set_position(&self, pos: u64) {
+        let capped_pos = if self.total > 0 { pos.min(self.total) } else { pos };
+        self.inner.set_position(capped_pos);
+    }
+    
+    pub fn set_message(&self, message: &str) {
+        self.inner.set_message(message.to_string());
+    }
+    
+    pub fn finish(&self) {
+        if self.total > 0 {
+            self.inner.set_position(self.total);
+        }
+        self.inner.finish();
+    }
+    
+    pub fn finish_with_message(&self, message: &str) {
+        if self.total > 0 {
+            self.inner.set_position(self.total);
+        }
+        self.inner.finish_with_message(message.to_string());
+    }
+    
+    pub fn percentage(&self) -> f64 {
+        if self.total == 0 {
+            return 100.0;
+        }
+        (self.position() as f64 / self.total as f64) * 100.0
+    }
+    
+    pub fn eta(&self) -> Option<Duration> {
+        Some(self.inner.eta())
+    }
+    
+    pub fn set_style(&self, _style: ProgressStyle) {
+        // Simplified - just ignore style changes for tests
+    }
+    
+    pub fn finish_and_clear(&self) {
+        self.inner.finish_and_clear();
+    }
+    
+    pub fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            total: self.total,
+        }
+    }
+}
+
+pub struct Spinner {
+    inner: indicatif::ProgressBar,
+}
+
+impl Spinner {
+    pub fn new() -> Self {
+        let inner = indicatif::ProgressBar::new_spinner();
+        inner.enable_steady_tick(Duration::from_millis(120));
+        Self { inner }
+    }
+    
+    pub fn set_message(&self, message: &str) {
+        self.inner.set_message(message.to_string());
+    }
+    
+    pub fn finish(&self) {
+        self.inner.finish();
+    }
+    
+    pub fn finish_with_message(&self, message: &str) {
+        self.inner.finish_with_message(message.to_string());
+    }
+    
+    pub fn is_finished(&self) -> bool {
+        self.inner.is_finished()
+    }
+}
+
+// Re-export ProgressStyle for compatibility
+pub type ProgressStyle = indicatif::ProgressStyle;

@@ -11,3 +11,6 @@ serde_json = { workspace = true }
 reqwest = { workspace = true }
 tracing = { workspace = true }
 dotenv = { workspace = true }
+
+[dev-dependencies]
+mockito = "1.5"

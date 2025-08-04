@@ -11,3 +11,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 llm = { path = "../llm" }
 tools = { path = "../tools" }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }

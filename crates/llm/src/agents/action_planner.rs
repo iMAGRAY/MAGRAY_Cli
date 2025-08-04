@@ -87,7 +87,7 @@ Git операции:
     "confidence": 0.95
 }}"#, tools_list, user_query);
 
-        let response = self.llm.chat(&prompt).await?;
+        let response = self.llm.chat_simple(&prompt).await?;
         self.parse_action_plan(&response)
     }
     

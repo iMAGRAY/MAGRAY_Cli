@@ -7,10 +7,10 @@ pub mod fallback;
 pub mod health;
 mod metrics;
 mod notifications;
-mod promotion;
+pub mod promotion;
 mod ml_promotion;
 mod service;
-mod storage;
+pub mod storage;
 mod types;
 mod vector_index_hnswlib; // Critical for vector storage
 mod transaction;

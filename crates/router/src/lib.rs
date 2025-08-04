@@ -194,7 +194,7 @@ impl SmartRouter {
     }
     
     /// Извлекает требуемые параметры из JSON схемы инструмента
-    fn extract_required_params(&self, schema: &str) -> Vec<String> {
+    pub fn extract_required_params(&self, schema: &str) -> Vec<String> {
         // Простой парсинг JSON схемы для извлечения имен параметров
         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(schema) {
             if let Some(obj) = parsed.as_object() {
@@ -207,7 +207,7 @@ impl SmartRouter {
              "message".to_string(), "query".to_string()]
     }
     
-    fn format_results(&self, plan: &ActionPlan, results: &[ToolOutput]) -> Result<String> {
+    pub fn format_results(&self, plan: &ActionPlan, results: &[ToolOutput]) -> Result<String> {
         let mut output = String::new();
         
         output.push_str(&format!("[✓] План выполнен: {}\n", plan.reasoning));

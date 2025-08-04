@@ -16,6 +16,69 @@ pub enum LlmProvider {
     Local { url: String, model: String },
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+impl ChatMessage {
+    pub fn user(content: &str) -> Self {
+        Self {
+            role: "user".to_string(),
+            content: content.to_string(),
+        }
+    }
+    
+    pub fn assistant(content: &str) -> Self {
+        Self {
+            role: "assistant".to_string(),
+            content: content.to_string(),
+        }
+    }
+    
+    pub fn system(content: &str) -> Self {
+        Self {
+            role: "system".to_string(),
+            content: content.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CompletionRequest {
+    pub prompt: String,
+    pub max_tokens: Option<u32>,
+    pub temperature: Option<f32>,
+    pub system_prompt: Option<String>,
+}
+
+impl CompletionRequest {
+    pub fn new(prompt: &str) -> Self {
+        Self {
+            prompt: prompt.to_string(),
+            max_tokens: None,
+            temperature: None,
+            system_prompt: None,
+        }
+    }
+    
+    pub fn max_tokens(mut self, tokens: u32) -> Self {
+        self.max_tokens = Some(tokens);
+        self
+    }
+    
+    pub fn temperature(mut self, temp: f32) -> Self {
+        self.temperature = Some(temp);
+        self
+    }
+    
+    pub fn system_prompt(mut self, prompt: &str) -> Self {
+        self.system_prompt = Some(prompt.to_string());
+        self
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct OpenAIChatRequest {
     model: String,
@@ -73,6 +136,38 @@ pub struct LlmClient {
 }
 
 impl LlmClient {
+    pub fn new(provider: LlmProvider) -> Self {
+        Self {
+            provider,
+            client: reqwest::Client::new(),
+            max_tokens: 1000,
+            temperature: 0.7,
+        }
+    }
+    
+    #[cfg(test)]
+    pub fn new_with_base_url(provider: LlmProvider, base_url: &str) -> Self {
+        // Для тестов - заменяем URL в провайдере
+        let test_provider = match provider {
+            LlmProvider::OpenAI { api_key, model } => {
+                LlmProvider::Local { url: base_url.to_string(), model }
+            }
+            LlmProvider::Anthropic { api_key, model } => {
+                LlmProvider::Local { url: base_url.to_string(), model }
+            }
+            LlmProvider::Local { url: _, model } => {
+                LlmProvider::Local { url: base_url.to_string(), model }
+            }
+        };
+        
+        Self {
+            provider: test_provider,
+            client: reqwest::Client::new(),
+            max_tokens: 1000,
+            temperature: 0.7,
+        }
+    }
+    
     pub fn from_env() -> Result<Self> {
         dotenv::dotenv().ok(); // Загружаем .env если есть
         
@@ -115,7 +210,47 @@ impl LlmClient {
         })
     }
 
-    pub async fn chat(&self, message: &str) -> Result<String> {
+    pub async fn complete(&self, request: CompletionRequest) -> Result<String> {
+        let message = if let Some(system) = &request.system_prompt {
+            format!("{}\n\n{}", system, request.prompt)
+        } else {
+            request.prompt.clone()
+        };
+        
+        let max_tokens = request.max_tokens.unwrap_or(self.max_tokens);
+        let temperature = request.temperature.unwrap_or(self.temperature);
+        
+        // Временно сохраняем старые значения
+        let old_max_tokens = self.max_tokens;
+        let old_temperature = self.temperature;
+        
+        // Используем значения из request
+        let self_with_overrides = Self {
+            provider: self.provider.clone(),
+            client: self.client.clone(), 
+            max_tokens,
+            temperature,
+        };
+        
+        self_with_overrides.chat_internal(&message).await
+    }
+    
+    pub async fn chat(&self, messages: &[ChatMessage]) -> Result<String> {
+        // Преобразуем сообщения в один промпт для простоты
+        let prompt = messages.iter()
+            .map(|m| format!("{}: {}", m.role, m.content))
+            .collect::<Vec<_>>()
+            .join("\n");
+        
+        self.chat_internal(&prompt).await
+    }
+    
+    // Для обратной совместимости с агентами
+    pub async fn chat_simple(&self, message: &str) -> Result<String> {
+        self.chat_internal(message).await
+    }
+    
+    async fn chat_internal(&self, message: &str) -> Result<String> {
         match &self.provider {
             LlmProvider::OpenAI { api_key, model } => {
                 self.openai_chat(api_key, model, message).await

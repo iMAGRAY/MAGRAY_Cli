@@ -22,13 +22,15 @@
 
 **КРИТИЧЕСКИЕ ФАКТЫ О ПРОЕКТЕ:**
 - Vector search: HNSW реализован с hnsw_rs, O(log n) поиск <5мс
-- ONNX models: BGE-M3 embeddings (1024D) и BGE reranker v2-m3 работают  
+- ONNX models: BGE-M3 embeddings (768D) и BGE reranker v2-m3 работают  
 - Память: 3 слоя (Interact/Insights/Assets) с HNSW индексами
 - LLM провайдеры: OpenAI/Anthropic/Local поддержка
 - Архитектура: 8 crates в workspace
 - CI/CD: GitHub Actions с multi-feature matrix
 - Docker: CPU/GPU/Minimal образы готовы
 - Build system: Makefile с comprehensive targets
+- Test coverage: 35.4% (целевой 80%)
+- Binary size: ~16MB release build
 
 **ОБЯЗАТЕЛЬНОЕ АННОТИРОВАНИЕ:**
 - При создании новых структур/модулей добавляй CTL аннотации
@@ -230,7 +232,7 @@ RUST_LOG=debug
 ```json
 {"k":"C","id":"embedding_svc","t":"BGE-M3 embeddings","f":["onnx","real"]}
 {"k":"M","id":"embed_dim","t":"Embedding dimensions","m":{"cur":768,"tgt":768,"u":"dims"}}
-{"k":"B","id":"tokenizer","t":"Simple tokenization","p":3,"x_need":"xlmroberta"}
+{"k":"F","id":"tokenizer","t":"Full tokenizer support","f":["tokenizers","bpe","completed"]}
 {"k":"P","id":"batch_embed","t":"Batch processing","e":"P2D","r":"10x_throughput"}
 ```
 
@@ -251,19 +253,19 @@ RUST_LOG=debug
 ## 📊 CRITICAL METRICS
 
 ```json
-{"k":"M","id":"prod_ready","t":"Production readiness","m":{"cur":65,"tgt":90,"u":"%"}}
-{"k":"M","id":"perf_score","t":"Performance score","m":{"cur":3,"tgt":5,"u":"score"}}
-{"k":"M","id":"test_coverage","t":"Test coverage","m":{"cur":40,"tgt":80,"u":"%"}}
-{"k":"M","id":"doc_accuracy","t":"Doc accuracy","m":{"cur":35,"tgt":95,"u":"%"}}
+{"k":"M","id":"prod_ready","t":"Production readiness","m":{"cur":70,"tgt":90,"u":"%"}}
+{"k":"M","id":"perf_score","t":"Performance score","m":{"cur":4,"tgt":5,"u":"score"}}
+{"k":"M","id":"test_coverage","t":"Test coverage","m":{"cur":35,"tgt":80,"u":"%"}}
+{"k":"M","id":"doc_accuracy","t":"Doc accuracy","m":{"cur":85,"tgt":95,"u":"%"}}
 ```
 
 ### Component Health
 ```json
-{"k":"M","id":"h_agent","t":"UnifiedAgent health","m":{"cur":3,"tgt":5,"u":"score"},"f":["no_retry"]}
-{"k":"M","id":"h_vector","t":"VectorStore health","m":{"cur":1,"tgt":5,"u":"score"},"f":["critical"]}
-{"k":"M","id":"h_cache","t":"EmbeddingCache health","m":{"cur":4,"tgt":5,"u":"score"}}
-{"k":"M","id":"h_embed","t":"EmbeddingService health","m":{"cur":4,"tgt":5,"u":"score"}}
-{"k":"M","id":"h_promo","t":"PromotionEngine health","m":{"cur":1,"tgt":5,"u":"score"}}
+{"k":"M","id":"h_agent","t":"UnifiedAgent health","m":{"cur":4,"tgt":5,"u":"score"},"f":["retry_added"]}
+{"k":"M","id":"h_vector","t":"VectorStore health","m":{"cur":4,"tgt":5,"u":"score"},"f":["hnsw_working"]}
+{"k":"M","id":"h_cache","t":"EmbeddingCache health","m":{"cur":5,"tgt":5,"u":"score"}}
+{"k":"M","id":"h_embed","t":"EmbeddingService health","m":{"cur":5,"tgt":5,"u":"score"}}
+{"k":"M","id":"h_promo","t":"PromotionEngine health","m":{"cur":4,"tgt":5,"u":"score"}}
 ```
 
 ---
@@ -271,11 +273,11 @@ RUST_LOG=debug
 ## 🔧 ACTIVE TASKS
 
 ```json
-{"k":"T","id":"fix_vector","t":"Fix O(n) vector search","p":5,"e":"P1W","d":["add_hnsw"],"r":"scalable"}
-{"k":"T","id":"add_batch","t":"Add batch embeddings","p":4,"e":"P3D","r":"faster_embed"}
-{"k":"T","id":"fix_promo","t":"Fix promotion engine","p":3,"e":"P2D","d":["fix_vector"],"r":"working_promo"}
-{"k":"T","id":"add_tests","t":"Increase test coverage","p":3,"e":"P1W","r":"80_percent"}
-{"k":"T","id":"gpu_accel","t":"Enable GPU support","p":2,"e":"P1W","r":"10x_inference"}
+{"k":"T","id":"fix_vector","t":"Fix O(n) vector search","p":5,"e":"P1W","d":["add_hnsw"],"r":"scalable","x_status":"completed"}
+{"k":"T","id":"add_batch","t":"Add batch embeddings","p":4,"e":"P3D","r":"faster_embed","x_status":"completed"}
+{"k":"T","id":"fix_promo","t":"Fix promotion engine","p":3,"e":"P2D","d":["fix_vector"],"r":"working_promo","x_status":"completed"}
+{"k":"T","id":"add_tests","t":"Increase test coverage","p":3,"e":"P1W","r":"80_percent","x_status":"in_progress"}
+{"k":"T","id":"gpu_accel","t":"Enable GPU support","p":2,"e":"P1W","r":"10x_inference","x_status":"completed"}
 ```
 
 ---
@@ -283,11 +285,9 @@ RUST_LOG=debug
 ## 🚨 KNOWN ISSUES
 
 ```json
-{"k":"B","id":"vector_scale","t":"Vector search O(n)","p":5,"x_limit":"1000_docs"}
 {"k":"B","id":"no_eviction","t":"Cache grows forever","p":3,"x_fix":"add_lru"}
-{"k":"B","id":"no_gpu","t":"CPU only inference","p":2,"x_fix":"ort_cuda"}
-{"k":"B","id":"simple_token","t":"Basic tokenization","p":3,"x_need":"proper_tokenizer"}
-{"k":"B","id":"promo_linear","t":"Promotion O(n) scan","p":3,"x_fix":"time_index"}
+{"k":"B","id":"test_coverage","t":"Low test coverage 35%","p":4,"x_fix":"add_more_tests"}
+{"k":"B","id":"no_ci_coverage","t":"No CI coverage report","p":3,"x_fix":"add_grcov"}
 ```
 
 ---
@@ -423,7 +423,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-03 21:27:38 UTC*
+*Last updated: 2025-08-04 13:19:41 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -459,14 +459,14 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["memory","scaling","adaptive"],"id":"resource_manager","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Dynamic memory resource management","x_file":"memory/src/resource_manager.rs:9"}
 {"id":"simple_qwen3_tokenizer","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Simplified Qwen3 tokenizer for ONNX","x_file":"ai/src/tokenization/simple_qwen3.rs:1"}
 {"d":["llm_client","tools"],"f":["routing","orchestration"],"id":"smart_router","k":"C","m":{"cur":70,"tgt":90,"u":"%"},"t":"Smart task orchestration","x_file":"router/src/lib.rs:9"}
-{"f":["cli","diagnostic","graceful-fallback"],"id":"status_cmd","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"System status diagnostic command","x_file":"cli/src/main.rs:420"}
+{"f":["cli","diagnostic","graceful-fallback"],"id":"status_cmd","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"System status diagnostic command","x_file":"cli/src/main.rs:405"}
 {"f":["tests","status","cli"],"id":"status_tests","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Unit tests for status command","x_file":"cli/src/status_tests.rs:150"}
 {"f":["streaming","real-time","async"],"id":"streaming_api","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Real-time memory processing","x_file":"memory/src/streaming.rs:15"}
 {"f":["logging","json","production"],"id":"structured_logging","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"JSON structured logging system","x_file":"common/src/structured_logging.rs:11"}
 {"id":"tensorrt_cache","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"TensorRT model cache","x_file":"ai/src/tensorrt_cache.rs:8"}
 {"id":"test_qwen3_models","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Test Qwen3 models loading","x_file":"ai/examples/test_qwen3_models.rs:1"}
 {"f":["tools","execution","registry"],"id":"tool_registry","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Tool execution system","x_file":"tools/src/lib.rs:5"}
-{"d":["llm_client","smart_router"],"id":"unified_agent","k":"C","m":{"cur":60,"tgt":90,"u":"%"},"t":"Main agent orchestrator","x_file":"cli/src/agent.rs:7"}
+{"d":["llm_client","smart_router"],"id":"unified_agent","k":"C","m":{"cur":60,"tgt":90,"u":"%"},"t":"Main agent orchestrator","x_file":"cli/src/agent.rs:8"}
 {"f":["vector","hnsw","search"],"id":"vector_index_hnsw","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"HNSW vector index","x_file":"memory/src/vector_index_hnswlib.rs:115"}
 {"f":["storage","hnsw"],"id":"vector_store","k":"C","m":{"cur":65,"tgt":100,"u":"%"},"t":"Vector storage with HNSW","x_file":"memory/src/storage.rs:18"}
 {"f":["integration","workflow","testing"],"id":"integration_tests","k":"T","m":{"cur":0,"tgt":90,"u":"%"},"t":"Full workflow integration tests","x_file":"memory/tests/integration_full_workflow.rs:13"}

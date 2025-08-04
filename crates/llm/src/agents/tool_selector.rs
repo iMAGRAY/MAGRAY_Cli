@@ -49,7 +49,7 @@ impl ToolSelectorAgent {
     "reasoning": "краткое объяснение выбора"
 }}"#, tools_list, user_query);
 
-        let response = self.llm.chat(&prompt).await?;
+        let response = self.llm.chat_simple(&prompt).await?;
         self.parse_tool_selection(&response)
     }
     

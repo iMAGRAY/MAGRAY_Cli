@@ -67,15 +67,22 @@ impl Default for ExecutionContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceMetrics {
     /// Длительность операции в миллисекундах
-    pub duration_ms: Option<u64>,
-    /// Использование CPU в процентах
-    pub cpu_usage_percent: Option<f32>,
+    pub duration_ms: u64,
     /// Использование памяти в байтах
-    pub memory_usage_bytes: Option<u64>,
-    /// Количество обработанных элементов
-    pub items_processed: Option<u64>,
-    /// Пропускная способность (элементов в секунду)
-    pub throughput: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_used_bytes: Option<u64>,
+    /// Использование CPU в процентах
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_usage_percent: Option<f32>,
+    /// Количество IO операций
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub io_operations: Option<u64>,
+    /// Количество попаданий в кэш
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_hits: Option<u64>,
+    /// Количество промахов кэша
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_misses: Option<u64>,
 }
 
 /// Форматтер для JSON логов
@@ -179,28 +186,17 @@ impl Visit for JsonVisitor {
 impl JsonVisitor {
     /// Извлечь метрики производительности из полей
     fn extract_performance_metrics(&self) -> Option<PerformanceMetrics> {
-        if self.fields.is_empty() {
-            return None;
-        }
+        // Если нет duration_ms, то метрики не нужны
+        let duration_ms = self.get_u64_field("duration_ms")?;
         
-        let metrics = PerformanceMetrics {
-            duration_ms: self.get_u64_field("duration_ms"),
-            cpu_usage_percent: self.get_f64_field("cpu_usage").map(|v| v as f32),
-            memory_usage_bytes: self.get_u64_field("memory_bytes"),
-            items_processed: self.get_u64_field("items_count"),
-            throughput: self.get_f64_field("throughput").map(|v| v as f32),
-        };
-        
-        // Если есть хотя бы одна метрика, возвращаем
-        if metrics.duration_ms.is_some() 
-            || metrics.cpu_usage_percent.is_some()
-            || metrics.memory_usage_bytes.is_some()
-            || metrics.items_processed.is_some()
-            || metrics.throughput.is_some() {
-            Some(metrics)
-        } else {
-            None
-        }
+        Some(PerformanceMetrics {
+            duration_ms,
+            cpu_usage_percent: self.get_f64_field("cpu_usage_percent").map(|v| v as f32),
+            memory_used_bytes: self.get_u64_field("memory_used_bytes"),
+            io_operations: self.get_u64_field("io_operations"),
+            cache_hits: self.get_u64_field("cache_hits"),
+            cache_misses: self.get_u64_field("cache_misses"),
+        })
     }
     
     fn get_u64_field(&self, name: &str) -> Option<u64> {
@@ -218,19 +214,21 @@ impl JsonVisitor {
 #[derive(Debug, Clone)]
 pub struct LoggingConfig {
     /// Минимальный уровень логирования
-    pub level: Level,
+    level: Level,
     /// Вывод в JSON формате
-    pub json_output: bool,
+    json_output: bool,
     /// Включить цветной вывод (только для non-JSON)
-    pub color_output: bool,
+    color_output: bool,
     /// Файл для записи логов
-    pub log_file: Option<String>,
+    log_file: Option<String>,
     /// Максимальный размер файла логов (в байтах)
-    pub max_file_size: Option<u64>,
+    max_file_size: Option<u64>,
     /// Включить контекст выполнения
-    pub include_context: bool,
+    include_context: bool,
     /// Включить номера строк
-    pub include_line_numbers: bool,
+    include_line_numbers: bool,
+    /// Pretty print для JSON
+    pretty_print: bool,
 }
 
 impl Default for LoggingConfig {
@@ -243,12 +241,55 @@ impl Default for LoggingConfig {
             max_file_size: Some(100 * 1024 * 1024), // 100MB
             include_context: true,
             include_line_numbers: cfg!(debug_assertions),
+            pretty_print: false,
         }
     }
 }
 
-/// Инициализировать structured logging
-pub fn init_structured_logging(config: LoggingConfig) -> anyhow::Result<()> {
+impl LoggingConfig {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    
+    pub fn with_json_output(mut self, json: bool) -> Self {
+        self.json_output = json;
+        self
+    }
+    
+    pub fn with_level(mut self, level: &str) -> Self {
+        self.level = match level.to_lowercase().as_str() {
+            "error" => Level::ERROR,
+            "warn" => Level::WARN,
+            "info" => Level::INFO,
+            "debug" => Level::DEBUG,
+            "trace" => Level::TRACE,
+            _ => Level::INFO,
+        };
+        self
+    }
+    
+    pub fn with_pretty_print(mut self, pretty: bool) -> Self {
+        self.pretty_print = pretty;
+        self
+    }
+    
+    pub fn json_output(&self) -> bool {
+        self.json_output
+    }
+    
+    pub fn level(&self) -> &str {
+        match self.level {
+            Level::ERROR => "error",
+            Level::WARN => "warn",
+            Level::INFO => "info",
+            Level::DEBUG => "debug",
+            Level::TRACE => "trace",
+        }
+    }
+}
+
+/// Инициализировать structured logging с настройками
+pub fn init_structured_logging_with_config(config: LoggingConfig) -> anyhow::Result<()> {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(config.level.to_string()));
     
@@ -279,6 +320,11 @@ pub fn init_structured_logging(config: LoggingConfig) -> anyhow::Result<()> {
     }
     
     Ok(())
+}
+
+/// Инициализировать structured logging с настройками по умолчанию
+pub fn init_structured_logging() -> anyhow::Result<()> {
+    init_structured_logging_with_config(LoggingConfig::default())
 }
 
 /// Макрос для структурированного логирования с метриками
@@ -317,7 +363,11 @@ impl OperationTimer {
         }
     }
     
-    pub fn finish(self) {
+    pub fn elapsed(&self) -> std::time::Duration {
+        self.start.elapsed()
+    }
+    
+    pub fn finish(self) -> PerformanceMetrics {
         let duration_ms = self.start.elapsed().as_millis() as u64;
         
         tracing::info!(
@@ -327,6 +377,23 @@ impl OperationTimer {
             fields = ?self.fields,
             "Operation completed"
         );
+        
+        PerformanceMetrics {
+            duration_ms,
+            memory_used_bytes: None,
+            cpu_usage_percent: None,
+            io_operations: None,
+            cache_hits: None,
+            cache_misses: None,
+        }
+    }
+    
+    pub fn finish_with<T, F>(self, callback: F) -> T
+    where
+        F: FnOnce(PerformanceMetrics) -> T,
+    {
+        let metrics = self.finish();
+        callback(metrics)
     }
     
     pub fn finish_with_result<T>(self, result: Result<T, impl std::fmt::Display>) {
@@ -359,23 +426,42 @@ impl OperationTimer {
 /// Контекст запроса для отслеживания через async операции
 #[derive(Clone)]
 pub struct RequestContext {
-    pub request_id: String,
-    pub user_id: Option<String>,
-    pub start_time: std::time::Instant,
+    request_id: String,
+    user_id: Option<String>,
+    start_time: std::time::Instant,
+    metadata: HashMap<String, String>,
 }
 
 impl RequestContext {
-    pub fn new() -> Self {
+    pub fn new(request_id: impl Into<String>) -> Self {
         Self {
-            request_id: uuid::Uuid::new_v4().to_string(),
+            request_id: request_id.into(),
             user_id: None,
             start_time: std::time::Instant::now(),
+            metadata: HashMap::new(),
         }
     }
     
     pub fn with_user(mut self, user_id: impl Into<String>) -> Self {
         self.user_id = Some(user_id.into());
         self
+    }
+    
+    pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.metadata.insert(key.into(), value.into());
+        self
+    }
+    
+    pub fn request_id(&self) -> &str {
+        &self.request_id
+    }
+    
+    pub fn user_id(&self) -> Option<&str> {
+        self.user_id.as_deref()
+    }
+    
+    pub fn metadata(&self) -> &HashMap<String, String> {
+        &self.metadata
     }
 }
 
@@ -393,11 +479,12 @@ mod tests {
             fields: HashMap::new(),
             context: Some(ExecutionContext::default()),
             performance: Some(PerformanceMetrics {
-                duration_ms: Some(100),
+                duration_ms: 100,
                 cpu_usage_percent: Some(25.5),
-                memory_usage_bytes: Some(1024 * 1024),
-                items_processed: Some(1000),
-                throughput: Some(10000.0),
+                memory_used_bytes: Some(1024 * 1024),
+                io_operations: None,
+                cache_hits: None,
+                cache_misses: None,
             }),
         };
         

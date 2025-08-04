@@ -67,7 +67,7 @@ Git операции:
     "reasoning": "пользователь просит создать файл"
 }}"#, user_query);
 
-        let response = self.llm.chat(&prompt).await?;
+        let response = self.llm.chat_simple(&prompt).await?;
         self.parse_intent_decision(&response)
     }
     

@@ -66,6 +66,7 @@ tokenizers = "0.20"
 clap = { version = "4.0", features = ["derive"] }
 rand_chacha = "0.3"
 tempfile = "3.0"
+tempdir = "0.3"
 rand = "0.8"
 fastrand = "2.0"
 futures = "0.3"

@@ -91,7 +91,7 @@ web_search:
     "missing_params": ["param3"]
 }}"#, tool_name, params_list, user_query);
 
-        let response = self.llm.chat(&prompt).await?;
+        let response = self.llm.chat_simple(&prompt).await?;
         self.parse_parameter_extraction(&response)
     }
     

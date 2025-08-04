@@ -171,7 +171,7 @@ impl HealthCheck for LlmHealthCheck {
     
     async fn check(&self) -> Result<HealthCheckResult> {
         let test_message = "ping";
-        match self.llm_client.chat(test_message).await {
+        match self.llm_client.chat_simple(test_message).await {
             Ok(_) => Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Healthy,

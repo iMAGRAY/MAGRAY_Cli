@@ -1,13 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use console::{style, Term};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressStyle;
 use llm::LlmClient;
 use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
-use common::{init_structured_logging, LoggingConfig};
+use common::init_structured_logging;
 
 mod agent;
 mod commands;
@@ -98,17 +98,7 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     // Настройка структурированного логирования
-    let log_config = LoggingConfig {
-        level: tracing::Level::INFO,
-        json_output: std::env::var("LOG_FORMAT").as_deref() == Ok("json"),
-        color_output: !std::env::var("NO_COLOR").is_ok(),
-        log_file: std::env::var("LOG_FILE").ok(),
-        include_context: true,
-        include_line_numbers: cfg!(debug_assertions),
-        ..Default::default()
-    };
-    
-    init_structured_logging(log_config)?;
+    init_structured_logging()?;
 
     let cli = Cli::parse();
 
@@ -120,35 +110,30 @@ async fn main() -> Result<()> {
             handle_chat(message).await?;
         }
         Some(Commands::Read { path }) => {
-            let llm_client = LlmClient::from_env()?;
-            let agent = UnifiedAgent::new(llm_client);
+            let agent = UnifiedAgent::new().await?;
             let message = format!("прочитай файл {}", path);
             let response = agent.process_message(&message).await?;
             display_response(response).await;
         }
         Some(Commands::Write { path, content }) => {
-            let llm_client = LlmClient::from_env()?;
-            let agent = UnifiedAgent::new(llm_client);
+            let agent = UnifiedAgent::new().await?;
             let message = format!("создай файл {} с содержимым: {}", path, content);
             let response = agent.process_message(&message).await?;
             display_response(response).await;
         }
         Some(Commands::List { path }) => {
-            let llm_client = LlmClient::from_env()?;
-            let agent = UnifiedAgent::new(llm_client);
+            let agent = UnifiedAgent::new().await?;
             let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
             let response = agent.process_message(&message).await?;
             display_response(response).await;
         }
         Some(Commands::Tool { action }) => {
-            let llm_client = LlmClient::from_env()?;
-            let agent = UnifiedAgent::new(llm_client);
+            let agent = UnifiedAgent::new().await?;
             let response = agent.process_message(&action).await?;
             display_response(response).await;
         }
         Some(Commands::Smart { task }) => {
-            let llm_client = LlmClient::from_env()?;
-            let agent = UnifiedAgent::new(llm_client);
+            let agent = UnifiedAgent::new().await?;
             let response = agent.process_message(&task).await?;
             display_response(response).await;
         }
@@ -192,7 +177,7 @@ async fn show_welcome_animation() -> Result<()> {
     let term = Term::stdout();
     
     // Анимация загрузки
-    let spinner = ProgressBar::new_spinner();
+    let spinner = indicatif::ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_chars("[|][/][-][\\]")
@@ -242,7 +227,7 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     let _term = Term::stdout();
     
     // Инициализация LLM клиента с анимацией
-    let spinner = ProgressBar::new_spinner();
+    let spinner = indicatif::ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_chars("[●][◐][◑][◒][◓][●]")
@@ -251,7 +236,7 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     );
     spinner.set_message("Подключение к нейронной сети...");
     
-    let llm_client = match LlmClient::from_env() {
+    let _llm_client = match LlmClient::from_env() {
         Ok(client) => {
             spinner.finish_with_message("[✓] Подключено к LLM!");
             sleep(Duration::from_millis(500)).await;
@@ -283,7 +268,7 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     };
 
     // Создаем единый агент
-    let agent = UnifiedAgent::new(llm_client);
+    let agent = UnifiedAgent::new().await?;
 
     if let Some(msg) = message {
         // Одиночное сообщение
@@ -381,7 +366,7 @@ async fn display_chat_response(text: &str) {
 
 
 async fn show_goodbye_animation() -> Result<()> {
-    let spinner = ProgressBar::new_spinner();
+    let spinner = indicatif::ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_chars("[◄][◁][◀][■]")

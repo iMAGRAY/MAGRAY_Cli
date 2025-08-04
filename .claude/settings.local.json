@@ -41,7 +41,9 @@
       "Bash(set RUST_LOG=info)",
       "Bash(.targetreleasemagray.exe gpu status)",
       "Bash(set ORT_DYLIB_PATH=\"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\onnxruntime\\lib\\onnxruntime.dll\")",
-      "Bash(set RUST_LOG=warn)"
+      "Bash(set RUST_LOG=warn)",
+      "Bash(cargo install:*)",
+      "Bash(cargo tarpaulin:*)"
     ],
     "deny": []
   },

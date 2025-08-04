@@ -26,7 +26,7 @@ pub use model_registry::{ModelRegistry, ModelInfo, ModelType, MODEL_REGISTRY};
 pub use embeddings_bge_m3::BgeM3EmbeddingService;
 pub use embeddings_cpu::{CpuEmbeddingService, OptimizedEmbeddingResult, ServiceStats};
 pub use embeddings_gpu::GpuEmbeddingService;
-pub use memory_pool::{MemoryPool, PoolStats, GLOBAL_MEMORY_POOL};
+pub use memory_pool::{MemoryPool, PoolStats, GLOBAL_MEMORY_POOL, get_input_buffer, return_input_buffer, get_pool_stats};
 pub use errors::AiError;
 pub use models::ModelLoader;
 pub use reranking::{RerankingService, RerankResult};

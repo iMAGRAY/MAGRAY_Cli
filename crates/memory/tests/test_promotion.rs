@@ -2,9 +2,11 @@
 use chrono::{Duration, Utc};
 use tempfile::TempDir;
 use uuid::Uuid;
+use std::sync::Arc;
 
 use memory::{
     MemoryService, MemoryConfig, Layer, Record, PromotionConfig,
+    promotion::PromotionEngine, storage::VectorStore,
 };
 use ai::AiConfig;
 
@@ -194,6 +196,118 @@ async fn test_layer_ttl_expiration() -> Result<()> {
     assert!(gone.is_none(), "Ancient record should be expired");
     
     println!("✅ TTL expiration test passed!");
+    
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_time_based_indices_performance() -> Result<()> {
+    // Создаем временную директорию для БД
+    let temp_dir = TempDir::new()?;
+    let db_path = temp_dir.path().join("test_db");
+    
+    // Создаем VectorStore напрямую для теста индексов
+    let store = Arc::new(VectorStore::new(&db_path).await?);
+    
+    // Создаем PromotionEngine с конфигурацией
+    let config = PromotionConfig {
+        interact_ttl_hours: 24,
+        insights_ttl_days: 7,
+        promote_threshold: 0.7,
+        decay_factor: 0.9,
+    };
+    
+    let sled_db = sled::open(&db_path)?;
+    let engine = PromotionEngine::new(store.clone(), config, Arc::new(sled_db)).await?;
+    
+    // Создаем тестовые записи с разными временными метками
+    let now = Utc::now();
+    let mut records = Vec::new();
+    
+    // Старые записи (кандидаты на promotion)
+    for i in 0..100 {
+        let record = Record {
+            id: Uuid::new_v4(),
+            layer: Layer::Interact,
+            text: format!("Old record {}", i),
+            kind: "test".to_string(),
+            tags: vec!["old".to_string()],
+            project: "test".to_string(),
+            session: "test".to_string(),
+            embedding: vec![0.1; 768],
+            ts: now - Duration::hours(30 + i as i64), // 30+ часов назад
+            last_access: now - Duration::hours(1),
+            access_count: 3 + (i % 5) as u32,
+            score: 0.8 + (i as f32 / 1000.0),
+        };
+        records.push(record);
+    }
+    
+    // Новые записи (не должны быть promoted)
+    for i in 0..100 {
+        let record = Record {
+            id: Uuid::new_v4(),
+            layer: Layer::Interact,
+            text: format!("New record {}", i),
+            kind: "test".to_string(),
+            tags: vec!["new".to_string()],
+            project: "test".to_string(),
+            session: "test".to_string(),
+            embedding: vec![0.2; 768],
+            ts: now - Duration::hours(5), // 5 часов назад
+            last_access: now,
+            access_count: 1,
+            score: 0.9,
+        };
+        records.push(record);
+    }
+    
+    // Вставляем все записи
+    println!("Вставка {} тестовых записей...", records.len());
+    let start_insert = std::time::Instant::now();
+    let record_refs: Vec<&Record> = records.iter().collect();
+    store.insert_batch(&record_refs).await?;
+    println!("Вставка завершена за {:?}", start_insert.elapsed());
+    
+    // Измеряем время поиска кандидатов с time-based индексами
+    println!("\nТестирование производительности time-based индексов...");
+    let start_search = std::time::Instant::now();
+    let stats = engine.run_promotion_cycle().await?;
+    let search_duration = start_search.elapsed();
+    
+    println!("Результаты promotion цикла:");
+    println!("  - Promoted Interact->Insights: {}", stats.interact_to_insights);
+    println!("  - Expired Interact: {}", stats.expired_interact);
+    println!("  - Общее время: {}ms", stats.total_time_ms);
+    println!("  - Время обновления индексов: {}ms", stats.index_update_time_ms);
+    println!("  - Время promotion: {}ms", stats.promotion_time_ms);
+    println!("  - Время cleanup: {}ms", stats.cleanup_time_ms);
+    
+    // Проверяем что поиск быстрый
+    assert!(search_duration.as_millis() < 1000, "Поиск слишком медленный: {:?}", search_duration);
+    
+    // Проверяем что promoted правильное количество
+    assert!(stats.interact_to_insights > 50, "Слишком мало записей promoted");
+    assert!(stats.interact_to_insights < 150, "Слишком много записей promoted");
+    
+    // Получаем статистику производительности
+    let perf_stats = engine.get_performance_stats().await?;
+    println!("\nСтатистика индексов:");
+    println!("  - Interact time index: {} записей", perf_stats.interact_time_index_size);
+    println!("  - Interact score index: {} записей", perf_stats.interact_score_index_size);
+    println!("  - Insights time index: {} записей", perf_stats.insights_time_index_size);
+    
+    // Второй цикл должен быть еще быстрее (инкрементальное обновление)
+    println!("\nТестирование инкрементального обновления индексов...");
+    let start_incremental = std::time::Instant::now();
+    let stats2 = engine.run_promotion_cycle().await?;
+    let _incremental_duration = start_incremental.elapsed();
+    
+    println!("Инкрементальный цикл завершен за {}ms", stats2.total_time_ms);
+    assert!(stats2.total_time_ms < stats.total_time_ms / 2, 
+            "Инкрементальное обновление должно быть намного быстрее");
+    
+    println!("\n✅ Все тесты time-based индексов пройдены!");
     
     Ok(())
 }

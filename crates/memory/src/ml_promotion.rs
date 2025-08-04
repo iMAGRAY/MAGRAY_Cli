@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, Duration};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, BTreeMap};
 use std::sync::Arc;
@@ -68,6 +68,11 @@ pub struct PromotionModel {
     /// Статистика производительности модели
     accuracy: f32,
     last_training: DateTime<Utc>,
+    /// Лучшие веса во время обучения
+    best_temporal_weights: Option<Vec<f32>>,
+    best_semantic_weights: Option<Vec<f32>>,
+    best_usage_weights: Option<Vec<f32>>,
+    best_bias: Option<f32>,
 }
 
 /// Трекер использования для ML features
@@ -236,7 +241,7 @@ impl MLPromotionEngine {
     }
 
     /// Извлечение features для ML модели
-    async fn extract_features(&self, record: &Record) -> Result<PromotionFeatures> {
+    pub async fn extract_features(&self, record: &Record) -> Result<PromotionFeatures> {
         let now = Utc::now();
         
         // Temporal features
@@ -276,7 +281,7 @@ impl MLPromotionEngine {
     }
 
     /// ML inference для предсказания promotion score
-    fn predict_promotion_score(&self, features: &PromotionFeatures) -> f32 {
+    pub fn predict_promotion_score(&self, features: &PromotionFeatures) -> f32 {
         // Temporal component
         let temporal_score = 
             features.age_hours * self.model.temporal_weights[0] +
@@ -488,13 +493,57 @@ impl MLPromotionEngine {
     async fn retrain_model(&mut self) -> Result<()> {
         info!("🎯 Переобучение ML модели для promotion");
         
-        // Простое обновление весов на основе performance
-        for weight in &mut self.model.temporal_weights {
-            *weight *= 0.95; // Slight decay
+        // Собираем исторические данные для обучения
+        let training_data = self.collect_training_data().await?;
+        
+        if training_data.is_empty() {
+            info!("⚠️ Недостаточно данных для обучения модели");
+            return Ok(());
         }
         
+        info!("📊 Собрано {} примеров для обучения", training_data.len());
+        
+        // Разделяем на train/test
+        let split_idx = (training_data.len() as f32 * 0.8) as usize;
+        let (train_set, test_set) = training_data.split_at(split_idx);
+        
+        // Обучаем модель методом градиентного спуска
+        let learning_rate = 0.01;
+        let epochs = 100;
+        let mut best_accuracy = 0.0;
+        
+        for epoch in 0..epochs {
+            let mut total_loss = 0.0;
+            
+            // Градиентный спуск по батчам
+            for batch in train_set.chunks(32) {
+                let (loss, gradients) = self.compute_gradients(batch)?;
+                total_loss += loss;
+                
+                // Обновляем веса
+                self.update_weights(&gradients, learning_rate);
+            }
+            
+            // Валидация на test set
+            let accuracy = self.evaluate_accuracy(test_set)?;
+            
+            if accuracy > best_accuracy {
+                best_accuracy = accuracy;
+                // Сохраняем лучшие веса
+                self.save_best_weights();
+            }
+            
+            if epoch % 10 == 0 {
+                debug!("Epoch {}: loss={:.4}, accuracy={:.2}%", 
+                      epoch, total_loss / train_set.len() as f32, accuracy * 100.0);
+            }
+        }
+        
+        // Восстанавливаем лучшие веса
+        self.restore_best_weights();
+        
         self.model.last_training = Utc::now();
-        self.model.accuracy = 0.85; // Placeholder
+        self.model.accuracy = best_accuracy;
         
         info!("✅ Модель переобучена, accuracy: {:.1}%", self.model.accuracy * 100.0);
         Ok(())
@@ -506,6 +555,174 @@ impl MLPromotionEngine {
         
         // Обновляем внутренние метрики
         self.performance_optimizer.avg_inference_time_ms = stats.ml_inference_time_ms as f32;
+    }
+    
+    /// Сбор исторических данных для обучения
+    async fn collect_training_data(&self) -> Result<Vec<TrainingExample>> {
+        let mut training_data = Vec::new();
+        
+        // Собираем данные из Insights и Assets слоев (успешные promotions)
+        for layer in [Layer::Insights, Layer::Assets] {
+            let records = self.store.iter_layer_records(layer).await?;
+            let records: Vec<_> = records.into_iter().take(1000).collect();
+            
+            for record in records {
+                // Проверяем, что запись достаточно старая для обучения
+                let age = Utc::now().signed_duration_since(record.ts);
+                let age_hours = age.num_hours() as f32;
+                if age_hours < 24.0 {
+                    continue; // Слишком новая запись
+                }
+                
+                let features = self.extract_features(&record).await?;
+                let label = match layer {
+                    Layer::Assets => 1.0, // Очень важные записи
+                    Layer::Insights => 0.7, // Важные записи
+                    _ => 0.3, // Менее важные
+                };
+                
+                training_data.push(TrainingExample { features, label });
+            }
+        }
+        
+        // Добавляем негативные примеры из Interact (не promoted)
+        let interact_records = self.store.iter_layer_records(Layer::Interact).await?;
+        let interact_records: Vec<_> = interact_records.into_iter().take(500).collect();
+        for record in interact_records {
+            let age = Utc::now().signed_duration_since(record.ts);
+            let age_hours = age.num_hours() as f32;
+            if age_hours > 48.0 && record.access_count < 2 {
+                let features = self.extract_features(&record).await?;
+                training_data.push(TrainingExample { features, label: 0.0 });
+            }
+        }
+        
+        // Перемешиваем данные
+        use rand::seq::SliceRandom;
+        training_data.shuffle(&mut rand::thread_rng());
+        
+        Ok(training_data)
+    }
+    
+    /// Вычисление градиентов и loss
+    fn compute_gradients(&self, batch: &[TrainingExample]) -> Result<(f32, ModelGradients)> {
+        let mut total_loss = 0.0;
+        let mut gradients = ModelGradients::default();
+        
+        for example in batch {
+            // Прямой проход
+            let prediction = self.predict_promotion_score(&example.features);
+            let error = prediction - example.label;
+            total_loss += error * error; // MSE loss
+            
+            // Обратное распространение через sigmoid
+            let sigmoid_grad = prediction * (1.0 - prediction);
+            let base_grad = error * sigmoid_grad;
+            
+            // Градиенты для temporal weights
+            gradients.temporal_grads[0] += base_grad * example.features.age_hours * self.config.temporal_weight;
+            gradients.temporal_grads[1] += base_grad * example.features.access_recency * self.config.temporal_weight;
+            gradients.temporal_grads[2] += base_grad * example.features.temporal_pattern_score * self.config.temporal_weight;
+            
+            // Градиенты для usage weights
+            gradients.usage_grads[0] += base_grad * example.features.access_count * self.config.usage_weight;
+            gradients.usage_grads[1] += base_grad * example.features.access_frequency * self.config.usage_weight;
+            gradients.usage_grads[2] += base_grad * example.features.session_importance * self.config.usage_weight;
+            
+            // Градиенты для semantic weights
+            gradients.semantic_grads[0] += base_grad * example.features.semantic_importance * self.config.semantic_weight;
+            gradients.semantic_grads[1] += base_grad * example.features.keyword_density * self.config.semantic_weight;
+            gradients.semantic_grads[2] += base_grad * example.features.topic_relevance * self.config.semantic_weight;
+            
+            // Градиент для bias
+            gradients.bias_grad += base_grad;
+        }
+        
+        // Усредняем градиенты
+        let batch_size = batch.len() as f32;
+        gradients.scale(1.0 / batch_size);
+        
+        Ok((total_loss / batch_size, gradients))
+    }
+    
+    /// Обновление весов модели
+    fn update_weights(&mut self, gradients: &ModelGradients, learning_rate: f32) {
+        // Обновляем temporal weights
+        for i in 0..3 {
+            self.model.temporal_weights[i] -= learning_rate * gradients.temporal_grads[i];
+        }
+        
+        // Обновляем usage weights
+        for i in 0..3 {
+            self.model.usage_weights[i] -= learning_rate * gradients.usage_grads[i];
+        }
+        
+        // Обновляем semantic weights
+        for i in 0..3 {
+            self.model.semantic_weights[i] -= learning_rate * gradients.semantic_grads[i];
+        }
+        
+        // Обновляем bias
+        self.model.bias -= learning_rate * gradients.bias_grad;
+        
+        // Ограничиваем веса в разумных пределах
+        self.clamp_weights();
+    }
+    
+    /// Ограничение весов в разумных пределах
+    fn clamp_weights(&mut self) {
+        let clamp = |weights: &mut Vec<f32>| {
+            for w in weights {
+                *w = w.clamp(-5.0, 5.0);
+            }
+        };
+        
+        clamp(&mut self.model.temporal_weights);
+        clamp(&mut self.model.usage_weights);
+        clamp(&mut self.model.semantic_weights);
+        self.model.bias = self.model.bias.clamp(-2.0, 2.0);
+    }
+    
+    /// Оценка точности на test set
+    fn evaluate_accuracy(&self, test_set: &[TrainingExample]) -> Result<f32> {
+        let mut correct = 0;
+        let threshold = self.config.promotion_threshold;
+        
+        for example in test_set {
+            let prediction = self.predict_promotion_score(&example.features);
+            let predicted_class: f32 = if prediction >= threshold { 1.0 } else { 0.0 };
+            let true_class: f32 = if example.label >= threshold { 1.0 } else { 0.0 };
+            
+            if (predicted_class - true_class).abs() < 0.1 {
+                correct += 1;
+            }
+        }
+        
+        Ok(correct as f32 / test_set.len() as f32)
+    }
+    
+    /// Сохранение лучших весов
+    fn save_best_weights(&mut self) {
+        self.model.best_temporal_weights = Some(self.model.temporal_weights.clone());
+        self.model.best_usage_weights = Some(self.model.usage_weights.clone());
+        self.model.best_semantic_weights = Some(self.model.semantic_weights.clone());
+        self.model.best_bias = Some(self.model.bias);
+    }
+    
+    /// Восстановление лучших весов
+    fn restore_best_weights(&mut self) {
+        if let Some(weights) = &self.model.best_temporal_weights {
+            self.model.temporal_weights = weights.clone();
+        }
+        if let Some(weights) = &self.model.best_usage_weights {
+            self.model.usage_weights = weights.clone();
+        }
+        if let Some(weights) = &self.model.best_semantic_weights {
+            self.model.semantic_weights = weights.clone();
+        }
+        if let Some(bias) = self.model.best_bias {
+            self.model.bias = bias;
+        }
     }
 }
 
@@ -527,6 +744,33 @@ pub struct MLInferenceStats {
     pub batch_size: usize,
 }
 
+/// Пример для обучения
+#[derive(Debug, Clone)]
+struct TrainingExample {
+    features: PromotionFeatures,
+    label: f32,
+}
+
+/// Градиенты модели
+#[derive(Debug, Default)]
+struct ModelGradients {
+    temporal_grads: [f32; 3],
+    usage_grads: [f32; 3],
+    semantic_grads: [f32; 3],
+    bias_grad: f32,
+}
+
+impl ModelGradients {
+    fn scale(&mut self, factor: f32) {
+        for i in 0..3 {
+            self.temporal_grads[i] *= factor;
+            self.usage_grads[i] *= factor;
+            self.semantic_grads[i] *= factor;
+        }
+        self.bias_grad *= factor;
+    }
+}
+
 impl PromotionModel {
     fn new() -> Self {
         Self {
@@ -536,6 +780,10 @@ impl PromotionModel {
             bias: 0.1,
             accuracy: 0.8,
             last_training: Utc::now(),
+            best_temporal_weights: None,
+            best_semantic_weights: None,
+            best_usage_weights: None,
+            best_bias: None,
         }
     }
 }

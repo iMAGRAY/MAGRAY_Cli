@@ -43,6 +43,27 @@ pub struct VectorStore {
     batch_lock: Arc<RwLock<()>>,
     // Отслеживание изменений для инкрементальных обновлений
     change_tracker: Arc<RwLock<HashMap<Layer, ChangeTracker>>>,
+    // Глобальный счетчик версий для отслеживания изменений
+    version_counter: Arc<std::sync::atomic::AtomicU64>,
+    // Журнал изменений для инкрементальных индексов
+    change_log: Arc<RwLock<Vec<ChangeLogEntry>>>,
+}
+
+/// Запись в журнале изменений
+#[derive(Debug, Clone)]
+struct ChangeLogEntry {
+    version: u64,
+    layer: Layer,
+    record: Record,
+    operation: ChangeOperation,
+    timestamp: std::time::Instant,
+}
+
+#[derive(Debug, Clone)]
+enum ChangeOperation {
+    Insert,
+    Update,
+    Delete,
 }
 
 /// Отслеживает изменения в слое для умной синхронизации
@@ -156,6 +177,8 @@ impl VectorStore {
             transaction_manager: Arc::new(TransactionManager::new()),
             batch_lock: Arc::new(RwLock::new(())),
             change_tracker: Arc::new(RwLock::new(change_trackers)),
+            version_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            change_log: Arc::new(RwLock::new(Vec::new())),
         })
     }
 
@@ -312,6 +335,9 @@ impl VectorStore {
         // Отслеживаем изменение для умной синхронизации
         self.record_layer_change(record.layer);
         
+        // Логируем изменение для версионирования
+        self.log_change(record.layer, record, ChangeOperation::Insert);
+        
         let duration = start.elapsed();
         
         // Record health metrics
@@ -379,8 +405,10 @@ impl VectorStore {
             }
             
             // Отслеживаем массовые изменения
-            for _ in &layer_records {
+            for record in &layer_records {
                 self.record_layer_change(layer);
+                // Логируем каждое изменение
+                self.log_change(layer, record, ChangeOperation::Insert);
             }
         }
 
@@ -565,6 +593,8 @@ impl VectorStore {
     }
     
     /// Get records for promotion (high score, accessed frequently)
+    /// DEPRECATED: Use PromotionEngine.find_candidates_by_time() for O(log n) performance
+    #[deprecated(note = "This method uses O(n) scanning. Use PromotionEngine for better performance")]
     pub async fn get_promotion_candidates(
         &self,
         layer: Layer,
@@ -572,10 +602,22 @@ impl VectorStore {
         min_score: f32,
         min_access_count: u32,
     ) -> Result<Vec<Record>> {
+        // Этот метод оставлен для обратной совместимости
+        // В production используйте PromotionEngine с time-based индексами
         let tree = self.get_tree(layer).await?;
         let mut candidates = Vec::new();
         
+        // Ограничиваем количество сканируемых записей для безопасности
+        let mut scanned = 0;
+        const MAX_SCAN: usize = 10000;
+        
         for result in tree.iter() {
+            if scanned >= MAX_SCAN {
+                tracing::warn!("get_promotion_candidates: достигнут лимит сканирования {} записей", MAX_SCAN);
+                break;
+            }
+            scanned += 1;
+            
             let (_, value) = result?;
             if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
                 let record = &stored.record;
@@ -876,6 +918,81 @@ impl VectorStore {
             if let Some(tracker) = trackers.get_mut(&layer) {
                 tracker.record_change();
             }
+        }
+    }
+    
+    /// Получить текущую версию данных
+    pub fn get_version(&self) -> u64 {
+        self.version_counter.load(std::sync::atomic::Ordering::Relaxed)
+    }
+    
+    /// Получить изменения с определенной версии
+    pub async fn get_changes_since(&self, since_version: u64) -> Result<HashMap<Layer, Vec<Record>>> {
+        let change_log = self.change_log.read();
+        let mut changes: HashMap<Layer, Vec<Record>> = HashMap::new();
+        
+        for entry in change_log.iter() {
+            if entry.version > since_version {
+                match entry.operation {
+                    ChangeOperation::Insert | ChangeOperation::Update => {
+                        changes.entry(entry.layer)
+                            .or_insert_with(Vec::new)
+                            .push(entry.record.clone());
+                    }
+                    ChangeOperation::Delete => {
+                        // Пропускаем удаленные записи
+                    }
+                }
+            }
+        }
+        
+        Ok(changes)
+    }
+    
+    /// Получить общее количество записей во всех слоях
+    pub async fn get_total_count(&self) -> Result<usize> {
+        let mut total = 0;
+        
+        for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+            let tree = self.get_tree(layer).await?;
+            total += tree.len();
+        }
+        
+        Ok(total)
+    }
+    
+    /// Итерировать по записям слоя для индексации
+    pub async fn iter_layer_records(&self, layer: Layer) -> Result<Vec<Record>> {
+        let tree = self.get_tree(layer).await?;
+        let mut records = Vec::new();
+        
+        for result in tree.iter() {
+            let (_, value) = result?;
+            if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
+                records.push(stored.record);
+            }
+        }
+        
+        Ok(records)
+    }
+    
+    /// Записать изменение в журнал
+    fn log_change(&self, layer: Layer, record: &Record, operation: ChangeOperation) {
+        let version = self.version_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        
+        if let Some(mut log) = self.change_log.try_write() {
+            // Ограничиваем размер журнала (храним последние 10000 записей)
+            if log.len() > 10000 {
+                log.drain(0..5000);
+            }
+            
+            log.push(ChangeLogEntry {
+                version,
+                layer,
+                record: record.clone(),
+                operation,
+                timestamp: std::time::Instant::now(),
+            });
         }
     }
     
