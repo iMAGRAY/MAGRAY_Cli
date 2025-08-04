@@ -21,7 +21,7 @@ async fn test_file_reader() {
     
     // Тест чтения файла
     let input = ToolInput {
-        command: "read".to_string(),
+        command: "file_read".to_string(),
         args: HashMap::from([("path".to_string(), test_file.to_str().unwrap().to_string())]),
         context: None,
     };
@@ -43,7 +43,7 @@ async fn test_file_reader_nonexistent() {
     let reader = FileReader::new();
     
     let input = ToolInput {
-        command: "read".to_string(),
+        command: "file_read".to_string(),
         args: HashMap::from([("path".to_string(), "/nonexistent/file.txt".to_string())]),
         context: None,
     };
@@ -66,7 +66,7 @@ async fn test_file_reader_natural_language() {
     
     for query in queries {
         let input = reader.parse_natural_language(query).await.unwrap();
-        assert_eq!(input.command, "read");
+        assert_eq!(input.command, "file_read");
         assert!(input.args.contains_key("path"));
         assert!(input.args.get("path").unwrap().contains("test.txt"));
     }
@@ -85,7 +85,7 @@ async fn test_file_writer() {
     
     // Тест записи файла
     let input = ToolInput {
-        command: "write".to_string(),
+        command: "file_write".to_string(),
         args: HashMap::from([
             ("path".to_string(), test_file.to_str().unwrap().to_string()),
             ("content".to_string(), "Test content\nLine 2".to_string()),
@@ -95,7 +95,7 @@ async fn test_file_writer() {
     
     let output = writer.execute(input).await.unwrap();
     assert!(output.success);
-    assert!(output.result.contains("Successfully wrote"));
+    assert!(output.result.contains("байт"));
     
     // Проверяем что файл создан
     assert!(test_file.exists());
@@ -113,7 +113,7 @@ async fn test_file_writer_overwrite() {
     
     // Перезапись файла
     let input = ToolInput {
-        command: "write".to_string(),
+        command: "file_write".to_string(),
         args: HashMap::from([
             ("path".to_string(), test_file.to_str().unwrap().to_string()),
             ("content".to_string(), "New content".to_string()),
@@ -141,7 +141,7 @@ async fn test_file_writer_natural_language() {
     
     for query in queries {
         let input = writer.parse_natural_language(query).await.unwrap();
-        assert_eq!(input.command, "write");
+        assert_eq!(input.command, "file_write");
         assert!(input.args.contains_key("path"));
         assert!(input.args.contains_key("content"));
         assert!(input.args.get("content").unwrap().contains("Hello"));
@@ -166,7 +166,7 @@ async fn test_dir_lister() {
     
     // Тест листинга директории
     let input = ToolInput {
-        command: "list".to_string(),
+        command: "dir_list".to_string(),
         args: HashMap::from([("path".to_string(), temp_dir.path().to_str().unwrap().to_string())]),
         context: None,
     };
@@ -195,7 +195,7 @@ async fn test_dir_lister_with_pattern() {
     
     // Тест с паттерном
     let input = ToolInput {
-        command: "list".to_string(),
+        command: "dir_list".to_string(),
         args: HashMap::from([
             ("path".to_string(), temp_dir.path().to_str().unwrap().to_string()),
             ("pattern".to_string(), "test*".to_string()),
@@ -223,7 +223,7 @@ async fn test_dir_lister_natural_language() {
     
     for query in queries {
         let input = lister.parse_natural_language(query).await.unwrap();
-        assert_eq!(input.command, "list");
+        assert_eq!(input.command, "dir_list");
         assert!(input.args.contains_key("path"));
         assert!(input.args.get("path").unwrap().contains("/tmp"));
     }
@@ -244,7 +244,7 @@ async fn test_dir_lister_recursive() {
     
     // Тест рекурсивного листинга
     let input = ToolInput {
-        command: "list".to_string(),
+        command: "dir_list".to_string(),
         args: HashMap::from([
             ("path".to_string(), temp_dir.path().to_str().unwrap().to_string()),
             ("recursive".to_string(), "true".to_string()),

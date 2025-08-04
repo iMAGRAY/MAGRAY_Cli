@@ -1,262 +1,213 @@
-use cli::progress::{ProgressBar, Spinner, ProgressStyle};
+use cli::progress::{ProgressType, ProgressBuilder, AdaptiveSpinner, MultiStageProgress};
 use std::time::Duration;
 use tokio::time::sleep;
 
 #[test]
-fn test_progress_bar_creation() {
-    let pb = ProgressBar::new(100);
-    
-    assert_eq!(pb.total(), 100);
-    assert_eq!(pb.position(), 0);
-    assert!(!pb.is_finished());
+fn test_progress_type_configs() {
+    let fast_config = ProgressType::Fast.config();
+    assert_eq!(fast_config.tick_interval, Duration::from_millis(80));
+    assert_eq!(fast_config.color, "cyan");
+
+    let medium_config = ProgressType::Medium.config();
+    assert_eq!(medium_config.tick_interval, Duration::from_millis(120));
+    assert_eq!(medium_config.color, "blue");
+
+    let slow_config = ProgressType::Slow.config();
+    assert_eq!(slow_config.tick_interval, Duration::from_millis(150));
+    assert_eq!(slow_config.color, "yellow");
 }
 
 #[test]
-fn test_progress_bar_increment() {
-    let pb = ProgressBar::new(10);
+fn test_adaptive_spinner_creation() {
+    let spinner = ProgressType::Fast.create_spinner("Testing...");
     
-    pb.inc(1);
-    assert_eq!(pb.position(), 1);
-    
-    pb.inc(5);
-    assert_eq!(pb.position(), 6);
-    
-    pb.inc(10); // Should cap at total
-    assert_eq!(pb.position(), 10);
-    assert!(pb.is_finished());
+    // Spinner should be created successfully
+    // Can't test internal state easily, but ensure no panics
+    spinner.set_message("Updated message");
+    spinner.finish_success(Some("Test completed"));
 }
 
 #[test]
-fn test_progress_bar_set_position() {
-    let pb = ProgressBar::new(100);
+fn test_progress_builder_fast() {
+    let spinner = ProgressBuilder::fast("Fast operation");
     
-    pb.set_position(50);
-    assert_eq!(pb.position(), 50);
-    
-    pb.set_position(150); // Should cap at total
-    assert_eq!(pb.position(), 100);
-    assert!(pb.is_finished());
+    // Test that spinner can be used
+    spinner.set_message("Processing quickly...");
+    spinner.finish_success(Some("Fast operation completed"));
 }
 
 #[test]
-fn test_progress_bar_set_message() {
-    let pb = ProgressBar::new(100);
+fn test_progress_builder_backup() {
+    let spinner = ProgressBuilder::backup("Backup operation");
     
-    pb.set_message("Processing...");
-    // Message is set internally, hard to test without output capture
-    
-    pb.set_message("Almost done");
-    // Just ensure it doesn't panic
+    spinner.set_message("Backing up data...");
+    spinner.finish_success(None); // Should use default success message
 }
 
 #[test]
-fn test_progress_bar_finish() {
-    let pb = ProgressBar::new(100);
+fn test_progress_builder_memory() {
+    let spinner = ProgressBuilder::memory("Memory operation");
     
-    pb.set_position(50);
-    assert!(!pb.is_finished());
-    
-    pb.finish();
-    assert!(pb.is_finished());
-    assert_eq!(pb.position(), 100);
+    spinner.set_message("Processing memory...");
+    spinner.finish_success(Some("Memory operation done"));
 }
 
 #[test]
-fn test_progress_bar_finish_with_message() {
-    let pb = ProgressBar::new(100);
+fn test_adaptive_spinner_error_finish() {
+    let spinner = ProgressType::Medium.create_spinner("Test operation");
     
-    pb.finish_with_message("Completed successfully!");
-    assert!(pb.is_finished());
-    assert_eq!(pb.position(), 100);
+    spinner.set_message("Something went wrong...");
+    spinner.finish_error("Operation failed");
 }
 
 #[test]
-fn test_spinner_creation() {
-    let spinner = Spinner::new();
+fn test_adaptive_spinner_progress() {
+    let spinner = ProgressType::Slow.create_spinner("Long operation");
     
-    // Spinner starts in running state
-    assert!(!spinner.is_finished());
+    // Test progress updates
+    spinner.set_progress(0, 100);
+    spinner.set_progress(25, 100);
+    spinner.set_progress(50, 100);
+    spinner.set_progress(100, 100);
+    
+    spinner.finish_success(Some("Progress completed"));
 }
 
 #[test]
-fn test_spinner_set_message() {
-    let spinner = Spinner::new();
+fn test_adaptive_delay() {
+    let fast_spinner = ProgressType::Fast.create_spinner("Fast");
+    let slow_spinner = ProgressType::Slow.create_spinner("Slow");
     
-    spinner.set_message("Loading...");
-    spinner.set_message("Processing data...");
+    let fast_delay = fast_spinner.adaptive_delay();
+    let slow_delay = slow_spinner.adaptive_delay();
     
-    // Just ensure no panics
+    assert!(fast_delay < slow_delay);
+    assert_eq!(fast_delay, Duration::from_millis(50));
+    assert_eq!(slow_delay, Duration::from_millis(200));
+    
+    fast_spinner.finish_and_clear();
+    slow_spinner.finish_and_clear();
 }
 
 #[test]
-fn test_spinner_finish() {
-    let spinner = Spinner::new();
+fn test_multi_stage_progress() {
+    let stages = vec![
+        ("Initializing", ProgressType::Fast),
+        ("Processing", ProgressType::Medium),
+        ("Finalizing", ProgressType::Slow),
+    ];
     
-    spinner.finish();
-    assert!(spinner.is_finished());
-}
-
-#[test]
-fn test_spinner_finish_with_message() {
-    let spinner = Spinner::new();
+    let mut multi_progress = MultiStageProgress::new(stages);
     
-    spinner.finish_with_message("✅ Done!");
-    assert!(spinner.is_finished());
-}
-
-#[tokio::test]
-async fn test_async_progress_simulation() {
-    let pb = ProgressBar::new(10);
+    // Test stage progression
+    assert!(multi_progress.next_stage()); // Stage 1
+    assert!(multi_progress.current_spinner().is_some());
     
-    for i in 0..10 {
-        pb.set_message(&format!("Step {}/10", i + 1));
-        pb.inc(1);
-        sleep(Duration::from_millis(10)).await;
-    }
+    assert!(multi_progress.next_stage()); // Stage 2
+    assert!(multi_progress.current_spinner().is_some());
     
-    pb.finish_with_message("All steps completed!");
-    assert!(pb.is_finished());
-    assert_eq!(pb.position(), 10);
+    assert!(multi_progress.next_stage()); // Stage 3
+    assert!(multi_progress.current_spinner().is_some());
+    
+    assert!(!multi_progress.next_stage()); // No more stages
+    
+    multi_progress.finish();
 }
 
 #[tokio::test]
 async fn test_async_spinner_simulation() {
-    let spinner = Spinner::new();
+    let spinner = ProgressType::Memory.create_spinner("Memory processing");
     
-    spinner.set_message("Starting process...");
-    sleep(Duration::from_millis(50)).await;
+    spinner.set_message("Starting memory operation...");
+    sleep(Duration::from_millis(10)).await;
     
-    spinner.set_message("Processing data...");
-    sleep(Duration::from_millis(50)).await;
+    spinner.set_message("Processing data in memory...");
+    sleep(Duration::from_millis(10)).await;
     
-    spinner.set_message("Finalizing...");
-    sleep(Duration::from_millis(50)).await;
+    spinner.set_message("Finalizing memory operation...");
+    sleep(Duration::from_millis(10)).await;
     
-    spinner.finish_with_message("✅ Process completed!");
-    assert!(spinner.is_finished());
-}
-
-#[test]
-fn test_progress_bar_zero_total() {
-    let pb = ProgressBar::new(0);
-    
-    assert_eq!(pb.total(), 0);
-    assert_eq!(pb.position(), 0);
-    assert!(pb.is_finished()); // Zero total means immediately finished
-}
-
-#[test]
-fn test_progress_bar_large_increment() {
-    let pb = ProgressBar::new(100);
-    
-    // Increment beyond total should cap at total
-    pb.inc(200);
-    assert_eq!(pb.position(), 100);
-    assert!(pb.is_finished());
-}
-
-#[test]
-fn test_multiple_progress_bars() {
-    let pb1 = ProgressBar::new(50);
-    let pb2 = ProgressBar::new(75);
-    
-    pb1.inc(25);
-    pb2.inc(25);
-    
-    assert_eq!(pb1.position(), 25);
-    assert_eq!(pb2.position(), 25);
-    
-    pb1.finish();
-    assert!(pb1.is_finished());
-    assert!(!pb2.is_finished());
-    
-    pb2.finish();
-    assert!(pb2.is_finished());
-}
-
-#[test]
-fn test_progress_percentage() {
-    let pb = ProgressBar::new(100);
-    
-    assert_eq!(pb.percentage(), 0.0);
-    
-    pb.set_position(25);
-    assert_eq!(pb.percentage(), 25.0);
-    
-    pb.set_position(50);
-    assert_eq!(pb.percentage(), 50.0);
-    
-    pb.finish();
-    assert_eq!(pb.percentage(), 100.0);
-}
-
-#[test]
-fn test_progress_eta_calculation() {
-    let pb = ProgressBar::new(100);
-    
-    // Initially no ETA available
-    assert!(pb.eta().is_none());
-    
-    pb.inc(10);
-    // After some progress, ETA might be available
-    // Note: This is timing-dependent and might be None in fast tests
-    let eta = pb.eta();
-    assert!(eta.is_none() || eta.is_some());
-}
-
-#[test]
-fn test_adaptive_progress_styles() {
-    let pb = ProgressBar::new(100);
-    
-    // Test different style adaptations
-    pb.set_style(ProgressStyle::default_bar());
-    pb.set_style(ProgressStyle::default_spinner());
-    
-    // Styles are applied internally, just ensure no panics
-    pb.inc(50);
-    pb.finish();
+    spinner.finish_success(Some("✅ Memory operation completed!"));
 }
 
 #[tokio::test]
-async fn test_progress_with_concurrent_updates() {
-    use tokio::join;
+async fn test_async_multi_stage() {
+    let stages = vec![
+        ("Setup", ProgressType::Fast),
+        ("Processing", ProgressType::Medium),
+    ];
     
-    let pb = ProgressBar::new(100);
-    let pb_clone1 = pb.clone();
-    let pb_clone2 = pb.clone();
+    let mut multi_progress = MultiStageProgress::new(stages);
     
-    let task1 = async {
-        for _ in 0..25 {
-            pb_clone1.inc(1);
-            sleep(Duration::from_millis(1)).await;
-        }
-    };
+    // First stage
+    multi_progress.next_stage();
+    if let Some(spinner) = multi_progress.current_spinner() {
+        spinner.set_message("Setting up environment...");
+        sleep(Duration::from_millis(10)).await;
+    }
     
-    let task2 = async {
-        for _ in 0..25 {
-            pb_clone2.inc(1);
-            sleep(Duration::from_millis(1)).await;
-        }
-    };
+    // Second stage
+    multi_progress.next_stage();
+    if let Some(spinner) = multi_progress.current_spinner() {
+        spinner.set_message("Processing data...");
+        sleep(Duration::from_millis(10)).await;
+    }
     
-    join!(task1, task2);
-    
-    // Both tasks should have contributed to progress
-    assert!(pb.position() >= 50);
-    pb.finish();
+    multi_progress.finish();
 }
 
 #[test]
-fn test_progress_bar_clone() {
-    let pb1 = ProgressBar::new(100);
-    let pb2 = pb1.clone();
+fn test_backup_progress_type() {
+    let backup_spinner = ProgressType::Backup.create_spinner("Backup operation");
+    let config = ProgressType::Backup.config();
     
-    pb1.inc(30);
-    assert_eq!(pb2.position(), 30);
+    assert_eq!(config.color, "green");
+    assert!(config.success_message.is_some());
+    assert_eq!(config.tick_interval, Duration::from_millis(200));
     
-    pb2.inc(20);
-    assert_eq!(pb1.position(), 50);
+    backup_spinner.finish_success(None);
+}
+
+#[test]
+fn test_search_progress_type() {
+    let search_spinner = ProgressType::Search.create_spinner("Search operation");
+    let config = ProgressType::Search.config();
     
-    pb1.finish();
-    assert!(pb2.is_finished());
+    assert_eq!(config.color, "magenta");
+    assert!(config.success_message.is_some());
+    assert_eq!(config.tick_interval, Duration::from_millis(300));
+    
+    search_spinner.finish_success(None);
+}
+
+#[test]
+fn test_memory_progress_type() {
+    let memory_spinner = ProgressType::Memory.create_spinner("Memory operation");
+    let config = ProgressType::Memory.config();
+    
+    assert_eq!(config.color, "purple");
+    assert!(config.success_message.is_some());
+    assert_eq!(config.tick_interval, Duration::from_millis(250));
+    
+    memory_spinner.finish_success(None);
+}
+
+#[test]
+fn test_progress_with_zero_total() {
+    let spinner = ProgressType::Fast.create_spinner("Quick task");
+    
+    // Test progress with zero total (should handle gracefully)
+    spinner.set_progress(0, 0);
+    spinner.finish_success(Some("Zero total handled"));
+}
+
+#[test]
+fn test_spinner_message_updates() {
+    let spinner = ProgressType::Medium.create_spinner("Initial message");
+    
+    spinner.set_message("Updated message 1");
+    spinner.set_message("Updated message 2");
+    spinner.set_message("Final message");
+    
+    spinner.finish_success(Some("Message updates completed"));
 }

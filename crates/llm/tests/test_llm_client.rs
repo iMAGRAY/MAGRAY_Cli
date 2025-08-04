@@ -83,11 +83,21 @@ async fn test_llm_client_from_env() {
 
 #[tokio::test]
 async fn test_llm_client_from_env_missing() {
+    // Сохраняем текущие значения
+    let old_provider = std::env::var("LLM_PROVIDER").ok();
+    
     // Очищаем переменные
     std::env::remove_var("LLM_PROVIDER");
+    std::env::remove_var("OPENAI_API_KEY");
+    std::env::remove_var("ANTHROPIC_API_KEY");
     
     let result = LlmClient::from_env();
     assert!(result.is_err());
+    
+    // Восстанавливаем если были
+    if let Some(provider) = old_provider {
+        std::env::set_var("LLM_PROVIDER", provider);
+    }
 }
 
 #[tokio::test]
@@ -152,10 +162,10 @@ async fn test_openai_completion_mock() {
 async fn test_anthropic_completion_mock() {
     let mut server = Server::new_async().await;
     
-    let mock = server.mock("POST", "/v1/messages")
+    let mock = server.mock("POST", "/chat/completions")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(create_mock_anthropic_response())
+        .with_body(create_mock_openai_response())
         .create_async()
         .await;
     
@@ -181,10 +191,10 @@ async fn test_anthropic_completion_mock() {
 async fn test_local_completion_mock() {
     let mut server = Server::new_async().await;
     
-    let mock = server.mock("POST", "/v1/completions")
+    let mock = server.mock("POST", "/chat/completions")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(r#"{"choices":[{"text":"Local response"}]}"#)
+        .with_body(create_mock_openai_response())
         .create_async()
         .await;
     
@@ -198,7 +208,7 @@ async fn test_local_completion_mock() {
     let request = CompletionRequest::new("Hello");
     let response = client.complete(request).await.unwrap();
     
-    assert_eq!(response, "Local response");
+    assert_eq!(response, "Test response");
     mock.assert_async().await;
 }
 

@@ -19,6 +19,7 @@ use crate::{
     backup::{BackupManager, BackupMetadata},
     resource_manager::{ResourceManager, ResourceConfig, ResourceUsage},
     batch_manager::{BatchOperationManager, BatchConfig, BatchStats, BatchOperationBuilder},
+    retry::RetryManager,
 };
 
 use ai::{AiConfig, ModelLoader, RerankingService};
@@ -154,19 +155,11 @@ impl Default for MemoryConfig {
 }
 
 impl MemoryService {
-    /// Открывает sled БД для promotion engine с crash recovery
-    fn open_promotion_database(db_path: impl AsRef<std::path::Path>) -> Result<sled::Db> {
-        use sled::Config;
-        
-        let config = Config::new()
-            .path(db_path.as_ref())
-            .mode(sled::Mode::HighThroughput)
-            .flush_every_ms(Some(5000))      // Promotion indices реже обновляются
-            .use_compression(true)
-            .compression_factor(19);
-            
-        let db = config.open()?;
-        info!("Promotion database opened with crash recovery");
+    /// Открывает sled БД для promotion engine через DatabaseManager
+    fn open_promotion_database(db_path: impl AsRef<std::path::Path>) -> Result<Arc<sled::Db>> {
+        let db_manager = crate::database_manager::DatabaseManager::global();
+        let db = db_manager.get_system_database(db_path.as_ref())?;
+        info!("✅ Promotion database opened through DatabaseManager");
         Ok(db)
     }
 
@@ -244,7 +237,7 @@ impl MemoryService {
         let promotion = Arc::new(PromotionEngine::new(
             store.clone(),
             config.promotion.clone(),
-            Arc::new(promotion_db)
+            promotion_db
         ).await?);
 
         // Initialize ML-based promotion engine if enabled
@@ -314,20 +307,19 @@ impl MemoryService {
         
         // Initialize batch operation manager
         let batch_config = config.batch_config.clone();
-        let batch_manager = BatchOperationManager::new(
+        let mut batch_manager_instance = BatchOperationManager::new(
             store.clone(),
             batch_config,
             None, // Metrics will be set later
         );
-        let mut batch_manager = Arc::new(batch_manager);
         
         // Start batch manager если включен async flush
         if config.batch_config.async_flush {
-            if let Some(manager_mut) = Arc::get_mut(&mut batch_manager) {
-                manager_mut.start().await?;
-                info!("✅ Batch operation manager started with async flushing");
-            }
+            batch_manager_instance.start().await?;
+            info!("✅ Batch operation manager started with async flushing");
         }
+        
+        let batch_manager = Arc::new(batch_manager_instance);
 
         Ok(Self {
             store,
@@ -371,7 +363,14 @@ impl MemoryService {
             record.last_access = record.ts;
 
             debug!("Inserting record {} into layer {:?}", record.id, record.layer);
-            self.store.insert(&record).await?;
+            
+            // Use retry for the database insertion
+            let retry_manager = crate::retry::RetryManager::for_database();
+            let record_clone = record.clone();
+            retry_manager.retry("memory_insert", || {
+                let record_ref = &record_clone;
+                async move { self.store.insert(record_ref).await }
+            }).await?;
 
             Ok(())
         }.await;
@@ -449,7 +448,18 @@ impl MemoryService {
         let processed = processed_records;
         
         info!("Inserting batch of {} records", processed.len());
-        self.store.insert_batch(&processed.iter().collect::<Vec<_>>()).await?;
+        
+        let retry_manager = crate::retry::RetryManager::for_database();
+        let store_clone = self.store.clone();
+        let processed_refs: Vec<&Record> = processed.iter().collect();
+        
+        retry_manager.retry("batch_insert", || {
+            let store = store_clone.clone();
+            let refs_copy = processed_refs.clone();
+            async move {
+                store.insert_batch(&refs_copy).await
+            }
+        }).await?;
 
         Ok(())
     }
@@ -476,9 +486,19 @@ impl MemoryService {
 
         // Search each requested layer
         for layer in &options.layers {
-            let mut results = self.store
-                .search(&query_embedding, *layer, options.top_k)
-                .await?;
+            let retry_manager = crate::retry::RetryManager::for_hnsw();
+            let layer_copy = *layer;
+            let query_embedding_clone = query_embedding.clone();
+            let store_clone = self.store.clone();
+            let top_k = options.top_k;
+            
+            let mut results = retry_manager.retry("vector_search", || {
+                let query_emb = query_embedding_clone.clone();
+                let store = store_clone.clone();
+                async move {
+                    store.search(&query_emb, layer_copy, top_k).await
+                }
+            }).await?;
 
             // Apply additional filters
             if !options.tags.is_empty() {
@@ -655,10 +675,8 @@ impl MemoryService {
         let metrics = Arc::new(MetricsCollector::new());
         self.metrics = Some(metrics.clone());
         
-        // Pass metrics to storage
-        if let Some(store) = Arc::get_mut(&mut self.store) {
-            store.set_metrics(metrics.clone());
-        }
+        // Pass metrics to storage через RwLock
+        self.store.set_metrics(metrics.clone());
         
         metrics
     }

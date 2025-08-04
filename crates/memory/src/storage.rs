@@ -36,7 +36,7 @@ pub struct StoredRecord {
 pub struct VectorStore {
     db: Arc<Db>,
     indices: HashMap<Layer, Arc<VectorIndexHnswRs>>,
-    metrics: Option<Arc<MetricsCollector>>,
+    metrics: Arc<RwLock<Option<Arc<MetricsCollector>>>>,
     health_monitor: Option<Arc<HealthMonitor>>,
     transaction_manager: Arc<TransactionManager>,
     // RwLock для координации batch операций и предотвращения race conditions
@@ -105,18 +105,10 @@ impl ChangeTracker {
 }
 
 impl VectorStore {
-    /// Открывает sled БД с настройками для crash recovery
-    fn open_database_with_recovery(db_path: impl AsRef<Path>, flush_config: &FlushConfig) -> Result<Db> {
-        use sled::Config;
-        
-        let config = Config::new()
-            .path(db_path.as_ref())
-            .mode(sled::Mode::HighThroughput) // Лучше для CLI нагрузок
-            .flush_every_ms(Some(flush_config.get_vector_storage_ms()))
-            .use_compression(flush_config.enable_compression)
-            .compression_factor(flush_config.get_compression_factor());
-            
-        let db = config.open()?;
+    /// Открывает sled БД через DatabaseManager для предотвращения concurrent access issues
+    fn open_database_with_recovery(db_path: impl AsRef<Path>, _flush_config: &FlushConfig) -> Result<Arc<Db>> {
+        let db_manager = crate::database_manager::DatabaseManager::global();
+        let db = db_manager.get_database(db_path.as_ref())?;
         
         // Проверяем целостность после открытия
         if let Err(e) = db.checksum() {
@@ -128,9 +120,7 @@ impl VectorStore {
             return Err(anyhow::anyhow!("Database corruption detected. Please restart the application for automatic recovery."));
         }
         
-        info!("Vector database opened with flush interval: {}ms, compression: {}", 
-              flush_config.get_vector_storage_ms(),
-              if flush_config.enable_compression { "enabled" } else { "disabled" });
+        info!("✅ Vector database opened through DatabaseManager");
         Ok(db)
     }
 
@@ -162,9 +152,9 @@ impl VectorStore {
         }
 
         Ok(Self {
-            db: Arc::new(db),
+            db,
             indices,
-            metrics: None,
+            metrics: Arc::new(RwLock::new(None)),
             health_monitor: None,
             transaction_manager: Arc::new(TransactionManager::new()),
             batch_lock: Arc::new(RwLock::new(())),
@@ -175,8 +165,8 @@ impl VectorStore {
     }
 
     /// Set the metrics collector
-    pub fn set_metrics(&mut self, metrics: Arc<MetricsCollector>) {
-        self.metrics = Some(metrics);
+    pub fn set_metrics(&self, metrics: Arc<MetricsCollector>) {
+        *self.metrics.write() = Some(metrics);
     }
     
     /// Set the health monitor
@@ -307,7 +297,8 @@ impl VectorStore {
         self.check_insert_limits(1)?;
         
         // Start timing
-        let _timer = self.metrics.as_ref().map(|m| TimedOperation::new(m, "vector_insert"));
+        let metrics = self.metrics.read().clone();
+        let _timer = metrics.as_ref().map(|m| TimedOperation::new(m, "vector_insert"));
         
         let tree = self.get_tree(record.layer).await?;
 
@@ -407,7 +398,7 @@ impl VectorStore {
         self.db.flush()?;
         
         // Record batch insert metrics
-        if let Some(metrics) = &self.metrics {
+        if let Some(metrics) = &*self.metrics.read() {
             let duration = start.elapsed();
             for _ in records {
                 metrics.record_vector_insert(duration / records.len() as u32);
@@ -426,7 +417,8 @@ impl VectorStore {
         let start = Instant::now();
         
         // Start timing
-        let _timer = self.metrics.as_ref().map(|m| TimedOperation::new(m, "vector_search"));
+        let metrics = self.metrics.read().clone();
+        let _timer = metrics.as_ref().map(|m| TimedOperation::new(m, "vector_search"));
         
         // Use the new vector index which handles linear vs HNSW automatically
         if let Some(index) = self.indices.get(&layer) {
@@ -542,7 +534,7 @@ impl VectorStore {
         
         // Record expired deletions
         if count > 0 {
-            if let Some(metrics) = &self.metrics {
+            if let Some(metrics) = &*self.metrics.read() {
                 metrics.record_expired(count as u64);
             }
         }
@@ -576,7 +568,7 @@ impl VectorStore {
             }
             
             // Record delete metric
-            if let Some(metrics) = &self.metrics {
+            if let Some(metrics) = &*self.metrics.read() {
                 metrics.record_vector_delete();
             }
         }

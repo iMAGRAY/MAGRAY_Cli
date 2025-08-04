@@ -117,19 +117,11 @@ struct CacheStats {
 }
 
 impl EmbeddingCacheLRU {
-    /// Открывает sled БД для LRU кэша с crash recovery
-    fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Db> {
-        use sled::Config;
-        
-        let config = Config::new()
-            .path(cache_path.as_ref())
-            .mode(sled::Mode::HighThroughput)
-            .flush_every_ms(Some(3000))      // LRU кэш реже flush
-            .use_compression(true)
-            .compression_factor(19);
-            
-        let db = config.open().context("Failed to open LRU cache database")?;
-        info!("LRU cache database opened with crash recovery");
+    /// Открывает sled БД для LRU кэша через DatabaseManager
+    fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Arc<Db>> {
+        let db_manager = crate::database_manager::DatabaseManager::global();
+        let db = db_manager.get_cache_database(cache_path.as_ref())?;
+        info!("✅ LRU cache database opened through DatabaseManager");
         Ok(db)
     }
 
@@ -150,7 +142,7 @@ impl EmbeddingCacheLRU {
         let db = Self::open_cache_database(cache_path)?;
 
         let cache = Self {
-            db: Arc::new(db),
+            db,
             stats: Arc::new(RwLock::new(CacheStats::default())),
             lru_index: Arc::new(Mutex::new(LruIndex::new())),
             config,

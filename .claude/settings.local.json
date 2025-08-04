@@ -1,58 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(set ORT_DYLIB_PATH=C:Users1DocumentsGitHubMAGRAY_Cliscriptsonnxruntimelibonnxruntime.dll)",
-      "Bash(cargo build:*)",
-      "Bash(cargo run:*)",
-      "Bash(rustc:*)",
-      "Bash(rm:*)",
-      "Bash(find:*)",
-      "Bash(cargo test:*)",
-      "Bash(mv:*)",
-      "Bash(cargo check:*)",
-      "Bash(grep:*)",
-      "Bash(rustfmt:*)",
-      "Bash(mkdir:*)",
-      "Bash(target/release/magray.exe:*)",
-      "Bash(cargo fix:*)",
-      "Bash(dir:*)",
-      "Bash(powershell:*)",
-      "Bash(targetreleasemagray.exe --version)",
-      "Bash(.targetreleasemagray.exe --version)",
-      "Bash(cargo bench:*)",
-      "mcp__archlens__analyze_project",
-      "mcp__archlens__export_ai_compact",
-      "mcp__archlens__get_project_structure",
-      "Bash(ls:*)",
-      "Bash(.targetreleasemagray.exe status)",
-      "Bash(./target/release/magray.exe status:*)",
-      "Bash(sed:*)",
-      "Bash(touch:*)",
-      "Bash(RUST_LOG=warn ./target/release/magray.exe status)",
-      "Bash(RUST_LOG=info ./target/release/magray.exe status)",
-      "Bash(RUST_LOG=debug ./target/release/magray.exe chat \"создай эмбеддинг для слова hello\")",
-      "Bash(make:*)",
-      "Bash(./target/release/magray.exe gpu:*)",
-      "Bash(./target/release/magray.exe models:*)",
-      "Bash(export ORT_DYLIB_PATH=C:/Users/1/Documents/GitHub/MAGRAY_Cli/scripts/onnxruntime/lib/onnxruntime.dll)",
-      "Bash(RUST_LOG=debug ./target/release/magray.exe status)",
-      "Bash(export RUST_LOG=debug)",
-      "Bash(RUST_LOG=debug ./target/release/magray.exe models check)",
-      "Bash(set RUST_LOG=info)",
-      "Bash(.targetreleasemagray.exe gpu status)",
-      "Bash(set ORT_DYLIB_PATH=\"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\onnxruntime\\lib\\onnxruntime.dll\")",
-      "Bash(set RUST_LOG=warn)",
-      "Bash(cargo install:*)",
-      "Bash(cargo tarpaulin:*)",
-      "Bash(cargo clippy:*)",
-      "Bash(true)",
-      "Bash(nvidia-smi:*)",
-      "Bash(set)",
-      "Bash(export:*)",
-      "Bash(echo:*)",
-      "Bash(timeout 60 cargo run --release --example test_real_gpu_embeddings)",
-      "Bash(cargo tree:*)",
-      "Bash(timeout 60 cargo run --release --example test_real_gpu_embeddings --features \"ai/gpu\")"
+      "Bash(timeout 30 cargo check -p memory --test test_database_manager)"
     ],
     "deny": []
   },
@@ -82,5 +31,10 @@
         "ARCHLENS_BINARY": "C:\\Users\\1\\Documents\\GitHub\\Archinalysator\\mcp\\archlens.exe"
       }
     }
+  },
+  "hooks": {
+    "post-edit": "powershell -ExecutionPolicy Bypass -File \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\archilens-auto-analysis.ps1\" -EditedFile \"$EDITED_FILE\"",
+    "post-multi-edit": "powershell -ExecutionPolicy Bypass -File \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\archilens-auto-analysis.ps1\" -FullAnalysis",
+    "pre-commit": "powershell -Command \"Write-Host '🔍 Запуск pre-commit анализа ArchLens...' -ForegroundColor Cyan\""
   }
 }

@@ -423,13 +423,14 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-04 16:14:27 UTC*
+*Last updated: 2025-08-04 18:59:47 UTC*
 
 ## Components (CTL v2.0 Format)
 
 ```json
 {"f":["ui","progress","adaptive"],"id":"adaptive_progress","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Adaptive progress indicators","x_file":"cli/src/progress.rs:264"}
 {"id":"auto_device_selector","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Auto CPU/GPU selector","x_file":"ai/src/auto_device_selector.rs:9"}
+{"f":["sled","concurrent","pooling"],"id":"database_manager","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"Centralized sled database manager","x_file":"memory/src/database_manager.rs:9"}
 {"f":["dimension","dynamic","adaptation"],"id":"dynamic_dimension","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Dynamic dimension support для векторов","x_file":"memory/src/dynamic_dimension.rs:12"}
 {"f":["cache","persistence"],"id":"embedding_cache","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Embedding cache with sled","x_file":"memory/src/cache.rs:16"}
 {"f":["cache","lru","eviction"],"id":"embedding_cache_lru","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"LRU cache with eviction policy","x_file":"memory/src/cache_lru.rs:44"}
@@ -447,7 +448,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["monitoring","production"],"id":"health_checks","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Production health monitoring","x_file":"cli/src/health_checks.rs:11"}
 {"f":["monitoring","alerts"],"id":"health_monitor","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"System health monitoring","x_file":"memory/src/health.rs:90"}
 {"f":["llm","agents","multi-provider"],"id":"llm_client","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"Multi-provider LLM client","x_file":"llm/src/lib.rs:6"}
-{"f":["memory","orchestration"],"id":"memory_service","k":"C","m":{"cur":70,"tgt":95,"u":"%"},"t":"Main memory service orchestrator","x_file":"memory/src/service.rs:27"}
+{"f":["memory","orchestration"],"id":"memory_service","k":"C","m":{"cur":70,"tgt":95,"u":"%"},"t":"Main memory service orchestrator","x_file":"memory/src/service.rs:28"}
 {"f":["metrics","monitoring"],"id":"metrics_collector","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Memory system metrics","x_file":"memory/src/metrics.rs:9"}
 {"id":"ml_promotion_engine","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"ML-based smart promotion system","x_file":"memory/src/ml_promotion.rs:14"}
 {"id":"model_downloader","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Auto model downloader","x_file":"ai/src/model_downloader.rs:11"}
@@ -457,6 +458,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["promotion","time-index"],"id":"promotion_engine","k":"C","m":{"cur":75,"tgt":90,"u":"%"},"t":"Time-based memory promotion","x_file":"memory/src/promotion.rs:14"}
 {"id":"reranker_optimized","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"Optimized ONNX reranker","x_file":"ai/src/reranker_mxbai_optimized.rs:11"}
 {"f":["memory","scaling","adaptive"],"id":"resource_manager","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Dynamic memory resource management","x_file":"memory/src/resource_manager.rs:9"}
+{"f":["retry","exponential","resilience"],"id":"retry_manager","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"Exponential backoff retry manager","x_file":"memory/src/retry.rs:7"}
 {"id":"simple_qwen3_tokenizer","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Simplified Qwen3 tokenizer for ONNX","x_file":"ai/src/tokenization/simple_qwen3.rs:1"}
 {"d":["llm_client","tools"],"f":["routing","orchestration"],"id":"smart_router","k":"C","m":{"cur":70,"tgt":90,"u":"%"},"t":"Smart task orchestration","x_file":"router/src/lib.rs:8"}
 {"f":["cli","diagnostic","graceful-fallback"],"id":"status_cmd","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"System status diagnostic command","x_file":"cli/src/main.rs:404"}
@@ -470,7 +472,6 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["vector","hnsw","search"],"id":"vector_index_hnsw","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"HNSW vector index","x_file":"memory/src/vector_index_hnswlib.rs:115"}
 {"f":["storage","hnsw"],"id":"vector_store","k":"C","m":{"cur":65,"tgt":100,"u":"%"},"t":"Vector storage with HNSW","x_file":"memory/src/storage.rs:18"}
 {"f":["benchmark","performance","comprehensive"],"id":"comprehensive_bench","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Comprehensive performance benchmarks","x_file":"memory/benches/comprehensive_performance.rs:7"}
-{"f":["test","integration","comprehensive"],"id":"integration_comprehensive","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Comprehensive integration tests","x_file":"memory/tests/integration_comprehensive.rs:10"}
 {"f":["integration","workflow","testing"],"id":"integration_tests","k":"T","m":{"cur":0,"tgt":90,"u":"%"},"t":"Full workflow integration tests","x_file":"memory/tests/integration_full_workflow.rs:13"}
 {"f":["benchmarks","performance"],"id":"perf_benchmarks","k":"T","m":{"cur":0,"tgt":100,"u":"%"},"t":"Performance benchmarks для memory system","x_file":"memory/benches/vector_benchmarks.rs:10"}
 {"f":["test","batch","api"],"id":"test_batch_operations","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Test batch API functionality","x_file":"memory/examples/test_batch_operations.rs:8"}

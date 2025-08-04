@@ -24,6 +24,8 @@ mod streaming;
 mod flush_config;
 pub mod gpu_accelerated;
 pub mod resource_manager;
+mod retry;
+mod database_manager;
 
 // Основные компоненты памяти
 pub use cache::EmbeddingCache;
@@ -47,6 +49,8 @@ pub use optimized_rebuild::{OptimizedRebuildManager, RebuildConfig, RebuildStats
 pub use dynamic_dimension::{DynamicDimensionManager, DimensionConfig, DimensionStats, DimensionInfo, DimensionAwareVectorStore};
 pub use resource_manager::{ResourceManager, ResourceConfig, ResourceUsage, CurrentLimits, ScalingStats};
 pub use flush_config::{FlushConfig, PerformanceMode};
+pub use retry::{RetryManager, RetryConfig};
+pub use database_manager::{DatabaseManager, DatabaseStats};
 
 // Профессиональная HNSW реализация - единственная векторная реализация
 pub use vector_index_hnswlib::{VectorIndexHnswRs, HnswRsConfig, HnswRsStats};

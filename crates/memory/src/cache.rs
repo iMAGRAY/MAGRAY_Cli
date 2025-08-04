@@ -27,19 +27,11 @@ struct CacheStats {
 }
 
 impl EmbeddingCache {
-    /// Открывает sled БД для кэша с crash recovery
-    fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Db> {
-        use sled::Config;
-        
-        let config = Config::new()
-            .path(cache_path.as_ref())
-            .mode(sled::Mode::HighThroughput)
-            .flush_every_ms(Some(2000))      // Кэш может быть менее частым
-            .use_compression(true)
-            .compression_factor(19);
-            
-        let db = config.open().context("Failed to open cache database")?;
-        info!("Cache database opened with crash recovery");
+    /// Открывает sled БД для кэша через DatabaseManager
+    fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Arc<Db>> {
+        let db_manager = crate::database_manager::DatabaseManager::global();
+        let db = db_manager.get_cache_database(cache_path.as_ref())?;
+        info!("✅ Cache database opened through DatabaseManager");
         Ok(db)
     }
 
@@ -55,7 +47,7 @@ impl EmbeddingCache {
         let db = Self::open_cache_database(cache_path)?;
 
         Ok(Self {
-            db: Arc::new(db),
+            db,
             stats: Arc::new(RwLock::new(CacheStats::default())),
         })
     }
