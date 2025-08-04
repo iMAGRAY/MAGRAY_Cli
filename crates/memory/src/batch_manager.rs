@@ -5,7 +5,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::time::interval;
+<<<<<<< HEAD
 use tracing::{debug, error, info, warn};
+=======
+use tracing::{debug, info, warn};
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 use crate::types::{Layer, Record};
 use crate::storage::VectorStore;
@@ -121,6 +125,7 @@ impl BatchOperationManager {
     }
     
     /// Add multiple records to the batch
+<<<<<<< HEAD
     #[allow(clippy::await_holding_lock)]
     pub async fn add_batch(&self, records: Vec<Record>) -> Result<()> {
         if records.is_empty() {
@@ -130,12 +135,20 @@ impl BatchOperationManager {
         
         debug!("Adding batch of {} records", records.len());
         
+=======
+    pub async fn add_batch(&self, records: Vec<Record>) -> Result<()> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         // Group by layer
         let mut by_layer: HashMap<Layer, Vec<Record>> = HashMap::new();
         for record in records {
             by_layer.entry(record.layer).or_default().push(record);
         }
         
+<<<<<<< HEAD
         // Add to pending batches with detailed logging
         let mut pending = match self.pending_batches.try_write() {
             Some(guard) => guard,
@@ -144,6 +157,10 @@ impl BatchOperationManager {
                 self.pending_batches.write()
             }
         };
+=======
+        // Add to pending batches
+        let mut pending = self.pending_batches.write();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let mut needs_flush = Vec::new();
         
         for (layer, mut new_records) in by_layer {
@@ -156,6 +173,7 @@ impl BatchOperationManager {
             }
         }
         
+<<<<<<< HEAD
         // Update stats with error handling
         {
             let pending_count: usize = pending.values().map(|v| v.len()).sum();
@@ -170,6 +188,12 @@ impl BatchOperationManager {
                     stats.pending_records = pending_count;
                 }
             }
+=======
+        // Update stats
+        {
+            let mut stats = self.stats.lock();
+            stats.pending_records = pending.values().map(|v| v.len()).sum();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         drop(pending);
@@ -184,6 +208,7 @@ impl BatchOperationManager {
     
     /// Manually flush all pending batches
     pub async fn flush_all(&self) -> Result<()> {
+<<<<<<< HEAD
         info!("Starting manual flush of all pending batches");
         let layers: Vec<Layer> = {
             let pending = match self.pending_batches.try_read() {
@@ -216,6 +241,17 @@ impl BatchOperationManager {
         
         info!("Successfully flushed all pending batches");
         
+=======
+        let layers: Vec<Layer> = {
+            let pending = self.pending_batches.read();
+            pending.keys().cloned().collect()
+        };
+        
+        for layer in layers {
+            self.flush_layer(layer).await?;
+        }
+        
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Ok(())
     }
     
@@ -228,6 +264,7 @@ impl BatchOperationManager {
     
     /// Flush a specific layer's batch
     async fn flush_layer(&self, layer: Layer) -> Result<()> {
+<<<<<<< HEAD
         debug!("Starting flush for layer {:?}", layer);
         let batch = {
             let mut pending = match self.pending_batches.try_write() {
@@ -237,16 +274,24 @@ impl BatchOperationManager {
                     self.pending_batches.write()
                 }
             };
+=======
+        let batch = {
+            let mut pending = self.pending_batches.write();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             pending.remove(&layer)
         };
         
         if let Some(records) = batch {
             if records.is_empty() {
+<<<<<<< HEAD
                 debug!("No records to flush for layer {:?}, skipping", layer);
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 return Ok(());
             }
             
             let batch_size = records.len();
+<<<<<<< HEAD
             info!("Flushing batch of {} records for layer {:?}", batch_size, layer);
             
             // Validate records before processing
@@ -258,17 +303,25 @@ impl BatchOperationManager {
             if !invalid_records.is_empty() {
                 warn!("Found {} invalid records in batch (empty text/embedding)", invalid_records.len());
             }
+=======
+            debug!("Flushing batch of {} records for layer {:?}", batch_size, layer);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             
             if self.config.async_flush {
                 // Send to background worker
                 if let Some(sender) = &self.flush_sender {
                     let batch = RecordBatch {
                         layer,
+<<<<<<< HEAD
                         records: records.clone(), // Clone to avoid move for fallback
+=======
+                        records,
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                     };
                     
                     if let Err(e) = sender.send(batch).await {
                         warn!("Failed to send batch to flush worker: {}", e);
+<<<<<<< HEAD
                         // Try to flush synchronously as fallback
                         warn!("Attempting synchronous fallback flush for {} records", records.len());
                         let start = Instant::now();
@@ -304,6 +357,19 @@ impl BatchOperationManager {
                         return Err(e);
                     }
                 }
+=======
+                        return Err(anyhow::anyhow!("Batch flush channel closed"));
+                    }
+                }
+            } else {
+                // Flush synchronously
+                let start = Instant::now();
+                let refs: Vec<&Record> = records.iter().collect();
+                self.store.insert_batch(&refs).await?;
+                
+                // Update stats
+                self.update_stats(batch_size, start.elapsed());
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
         
@@ -324,6 +390,7 @@ impl BatchOperationManager {
         let semaphore = Arc::new(tokio::sync::Semaphore::new(config.worker_threads));
         
         while let Some(batch) = rx.recv().await {
+<<<<<<< HEAD
             // Try to acquire semaphore permit with graceful error handling
             let permit = match semaphore.clone().acquire_owned().await {
                 Ok(permit) => permit,
@@ -338,6 +405,9 @@ impl BatchOperationManager {
                     continue;
                 }
             };
+=======
+            let permit = semaphore.clone().acquire_owned().await.unwrap();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             let store = store.clone();
             let stats = stats.clone();
             let metrics = metrics.clone();
@@ -383,7 +453,11 @@ impl BatchOperationManager {
                         stats_guard.failed_batches += 1;
                         
                         if let Some(metrics) = &metrics {
+<<<<<<< HEAD
                             metrics.record_error(format!("Batch flush failed: {e}"));
+=======
+                            metrics.record_error(format!("Batch flush failed: {}", e));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                         }
                     }
                 }
@@ -425,8 +499,12 @@ impl BatchOperationManager {
                 
                 for batch in batches_to_flush {
                     if let Err(e) = sender.send(batch).await {
+<<<<<<< HEAD
                         warn!("Failed to send periodic batch: {}. Channel likely closed, stopping periodic flush", e);
                         error!("Periodic flush worker terminating due to channel closure");
+=======
+                        warn!("Failed to send periodic batch: {}", e);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                         break;
                     }
                 }
@@ -436,6 +514,7 @@ impl BatchOperationManager {
     
     /// Update statistics after a flush
     fn update_stats(&self, batch_size: usize, duration: Duration) {
+<<<<<<< HEAD
         let stats_result = match self.stats.try_lock() {
             Some(mut stats) => {
                 stats.total_batches += 1;
@@ -472,6 +551,27 @@ impl BatchOperationManager {
         if let Some(metrics) = &self.metrics {
             for _ in 0..batch_size {
                 metrics.record_vector_insert(duration / batch_size.max(1) as u32);
+=======
+        let mut stats = self.stats.lock();
+        stats.total_batches += 1;
+        stats.total_records += batch_size as u64;
+        
+        // Update moving averages
+        let n = stats.total_batches as f32;
+        stats.avg_batch_size = 
+            (stats.avg_batch_size * (n - 1.0) + batch_size as f32) / n;
+        stats.avg_flush_time_ms = 
+            (stats.avg_flush_time_ms * (n - 1.0) + duration.as_millis() as f32) / n;
+        
+        // Update pending count
+        let pending = self.pending_batches.read();
+        stats.pending_records = pending.values().map(|v| v.len()).sum();
+        
+        // Record metrics
+        if let Some(metrics) = &self.metrics {
+            for _ in 0..batch_size {
+                metrics.record_vector_insert(duration / batch_size as u32);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
     }
@@ -483,12 +583,15 @@ pub struct BatchOperationBuilder {
     config: Option<BatchConfig>,
 }
 
+<<<<<<< HEAD
 impl Default for BatchOperationBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl BatchOperationBuilder {
     pub fn new() -> Self {
         Self {
@@ -534,6 +637,7 @@ mod tests {
     use tempfile::TempDir;
     use uuid::Uuid;
     
+<<<<<<< HEAD
     async fn create_test_store() -> Result<Arc<VectorStore>> {
         let temp_dir = TempDir::new()
             .map_err(|e| anyhow::anyhow!("Failed to create temp directory: {}", e))?;
@@ -547,6 +651,18 @@ mod tests {
         }
         
         Ok(Arc::new(store))
+=======
+    async fn create_test_store() -> Arc<VectorStore> {
+        let temp_dir = TempDir::new().unwrap();
+        let store = VectorStore::new(temp_dir.path().join("test_vectors")).await.unwrap();
+        
+        // Initialize layers
+        for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+            store.init_layer(layer).await.unwrap();
+        }
+        
+        Arc::new(store)
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     fn create_test_record(layer: Layer) -> Record {
@@ -567,8 +683,13 @@ mod tests {
     }
     
     #[tokio::test]
+<<<<<<< HEAD
     async fn test_batch_manager_sync() -> Result<()> {
         let store = create_test_store().await?;
+=======
+    async fn test_batch_manager_sync() {
+        let store = create_test_store().await;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let config = BatchConfig {
             max_batch_size: 10,
             async_flush: false,
@@ -578,9 +699,14 @@ mod tests {
         let manager = BatchOperationManager::new(store, config, None);
         
         // Add records
+<<<<<<< HEAD
         for i in 0..25 {
             manager.add(create_test_record(Layer::Interact)).await
                 .map_err(|e| anyhow::anyhow!("Failed to add record {}: {}", i, e))?;
+=======
+        for _ in 0..25 {
+            manager.add(create_test_record(Layer::Interact)).await.unwrap();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         // Check stats
@@ -590,19 +716,30 @@ mod tests {
         assert_eq!(stats.pending_records, 5); // 5 still pending
         
         // Flush remaining
+<<<<<<< HEAD
         manager.flush_all().await
             .map_err(|e| anyhow::anyhow!("Failed to flush remaining records: {}", e))?;
+=======
+        manager.flush_all().await.unwrap();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         let final_stats = manager.stats();
         assert_eq!(final_stats.total_batches, 3);
         assert_eq!(final_stats.total_records, 25);
         assert_eq!(final_stats.pending_records, 0);
+<<<<<<< HEAD
         
         Ok(())
     }
     
     #[tokio::test]
     async fn test_batch_builder() -> Result<()> {
+=======
+    }
+    
+    #[tokio::test]
+    async fn test_batch_builder() {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let builder = BatchOperationBuilder::new()
             .add_record(create_test_record(Layer::Interact))
             .add_record(create_test_record(Layer::Insights))
@@ -612,6 +749,7 @@ mod tests {
         let grouped = builder.group_by_layer();
         
         assert_eq!(grouped.len(), 3);
+<<<<<<< HEAD
         
         // Use proper error handling instead of unwrap
         let interact_records = grouped.get(&Layer::Interact)
@@ -702,5 +840,10 @@ mod tests {
         }
         
         Ok(())
+=======
+        assert_eq!(grouped.get(&Layer::Interact).unwrap().len(), 2);
+        assert_eq!(grouped.get(&Layer::Insights).unwrap().len(), 1);
+        assert_eq!(grouped.get(&Layer::Assets).unwrap().len(), 1);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
 }

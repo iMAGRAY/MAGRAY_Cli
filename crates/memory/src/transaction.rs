@@ -44,12 +44,15 @@ pub enum RollbackAction {
     RestoreUpdated { record: Record },
 }
 
+<<<<<<< HEAD
 impl Default for Transaction {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl Transaction {
     pub fn new() -> Self {
         Self {
@@ -145,6 +148,7 @@ impl Transaction {
     pub fn add_rollback_action(&mut self, action: RollbackAction) {
         self.rollback_actions.push(action);
     }
+<<<<<<< HEAD
     
     /// Получить статус транзакции
     pub fn status(&self) -> TransactionStatus {
@@ -160,6 +164,8 @@ impl Transaction {
     pub fn rollback_actions_count(&self) -> usize {
         self.rollback_actions.len()
     }
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 /// Менеджер транзакций
@@ -167,12 +173,15 @@ pub struct TransactionManager {
     active_transactions: Arc<Mutex<HashMap<Uuid, Transaction>>>,
 }
 
+<<<<<<< HEAD
 impl Default for TransactionManager {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl TransactionManager {
     pub fn new() -> Self {
         Self {

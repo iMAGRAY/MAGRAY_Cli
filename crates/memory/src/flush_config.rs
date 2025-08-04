@@ -29,7 +29,11 @@ pub struct FlushConfig {
 }
 
 /// Режимы производительности с предустановленными настройками
+<<<<<<< HEAD
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+=======
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 pub enum PerformanceMode {
     /// Максимальная производительность, редкие flush
     HighPerformance,

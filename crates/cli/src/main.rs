@@ -1,13 +1,21 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use console::{style, Term};
+<<<<<<< HEAD
 use indicatif::ProgressStyle;
+=======
+use indicatif::{ProgressBar, ProgressStyle};
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 use llm::LlmClient;
 use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+<<<<<<< HEAD
 use common::init_structured_logging;
+=======
+use common::{init_structured_logging, LoggingConfig};
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 mod agent;
 mod commands;
@@ -98,7 +106,21 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     // Настройка структурированного логирования
+<<<<<<< HEAD
     init_structured_logging()?;
+=======
+    let log_config = LoggingConfig {
+        level: tracing::Level::INFO,
+        json_output: std::env::var("LOG_FORMAT").as_deref() == Ok("json"),
+        color_output: !std::env::var("NO_COLOR").is_ok(),
+        log_file: std::env::var("LOG_FILE").ok(),
+        include_context: true,
+        include_line_numbers: cfg!(debug_assertions),
+        ..Default::default()
+    };
+    
+    init_structured_logging(log_config)?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
     let cli = Cli::parse();
 
@@ -110,30 +132,57 @@ async fn main() -> Result<()> {
             handle_chat(message).await?;
         }
         Some(Commands::Read { path }) => {
+<<<<<<< HEAD
             let agent = UnifiedAgent::new().await?;
             let message = format!("прочитай файл {path}");
+=======
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+            let message = format!("прочитай файл {}", path);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             let response = agent.process_message(&message).await?;
             display_response(response).await;
         }
         Some(Commands::Write { path, content }) => {
+<<<<<<< HEAD
             let agent = UnifiedAgent::new().await?;
             let message = format!("создай файл {path} с содержимым: {content}");
+=======
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+            let message = format!("создай файл {} с содержимым: {}", path, content);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             let response = agent.process_message(&message).await?;
             display_response(response).await;
         }
         Some(Commands::List { path }) => {
+<<<<<<< HEAD
             let agent = UnifiedAgent::new().await?;
+=======
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
             let response = agent.process_message(&message).await?;
             display_response(response).await;
         }
         Some(Commands::Tool { action }) => {
+<<<<<<< HEAD
             let agent = UnifiedAgent::new().await?;
+=======
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             let response = agent.process_message(&action).await?;
             display_response(response).await;
         }
         Some(Commands::Smart { task }) => {
+<<<<<<< HEAD
             let agent = UnifiedAgent::new().await?;
+=======
+            let llm_client = LlmClient::from_env()?;
+            let agent = UnifiedAgent::new(llm_client);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             let response = agent.process_message(&task).await?;
             display_response(response).await;
         }
@@ -177,15 +226,23 @@ async fn show_welcome_animation() -> Result<()> {
     let term = Term::stdout();
     
     // Анимация загрузки
+<<<<<<< HEAD
     let spinner = indicatif::ProgressBar::new_spinner();
+=======
+    let spinner = ProgressBar::new_spinner();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_chars("[|][/][-][\\]")
             .template("{spinner:.cyan} {msg}")
+<<<<<<< HEAD
             .unwrap_or_else(|e| {
                 eprintln!("Warning: Failed to create spinner template: {}", e);
                 ProgressStyle::default_spinner()
             })
+=======
+            .unwrap()
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     );
     
     spinner.set_message("Инициализация MAGRAY CLI...");
@@ -230,11 +287,16 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     let _term = Term::stdout();
     
     // Инициализация LLM клиента с анимацией
+<<<<<<< HEAD
     let spinner = indicatif::ProgressBar::new_spinner();
+=======
+    let spinner = ProgressBar::new_spinner();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_chars("[●][◐][◑][◒][◓][●]")
             .template("{spinner} {msg}")
+<<<<<<< HEAD
             .unwrap_or_else(|e| {
                 eprintln!("Warning: Failed to create LLM spinner template: {}", e);
                 ProgressStyle::default_spinner()
@@ -243,6 +305,13 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     spinner.set_message("Подключение к нейронной сети...");
     
     let _llm_client = match LlmClient::from_env() {
+=======
+            .unwrap()
+    );
+    spinner.set_message("Подключение к нейронной сети...");
+    
+    let llm_client = match LlmClient::from_env() {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Ok(client) => {
             spinner.finish_with_message("[✓] Подключено к LLM!");
             sleep(Duration::from_millis(500)).await;
@@ -254,11 +323,20 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
             println!();
             println!("{} {}", 
                 style("Ошибка:").red().bold(), 
+<<<<<<< HEAD
                 style(format!("{e}")).red()
             );
             println!();
             println!("{} Создайте файл .env с настройками:", 
                 style("[i] Решение:").yellow().bold()
+=======
+                style(format!("{}", e)).red()
+            );
+            println!();
+            println!("{} {}", 
+                style("[i] Решение:").yellow().bold(),
+                "Создайте файл .env с настройками:"
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             );
             println!("   {} {}", 
                 style("$").green(), 
@@ -273,7 +351,11 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     };
 
     // Создаем единый агент
+<<<<<<< HEAD
     let agent = UnifiedAgent::new().await?;
+=======
+    let agent = UnifiedAgent::new(llm_client);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
     if let Some(msg) = message {
         // Одиночное сообщение
@@ -343,7 +425,11 @@ async fn display_response(response: AgentResponse) {
             display_chat_response(&text).await;
         }
         AgentResponse::ToolExecution(result) => {
+<<<<<<< HEAD
             println!("{result}");
+=======
+            println!("{}", result);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
     }
 }
@@ -358,9 +444,13 @@ async fn display_chat_response(text: &str) {
     // Эффект печатания
     for char in text.chars() {
         print!("{}", style(char).bright());
+<<<<<<< HEAD
         if let Err(e) = io::stdout().flush() {
             eprintln!("Warning: Failed to flush stdout: {}", e);
         }
+=======
+        io::stdout().flush().unwrap();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         sleep(Duration::from_millis(20)).await;
     }
     println!();
@@ -373,15 +463,23 @@ async fn display_chat_response(text: &str) {
 
 
 async fn show_goodbye_animation() -> Result<()> {
+<<<<<<< HEAD
     let spinner = indicatif::ProgressBar::new_spinner();
+=======
+    let spinner = ProgressBar::new_spinner();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_chars("[◄][◁][◀][■]")
             .template("{spinner} {msg}")
+<<<<<<< HEAD
             .unwrap_or_else(|e| {
                 eprintln!("Warning: Failed to create goodbye spinner template: {}", e);
                 ProgressStyle::default_spinner()
             })
+=======
+            .unwrap()
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     );
     
     let goodbye_messages = [
@@ -500,7 +598,11 @@ async fn show_system_status() -> Result<()> {
             "error" => ("✗".red(), "Service error".to_string()),
             "timeout" => ("⌛".yellow(), "Initialization timeout".to_string()),
             "config-error" => ("✗".red(), "Configuration error".to_string()),
+<<<<<<< HEAD
             _ => ("?".cyan(), format!("Unknown ({health})")),
+=======
+            _ => ("?".cyan(), format!("Unknown ({})", health)),
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         };
         
         if record_count > 0 || hit_rate > 0.0 {
@@ -510,7 +612,11 @@ async fn show_system_status() -> Result<()> {
             println!("{} {}: {}", memory_icon, "Memory Service".bold(), status_msg);
         }
     } else {
+<<<<<<< HEAD
         println!("{} {}: Not available", "✗".red(), "Memory Service".bold());
+=======
+        println!("{} {}: {}", "✗".red(), "Memory Service".bold(), "Not available");
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     // Binary info

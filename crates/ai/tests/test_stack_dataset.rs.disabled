@@ -1,0 +1,174 @@
+// @component: {"k":"C","id":"test_stack_dataset","t":"Tests for The Stack dataset integration","m":{"cur":60,"tgt":90,"u":"%"}}
+
+use ai::quantization::{
+    StackDatasetLoader, QualityFilters, CalibrationDataset,
+};
+use std::path::PathBuf;
+
+/// Тест загрузки The Stack dataset
+#[tokio::test]
+async fn test_stack_dataset_loading() -> anyhow::Result<()> {
+    let dataset_path = PathBuf::from("crates/memory/models/the-stack-smol-xs");
+    
+    // Проверяем только если датасет существует
+    if !dataset_path.exists() {
+        println!("The Stack dataset не найден, пропускаем тест");
+        return Ok(());
+    }
+    
+    let loader = StackDatasetLoader::new(dataset_path)?;
+    
+    // Загружаем небольшое количество примеров
+    let samples = loader.load_calibration_samples(10, None).await?;
+    
+    assert!(!samples.is_empty());
+    assert!(samples.len() <= 10);
+    
+    // Проверяем качество примеров
+    for sample in &samples {
+        assert!(!sample.content.is_empty());
+        assert!(!sample.lang.is_empty());
+        assert!(sample.size > 0);
+        assert!(!sample.ext.is_empty());
+    }
+    
+    Ok(())
+}
+
+/// Тест фильтров качества
+#[tokio::test]
+async fn test_quality_filters() -> anyhow::Result<()> {
+    let dataset_path = PathBuf::from("crates/memory/models/the-stack-smol-xs");
+    
+    if !dataset_path.exists() {
+        println!("The Stack dataset не найден, пропускаем тест");
+        return Ok(());
+    }
+    
+    // Строгие фильтры
+    let strict_filters = QualityFilters {
+        min_size: 1000,
+        max_size: 5000,
+        min_avg_line_length: 30.0,
+        max_avg_line_length: 80.0,
+        min_alphanum_fraction: 0.7,
+        excluded_languages: vec!["markdown".to_string()],
+    };
+    
+    let loader = StackDatasetLoader::new(dataset_path.clone())?
+        .with_filters(strict_filters);
+    
+    let samples = loader.load_calibration_samples(50, None).await?;
+    
+    // Проверяем, что фильтры применены
+    for sample in &samples {
+        assert!(sample.size >= 1000 && sample.size <= 5000);
+        assert!(sample.avg_line_length >= 30.0 && sample.avg_line_length <= 80.0);
+        assert!(sample.alphanum_fraction >= 0.7);
+        assert_ne!(sample.lang.to_lowercase(), "markdown");
+    }
+    
+    Ok(())
+}
+
+/// Тест интеграции с CalibrationDataset
+#[tokio::test]
+async fn test_calibration_dataset_integration() -> anyhow::Result<()> {
+    let dataset_path = PathBuf::from("crates/memory/models/the-stack-smol-xs");
+    
+    if !dataset_path.exists() {
+        println!("The Stack dataset не найден, пропускаем тест");
+        return Ok(());
+    }
+    
+    // Создаем калибровочный датасет с The Stack
+    let mut calibration = CalibrationDataset::with_stack_dataset(512, dataset_path)?;
+    
+    // Загружаем примеры
+    calibration.load_from_stack(20).await?;
+    
+    assert_eq!(calibration.len(), 20);
+    
+    // Проверяем итератор по батчам
+    let mut batch_count = 0;
+    for batch in calibration.iter_batches(5) {
+        batch_count += 1;
+        assert!(batch.len() <= 5);
+    }
+    assert_eq!(batch_count, 4);
+    
+    Ok(())
+}
+
+/// Тест статистики датасета
+#[tokio::test]
+async fn test_dataset_stats() -> anyhow::Result<()> {
+    let dataset_path = PathBuf::from("crates/memory/models/the-stack-smol-xs");
+    
+    if !dataset_path.exists() {
+        println!("The Stack dataset не найден, пропускаем тест");
+        return Ok(());
+    }
+    
+    let loader = StackDatasetLoader::new(dataset_path)?;
+    let stats = loader.get_dataset_stats().await?;
+    
+    assert!(stats.total_languages > 0);
+    assert!(stats.total_samples > 0);
+    assert!(stats.total_size_bytes > 0);
+    assert_eq!(stats.language_stats.len(), stats.total_languages);
+    
+    // Проверяем корректность статистики по языкам
+    let total_from_langs: usize = stats.language_stats.iter()
+        .map(|ls| ls.num_samples)
+        .sum();
+    assert_eq!(total_from_langs, stats.total_samples);
+    
+    Ok(())
+}
+
+/// Тест загрузки конкретных языков
+#[tokio::test]
+async fn test_specific_languages() -> anyhow::Result<()> {
+    let dataset_path = PathBuf::from("crates/memory/models/the-stack-smol-xs");
+    
+    if !dataset_path.exists() {
+        println!("The Stack dataset не найден, пропускаем тест");
+        return Ok(());
+    }
+    
+    let loader = StackDatasetLoader::new(dataset_path)?;
+    
+    // Загружаем только Python и Rust
+    let languages = vec!["python".to_string(), "rust".to_string()];
+    let samples = loader.load_calibration_samples(20, Some(languages)).await?;
+    
+    // Проверяем, что загружены только запрошенные языки
+    for sample in &samples {
+        assert!(sample.lang == "Python" || sample.lang == "Rust");
+    }
+    
+    Ok(())
+}
+
+/// Тест работы с пустым набором языков
+#[tokio::test]
+async fn test_empty_language_filter() -> anyhow::Result<()> {
+    let dataset_path = PathBuf::from("crates/memory/models/the-stack-smol-xs");
+    
+    if !dataset_path.exists() {
+        println!("The Stack dataset не найден, пропускаем тест");
+        return Ok(());
+    }
+    
+    let loader = StackDatasetLoader::new(dataset_path)?;
+    
+    // Запрашиваем несуществующий язык
+    let languages = vec!["nonexistent_language".to_string()];
+    let samples = loader.load_calibration_samples(10, Some(languages)).await?;
+    
+    // Должен вернуть пустой результат
+    assert!(samples.is_empty());
+    
+    Ok(())
+}

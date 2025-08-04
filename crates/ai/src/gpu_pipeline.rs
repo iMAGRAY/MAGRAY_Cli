@@ -1,8 +1,14 @@
 use anyhow::Result;
 use std::sync::Arc;
+<<<<<<< HEAD
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Semaphore};
 use tracing::{info, debug, warn};
+=======
+use tokio::sync::{mpsc, Mutex, Semaphore};
+use tracing::{info, debug, warn};
+use std::time::{Duration, Instant};
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 use futures::stream::{FuturesUnordered, StreamExt};
 use crate::embeddings_gpu::GpuEmbeddingService;
 
@@ -12,13 +18,24 @@ pub struct GpuPipelineManager {
     gpu_services: Vec<Arc<GpuEmbeddingService>>,
     /// Семафор для ограничения параллельных операций
     gpu_semaphore: Arc<Semaphore>,
+<<<<<<< HEAD
+=======
+    /// Очередь батчей для обработки
+    batch_queue: Arc<Mutex<Vec<PendingBatch>>>,
+    /// Канал для результатов
+    result_channel: mpsc::UnboundedSender<ProcessedBatch>,
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     /// Статистика pipeline
     stats: Arc<Mutex<PipelineStats>>,
     /// Конфигурация pipeline
     config: PipelineConfig,
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone)]
+=======
+#[derive(Clone)]
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 pub struct PipelineConfig {
     /// Количество параллельных GPU потоков
     pub num_gpu_streams: usize,
@@ -50,6 +67,15 @@ impl Default for PipelineConfig {
     }
 }
 
+<<<<<<< HEAD
+=======
+struct PendingBatch {
+    id: u64,
+    texts: Vec<String>,
+    priority: u8,
+    created_at: Instant,
+}
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 pub struct ProcessedBatch {
     pub id: u64,
@@ -115,9 +141,20 @@ impl GpuPipelineManager {
         let actual_streams = gpu_services.len();
         info!("✅ Инициализировано {} GPU потоков", actual_streams);
         
+<<<<<<< HEAD
         Ok(Self {
             gpu_services,
             gpu_semaphore: Arc::new(Semaphore::new(actual_streams)),
+=======
+        // Канал для результатов
+        let (tx, _rx) = mpsc::unbounded_channel();
+        
+        Ok(Self {
+            gpu_services,
+            gpu_semaphore: Arc::new(Semaphore::new(actual_streams)),
+            batch_queue: Arc::new(Mutex::new(Vec::new())),
+            result_channel: tx,
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             stats: Arc::new(Mutex::new(PipelineStats {
                 gpu_utilization: vec![0.0; actual_streams],
                 ..Default::default()
@@ -190,8 +227,15 @@ impl GpuPipelineManager {
         
         // Объединяем результаты
         let mut all_embeddings = Vec::with_capacity(total_texts);
+<<<<<<< HEAD
         for embeddings in results.into_iter().flatten() {
             all_embeddings.extend(embeddings);
+=======
+        for batch_result in results {
+            if let Some(embeddings) = batch_result {
+                all_embeddings.extend(embeddings);
+            }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         let total_time = start_time.elapsed();
@@ -277,7 +321,11 @@ impl GpuPipelineManager {
         }
         
         // Параллельная обработка с multiple GPU services
+<<<<<<< HEAD
         let chunk_size = total_texts.div_ceil(self.gpu_services.len());
+=======
+        let chunk_size = (total_texts + self.gpu_services.len() - 1) / self.gpu_services.len();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let chunk_size = chunk_size.max(self.config.min_batch_size);
         
         let mut handles = Vec::new();

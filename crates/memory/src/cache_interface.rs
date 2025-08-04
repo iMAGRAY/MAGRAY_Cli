@@ -25,11 +25,14 @@ pub trait EmbeddingCacheInterface: Send + Sync {
     
     /// Get number of entries in cache
     fn size(&self) -> Result<u64>;
+<<<<<<< HEAD
     
     /// Test helper to check if cache is properly initialized
     fn is_null_check(&self) -> bool {
         false // По умолчанию считаем что cache инициализирован
     }
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 // Implement the trait for simple cache

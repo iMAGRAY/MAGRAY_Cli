@@ -260,6 +260,7 @@ impl OptimizedRebuildManager {
 
         let tree_iter = store.iter_layer(layer).await?;
         
+<<<<<<< HEAD
         for (_, value) in tree_iter.flatten() {
             if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
                 let id = stored.record.id.to_string();
@@ -280,6 +281,30 @@ impl OptimizedRebuildManager {
                         // Yield для других задач
                         if processed.is_multiple_of(self.config.max_batch_size * 2) {
                             tokio::task::yield_now().await;
+=======
+        for item in tree_iter {
+            if let Ok((_, value)) = item {
+                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                    let id = stored.record.id.to_string();
+                    
+                    // Добавляем только если отсутствует в индексе
+                    if !target_index.contains(&id) {
+                        batch.push((id, stored.record.embedding));
+                        
+                        // Обрабатываем batch когда достигаем лимита
+                        if batch.len() >= self.config.max_batch_size {
+                            let batch_len = batch.len();
+                            target_index.add_batch(batch.clone())?;
+                            processed += batch_len;
+                            batch.clear();
+                            
+                            debug!("📦 Incremental batch processed: {} records", processed);
+                            
+                            // Yield для других задач
+                            if processed % (self.config.max_batch_size * 2) == 0 {
+                                tokio::task::yield_now().await;
+                            }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                         }
                     }
                 }
@@ -324,6 +349,7 @@ impl OptimizedRebuildManager {
 
         let tree_iter = store.iter_layer(layer).await?;
         
+<<<<<<< HEAD
         for (_, value) in tree_iter.flatten() {
             if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
                 let id = stored.record.id.to_string();
@@ -344,6 +370,30 @@ impl OptimizedRebuildManager {
                     if start.elapsed() > self.config.max_rebuild_duration {
                         warn!("⏰ Rebuild timeout reached, processed {} records", processed);
                         break;
+=======
+        for item in tree_iter {
+            if let Ok((_, value)) = item {
+                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                    let id = stored.record.id.to_string();
+                    batch.push((id, stored.record.embedding));
+                    
+                    if batch.len() >= batch_size {
+                        target_index.add_batch(batch.clone())?;
+                        processed += batch.len();
+                        batch.clear();
+                        
+                        // Checkpoint прогресса
+                        if processed % self.config.checkpoint_interval == 0 {
+                            debug!("📊 Streaming progress: {} records processed", processed);
+                            tokio::task::yield_now().await;
+                        }
+                        
+                        // Проверяем timeout
+                        if start.elapsed() > self.config.max_rebuild_duration {
+                            warn!("⏰ Rebuild timeout reached, processed {} records", processed);
+                            break;
+                        }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                     }
                 }
             }
@@ -386,10 +436,19 @@ impl OptimizedRebuildManager {
         let mut all_vectors = Vec::new();
         let tree_iter = store.iter_layer(layer).await?;
         
+<<<<<<< HEAD
         for (_, value) in tree_iter.flatten() {
             if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
                 let id = stored.record.id.to_string();
                 all_vectors.push((id, stored.record.embedding));
+=======
+        for item in tree_iter {
+            if let Ok((_, value)) = item {
+                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                    let id = stored.record.id.to_string();
+                    all_vectors.push((id, stored.record.embedding));
+                }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
 

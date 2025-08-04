@@ -67,6 +67,7 @@ impl Default for ExecutionContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceMetrics {
     /// Длительность операции в миллисекундах
+<<<<<<< HEAD
     pub duration_ms: u64,
     /// Использование памяти в байтах
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,6 +84,17 @@ pub struct PerformanceMetrics {
     /// Количество промахов кэша
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_misses: Option<u64>,
+=======
+    pub duration_ms: Option<u64>,
+    /// Использование CPU в процентах
+    pub cpu_usage_percent: Option<f32>,
+    /// Использование памяти в байтах
+    pub memory_usage_bytes: Option<u64>,
+    /// Количество обработанных элементов
+    pub items_processed: Option<u64>,
+    /// Пропускная способность (элементов в секунду)
+    pub throughput: Option<f32>,
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 /// Форматтер для JSON логов
@@ -117,7 +129,11 @@ where
         };
         
         if let Ok(json) = serde_json::to_string(&entry) {
+<<<<<<< HEAD
             let _ = writeln!(io::stdout(), "{json}");
+=======
+            let _ = writeln!(io::stdout(), "{}", json);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
     }
 }
@@ -132,11 +148,19 @@ struct JsonVisitor {
 impl Visit for JsonVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         if field.name() == "message" {
+<<<<<<< HEAD
             self.message = Some(format!("{value:?}"));
         } else {
             self.fields.insert(
                 field.name().to_string(),
                 Value::String(format!("{value:?}")),
+=======
+            self.message = Some(format!("{:?}", value));
+        } else {
+            self.fields.insert(
+                field.name().to_string(),
+                Value::String(format!("{:?}", value)),
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             );
         }
     }
@@ -186,6 +210,7 @@ impl Visit for JsonVisitor {
 impl JsonVisitor {
     /// Извлечь метрики производительности из полей
     fn extract_performance_metrics(&self) -> Option<PerformanceMetrics> {
+<<<<<<< HEAD
         // Если нет duration_ms, то метрики не нужны
         let duration_ms = self.get_u64_field("duration_ms")?;
         
@@ -197,6 +222,30 @@ impl JsonVisitor {
             cache_hits: self.get_u64_field("cache_hits"),
             cache_misses: self.get_u64_field("cache_misses"),
         })
+=======
+        if self.fields.is_empty() {
+            return None;
+        }
+        
+        let metrics = PerformanceMetrics {
+            duration_ms: self.get_u64_field("duration_ms"),
+            cpu_usage_percent: self.get_f64_field("cpu_usage").map(|v| v as f32),
+            memory_usage_bytes: self.get_u64_field("memory_bytes"),
+            items_processed: self.get_u64_field("items_count"),
+            throughput: self.get_f64_field("throughput").map(|v| v as f32),
+        };
+        
+        // Если есть хотя бы одна метрика, возвращаем
+        if metrics.duration_ms.is_some() 
+            || metrics.cpu_usage_percent.is_some()
+            || metrics.memory_usage_bytes.is_some()
+            || metrics.items_processed.is_some()
+            || metrics.throughput.is_some() {
+            Some(metrics)
+        } else {
+            None
+        }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     fn get_u64_field(&self, name: &str) -> Option<u64> {
@@ -214,6 +263,7 @@ impl JsonVisitor {
 #[derive(Debug, Clone)]
 pub struct LoggingConfig {
     /// Минимальный уровень логирования
+<<<<<<< HEAD
     level: Level,
     /// Вывод в JSON формате
     json_output: bool,
@@ -223,6 +273,21 @@ pub struct LoggingConfig {
     include_line_numbers: bool,
     /// Pretty print для JSON
     pretty_print: bool,
+=======
+    pub level: Level,
+    /// Вывод в JSON формате
+    pub json_output: bool,
+    /// Включить цветной вывод (только для non-JSON)
+    pub color_output: bool,
+    /// Файл для записи логов
+    pub log_file: Option<String>,
+    /// Максимальный размер файла логов (в байтах)
+    pub max_file_size: Option<u64>,
+    /// Включить контекст выполнения
+    pub include_context: bool,
+    /// Включить номера строк
+    pub include_line_numbers: bool,
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 impl Default for LoggingConfig {
@@ -231,12 +296,20 @@ impl Default for LoggingConfig {
             level: Level::INFO,
             json_output: false,
             color_output: true,
+<<<<<<< HEAD
             include_line_numbers: cfg!(debug_assertions),
             pretty_print: false,
+=======
+            log_file: None,
+            max_file_size: Some(100 * 1024 * 1024), // 100MB
+            include_context: true,
+            include_line_numbers: cfg!(debug_assertions),
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
     }
 }
 
+<<<<<<< HEAD
 impl LoggingConfig {
     pub fn new() -> Self {
         Self::default()
@@ -281,6 +354,10 @@ impl LoggingConfig {
 
 /// Инициализировать structured logging с настройками
 pub fn init_structured_logging_with_config(config: LoggingConfig) -> anyhow::Result<()> {
+=======
+/// Инициализировать structured logging
+pub fn init_structured_logging(config: LoggingConfig) -> anyhow::Result<()> {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(config.level.to_string()));
     
@@ -313,11 +390,14 @@ pub fn init_structured_logging_with_config(config: LoggingConfig) -> anyhow::Res
     Ok(())
 }
 
+<<<<<<< HEAD
 /// Инициализировать structured logging с настройками по умолчанию
 pub fn init_structured_logging() -> anyhow::Result<()> {
     init_structured_logging_with_config(LoggingConfig::default())
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 /// Макрос для структурированного логирования с метриками
 #[macro_export]
 macro_rules! log_with_metrics {
@@ -354,11 +434,15 @@ impl OperationTimer {
         }
     }
     
+<<<<<<< HEAD
     pub fn elapsed(&self) -> std::time::Duration {
         self.start.elapsed()
     }
     
     pub fn finish(self) -> PerformanceMetrics {
+=======
+    pub fn finish(self) {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let duration_ms = self.start.elapsed().as_millis() as u64;
         
         tracing::info!(
@@ -368,6 +452,7 @@ impl OperationTimer {
             fields = ?self.fields,
             "Operation completed"
         );
+<<<<<<< HEAD
         
         PerformanceMetrics {
             duration_ms,
@@ -385,6 +470,8 @@ impl OperationTimer {
     {
         let metrics = self.finish();
         callback(metrics)
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     pub fn finish_with_result<T>(self, result: Result<T, impl std::fmt::Display>) {
@@ -417,6 +504,7 @@ impl OperationTimer {
 /// Контекст запроса для отслеживания через async операции
 #[derive(Clone)]
 pub struct RequestContext {
+<<<<<<< HEAD
     request_id: String,
     user_id: Option<String>,
     metadata: HashMap<String, String>,
@@ -428,6 +516,19 @@ impl RequestContext {
             request_id: request_id.into(),
             user_id: None,
             metadata: HashMap::new(),
+=======
+    pub request_id: String,
+    pub user_id: Option<String>,
+    pub start_time: std::time::Instant,
+}
+
+impl RequestContext {
+    pub fn new() -> Self {
+        Self {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            user_id: None,
+            start_time: std::time::Instant::now(),
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
     }
     
@@ -435,6 +536,7 @@ impl RequestContext {
         self.user_id = Some(user_id.into());
         self
     }
+<<<<<<< HEAD
     
     pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
@@ -452,6 +554,8 @@ impl RequestContext {
     pub fn metadata(&self) -> &HashMap<String, String> {
         &self.metadata
     }
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 #[cfg(test)]
@@ -468,12 +572,20 @@ mod tests {
             fields: HashMap::new(),
             context: Some(ExecutionContext::default()),
             performance: Some(PerformanceMetrics {
+<<<<<<< HEAD
                 duration_ms: 100,
                 cpu_usage_percent: Some(25.5),
                 memory_used_bytes: Some(1024 * 1024),
                 io_operations: None,
                 cache_hits: None,
                 cache_misses: None,
+=======
+                duration_ms: Some(100),
+                cpu_usage_percent: Some(25.5),
+                memory_usage_bytes: Some(1024 * 1024),
+                items_processed: Some(1000),
+                throughput: Some(10000.0),
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }),
         };
         

@@ -13,7 +13,10 @@ pub struct MetricsCollector {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+<<<<<<< HEAD
 #[derive(Default)]
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 pub struct MemoryMetrics {
     // Vector operations
     pub vector_searches: u64,
@@ -109,10 +112,36 @@ impl LatencyMetric {
     }
 }
 
+<<<<<<< HEAD
 
 impl Default for MetricsCollector {
     fn default() -> Self {
         Self::new()
+=======
+impl Default for MemoryMetrics {
+    fn default() -> Self {
+        Self {
+            vector_searches: 0,
+            vector_inserts: 0,
+            vector_deletes: 0,
+            vector_search_latency_ms: Default::default(),
+            vector_insert_latency_ms: Default::default(),
+            cache_hits: 0,
+            cache_misses: 0,
+            cache_evictions: 0,
+            cache_size_bytes: 0,
+            cache_entries: 0,
+            promotions_interact_to_insights: 0,
+            promotions_insights_to_assets: 0,
+            records_expired: 0,
+            promotion_cycle_duration_ms: Default::default(),
+            layer_sizes: HashMap::new(),
+            uptime_seconds: 0,
+            total_operations: 0,
+            error_count: 0,
+            last_error: None,
+        }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
 }
 
@@ -247,12 +276,21 @@ impl MetricsCollector {
         let mut output = String::new();
         
         // Vector metrics
+<<<<<<< HEAD
         output.push_str("# HELP memory_vector_searches_total Total number of vector searches\n");
         output.push_str("# TYPE memory_vector_searches_total counter\n");
         output.push_str(&format!("memory_vector_searches_total {}\n", metrics.vector_searches));
         
         output.push_str("# HELP memory_vector_search_latency_ms Vector search latency in milliseconds\n");
         output.push_str("# TYPE memory_vector_search_latency_ms histogram\n");
+=======
+        output.push_str(&format!("# HELP memory_vector_searches_total Total number of vector searches\n"));
+        output.push_str(&format!("# TYPE memory_vector_searches_total counter\n"));
+        output.push_str(&format!("memory_vector_searches_total {}\n", metrics.vector_searches));
+        
+        output.push_str(&format!("# HELP memory_vector_search_latency_ms Vector search latency in milliseconds\n"));
+        output.push_str(&format!("# TYPE memory_vector_search_latency_ms histogram\n"));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         output.push_str(&format!("memory_vector_search_latency_ms_sum {}\n", metrics.vector_search_latency_ms.sum_ms));
         output.push_str(&format!("memory_vector_search_latency_ms_count {}\n", metrics.vector_search_latency_ms.count));
         output.push_str(&format!("memory_vector_search_latency_ms{{quantile=\"0.5\"}} {}\n", metrics.vector_search_latency_ms.p50_ms));
@@ -260,35 +298,62 @@ impl MetricsCollector {
         output.push_str(&format!("memory_vector_search_latency_ms{{quantile=\"0.99\"}} {}\n", metrics.vector_search_latency_ms.p99_ms));
         
         // Cache metrics
+<<<<<<< HEAD
         output.push_str("# HELP memory_cache_hits_total Total number of cache hits\n");
         output.push_str("# TYPE memory_cache_hits_total counter\n");
         output.push_str(&format!("memory_cache_hits_total {}\n", metrics.cache_hits));
         
         output.push_str("# HELP memory_cache_hit_rate Cache hit rate\n");
         output.push_str("# TYPE memory_cache_hit_rate gauge\n");
+=======
+        output.push_str(&format!("# HELP memory_cache_hits_total Total number of cache hits\n"));
+        output.push_str(&format!("# TYPE memory_cache_hits_total counter\n"));
+        output.push_str(&format!("memory_cache_hits_total {}\n", metrics.cache_hits));
+        
+        output.push_str(&format!("# HELP memory_cache_hit_rate Cache hit rate\n"));
+        output.push_str(&format!("# TYPE memory_cache_hit_rate gauge\n"));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let hit_rate = if metrics.cache_hits + metrics.cache_misses > 0 {
             metrics.cache_hits as f64 / (metrics.cache_hits + metrics.cache_misses) as f64
         } else {
             0.0
         };
+<<<<<<< HEAD
         output.push_str(&format!("memory_cache_hit_rate {hit_rate}\n"));
         
         // Layer metrics
         for (layer, layer_metrics) in &metrics.layer_sizes {
             output.push_str("# HELP memory_layer_record_count Number of records in layer\n");
             output.push_str("# TYPE memory_layer_record_count gauge\n");
+=======
+        output.push_str(&format!("memory_cache_hit_rate {}\n", hit_rate));
+        
+        // Layer metrics
+        for (layer, layer_metrics) in &metrics.layer_sizes {
+            output.push_str(&format!("# HELP memory_layer_record_count Number of records in layer\n"));
+            output.push_str(&format!("# TYPE memory_layer_record_count gauge\n"));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             output.push_str(&format!("memory_layer_record_count{{layer=\"{}\"}} {}\n", layer, layer_metrics.record_count));
             
             output.push_str(&format!("memory_layer_size_bytes{{layer=\"{}\"}} {}\n", layer, layer_metrics.total_size_bytes));
         }
         
         // System metrics
+<<<<<<< HEAD
         output.push_str("# HELP memory_uptime_seconds Uptime in seconds\n");
         output.push_str("# TYPE memory_uptime_seconds gauge\n");
         output.push_str(&format!("memory_uptime_seconds {}\n", metrics.uptime_seconds));
         
         output.push_str("# HELP memory_errors_total Total number of errors\n");
         output.push_str("# TYPE memory_errors_total counter\n");
+=======
+        output.push_str(&format!("# HELP memory_uptime_seconds Uptime in seconds\n"));
+        output.push_str(&format!("# TYPE memory_uptime_seconds gauge\n"));
+        output.push_str(&format!("memory_uptime_seconds {}\n", metrics.uptime_seconds));
+        
+        output.push_str(&format!("# HELP memory_errors_total Total number of errors\n"));
+        output.push_str(&format!("# TYPE memory_errors_total counter\n"));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         output.push_str(&format!("memory_errors_total {}\n", metrics.error_count));
         
         output

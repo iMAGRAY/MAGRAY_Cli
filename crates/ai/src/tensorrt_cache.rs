@@ -127,7 +127,11 @@ impl TensorRTCache {
         
         format!("{}_{}_{:x}", 
             model_name.replace('/', "_"),
+<<<<<<< HEAD
             gpu_info.name.replace([' ', '/'], "_"),
+=======
+            gpu_info.name.replace(' ', "_").replace('/', "_"),
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             hasher.finish()
         )
     }

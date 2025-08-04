@@ -16,6 +16,7 @@ pub enum LlmProvider {
     Local { url: String, model: String },
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
@@ -79,6 +80,8 @@ impl CompletionRequest {
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 #[derive(Debug, Serialize)]
 struct OpenAIChatRequest {
     model: String,
@@ -136,6 +139,7 @@ pub struct LlmClient {
 }
 
 impl LlmClient {
+<<<<<<< HEAD
     pub fn new(provider: LlmProvider) -> Self {
         Self {
             provider,
@@ -168,6 +172,8 @@ impl LlmClient {
         }
     }
     
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     pub fn from_env() -> Result<Self> {
         dotenv::dotenv().ok(); // Загружаем .env если есть
         
@@ -210,6 +216,7 @@ impl LlmClient {
         })
     }
 
+<<<<<<< HEAD
     pub async fn complete(&self, request: CompletionRequest) -> Result<String> {
         let message = if let Some(system) = &request.system_prompt {
             format!("{}\n\n{}", system, request.prompt)
@@ -251,6 +258,9 @@ impl LlmClient {
     }
     
     async fn chat_internal(&self, message: &str) -> Result<String> {
+=======
+    pub async fn chat(&self, message: &str) -> Result<String> {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         match &self.provider {
             LlmProvider::OpenAI { api_key, model } => {
                 self.openai_chat(api_key, model, message).await
@@ -281,7 +291,11 @@ impl LlmClient {
         let response = self
             .client
             .post("https://api.openai.com/v1/chat/completions")
+<<<<<<< HEAD
             .header("Authorization", format!("Bearer {api_key}"))
+=======
+            .header("Authorization", format!("Bearer {}", api_key))
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -320,7 +334,11 @@ impl LlmClient {
         let response = self
             .client
             .post("https://api.anthropic.com/v1/messages")
+<<<<<<< HEAD
             .header("Authorization", format!("Bearer {api_key}"))
+=======
+            .header("Authorization", format!("Bearer {}", api_key))
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .header("Content-Type", "application/json")
             .header("anthropic-version", "2023-06-01")
             .json(&request)

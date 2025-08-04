@@ -91,11 +91,16 @@ impl GpuBatchProcessor {
         })
     }
 
+<<<<<<< HEAD
     /// Попытка создать GPU pipeline сс comprehensive validation
+=======
+    /// Попытка создать GPU pipeline
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     async fn try_create_gpu_pipeline(
         config: &BatchProcessorConfig,
         embedding_config: &EmbeddingConfig,
     ) -> Result<GpuPipelineManager> {
+<<<<<<< HEAD
         // Валидация GPU capabilities перед созданием pipeline
         Self::validate_gpu_capabilities()?;
         
@@ -281,6 +286,23 @@ impl GpuBatchProcessor {
             warn!("Text too long ({} chars), truncating", text.len());
         }
         
+=======
+        let pipeline_config = PipelineConfig {
+            num_gpu_streams: 4,
+            max_batch_size: config.max_batch_size,
+            min_batch_size: 32,
+            batch_timeout: std::time::Duration::from_millis(config.batch_timeout_ms),
+            use_pinned_memory: true,
+            enable_prefetch: true,
+            prefetch_count: 2,
+        };
+        
+        GpuPipelineManager::new(pipeline_config, embedding_config.clone()).await
+    }
+
+    /// Получить эмбеддинг для одного текста (с батчеванием)
+    pub async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         // Проверяем кэш
         if self.config.cache_embeddings {
             if let Some(embedding) = self.cache.get(text, "bge-m3") {
@@ -289,6 +311,7 @@ impl GpuBatchProcessor {
             }
         }
 
+<<<<<<< HEAD
         // Используем resilient embedding с multiple fallback levels
         let embedding = match self.get_embedding_with_fallback(text).await {
             Ok(emb) => emb,
@@ -299,6 +322,14 @@ impl GpuBatchProcessor {
         };
 
         // Кэшируем результат (даже fallback)
+=======
+        // Используем новый fallback сервис для получения embedding
+        let embeddings = self.embedding_service.embed_batch(vec![text.to_string()]).await?;
+        let embedding = embeddings.into_iter().next()
+            .ok_or_else(|| anyhow::anyhow!("No embedding returned"))?;
+
+        // Кэшируем результат
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         if self.config.cache_embeddings {
             if let Err(e) = self.cache.insert(text, "bge-m3", embedding.clone()) {
                 warn!("Failed to cache embedding: {}", e);
@@ -307,6 +338,7 @@ impl GpuBatchProcessor {
 
         Ok(embedding)
     }
+<<<<<<< HEAD
     
     /// Получить embedding с comprehensive fallback chain
     async fn get_embedding_with_fallback(&self, text: &str) -> Result<Vec<f32>> {
@@ -380,6 +412,10 @@ impl GpuBatchProcessor {
     }
 
     /// Обработать батч текстов напрямую с resilient error handling
+=======
+
+    /// Обработать батч текстов напрямую
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     pub async fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(vec![]);
@@ -404,11 +440,16 @@ impl GpuBatchProcessor {
             uncached_indices = (0..texts.len()).collect();
         }
 
+<<<<<<< HEAD
         // Обрабатываем uncached тексты с resilient processing
+=======
+        // Обрабатываем uncached тексты
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         if !uncached_texts.is_empty() {
             let embeddings = if let Some(ref pipeline) = self.gpu_pipeline {
                 // Используем GPU pipeline для максимальной производительности
                 debug!("🚀 Используем GPU Pipeline для {} текстов", uncached_texts.len());
+<<<<<<< HEAD
                 
                 // Пытаемся через GPU pipeline с fallback
                 match pipeline.process_with_prefetch(uncached_texts.clone()).await {
@@ -421,17 +462,25 @@ impl GpuBatchProcessor {
                             })?
                     }
                 }
+=======
+                pipeline.process_with_prefetch(uncached_texts.clone()).await?
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             } else {
                 // Fallback на обычный сервис
                 debug!("🔄 Используем Fallback сервис для {} текстов", uncached_texts.len());
                 self.embedding_service.embed_batch(uncached_texts.clone()).await?
             };
 
+<<<<<<< HEAD
             // Сохраняем в кэш и результаты с защитой от partial failures
+=======
+            // Сохраняем в кэш и результаты
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             for (idx, (text, embedding)) in uncached_texts.iter()
                 .zip(embeddings.iter())
                 .enumerate() 
             {
+<<<<<<< HEAD
                 // Кэшируем с error handling
                 if self.config.cache_embeddings {
                     if let Err(e) = self.cache.insert(text, "bge-m3", embedding.clone()) {
@@ -468,6 +517,19 @@ impl GpuBatchProcessor {
             }
         }
         Ok(final_results)
+=======
+                if self.config.cache_embeddings {
+                    self.cache.insert(text, "bge-m3", embedding.clone())?;
+                }
+                results[uncached_indices[idx]] = Some(embedding.clone());
+            }
+        }
+
+        // Собираем финальные результаты
+        Ok(results.into_iter()
+            .map(|r| r.expect("All results should be filled"))
+            .collect())
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
 
     /// Обработать накопленный батч
@@ -521,7 +583,11 @@ impl GpuBatchProcessor {
         self.embedding_service.force_cpu_mode();
     }
 
+<<<<<<< HEAD
     /// Получить статистику с comprehensive information
+=======
+    /// Получить статистику
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     pub async fn get_stats(&self) -> BatchProcessorStats {
         let queue_size = self.processing_queue.lock().await.len();
         
@@ -539,6 +605,7 @@ impl GpuBatchProcessor {
             pipeline_stats,
         }
     }
+<<<<<<< HEAD
     
     /// Проверить GPU memory usage и состояние
     pub async fn check_gpu_health(&self) -> GpuHealthStatus {
@@ -630,6 +697,8 @@ impl GpuBatchProcessor {
         
         Ok(())
     }
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 #[derive(Debug)]
@@ -640,6 +709,7 @@ pub struct BatchProcessorStats {
     pub pipeline_stats: Option<ai::PipelineStats>,
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone)]
 pub struct GpuHealthStatus {
     pub available: bool,
@@ -672,6 +742,8 @@ impl GpuHealthStatus {
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -679,6 +751,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_processor_creation() {
+<<<<<<< HEAD
         let temp_dir = match TempDir::new() {
             Ok(dir) => dir,
             Err(e) => {
@@ -694,6 +767,10 @@ mod tests {
                 return;
             }
         };
+=======
+        let temp_dir = TempDir::new().unwrap();
+        let cache = Arc::new(crate::EmbeddingCache::new(temp_dir.path()).unwrap()) as Arc<dyn EmbeddingCacheInterface>;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         let config = BatchProcessorConfig::default();
         let embedding_config = EmbeddingConfig::default();
@@ -701,17 +778,26 @@ mod tests {
         match GpuBatchProcessor::new(config, embedding_config, cache).await {
             Ok(_) => {
                 // Должен создаться хотя бы с CPU fallback
+<<<<<<< HEAD
                 println!("✅ Processor created successfully with fallback");
             },
             Err(e) => {
                 println!("⚠️ Expected error without models: {}", e);
                 // This is expected in test environment without models
+=======
+                println!("Processor created successfully");
+            },
+            Err(e) => {
+                println!("Expected error without models: {}", e);
+                // This is fine in test environment without models
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
     }
 
     #[tokio::test]
     async fn test_single_embedding() {
+<<<<<<< HEAD
         let temp_dir = match TempDir::new() {
             Ok(dir) => dir,
             Err(e) => {
@@ -730,12 +816,20 @@ mod tests {
         
         let config = BatchProcessorConfig {
             use_gpu_if_available: false, // Форсируем CPU для тестов
+=======
+        let temp_dir = TempDir::new().unwrap();
+        let cache = Arc::new(crate::EmbeddingCache::new(temp_dir.path()).unwrap()) as Arc<dyn EmbeddingCacheInterface>;
+        
+        let config = BatchProcessorConfig {
+            use_gpu_if_available: false, // Форсируем CPU
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             ..Default::default()
         };
         let embedding_config = EmbeddingConfig::default();
         
         match GpuBatchProcessor::new(config, embedding_config, cache).await {
             Ok(processor) => {
+<<<<<<< HEAD
                 match processor.embed("test text").await {
                     Ok(embedding) => {
                         println!("✅ Got embedding with length: {}", embedding.len());
@@ -750,12 +844,21 @@ mod tests {
             Err(e) => {
                 println!("⚠️ Expected error without models: {}", e);
                 // This is expected in test environment without models
+=======
+                let embedding = processor.embed("test text").await.unwrap();
+                assert!(!embedding.is_empty());
+            },
+            Err(e) => {
+                println!("Expected error without models: {}", e);
+                // This is fine in test environment without models
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
     }
 
     #[tokio::test] 
     async fn test_batch_embedding() {
+<<<<<<< HEAD
         let temp_dir = match TempDir::new() {
             Ok(dir) => dir,
             Err(e) => {
@@ -774,6 +877,13 @@ mod tests {
         
         let config = BatchProcessorConfig {
             use_gpu_if_available: false, // Форсируем CPU для тестов
+=======
+        let temp_dir = TempDir::new().unwrap();
+        let cache = Arc::new(crate::EmbeddingCache::new(temp_dir.path()).unwrap()) as Arc<dyn EmbeddingCacheInterface>;
+        
+        let config = BatchProcessorConfig {
+            use_gpu_if_available: false, // Форсируем CPU
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             ..Default::default()
         };
         let embedding_config = EmbeddingConfig::default();
@@ -786,6 +896,7 @@ mod tests {
                     "third text".to_string(),
                 ];
                 
+<<<<<<< HEAD
                 match processor.embed_batch(texts.clone()).await {
                     Ok(embeddings) => {
                         println!("✅ Got {} embeddings for {} texts", embeddings.len(), texts.len());
@@ -873,6 +984,18 @@ mod tests {
             },
             Err(e) => {
                 println!("Expected error in test environment: {}", e);
+=======
+                let embeddings = processor.embed_batch(texts).await.unwrap();
+                assert_eq!(embeddings.len(), 3);
+                
+                for embedding in embeddings {
+                    assert!(!embedding.is_empty());
+                }
+            },
+            Err(e) => {
+                println!("Expected error without models: {}", e);
+                // This is fine in test environment without models
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
     }

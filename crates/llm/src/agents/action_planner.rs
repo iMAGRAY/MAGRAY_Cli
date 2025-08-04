@@ -32,8 +32,13 @@ impl ActionPlannerAgent {
         
         let prompt = format!(r#"Ты - эксперт по планированию сложных действий. Проанализируй запрос пользователя и создай оптимальный пошаговый план выполнения.
 
+<<<<<<< HEAD
 ДОСТУПНЫЕ ИНСТРУМЕНТЫ: {tools_list}
 ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{user_query}"
+=======
+ДОСТУПНЫЕ ИНСТРУМЕНТЫ: {}
+ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{}"
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 ПРИНЦИПЫ ПЛАНИРОВАНИЯ:
 1. Разбивай сложные задачи на атомарные операции
@@ -85,9 +90,15 @@ Git операции:
     ],
     "reasoning": "план создан для выполнения запроса пользователя с проверкой результата",
     "confidence": 0.95
+<<<<<<< HEAD
 }}"#);
 
         let response = self.llm.chat_simple(&prompt).await?;
+=======
+}}"#, tools_list, user_query);
+
+        let response = self.llm.chat(&prompt).await?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         self.parse_action_plan(&response)
     }
     

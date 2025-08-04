@@ -67,8 +67,13 @@ impl BackupManager {
         backup_name: Option<String>,
     ) -> Result<PathBuf> {
         let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+<<<<<<< HEAD
         let backup_name = backup_name.unwrap_or_else(|| format!("backup_{timestamp}"));
         let backup_path = self.base_path.join(format!("{backup_name}.tar.gz"));
+=======
+        let backup_name = backup_name.unwrap_or_else(|| format!("backup_{}", timestamp));
+        let backup_path = self.base_path.join(format!("{}.tar.gz", backup_name));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         info!("Creating backup: {:?}", backup_path);
         
@@ -250,7 +255,11 @@ impl BackupManager {
                         
                         // Периодически сохраняем для экономии памяти
                         if records.len() >= 1000 {
+<<<<<<< HEAD
                             self.append_records_to_file(output_path, &records)?;
+=======
+                            self.append_records_to_file(&output_path, &records)?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                             records.clear();
                         }
                     } else {
@@ -265,7 +274,11 @@ impl BackupManager {
         
         // Сохраняем оставшиеся записи
         if !records.is_empty() {
+<<<<<<< HEAD
             self.append_records_to_file(output_path, &records)?;
+=======
+            self.append_records_to_file(&output_path, &records)?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         let file_size = if output_path.exists() {
@@ -302,7 +315,11 @@ impl BackupManager {
         if let Some(ref layer_checksums) = metadata.layer_checksums {
             for layer_info in &metadata.layers {
                 let layer_name = layer_info.layer.as_str();
+<<<<<<< HEAD
                 let layer_file = backup_dir.join(format!("{layer_name}_records.json"));
+=======
+                let layer_file = backup_dir.join(format!("{}_records.json", layer_name));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 
                 if !layer_file.exists() {
                     warn!("⚠️ Layer file missing: {:?}", layer_file);
@@ -469,7 +486,11 @@ impl BackupManager {
     }
 
     /// Прочитать метаданные backup без полной распаковки
+<<<<<<< HEAD
     pub fn read_backup_metadata(&self, backup_path: &Path) -> Result<BackupMetadata> {
+=======
+    fn read_backup_metadata(&self, backup_path: &Path) -> Result<BackupMetadata> {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let tar_gz = File::open(backup_path)?;
         let decoder = GzDecoder::new(tar_gz);
         let mut tar = tar::Archive::new(decoder);
@@ -504,6 +525,7 @@ impl BackupManager {
         
         Ok(deleted)
     }
+<<<<<<< HEAD
 
     /// Проверить целостность backup файла
     pub async fn verify_backup(&self, backup_path: impl AsRef<Path>) -> Result<bool> {
@@ -551,6 +573,8 @@ impl BackupManager {
         Ok(true)
     }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 /// Информация о backup файле

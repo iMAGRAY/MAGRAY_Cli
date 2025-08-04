@@ -13,12 +13,15 @@ pub struct DependencyGraph {
     node_map: RwLock<HashMap<Uuid, NodeIndex>>,
 }
 
+<<<<<<< HEAD
 impl Default for DependencyGraph {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl DependencyGraph {
     pub fn new() -> Self {
         Self {
@@ -33,9 +36,16 @@ impl DependencyGraph {
         let mut node_map = self.node_map.write().unwrap();
         
         // Добавляем узел если его еще нет
+<<<<<<< HEAD
         node_map.entry(task.id).or_insert_with(|| {
             graph.add_node(task.id)
         });
+=======
+        if !node_map.contains_key(&task.id) {
+            let node = graph.add_node(task.id);
+            node_map.insert(task.id, node);
+        }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         // Добавляем зависимости
         for dep_id in &task.depends_on {

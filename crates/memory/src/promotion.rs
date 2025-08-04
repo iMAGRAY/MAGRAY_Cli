@@ -31,8 +31,13 @@ impl PromotionEngine {
         
         // Создаем индексы для каждого слоя
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+<<<<<<< HEAD
             let time_tree_name = format!("time_index_{layer:?}");
             let score_tree_name = format!("score_index_{layer:?}");
+=======
+            let time_tree_name = format!("time_index_{:?}", layer);
+            let score_tree_name = format!("score_index_{:?}", layer);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             
             let time_tree = db.open_tree(&time_tree_name)?;
             let score_tree = db.open_tree(&score_tree_name)?;
@@ -122,7 +127,11 @@ impl PromotionEngine {
             // Удаляем из старого слоя и обновляем индексы
             for record in &promoted {
                 self.delete_record_with_index_update(Layer::Interact, &record.id).await?;
+<<<<<<< HEAD
                 self.update_indices_for_record(record, true).await?;
+=======
+                self.update_indices_for_record(&record, true).await?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
         
@@ -156,7 +165,11 @@ impl PromotionEngine {
             
             for record in &promoted {
                 self.delete_record_with_index_update(Layer::Insights, &record.id).await?;
+<<<<<<< HEAD
                 self.update_indices_for_record(record, true).await?;
+=======
+                self.update_indices_for_record(&record, true).await?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
         
@@ -187,6 +200,7 @@ impl PromotionEngine {
         Ok(count)
     }
     
+<<<<<<< HEAD
     /// Основной API метод для координатора
     pub async fn promote(&self) -> Result<PromotionStats> {
         self.run_promotion_cycle().await
@@ -198,6 +212,8 @@ impl PromotionEngine {
         PromotionStats::default()
     }
     
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     /// Быстрый поиск кандидатов используя time-based индекс
     async fn find_candidates_by_time(
         &self,
@@ -364,7 +380,11 @@ impl PromotionEngine {
         // Интеллектуальные границы:
         // - Минимум 500 кандидатов (для эффективности)
         // - Максимум 50,000 кандидатов (для предотвращения OOM)
+<<<<<<< HEAD
         let final_limit = safe_limit.clamp(500, 50_000);
+=======
+        let final_limit = safe_limit.max(500).min(50_000);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         debug!("💾 Calculated safe candidates limit: {} (available memory: {}MB)", 
                final_limit, available_memory_mb);
@@ -465,7 +485,11 @@ impl PromotionEngine {
         // Удаляем из старого слоя
         for record in &promoted {
             self.delete_record_with_index_update(Layer::Interact, &record.id).await?;
+<<<<<<< HEAD
             self.update_indices_for_record(record, true).await?;
+=======
+            self.update_indices_for_record(&record, true).await?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         debug!("✅ Promoted {} records: Interact -> Insights", promoted.len());
@@ -490,7 +514,11 @@ impl PromotionEngine {
         
         for record in &promoted {
             self.delete_record_with_index_update(Layer::Insights, &record.id).await?;
+<<<<<<< HEAD
             self.update_indices_for_record(record, true).await?;
+=======
+            self.update_indices_for_record(&record, true).await?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         debug!("✅ Promoted {} records: Insights -> Assets", promoted.len());

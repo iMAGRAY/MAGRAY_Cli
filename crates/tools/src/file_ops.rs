@@ -8,12 +8,15 @@ use walkdir::WalkDir;
 // FileReader - чтение файлов с простым форматированием
 pub struct FileReader;
 
+<<<<<<< HEAD
 impl Default for FileReader {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl FileReader {
     pub fn new() -> Self {
         Self
@@ -36,10 +39,17 @@ impl FileReader {
         
         for (i, line) in lines.iter().enumerate() {
             let line_num = format!("{:width$}", i + 1, width = line_width);
+<<<<<<< HEAD
             formatted.push_str(&format!("│ {line_num} │ {line}\n"));
         }
         
         formatted.push('└');
+=======
+            formatted.push_str(&format!("│ {} │ {}\n", line_num, line));
+        }
+        
+        formatted.push_str("└");
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         for _ in 0..60 {
             formatted.push('─');
         }
@@ -136,12 +146,15 @@ impl Tool for FileReader {
 // FileWriter - запись файлов
 pub struct FileWriter;
 
+<<<<<<< HEAD
 impl Default for FileWriter {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl FileWriter {
     pub fn new() -> Self {
         Self
@@ -212,8 +225,13 @@ impl Tool for FileWriter {
             // Если не нашли файл с расширением, ищем просто имя файла
             if found_path.is_none() {
                 for (i, word) in words.iter().enumerate() {
+<<<<<<< HEAD
                     if (*word == "файл" || *word == "file")
                         && i + 1 < words.len() {
+=======
+                    if *word == "файл" || *word == "file" {
+                        if i + 1 < words.len() {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                             let mut filename = words[i + 1].to_string();
                             // Добавляем расширение если его нет
                             if !filename.contains('.') {
@@ -222,6 +240,10 @@ impl Tool for FileWriter {
                             found_path = Some(filename);
                             break;
                         }
+<<<<<<< HEAD
+=======
+                    }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 }
             }
             
@@ -269,13 +291,21 @@ impl FileWriter {
             "fn main() {\n    println!(\"Hello, world!\");\n}".to_string()
         } else if file_path.ends_with(".md") {
             let name = file_path.replace(".md", "");
+<<<<<<< HEAD
             format!("# {name}\n\nОписание проекта...\n\n## Использование\n\nИнструкции по использованию...\n")
+=======
+            format!("# {}\n\nОписание проекта...\n\n## Использование\n\nИнструкции по использованию...\n", name)
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         } else if file_path.ends_with(".toml") {
             "[settings]\nname = \"example\"\nversion = \"1.0.0\"\n".to_string()
         } else if file_path.ends_with(".json") {
             "{\n  \"name\": \"example\",\n  \"version\": \"1.0.0\"\n}".to_string()
         } else {
+<<<<<<< HEAD
             format!("# Файл: {file_path}\n\nСодержимое файла...\n")
+=======
+            format!("# Файл: {}\n\nСодержимое файла...\n", file_path)
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
     }
 }
@@ -283,12 +313,15 @@ impl FileWriter {
 // DirLister - просмотр директорий
 pub struct DirLister;
 
+<<<<<<< HEAD
 impl Default for DirLister {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl DirLister {
     pub fn new() -> Self {
         Self
@@ -316,7 +349,11 @@ impl DirLister {
                 .to_string_lossy();
                 
             if entry_path.is_dir() {
+<<<<<<< HEAD
                 output.push_str(&format!("{indent}📁 {name}\n"));
+=======
+                output.push_str(&format!("{}📁 {}\n", indent, name));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             } else {
                 let icon = match entry_path.extension().and_then(|s| s.to_str()) {
                     Some("rs") => "📄",
@@ -327,7 +364,11 @@ impl DirLister {
                     _ => "📄",
                 };
                 
+<<<<<<< HEAD
                 output.push_str(&format!("{indent}{icon} {name}\n"));
+=======
+                output.push_str(&format!("{}{} {}\n", indent, icon, name));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
         

@@ -59,17 +59,29 @@ impl OptimizedRerankingService {
         let tokenizer_path = model_dir.join("tokenizer.json");
         
         if !model_path.exists() {
+<<<<<<< HEAD
             return Err(AiError::ModelLoadError(format!("Model file not found: {model_path:?}")));
         }
         
         if !tokenizer_path.exists() {
             return Err(AiError::ModelLoadError(format!("Tokenizer file not found: {tokenizer_path:?}")));
+=======
+            return Err(AiError::ModelLoadError(format!("Model file not found: {:?}", model_path)));
+        }
+        
+        if !tokenizer_path.exists() {
+            return Err(AiError::ModelLoadError(format!("Tokenizer file not found: {:?}", tokenizer_path)));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         // Load optimized tokenizer with full Qwen3 support
         info!("Loading optimized tokenizer from: {:?}", tokenizer_path);
         let tokenizer = OptimizedTokenizer::new(&tokenizer_path, config.max_length)
+<<<<<<< HEAD
             .map_err(|e| AiError::TokenizerError(format!("Failed to load Qwen3 tokenizer: {e}")))?;
+=======
+            .map_err(|e| AiError::TokenizerError(format!("Failed to load Qwen3 tokenizer: {}", e)))?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         // Create ONNX session with optimization
         #[cfg(feature = "gpu")]
@@ -184,14 +196,24 @@ impl OptimizedRerankingService {
         // For cross-encoder, we concatenate query and document for Qwen3 reranking
         for document in documents {
             // For Qwen3 reranking: query + document (no special separator needed)
+<<<<<<< HEAD
             let combined_text = format!("{query}\n{document}");
+=======
+            let combined_text = format!("{}\n{}", query, document);
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             let tokenized = self.tokenizer.encode(&combined_text)
                 .map_err(|e| AiError::TokenizerError(e.to_string()))?;
             
             // Convert to i64 for ONNX
+<<<<<<< HEAD
             let mut input_ids: Vec<i64> = tokenized.input_ids.to_vec();
             let mut attention_mask: Vec<i64> = tokenized.attention_mask.to_vec();
             let mut token_type_ids: Vec<i64> = tokenized.token_type_ids.to_vec();
+=======
+            let mut input_ids: Vec<i64> = tokenized.input_ids.iter().map(|&x| x as i64).collect();
+            let mut attention_mask: Vec<i64> = tokenized.attention_mask.iter().map(|&x| x as i64).collect();
+            let mut token_type_ids: Vec<i64> = tokenized.token_type_ids.iter().map(|&x| x as i64).collect();
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             
             // Qwen3 handles token types internally, no need for manual [SEP] detection
             // token_type_ids are properly set by the tokenizer
@@ -313,7 +335,11 @@ impl OptimizedRerankingService {
                 let (shape, _) = tensor.try_extract_tensor::<f32>()?;
                 warn!("  Output '{}': shape {:?}", name, shape);
             }
+<<<<<<< HEAD
             return Err(AiError::ModelLoadError(format!("Unexpected output shape from reranker: {shape:?}. Expected [batch_size] or [batch_size, 1] for classification logits.")));
+=======
+            return Err(AiError::ModelLoadError(format!("Unexpected output shape from reranker: {:?}. Expected [batch_size] or [batch_size, 1] for classification logits.", shape)));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         info!("✅ Successfully processed batch with {} results", results.len());

@@ -30,9 +30,15 @@ impl ParameterExtractorAgent {
         
         let prompt = format!(r#"Ты - эксперт по извлечению параметров. Проанализируй запрос пользователя и извлеки все необходимые параметры для инструмента.
 
+<<<<<<< HEAD
 ИНСТРУМЕНТ: {tool_name}
 ТРЕБУЕМЫЕ ПАРАМЕТРЫ: {params_list}
 ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{user_query}"
+=======
+ИНСТРУМЕНТ: {}
+ТРЕБУЕМЫЕ ПАРАМЕТРЫ: {}
+ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{}"
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 ДЕТАЛЬНЫЕ ПРАВИЛА ИЗВЛЕЧЕНИЯ:
 
@@ -89,9 +95,15 @@ web_search:
     "parameters": {{"param1": "value1", "param2": "value2"}},
     "confidence": 0.9,
     "missing_params": ["param3"]
+<<<<<<< HEAD
 }}"#);
 
         let response = self.llm.chat_simple(&prompt).await?;
+=======
+}}"#, tool_name, params_list, user_query);
+
+        let response = self.llm.chat(&prompt).await?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         self.parse_parameter_extraction(&response)
     }
     

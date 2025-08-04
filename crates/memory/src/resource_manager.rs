@@ -260,6 +260,7 @@ impl ResourceManager {
         Ok(())
     }
     
+<<<<<<< HEAD
     /// Получить текущее использование ресурсов
     pub fn current_usage(&self) -> ResourceUsage {
         let limits = self.current_limits.read();
@@ -289,6 +290,8 @@ impl ResourceManager {
         }
     }
     
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     /// Получить статистику масштабирования
     pub fn get_scaling_stats(&self) -> ScalingStats {
         let history = self.scaling_history.read();

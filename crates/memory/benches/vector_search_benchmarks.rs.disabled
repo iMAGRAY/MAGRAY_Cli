@@ -1,0 +1,451 @@
+use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use memory::{
+    VectorStore, Layer, Record, MemoryService, MemoryConfig,
+    VectorIndexHnswRs, HnswRsConfig,
+    GpuBatchProcessor, BatchProcessorConfig,
+    EmbeddingCache,
+};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+use tempfile::TempDir;
+use tokio::runtime::Runtime;
+
+fn generate_embedding(dim: usize, seed: f32) -> Vec<f32> {
+    (0..dim).map(|i| ((i as f32 + seed) * 0.1).sin()).collect()
+}
+
+fn generate_records(count: usize, layer: Layer) -> Vec<Record> {
+    (0..count)
+        .map(|i| Record {
+            id: uuid::Uuid::new_v4(),
+            text: format!("Test document {} with some meaningful content for embeddings", i),
+            embedding: generate_embedding(1024, i as f32), // BGE-M3 dimension
+            layer,
+            kind: "benchmark".to_string(),
+            tags: vec!["bench".to_string(), format!("group_{}", i % 10)],
+            project: "benchmark".to_string(),
+            session: "bench-session".to_string(),
+            score: 0.8 + (i as f32 * 0.0001 % 0.2),
+            ts: chrono::Utc::now(),
+            last_access: chrono::Utc::now(),
+            access_count: (i % 100) as u32,
+        })
+        .collect()
+}
+
+/// Benchmark HNSW vector index operations
+fn bench_hnsw_index(c: &mut Criterion) {
+    let mut group = c.benchmark_group("hnsw_index");
+    
+    // Test different index sizes
+    for size in [1000, 10000, 50000].iter() {
+        let config = HnswRsConfig {
+            dimension: 1024,
+            max_connections: 24,
+            ef_construction: 400,
+            ef_search: 100,
+            max_elements: *size + 10000,
+            max_layers: 16,
+            use_parallel: true,
+        };
+        
+        let index = VectorIndexHnswRs::new(config.clone()).unwrap();
+        
+        // Prepare test data
+        let vectors: Vec<(String, Vec<f32>)> = (0..*size)
+            .map(|i| (format!("doc_{}", i), generate_embedding(1024, i as f32)))
+            .collect();
+        
+        // Benchmark batch insert
+        group.throughput(Throughput::Elements(*size as u64));
+        group.bench_with_input(
+            BenchmarkId::new("batch_insert", size),
+            size,
+            |b, _| {
+                b.iter(|| {
+                    let index = VectorIndexHnswRs::new(config.clone()).unwrap();
+                    index.add_batch(vectors.clone()).unwrap();
+                });
+            },
+        );
+        
+        // Build index for search benchmarks
+        index.add_batch(vectors).unwrap();
+        
+        // Benchmark search with different k values
+        for k in [10, 50, 100].iter() {
+            let query = generate_embedding(1024, 42.0);
+            
+            group.bench_with_input(
+                BenchmarkId::new(format!("search_k{}", k), size),
+                k,
+                |b, &k| {
+                    b.iter(|| {
+                        let results = index.search(&query, k).unwrap();
+                        black_box(results);
+                    });
+                },
+            );
+        }
+    }
+    
+    group.finish();
+}
+
+/// Benchmark vector store operations
+fn bench_vector_store(c: &mut Criterion) {
+    let rt = Runtime::new().unwrap();
+    let mut group = c.benchmark_group("vector_store");
+    
+    // Test different store sizes
+    for size in [1000, 5000].iter() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let store = rt.block_on(async {
+            let store = VectorStore::new(temp_dir.path().join("bench_vectors")).await.unwrap();
+            store.init_layer(Layer::Interact).await.unwrap();
+            Arc::new(store)
+        });
+        
+        // Insert test data
+        let records = generate_records(*size, Layer::Interact);
+        rt.block_on(async {
+            let refs: Vec<&Record> = records.iter().collect();
+            store.insert_batch(&refs).await.unwrap();
+        });
+        
+        let query = generate_embedding(1024, 42.0);
+        
+        // Benchmark search operations
+        group.throughput(Throughput::Elements(1));
+        group.bench_with_input(
+            BenchmarkId::new("search_top10", size),
+            size,
+            |b, _| {
+                b.to_async(&rt).iter(|| async {
+                    let results = store.search(&query, Layer::Interact, 10).await.unwrap();
+                    black_box(results);
+                });
+            },
+        );
+        
+        // Benchmark concurrent searches
+        group.bench_with_input(
+            BenchmarkId::new("concurrent_search", size),
+            size,
+            |b, _| {
+                b.to_async(&rt).iter(|| async {
+                    let futures: Vec<_> = (0..4)
+                        .map(|i| {
+                            let store = store.clone();
+                            let query = generate_embedding(1024, i as f32);
+                            async move {
+                                store.search(&query, Layer::Interact, 10).await.unwrap()
+                            }
+                        })
+                        .collect();
+                    
+                    let results = futures::future::join_all(futures).await;
+                    black_box(results);
+                });
+            },
+        );
+    }
+    
+    group.finish();
+}
+
+/// Benchmark GPU batch processing
+fn bench_gpu_batch_processing(c: &mut Criterion) {
+    let rt = Runtime::new().unwrap();
+    let temp_dir = TempDir::new().unwrap();
+    let cache = Arc::new(EmbeddingCache::new(temp_dir.path().join("cache")).unwrap());
+    
+    let mut group = c.benchmark_group("gpu_batch_processing");
+    
+    // Test with CPU (baseline)
+    let cpu_config = BatchProcessorConfig {
+        use_gpu_if_available: false,
+        max_batch_size: 32,
+        batch_timeout_ms: 50,
+        cache_embeddings: false, // Disable cache for pure computation benchmark
+    };
+    
+    let cpu_processor = rt.block_on(async {
+        GpuBatchProcessor::new(
+            cpu_config,
+            ai::EmbeddingConfig::default(),
+            cache.clone(),
+        ).await.unwrap()
+    });
+    
+    // Benchmark different batch sizes
+    for batch_size in [10, 50, 100, 200].iter() {
+        let texts: Vec<String> = (0..*batch_size)
+            .map(|i| format!("Test text {} for embedding generation benchmark", i))
+            .collect();
+        
+        group.throughput(Throughput::Elements(*batch_size as u64));
+        group.bench_with_input(
+            BenchmarkId::new("cpu_batch", batch_size),
+            batch_size,
+            |b, _| {
+                b.to_async(&rt).iter(|| {
+                    let processor = cpu_processor.clone();
+                    let texts = texts.clone();
+                    async move {
+                        let embeddings = processor.embed_batch(texts).await.unwrap();
+                        black_box(embeddings);
+                    }
+                });
+            },
+        );
+    }
+    
+    // Try GPU if available
+    let gpu_config = BatchProcessorConfig {
+        use_gpu_if_available: true,
+        max_batch_size: 128,
+        batch_timeout_ms: 50,
+        cache_embeddings: false,
+    };
+    
+    if let Ok(gpu_processor) = rt.block_on(async {
+        GpuBatchProcessor::new(
+            gpu_config,
+            ai::EmbeddingConfig::default(),
+            cache.clone(),
+        ).await
+    }) {
+        if gpu_processor.has_gpu() {
+            for batch_size in [10, 50, 100, 200].iter() {
+                let texts: Vec<String> = (0..*batch_size)
+                    .map(|i| format!("Test text {} for embedding generation benchmark", i))
+                    .collect();
+                
+                group.bench_with_input(
+                    BenchmarkId::new("gpu_batch", batch_size),
+                    batch_size,
+                    |b, _| {
+                        b.to_async(&rt).iter(|| {
+                            let processor = gpu_processor.clone();
+                            let texts = texts.clone();
+                            async move {
+                                let embeddings = processor.embed_batch(texts).await.unwrap();
+                                black_box(embeddings);
+                            }
+                        });
+                    },
+                );
+            }
+        }
+    }
+    
+    group.finish();
+}
+
+/// Benchmark memory service end-to-end
+fn bench_memory_service(c: &mut Criterion) {
+    let rt = Runtime::new().unwrap();
+    let temp_dir = TempDir::new().unwrap();
+    
+    let mut config = MemoryConfig::default();
+    config.db_path = temp_dir.path().join("vectors");
+    config.cache_path = temp_dir.path().join("cache");
+    config.ai_config.embedding.use_gpu = false; // Consistent baseline
+    
+    let service = rt.block_on(async {
+        MemoryService::new(config).await.unwrap()
+    });
+    
+    // Pre-populate with data
+    rt.block_on(async {
+        let records = generate_records(5000, Layer::Interact);
+        service.insert_batch(records).await.unwrap();
+    });
+    
+    let mut group = c.benchmark_group("memory_service");
+    group.sample_size(50);
+    
+    // Benchmark search with reranking
+    group.bench_function("search_with_reranking", |b| {
+        b.to_async(&rt).iter(|| async {
+            let results = service.search("Test document with meaningful content")
+                .with_layer(Layer::Interact)
+                .top_k(20)
+                .execute()
+                .await
+                .unwrap();
+            black_box(results);
+        });
+    });
+    
+    // Benchmark insert with embedding generation
+    let counter = Arc::new(AtomicUsize::new(10000));
+    group.bench_function("insert_with_embedding", |b| {
+        let counter = counter.clone();
+        let service = Arc::new(service);
+        b.to_async(&rt).iter(|| {
+            let counter = counter.clone();
+            let service = service.clone();
+            async move {
+                let i = counter.fetch_add(1, Ordering::SeqCst);
+                let record = Record {
+                    id: uuid::Uuid::new_v4(),
+                    text: format!("New document {} with content that needs embedding", i),
+                    embedding: vec![], // Will be generated
+                    layer: Layer::Interact,
+                    kind: "bench".to_string(),
+                    tags: vec!["new".to_string()],
+                    project: "bench".to_string(),
+                    session: "bench".to_string(),
+                    score: 0.9,
+                    ts: chrono::Utc::now(),
+                    last_access: chrono::Utc::now(),
+                    access_count: 0,
+                };
+                
+                service.insert(record).await.unwrap();
+            }
+        });
+    });
+    
+    // Benchmark batch operations
+    let batch_counter = Arc::new(AtomicUsize::new(20000));
+    group.bench_function("batch_insert_100", |b| {
+        let batch_counter = batch_counter.clone();
+        let service = Arc::new(service);
+        b.to_async(&rt).iter(|| {
+            let batch_counter = batch_counter.clone();
+            let service = service.clone();
+            async move {
+                let j = batch_counter.fetch_add(100, Ordering::SeqCst);
+                let records: Vec<Record> = (0..100)
+                    .map(|k| Record {
+                        id: uuid::Uuid::new_v4(),
+                        text: format!("Batch record {} - {}", j, k),
+                        embedding: vec![], // Will be generated
+                        layer: Layer::Interact,
+                        kind: "batch".to_string(),
+                        tags: vec!["batch".to_string()],
+                        project: "bench".to_string(),
+                        session: "bench".to_string(),
+                        score: 0.85,
+                        ts: chrono::Utc::now(),
+                        last_access: chrono::Utc::now(),
+                        access_count: 0,
+                    })
+                    .collect();
+                
+                service.insert_batch(records).await.unwrap();
+            }
+        });
+    });
+    
+    group.finish();
+}
+
+/// Benchmark cache performance
+fn bench_embedding_cache(c: &mut Criterion) {
+    let temp_dir = TempDir::new().unwrap();
+    let cache = EmbeddingCache::new(temp_dir.path().join("bench_cache")).unwrap();
+    
+    let mut group = c.benchmark_group("embedding_cache");
+    
+    // Pre-populate cache
+    for i in 0..10000 {
+        let text = format!("Document {}", i);
+        let embedding = generate_embedding(1024, i as f32);
+        cache.insert(&text, "bge-m3", embedding).unwrap();
+    }
+    
+    // Benchmark cache hits
+    group.bench_function("cache_hit", |b| {
+        let mut i = 0;
+        b.iter(|| {
+            let text = format!("Document {}", i % 10000);
+            let result = cache.get(&text, "bge-m3");
+            black_box(result);
+            i += 1;
+        });
+    });
+    
+    // Benchmark cache misses
+    group.bench_function("cache_miss", |b| {
+        let mut i = 20000;
+        b.iter(|| {
+            let text = format!("Document {}", i);
+            let result = cache.get(&text, "bge-m3");
+            black_box(result);
+            i += 1;
+        });
+    });
+    
+    // Benchmark cache insert
+    group.bench_function("cache_insert", |b| {
+        let mut i = 30000;
+        b.iter(|| {
+            let text = format!("Document {}", i);
+            let embedding = generate_embedding(1024, i as f32);
+            cache.insert(&text, "bge-m3", embedding).unwrap();
+            i += 1;
+        });
+    });
+    
+    // Get cache statistics
+    let (hits, misses, size) = cache.stats();
+    println!("Cache stats - Hits: {}, Misses: {}, Size: {} bytes", hits, misses, size);
+    
+    group.finish();
+}
+
+/// Benchmark promotion engine
+fn bench_promotion_engine(c: &mut Criterion) {
+    let rt = Runtime::new().unwrap();
+    let temp_dir = TempDir::new().unwrap();
+    
+    let service = rt.block_on(async {
+        let mut config = MemoryConfig::default();
+        config.db_path = temp_dir.path().join("vectors");
+        config.cache_path = temp_dir.path().join("cache");
+        config.ai_config.embedding.use_gpu = false;
+        
+        MemoryService::new(config).await.unwrap()
+    });
+    
+    // Populate layers with data
+    rt.block_on(async {
+        // Layer::Interact - 1000 records
+        let interact_records = generate_records(1000, Layer::Interact);
+        service.insert_batch(interact_records).await.unwrap();
+        
+        // Layer::Insights - 500 records  
+        let insights_records = generate_records(500, Layer::Insights);
+        service.insert_batch(insights_records).await.unwrap();
+    });
+    
+    let mut group = c.benchmark_group("promotion_engine");
+    group.sample_size(10);
+    
+    group.bench_function("promotion_cycle", |b| {
+        b.to_async(&rt).iter(|| async {
+            let stats = service.run_promotion_cycle().await.unwrap();
+            black_box(stats);
+        });
+    });
+    
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_hnsw_index,
+    bench_vector_store,
+    bench_gpu_batch_processing,
+    bench_memory_service,
+    bench_embedding_cache,
+    bench_promotion_engine
+);
+
+criterion_main!(benches);

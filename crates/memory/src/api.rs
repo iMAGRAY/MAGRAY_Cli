@@ -3,6 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
+<<<<<<< HEAD
     MemoryService, DIMemoryService, Layer, Record,
     types::SearchOptions as CoreSearchOptions,
     health::{HealthStatus, ComponentType, SystemHealthStatus},
@@ -160,25 +161,63 @@ pub struct UnifiedMemoryAPI {
 
 impl UnifiedMemoryAPI {
     /// Создать новый API интерфейс с legacy service
+=======
+    MemoryService, Layer, Record,
+    health::{HealthStatus, ComponentType},
+};
+
+/// Единый API интерфейс для MAGRAY CLI
+/// Предоставляет упрощенный доступ ко всем функциям системы памяти
+pub struct UnifiedMemoryAPI {
+    service: Arc<MemoryService>,
+}
+
+impl UnifiedMemoryAPI {
+    /// Создать новый API интерфейс
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     pub fn new(service: Arc<MemoryService>) -> Self {
         Self { service }
     }
     
+<<<<<<< HEAD
     /// Создать новый API интерфейс с DI service
     pub fn new_di(service: Arc<DIMemoryService>) -> Self {
         Self { service }
     }
     
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     // ========== ОСНОВНЫЕ ОПЕРАЦИИ ==========
     
     /// Сохранить информацию в память
     pub async fn remember(&self, text: String, context: MemoryContext) -> Result<Uuid> {
+<<<<<<< HEAD
         let layer = context.layer.unwrap_or(Layer::Interact);
         self.service.remember_sync(text, layer)
+=======
+        let record = Record {
+            id: Uuid::new_v4(),
+            text,
+            embedding: vec![], // Будет заполнено автоматически
+            layer: context.layer.unwrap_or(Layer::Interact),
+            kind: context.kind,
+            tags: context.tags,
+            project: context.project.unwrap_or_else(|| "default".to_string()),
+            session: context.session.unwrap_or_else(|| Uuid::new_v4().to_string()),
+            score: 0.5, // Начальный score
+            access_count: 1,
+            ts: chrono::Utc::now(),
+            last_access: chrono::Utc::now(),
+        };
+        
+        self.service.insert(record.clone()).await?;
+        Ok(record.id)
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     /// Найти релевантную информацию
     pub async fn recall(&self, query: &str, options: SearchOptions) -> Result<Vec<MemoryResult>> {
+<<<<<<< HEAD
         // Поиск по всем указанным слоям или всем слоям если не указано
         let layers_to_search = options.layers.unwrap_or_else(|| vec![Layer::Interact, Layer::Insights, Layer::Assets]);
         let limit = options.limit.unwrap_or(10);
@@ -195,6 +234,28 @@ impl UnifiedMemoryAPI {
         all_results.truncate(limit);
         
         Ok(all_results.into_iter()
+=======
+        let mut builder = self.service.search(query);
+        
+        if let Some(layers) = options.layers {
+            builder = builder.with_layers(&layers);
+        }
+        
+        if let Some(project) = options.project {
+            builder = builder.with_project(&project);
+        }
+        
+        if let Some(tags) = options.tags {
+            builder = builder.with_tags(tags);
+        }
+        
+        let results = builder
+            .top_k(options.limit.unwrap_or(10))
+            .execute()
+            .await?;
+        
+        Ok(results.into_iter()
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .map(|r| MemoryResult {
                 id: r.id,
                 text: r.text,
@@ -211,15 +272,43 @@ impl UnifiedMemoryAPI {
     
     /// Получить конкретную запись по ID
     pub async fn get(&self, id: Uuid) -> Result<Option<MemoryResult>> {
+<<<<<<< HEAD
         // Упрощенная реализация - поиск не поддерживается в sync trait
         let _ = id;
+=======
+        // Проверяем по всем слоям
+        for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+            if let Ok(Some(record)) = self.service.get_store().get_by_id(&id, layer).await {
+                return Ok(Some(MemoryResult {
+                    id: record.id,
+                    text: record.text,
+                    layer: record.layer,
+                    kind: record.kind,
+                    tags: record.tags,
+                    project: record.project,
+                    relevance_score: record.score,
+                    created_at: record.ts,
+                    access_count: record.access_count,
+                }));
+            }
+        }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Ok(None)
     }
     
     /// Удалить запись
     pub async fn forget(&self, id: Uuid) -> Result<bool> {
+<<<<<<< HEAD
         // Упрощенная реализация - удаление не поддерживается в sync trait
         let _ = id;
+=======
+        // Пытаемся удалить из всех слоев
+        for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+            if self.service.get_store().delete_by_id(&id, layer).await.is_ok() {
+                return Ok(true);
+            }
+        }
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Ok(false)
     }
     
@@ -227,7 +316,11 @@ impl UnifiedMemoryAPI {
     
     /// Запустить цикл продвижения памяти
     pub async fn optimize_memory(&self) -> Result<OptimizationResult> {
+<<<<<<< HEAD
         let stats = self.service.run_promotion_sync()?;
+=======
+        let stats = self.service.run_promotion_cycle().await?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         Ok(OptimizationResult {
             promoted_to_insights: stats.interact_to_insights,
@@ -282,7 +375,11 @@ impl UnifiedMemoryAPI {
     
     /// Выполнить полную проверку здоровья
     pub async fn full_health_check(&self) -> Result<DetailedHealth> {
+<<<<<<< HEAD
         let result = self.service.get_system_health();
+=======
+        let result = self.service.run_health_check().await?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         Ok(DetailedHealth {
             overall_status: match result.overall_status {
@@ -308,6 +405,7 @@ impl UnifiedMemoryAPI {
     
     /// Получить общую статистику системы
     pub async fn get_stats(&self) -> Result<SystemStats> {
+<<<<<<< HEAD
         let (cache_hits, _cache_misses, cache_total) = self.service.cache_stats();
         
         // Создаем базовую статистику
@@ -339,6 +437,54 @@ impl UnifiedMemoryAPI {
             assets_size: 0,
             assets_avg_access: 0.0,
             // Статистика продвижения
+=======
+        let perf_stats = self.service.get_promotion_performance_stats().await?;
+        let (cache_hits, _cache_misses, cache_total) = self.service.cache_stats();
+        
+        // Подсчитываем записи по слоям
+        let mut layer_counts = std::collections::HashMap::new();
+        layer_counts.insert("interact".to_string(), perf_stats.interact_time_index_size);
+        layer_counts.insert("insights".to_string(), perf_stats.insights_time_index_size);
+        layer_counts.insert("assets".to_string(), perf_stats.assets_time_index_size);
+        
+        // Получаем размеры в байтах (примерные)
+        let avg_record_size = 1024; // Примерно 1KB на запись
+        
+        // Получаем реальную статистику доступа для каждого слоя
+        let interact_avg_access = self.service.get_layer_average_access(Layer::Interact).await.unwrap_or(0.0);
+        let insights_avg_access = self.service.get_layer_average_access(Layer::Insights).await.unwrap_or(0.0);
+        let assets_avg_access = self.service.get_layer_average_access(Layer::Assets).await.unwrap_or(0.0);
+        
+        Ok(SystemStats {
+            total_records: perf_stats.interact_time_index_size + 
+                          perf_stats.insights_time_index_size + 
+                          perf_stats.assets_time_index_size,
+            layer_distribution: layer_counts,
+            index_sizes: IndexSizes {
+                time_indices: perf_stats.interact_time_index_size + 
+                             perf_stats.insights_time_index_size + 
+                             perf_stats.assets_time_index_size,
+                score_indices: perf_stats.interact_score_index_size + 
+                              perf_stats.insights_score_index_size + 
+                              perf_stats.assets_score_index_size,
+            },
+            cache_stats: CacheStats {
+                hit_rate: if cache_total > 0 { cache_hits as f32 / cache_total as f32 } else { 0.0 },
+                size_bytes: self.service.get_cache_size().await.unwrap_or(0),
+                entries: cache_total as usize,
+            },
+            // Статистика по слоям с реальными данными доступа
+            interact_count: perf_stats.interact_time_index_size,
+            interact_size: perf_stats.interact_time_index_size * avg_record_size,
+            interact_avg_access,
+            insights_count: perf_stats.insights_time_index_size,
+            insights_size: perf_stats.insights_time_index_size * avg_record_size,
+            insights_avg_access,
+            assets_count: perf_stats.assets_time_index_size,
+            assets_size: perf_stats.assets_time_index_size * avg_record_size,
+            assets_avg_access,
+            // Статистика продвижения (примерные значения)
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             interact_to_insights: 0,
             insights_to_assets: 0,
             expired_interact: 0,
@@ -346,11 +492,14 @@ impl UnifiedMemoryAPI {
             total_time_ms: 0,
         })
     }
+<<<<<<< HEAD
     
     /// Получить статистику кэша (hits, misses, total)
     pub fn cache_stats(&self) -> (u64, u64, u64) {
         self.service.cache_stats()
     }
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 // ========== ТИПЫ ДЛЯ API ==========

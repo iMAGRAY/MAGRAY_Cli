@@ -228,6 +228,12 @@
   },
   "active": "94b790b6061f528c",
   "lastOpenFiles": [
+    "MIGRATION_GUIDE.md",
+    "MEMORY_SYSTEM_ARCHITECTURE.md",
+    "MEMORY_COMPONENT_STATUS.md",
+    "GPU_ACCELERATION.md",
+    "BUILD_DEPLOYMENT.md",
+    "ARCHITECTURE.md",
     "Map of Content.md",
     "obsidian-v2/02_Components/_Components Hub - Центр всех компонентов системы.md",
     "Без названия/USAGE.md.tmp.31392.1754348452193",
@@ -258,11 +264,6 @@
     "obsidian-v2/STRUCTURE_VERIFICATION.md",
     "obsidian-v2/FINAL_DANDELION_STRUCTURE.md",
     "obsidian-v2/99_Meta/STRUCTURE_VERIFICATION.md",
-    "obsidian-v2/99_Meta/CLEAN_DANDELION_STRUCTURE.md",
-    "obsidian-v2/CLEAN_DANDELION_STRUCTURE.md",
-    "obsidian-v2/99_Meta/FINAL_STRUCTURE_OVERVIEW.md",
-    "obsidian-v2/FINAL_STRUCTURE_OVERVIEW.md",
-    "obsidian-v2/03_Features/Smart Routing - Интеллектуальная маршрутизация задач.md",
-    "obsidian-v2/03_Features/Tool Execution - Безопасное выполнение инструментов.md"
+    "obsidian-v2/99_Meta/CLEAN_DANDELION_STRUCTURE.md"
   ]
 }

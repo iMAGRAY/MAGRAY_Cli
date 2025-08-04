@@ -53,7 +53,10 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+<<<<<<< HEAD
 build_rs_cov_*.profraw
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 # Documentation build
 docs/_build/

@@ -4,12 +4,15 @@ use std::collections::HashMap;
 
 pub struct WebSearch;
 
+<<<<<<< HEAD
 impl Default for WebSearch {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl WebSearch {
     pub fn new() -> Self {
         Self
@@ -51,7 +54,11 @@ impl Tool for WebSearch {
         if !status.is_success() {
             return Ok(ToolOutput {
                 success: false,
+<<<<<<< HEAD
                 result: format!("Ошибка HTTP {status} при поиске"),
+=======
+                result: format!("Ошибка HTTP {} при поиске", status),
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 formatted_output: None,
                 metadata: HashMap::new(),
             });
@@ -66,7 +73,11 @@ impl Tool for WebSearch {
 
         let mut result_text = String::new();
         if !heading.is_empty() {
+<<<<<<< HEAD
             result_text.push_str(&format!("{heading}\n"));
+=======
+            result_text.push_str(&format!("{}\n", heading));
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         if !abstract_text.is_empty() {
             result_text.push_str(abstract_text);

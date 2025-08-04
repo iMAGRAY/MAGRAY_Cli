@@ -4,12 +4,15 @@ use std::collections::HashMap;
 
 pub struct ShellExec;
 
+<<<<<<< HEAD
 impl Default for ShellExec {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl ShellExec {
     pub fn new() -> Self {
         Self
@@ -74,13 +77,21 @@ impl Tool for ShellExec {
             Ok(ToolOutput {
                 success: true,
                 result: stdout.clone(),
+<<<<<<< HEAD
                 formatted_output: Some(format!("$ {cmd_str}\n{stdout}")),
+=======
+                formatted_output: Some(format!("$ {}\n{}", cmd_str, stdout)),
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 metadata,
             })
         } else {
             Ok(ToolOutput {
                 success: false,
+<<<<<<< HEAD
                 result: format!("Команда завершилась с ошибкой:\n{stderr}"),
+=======
+                result: format!("Команда завершилась с ошибкой:\n{}", stderr),
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 formatted_output: None,
                 metadata,
             })

@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
+<<<<<<< HEAD
 use std::ops::{Deref, DerefMut};
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 use thread_local::ThreadLocal;
 use tracing::{debug, info};
 
@@ -276,12 +279,20 @@ impl<T> PooledBuffer<T> {
     }
     
     /// Get mutable reference to the buffer
+<<<<<<< HEAD
     pub fn get_mut(&mut self) -> &mut Vec<T> {
+=======
+    pub fn as_mut(&mut self) -> &mut Vec<T> {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         self.buffer.as_mut().unwrap()
     }
     
     /// Get immutable reference to the buffer
+<<<<<<< HEAD
     pub fn get_ref(&self) -> &Vec<T> {
+=======
+    pub fn as_ref(&self) -> &Vec<T> {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         self.buffer.as_ref().unwrap()
     }
     
@@ -300,6 +311,7 @@ impl<T> Drop for PooledBuffer<T> {
     }
 }
 
+<<<<<<< HEAD
 impl<T> Deref for PooledBuffer<T> {
     type Target = Vec<T>;
     
@@ -314,6 +326,8 @@ impl<T> DerefMut for PooledBuffer<T> {
     }
 }
 
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 lazy_static::lazy_static! {
     /// Global memory pool instance
     pub static ref GLOBAL_MEMORY_POOL: Arc<MemoryPool> = Arc::new(MemoryPool::new());

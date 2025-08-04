@@ -2,8 +2,11 @@ use anyhow::{Result, Context};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::{info, warn, debug};
+<<<<<<< HEAD
 #[cfg(feature = "gpu")]
 use tracing::error;
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 use async_trait::async_trait;
 
 use crate::{EmbeddingConfig, embeddings_cpu::CpuEmbeddingService};
@@ -67,6 +70,7 @@ impl FallbackStats {
             self.cpu_fallback_count as f32 / total as f32
         }
     }
+<<<<<<< HEAD
     
     // Геттеры для приватных полей
     pub fn gpu_error_count(&self) -> u64 {
@@ -84,6 +88,8 @@ impl FallbackStats {
     pub fn cpu_fallback_count(&self) -> u64 {
         self.cpu_fallback_count
     }
+=======
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 /// Политика fallback
@@ -278,7 +284,11 @@ impl GpuFallbackManager {
         
         if use_gpu {
             // Пытаемся использовать GPU
+<<<<<<< HEAD
             match self.try_gpu_embed(&texts[..]).await {
+=======
+            match self.try_gpu_embed(&texts).await {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 Ok(embeddings) => {
                     self.record_gpu_success();
                     return Ok(embeddings);
@@ -292,12 +302,20 @@ impl GpuFallbackManager {
         }
         
         // Используем CPU
+<<<<<<< HEAD
         self.embed_with_cpu(&texts[..]).await
+=======
+        self.embed_with_cpu(&texts).await
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     /// Попытка получить embeddings через GPU с timeout
     #[cfg(feature = "gpu")]
+<<<<<<< HEAD
     async fn try_gpu_embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+=======
+    async fn try_gpu_embed(&self, texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let gpu_service = self.gpu_service.as_ref()
             .ok_or_else(|| anyhow::anyhow!("GPU service not available"))?;
         
@@ -306,7 +324,11 @@ impl GpuFallbackManager {
         // Применяем timeout
         match tokio::time::timeout(
             self.policy.gpu_timeout, 
+<<<<<<< HEAD
             gpu_service.embed_batch(texts.to_vec())
+=======
+            gpu_service.embed_batch(texts.clone())
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         ).await {
             Ok(Ok(embeddings)) => {
                 let elapsed = start.elapsed();
@@ -327,16 +349,28 @@ impl GpuFallbackManager {
     
     /// CPU-only версия метода
     #[cfg(not(feature = "gpu"))]
+<<<<<<< HEAD
     async fn try_gpu_embed(&self, _texts: &[String]) -> Result<Vec<Vec<f32>>> {
+=======
+    async fn try_gpu_embed(&self, _texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Err(anyhow::anyhow!("GPU support not compiled"))
     }
     
     /// Получить embeddings через CPU
+<<<<<<< HEAD
     async fn embed_with_cpu(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let start = Instant::now();
         self.fallback_stats.lock().unwrap().cpu_fallback_count += 1;
         
         let results = self.cpu_service.embed_batch(texts)?;
+=======
+    async fn embed_with_cpu(&self, texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
+        let start = Instant::now();
+        self.fallback_stats.lock().unwrap().cpu_fallback_count += 1;
+        
+        let results = self.cpu_service.embed_batch(&texts[..])?;
+>>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         // Конвертируем OptimizedEmbeddingResult в Vec<Vec<f32>>
         let embeddings: Vec<Vec<f32>> = results
