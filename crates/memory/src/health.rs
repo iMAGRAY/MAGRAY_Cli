@@ -28,6 +28,20 @@ pub enum ComponentType {
     Memory,
 }
 
+impl ComponentType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ComponentType::VectorStore => "vector_store",
+            ComponentType::EmbeddingService => "embedding_service",
+            ComponentType::RerankingService => "reranking_service",
+            ComponentType::PromotionEngine => "promotion_engine",
+            ComponentType::Cache => "cache",
+            ComponentType::Database => "database",
+            ComponentType::Memory => "memory",
+        }
+    }
+}
+
 /// Health статус компонента
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HealthStatus {
@@ -291,6 +305,28 @@ impl HealthMonitor {
         // Запускаем базовую проверку всех компонентов
         let _health = self.get_system_health();
         // В реальной ситуации здесь были бы активные проверки
+        Ok(())
+    }
+    
+    /// Записывает метрику в историю для мониторинга
+    pub fn record_metric(&self, metric: HealthMetric) -> Result<()> {
+        let mut history = match self.metrics_history.write() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("Metrics history write lock poisoned, recovering data");
+                poisoned.into_inner()
+            }
+        };
+        
+        let key = format!("{}:{}", metric.component.as_str(), metric.metric_name);
+        let queue = history.entry(key).or_insert_with(VecDeque::new);
+        
+        // Ограничиваем размер истории (например, последние 1000 метрик)
+        if queue.len() >= 1000 {
+            queue.pop_front();
+        }
+        
+        queue.push_back(metric);
         Ok(())
     }
     

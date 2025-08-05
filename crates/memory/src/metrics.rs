@@ -44,6 +44,9 @@ impl LatencyMetrics {
 pub struct LayerMetrics {
     pub record_count: u64,
     pub total_size_bytes: u64,
+    pub avg_embedding_size: f32,
+    pub avg_access_count: f32,
+    pub oldest_record_age_hours: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

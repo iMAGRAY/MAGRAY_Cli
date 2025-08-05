@@ -172,15 +172,15 @@ impl PromotionEngine {
         };
         
         // Находим записи старше expiry_time используя индекс
-        let expired = self.find_expired_records(layer, expiry_time).await?;
+        let expired = self.find_expired_records_by_time(layer, expiry_time).await?;
         let count = expired.len();
         
         if count > 0 {
             info!("🗑️ Удаление {} устаревших записей из {:?}", count, layer);
             
             // Batch удаление
-            for record_id in expired {
-                self.delete_record_with_index_update(layer, &record_id).await?;
+            for record in expired {
+                self.delete_record_with_index_update(layer, &record.id).await?;
             }
         }
         
@@ -367,6 +367,202 @@ impl PromotionEngine {
         }
         
         Ok(stats)
+    }
+
+    /// Восстанавливает индексы если необходимо
+    async fn rebuild_indices_if_needed(&self) -> Result<()> {
+        info!("🔧 Проверка необходимости восстановления индексов");
+        
+        for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+            let time_index = self.time_indices.get(&layer).unwrap();
+            let score_index = self.score_indices.get(&layer).unwrap();
+            
+            // Если индексы пусты, нужно их восстановить
+            if time_index.is_empty() || score_index.is_empty() {
+                info!("Восстановление индексов для слоя {:?}", layer);
+                self.rebuild_indices_for_layer(layer).await?;
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Восстанавливает индексы для конкретного слоя
+    async fn rebuild_indices_for_layer(&self, layer: Layer) -> Result<()> {
+        let time_index = self.time_indices.get(&layer).unwrap();
+        let score_index = self.score_indices.get(&layer).unwrap();
+        
+        // Очищаем существующие индексы
+        time_index.clear()?;
+        score_index.clear()?;
+        
+        // Получаем все записи из storage
+        let tree = Arc::new(self.store.get_tree(layer).await?);
+        let mut indexed_count = 0;
+        
+        for result in tree.iter() {
+            let (key, value) = result?;
+            if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                let record = &stored.record;
+                
+                // Добавляем в time index (timestamp -> record_id)
+                let time_key = format!("{:020}", record.ts.timestamp_nanos_opt().unwrap_or(0));
+                time_index.insert(time_key.as_bytes(), key.as_ref())?;
+                
+                // Добавляем в score index (score -> record_id) 
+                let score_key = format!("{:020}", (record.score * 1000000.0) as u64);
+                score_index.insert(score_key.as_bytes(), key.as_ref())?;
+                
+                indexed_count += 1;
+            }
+        }
+        
+        info!("✅ Восстановлено {} записей в индексах для слоя {:?}", indexed_count, layer);
+        Ok(())
+    }
+
+    /// Инкрементально обновляет индексы
+    async fn update_indices_incremental(&self) -> Result<()> {
+        debug!("🔄 Инкрементальное обновление индексов");
+        
+        // В данной реализации мы просто проверяем консистентность
+        // В будущем можно добавить более сложную логику отслеживания изменений
+        for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+            let time_index = self.time_indices.get(&layer).unwrap();
+            let tree = Arc::new(self.store.get_tree(layer).await?);
+            
+            // Простая проверка: количество записей в дереве должно совпадать с индексом
+            let tree_size = tree.len();
+            let index_size = time_index.len();
+            
+            // Если есть большое расхождение, перестраиваем индекс
+            if tree_size > 0 && index_size < tree_size / 2 {
+                info!("Обнаружено расхождение в индексах для {:?}: дерево={}, индекс={}. Перестройка...", 
+                      layer, tree_size, index_size);
+                self.rebuild_indices_for_layer(layer).await?;
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Находит кандидатов для promotion по времени с помощью индексов
+    async fn find_candidates_by_time(
+        &self,
+        layer: Layer,
+        before: DateTime<Utc>,
+        min_score: f32,
+        limit: usize,
+    ) -> Result<Vec<Record>> {
+        let time_index = self.time_indices.get(&layer).unwrap();
+        let score_index = self.score_indices.get(&layer).unwrap();
+        let mut candidates = Vec::new();
+        
+        // Ищем записи старше указанного времени
+        let time_threshold = format!("{:020}", before.timestamp_nanos_opt().unwrap_or(0));
+        
+        for result in time_index.range(..time_threshold.as_bytes()) {
+            if candidates.len() >= limit {
+                break;
+            }
+            
+            let (_, record_id) = result?;
+            let tree = Arc::new(self.store.get_tree(layer).await?);
+            
+            if let Some(value) = tree.get(&record_id)? {
+                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                    let record = stored.record;
+                    
+                    // Проверяем score threshold
+                    if record.score >= min_score {
+                        candidates.push(record);
+                    }
+                }
+            }
+        }
+        
+        // Сортируем по приоритету promotion
+        candidates.sort_by(|a, b| {
+            let priority_a = self.calculate_promotion_priority(a);
+            let priority_b = self.calculate_promotion_priority(b);
+            priority_b.partial_cmp(&priority_a).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        
+        Ok(candidates)
+    }
+
+    /// Удаляет запись и обновляет индексы
+    async fn delete_record_with_index_update(&self, layer: Layer, record_id: &uuid::Uuid) -> Result<()> {
+        let tree = Arc::new(self.store.get_tree(layer).await?);
+        let key = record_id.as_bytes();
+        
+        // Получаем запись перед удалением для обновления индексов
+        if let Some(value) = tree.get(key)? {
+            if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                let record = stored.record;
+                
+                // Удаляем из индексов
+                let time_key = format!("{:020}", record.ts.timestamp_nanos_opt().unwrap_or(0));
+                let score_key = format!("{:020}", (record.score * 1000000.0) as u64);
+                
+                if let Some(time_index) = self.time_indices.get(&layer) {
+                    let _ = time_index.remove(time_key.as_bytes());
+                }
+                
+                if let Some(score_index) = self.score_indices.get(&layer) {
+                    let _ = score_index.remove(score_key.as_bytes());
+                }
+            }
+        }
+        
+        // Удаляем из основного storage
+        tree.remove(key)?;
+        
+        Ok(())
+    }
+
+    /// Обновляет индексы для записи
+    async fn update_indices_for_record(&self, record: &Record, is_new: bool) -> Result<()> {
+        let time_index = self.time_indices.get(&record.layer).unwrap();
+        let score_index = self.score_indices.get(&record.layer).unwrap();
+        
+        let record_id = record.id.as_bytes();
+        let time_key = format!("{:020}", record.ts.timestamp_nanos_opt().unwrap_or(0));
+        let score_key = format!("{:020}", (record.score * 1000000.0) as u64);
+        
+        if is_new {
+            // Добавляем в индексы
+            time_index.insert(time_key.as_bytes(), record_id)?;
+            score_index.insert(score_key.as_bytes(), record_id)?;
+        } else {
+            // Обновляем индексы (удаляем старые, добавляем новые)
+            // В данной простой реализации просто добавляем
+            time_index.insert(time_key.as_bytes(), record_id)?;
+            score_index.insert(score_key.as_bytes(), record_id)?;
+        }
+        
+        Ok(())
+    }
+
+    /// Находит устаревшие записи для удаления
+    async fn find_expired_records_by_time(&self, layer: Layer, before: DateTime<Utc>) -> Result<Vec<Record>> {
+        let time_index = self.time_indices.get(&layer).unwrap();
+        let mut expired = Vec::new();
+        
+        let time_threshold = format!("{:020}", before.timestamp_nanos_opt().unwrap_or(0));
+        
+        for result in time_index.range(..time_threshold.as_bytes()) {
+            let (_, record_id) = result?;
+            let tree = Arc::new(self.store.get_tree(layer).await?);
+            
+            if let Some(value) = tree.get(&record_id)? {
+                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
+                    expired.push(stored.record);
+                }
+            }
+        }
+        
+        Ok(expired)
     }
 }
 

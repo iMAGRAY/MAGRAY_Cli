@@ -275,7 +275,7 @@ impl VectorStore {
         Ok(())
     }
 
-    async fn get_tree(&self, layer: Layer) -> Result<sled::Tree> {
+    pub async fn get_tree(&self, layer: Layer) -> Result<sled::Tree> {
         Ok(self.db.open_tree(layer.table_name())?)
     }
     
@@ -542,6 +542,66 @@ impl VectorStore {
         debug!("Found {} promotion candidates in layer {:?}", candidates.len(), layer);
         Ok(candidates)
     }
+
+
+    /// Вставить несколько записей (batch operation)
+    pub async fn insert_batch(&self, records: &[&Record]) -> Result<()> {
+        if records.is_empty() {
+            return Ok(());
+        }
+
+        // Group records by layer for efficient processing
+        let mut records_by_layer: HashMap<Layer, Vec<&Record>> = HashMap::new();
+        for record in records {
+            records_by_layer.entry(record.layer).or_default().push(record);
+        }
+
+        for (layer, layer_records) in records_by_layer {
+            let tree = self.get_tree(layer).await?;
+            
+            // Prepare data for batch insertion
+            let mut stored_records = Vec::new();
+            let mut vector_batch = Vec::new();
+            
+            for record in &layer_records {
+                let key = record.id.to_string();
+                let stored = StoredRecord {
+                    record: (*record).clone(),
+                };
+                let value = bincode::serialize(&stored)?;
+                
+                // Store in database
+                tree.insert(key.as_bytes(), value)?;
+                
+                // Prepare for vector index
+                stored_records.push((key.clone(), (*record).clone()));
+                vector_batch.push((key, record.embedding.clone()));
+            }
+            
+            // Add batch to vector index if it exists
+            if let Some(index) = self.indices.get(&layer) {
+                index.add_batch(vector_batch)?;
+            }
+            
+            // Update change tracker
+            if let Some(tracker) = self.change_tracker.write().get_mut(&layer) {
+                for _ in &layer_records {
+                    tracker.record_change();
+                }
+            }
+            
+            // Record metrics (estimate duration)
+            let duration = std::time::Duration::from_millis(1); // Приблизительно
+            if let Some(metrics) = &*self.metrics.read() {
+                for _ in &layer_records {
+                    metrics.record_vector_insert(duration);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
 
     /// Начать транзакцию
     pub fn begin_transaction(&self) -> Result<TransactionGuard<'_>> {

@@ -63,6 +63,9 @@ pub struct MemoryServiceConfig {
     pub cache_config: CacheConfigType,
     pub health_enabled: bool,
     pub health_config: HealthConfig,
+    pub resource_config: ResourceConfig,
+    pub notification_config: crate::notifications::NotificationConfig,
+    pub batch_config: BatchConfig,
 }
 
 pub type MemoryConfig = MemoryServiceConfig;
@@ -83,6 +86,9 @@ pub fn default_config() -> Result<MemoryConfig> {
         cache_config: CacheConfigType::Lru(LruCacheConfig::default()),
         health_enabled: true,
         health_config: HealthConfig::default(),
+        resource_config: ResourceConfig::default(),
+        notification_config: crate::notifications::NotificationConfig::default(),
+        batch_config: BatchConfig::default(),
     })
 }
 pub struct MemoryService {
@@ -563,13 +569,19 @@ impl MemoryService {
         self.promotion.get_performance_stats().await
     }
 
+    /// Basic promotion method - delegates to promotion engine
+    pub async fn promote(&self) -> Result<PromotionStats> {
+        self.promotion.promote().await
+    }
+
     /// Run ML-based promotion cycle if available, fallback to standard promotion
     #[allow(clippy::await_holding_lock)]
     pub async fn run_ml_promotion_cycle(&self) -> Result<crate::promotion::PromotionStats> {
         // Attempt ML promotion if available
         if let Some(ref ml_engine) = self.ml_promotion {
-            match ml_engine.run_promotion_cycle().await {
-                Ok(stats) => return Ok(stats),
+            let engine = ml_engine.read();
+            match engine.run_promotion_cycle().await {
+                Ok(ml_stats) => return Ok(ml_stats.into()),
                 Err(e) => {
                     warn!("ML promotion failed, falling back to standard promotion: {}", e);
                 }
@@ -577,7 +589,7 @@ impl MemoryService {
         }
         
         // Fallback to standard promotion
-        self.promote().await
+        self.run_promotion_cycle().await
     }
 
     /// Get metrics if enabled

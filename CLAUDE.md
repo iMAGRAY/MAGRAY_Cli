@@ -424,7 +424,7 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-05 02:26:34 UTC*
+*Last updated: 2025-08-05 02:48:20 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -453,14 +453,14 @@ Success = (Honest_Status ⊗ Fix_Bottlenecks ⊗ Real_Implementation) × No_Lies
 {"f":["fallback","resilience"],"id":"graceful_embedding","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Fallback embedding service","x_file":"memory/src/fallback.rs:137"}
 {"f":["monitoring","production"],"id":"health_checks","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Production health monitoring","x_file":"cli/src/health_checks.rs:11"}
 {"f":["orchestration","health","monitoring"],"id":"health_manager","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Health monitoring coordinator","x_file":"memory/src/orchestration/health_manager.rs:12"}
-{"f":["monitoring","production"],"id":"health_monitor","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Health monitoring system","x_file":"memory/src/health.rs:120"}
+{"f":["monitoring","production"],"id":"health_monitor","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Health monitoring system","x_file":"memory/src/health.rs:134"}
 {"f":["llm","agents","multi-provider"],"id":"llm_client","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"Multi-provider LLM client","x_file":"llm/src/lib.rs:6"}
 {"f":["errors","production","monitoring"],"id":"magray_error_types","k":"C","m":{"cur":0,"tgt":95,"u":"%"},"t":"Comprehensive error type system","x_file":"common/src/errors.rs:5"}
 {"f":["di","config","memory"],"id":"memory_di_configurator","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"DI configuration for memory system","x_file":"memory/src/di_memory_config.rs:27"}
 {"f":["orchestration","coordinator","main"],"id":"memory_orchestrator","k":"C","m":{"cur":0,"tgt":95,"u":"%"},"t":"Main memory system orchestrator","x_file":"memory/src/orchestration/memory_orchestrator.rs:24"}
 {"f":["memory","orchestration"],"id":"memory_service","k":"C","m":{"cur":70,"tgt":95,"u":"%"},"t":"Main memory service orchestrator","x_file":"memory/src/service.rs:53"}
 {"f":["metrics","monitoring"],"id":"metrics_collector","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Memory system metrics","x_file":"memory/src/metrics.rs:9"}
-{"id":"ml_promotion_engine","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"ML-based smart promotion system","x_file":"memory/src/ml_promotion.rs:84"}
+{"id":"ml_promotion_engine","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"ML-based smart promotion system","x_file":"memory/src/ml_promotion.rs:85"}
 {"id":"model_downloader","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Auto model downloader","x_file":"ai/src/model_downloader.rs:11"}
 {"f":["models","config","registry"],"id":"model_registry","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Centralized model registry","x_file":"ai/src/model_registry.rs:6"}
 {"id":"models_commands","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Model management CLI","x_file":"cli/src/commands/models.rs:6"}
