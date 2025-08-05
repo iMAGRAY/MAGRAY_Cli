@@ -73,6 +73,17 @@ impl Transaction {
     pub fn status(&self) -> &TransactionStatus {
         &self.status
     }
+    
+    /// Helper method for tests - добавляет операцию вставки
+    #[cfg(test)]
+    pub fn insert(&mut self, record: Record) -> Result<()> {
+        self.operations.push(TransactionOp::Insert { record: record.clone() });
+        self.rollback_actions.push(RollbackAction::DeleteInserted {
+            layer: record.layer,
+            id: record.id,
+        });
+        Ok(())
+    }
 }
 
 impl Default for Transaction {
@@ -220,7 +231,7 @@ mod tests {
         assert_eq!(tx.operations.len(), 1);
         assert_eq!(tx.rollback_actions.len(), 1);
         
-        let ops = tx.take_operations().unwrap();
+        let ops = tx.take_operations();
         assert_eq!(ops.len(), 1);
         assert_eq!(tx.status, TransactionStatus::Committed);
     }
@@ -242,7 +253,7 @@ mod tests {
                 layer: Layer::Interact,
                 ..Default::default()
             };
-            tx.insert(record)
+            tx.insert(record).map_err(|e| anyhow::anyhow!(e))
         }).unwrap();
         
         // Commit

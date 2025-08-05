@@ -145,6 +145,7 @@ pub struct GpuFallbackManager {
     gpu_service: Option<Arc<GpuEmbeddingService>>,
     cpu_service: Arc<CpuEmbeddingService>,
     fallback_stats: Arc<Mutex<FallbackStats>>,
+    #[allow(dead_code)]
     policy: FallbackPolicy,
     gpu_circuit_breaker: Arc<Mutex<CircuitBreaker>>,
 }

@@ -343,11 +343,16 @@ pub mod test_helpers {
             models_dir: temp_dir.join("models"),
             embedding: AiEmbeddingConfig {
                 model_name: "test-model".to_string(),
+                batch_size: 32,
+                max_length: 512,
+                embedding_dim: Some(1024),
                 use_gpu: false,
                 gpu_config: None,
             },
             reranking: RerankingConfig {
                 model_name: "test-reranker".to_string(),
+                batch_size: 16,
+                max_length: 512,
                 use_gpu: false,
                 gpu_config: None,
             },
@@ -358,12 +363,16 @@ pub mod test_helpers {
         Ok(MemoryConfig {
             db_path,
             cache_path,
-            cache_config,
+            promotion: PromotionConfig::default(),
+            ml_promotion: None,
+            streaming_config: None,
             ai_config,
-            batch_size: 100,
-            max_memory: 1024 * 1024 * 100, // 100MB
-            flush_interval: std::time::Duration::from_secs(30),
-            promotion_config: PromotionConfig::default(),
+            cache_config,
+            health_enabled: true,
+            health_config: HealthConfig::default(),
+            resource_config: ResourceConfig::default(),
+            notification_config: crate::notifications::NotificationConfig::default(),
+            batch_config: BatchConfig::default(),
         })
     }
 }

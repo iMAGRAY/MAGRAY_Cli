@@ -150,7 +150,8 @@ impl DIContainer {
             let singletons = self.singletons.read();
             if let Some(instance) = singletons.get(&type_id) {
                 if let Some(typed_instance) = instance.clone().downcast::<T>().ok() {
-                    from_cache = true;
+                    let _ = from_cache; // Используется для метрик, но не читается
+                    // from_cache = true; // Убрано: значение не используется
                     let resolve_duration = start_time.elapsed();
                     
                     // Записываем метрики

@@ -5,6 +5,7 @@ use tracing::{info, warn};
 use crate::{EmbeddingCache, EmbeddingCacheLRU, CacheConfig};
 
 /// Migrate from simple cache to LRU cache
+#[allow(dead_code)]
 pub async fn migrate_cache_to_lru(
     old_cache_path: impl AsRef<Path>,
     new_cache_path: impl AsRef<Path>,
@@ -35,6 +36,7 @@ pub async fn migrate_cache_to_lru(
 }
 
 /// Configuration helper for choosing appropriate cache settings
+#[allow(dead_code)]
 pub fn recommend_cache_config(available_memory_mb: usize) -> CacheConfig {
     let max_size_bytes = if available_memory_mb > 16384 { // > 16GB
         4_294_967_296 // 4GB cache

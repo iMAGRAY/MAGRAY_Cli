@@ -209,6 +209,8 @@
   },
   "active": "61706f56cb748ec6",
   "lastOpenFiles": [
+    "optimization-work-summary.md",
+    "optimization-work-summary.md.tmp.35796.1754396614305",
     "di-optimization-summary.md",
     "di-optimization-summary.md.tmp.35796.1754395943576",
     "performance-optimization-report.md",
@@ -224,7 +226,6 @@
     "obsidian-comprehensive/Performance Optimization Guide - Production Tuning.md.tmp.57240.1754365387689",
     "obsidian-comprehensive/Memory Crate - Трёхслойная система памяти.md.tmp.57240.1754365195922",
     "obsidian-comprehensive/Security Architecture - Threat Model & Mitigations.md",
-    "obsidian-comprehensive/Security Architecture - Threat Model & Mitigations.md.tmp.57240.1754364756738",
     "obsidian-comprehensive/Performance Optimization Guide - Production Tuning.md",
     "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md",
     "obsidian-comprehensive/Memory Crate - Трёхслойная система памяти.md",
@@ -244,7 +245,6 @@
     "obsidian-comprehensive/AI Crate - Embedding и модели.md",
     "obsidian-comprehensive/Архитектура системы - Детальный обзор.md",
     "MIGRATION_GUIDE.md",
-    "MEMORY_SYSTEM_ARCHITECTURE.md",
     "Без названия/Без названия.canvas"
   ]
 }

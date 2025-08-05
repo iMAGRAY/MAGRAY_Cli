@@ -700,7 +700,7 @@ pub struct GlobalStreamingStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{default_config, MemoryService};
+    use crate::default_config;
 
     #[tokio::test]
     async fn test_streaming_config() {

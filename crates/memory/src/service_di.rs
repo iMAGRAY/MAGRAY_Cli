@@ -20,7 +20,7 @@ use crate::{
 use common::OperationTimer;
 
 /// DI-based Memory Service - упрощенная архитектура с инверсией зависимостей
-// @component: {"k":"C","id":"di_memory_service","t":"DI-based memory service orchestrator","m":{"cur":0,"tgt":95,"u":"%"},"f":["di","memory","clean_architecture"]}
+// @component: {"k":"C","id":"di_memory_service","t":"DI-based memory service orchestrator","m":{"cur":5,"tgt":95,"u":"%"},"f":["di","memory","clean_architecture","stub"]}
 pub struct DIMemoryService {
     /// DI контейнер со всеми зависимостями
     container: DIContainer,

@@ -8,7 +8,7 @@ use std::time::Instant;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
-/// @component: {"k":"C","id":"reranker_optimized","t":"Optimized ONNX reranker","m":{"cur":90,"tgt":100,"u":"%"}}
+/// @component: {"k":"C","id":"reranker_qwen3_optimized","t":"Optimized Qwen3 ONNX reranker","m":{"cur":90,"tgt":100,"u":"percent"},"f":["ai","reranking","qwen3","optimized"]}
 pub struct OptimizedRerankingService {
     session: Arc<Mutex<Session>>,
     tokenizer: Arc<OptimizedTokenizer>,
@@ -27,7 +27,7 @@ pub struct RerankResult {
 impl OptimizedRerankingService {
     /// Create a new optimized reranking service with real ONNX inference
     pub async fn new(config: RerankingConfig) -> Result<Self> {
-        info!("🚀 Инициализация OptimizedRerankingService с моделью: {}", config.model_name);
+        info!("🚀 Инициализация OptimizedQwen3RerankingService с моделью: {}", config.model_name);
         
         // Проверяем локальную модель в разных местах
         let possible_paths = vec![

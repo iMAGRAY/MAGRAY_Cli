@@ -358,7 +358,7 @@ mod tests {
         
         // Check latency metrics
         assert_eq!(metrics.vector_search_latency_ms.count, 2);
-        assert!((metrics.vector_search_latency_ms.avg_ms - 15.0).abs() < 0.1);
+        assert!((metrics.vector_search_latency_ms.avg_ms() - 15.0).abs() < 0.1);
     }
     
     #[test]

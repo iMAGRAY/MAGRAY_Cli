@@ -1,5 +1,5 @@
 ﻿use crate::{Result, TokenizerService, RerankingConfig, models::OnnxSession};
-use crate::reranker_mxbai_optimized::OptimizedRerankingService;
+use crate::reranker_qwen3_optimized::OptimizedRerankingService;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;

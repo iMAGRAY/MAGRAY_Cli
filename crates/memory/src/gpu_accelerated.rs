@@ -38,7 +38,7 @@ const MAX_BATCH_SIZE: usize = 128;
 /// Максимальное количество одновременных GPU операций
 const MAX_CONCURRENT_GPU_OPS: usize = 4;
 
-// @component: {"k":"C","id":"gpu_batch_processor","t":"GPU batch embedding processor","m":{"cur":75,"tgt":100,"u":"%"},"f":["gpu","batch","embeddings","fallback"]}
+// @component: {"k":"C","id":"gpu_batch_processor","t":"GPU batch embedding processor","m":{"cur":60,"tgt":100,"u":"%"},"f":["gpu","batch","embeddings","fallback","disabled"]}
 #[derive(Clone)]
 pub struct GpuBatchProcessor {
     embedding_service: Arc<GpuFallbackManager>,

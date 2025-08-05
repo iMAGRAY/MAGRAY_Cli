@@ -29,7 +29,7 @@ pub use graph::DependencyGraph;
 /// use todo::create_service;
 /// 
 /// #[tokio::main]
-/// async fn main() -> Result<()> {
+/// async fn main() -> anyhow::Result<()> {
 ///     let service = create_service("tasks.db", 4, 100).await?;
 ///     
 ///     // Создаем задачу

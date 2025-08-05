@@ -9,8 +9,9 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tracing::{info, debug, warn};
 
-/// Optimized MXBai Reranker Service with batch processing and memory pooling
-pub struct OptimizedMxbaiRerankerService {
+/// Optimized Qwen3 Reranker Service with batch processing and memory pooling
+// @component: {"k":"C","id":"reranker_qwen3","t":"Qwen3 reranker with batching","m":{"cur":85,"tgt":95,"u":"%"},"f":["ai","reranking","batch","optimized","qwen3"]}
+pub struct OptimizedQwen3RerankerService {
     session: Arc<Mutex<Session>>,
     model_path: PathBuf,
     max_seq_length: usize,
@@ -43,13 +44,13 @@ pub struct BatchRerankResult {
     pub throughput_docs_per_sec: f64,
 }
 
-impl OptimizedMxbaiRerankerService {
-    /// Create new optimized MXBai reranker service with GPU support
+impl OptimizedQwen3RerankerService {
+    /// Create new optimized Qwen3 reranker service with GPU support
     pub fn new_with_config(config: RerankingConfig) -> AnyhowResult<Self> {
         let model_path = PathBuf::from(format!("crates/memory/models/{}/model.onnx", config.model_name));
         let max_seq_length = config.max_length;
         let batch_size = config.batch_size;
-        info!("Initializing OPTIMIZED MXBai reranker service");
+        info!("Initializing OPTIMIZED Qwen3 reranker service");
         info!("   Max sequence length: {}", max_seq_length);
         info!("   Batch size: {}", batch_size);
         
@@ -72,7 +73,7 @@ impl OptimizedMxbaiRerankerService {
         
         // Initialize ONNX Runtime
         ort::init()
-            .with_name("optimized_mxbai_reranker")
+            .with_name("optimized_qwen3_reranker")
             .commit()?;
         
         // Проверяем доступность GPU
@@ -135,14 +136,14 @@ impl OptimizedMxbaiRerankerService {
         
         let session = session_builder.commit_from_file(&model_path)?;
         
-        info!("✅ OPTIMIZED MXBai reranker session created");
+        info!("✅ OPTIMIZED Qwen3 reranker session created");
         info!("   Model: {}", model_path.display());
         info!("   Inputs: {}", session.inputs.len());
         info!("   Outputs: {}", session.outputs.len());
         
-        // Verify it's the expected MXBai model (3 inputs for Qwen2)
+        // Verify it's the expected Qwen3 model (3 inputs for Qwen3)
         if session.inputs.len() != 3 {
-            warn!("Expected 3 inputs for MXBai Qwen2, got {}", session.inputs.len());
+            warn!("Expected 3 inputs for Qwen3 reranker, got {}", session.inputs.len());
         }
         
         Ok(Self {
@@ -153,10 +154,10 @@ impl OptimizedMxbaiRerankerService {
         })
     }
     
-    /// Create new optimized MXBai reranker service (legacy method)
+    /// Create new optimized Qwen3 reranker service (legacy method)
     pub fn new(_model_path: PathBuf, max_seq_length: usize, batch_size: usize) -> AnyhowResult<Self> {
         let config = RerankingConfig {
-            model_name: "bge-reranker-v2-m3_dynamic_int8_onnx".to_string(),
+            model_name: "qwen3_reranker".to_string(),
             batch_size,
             max_length: max_seq_length,
             use_gpu: false,
@@ -370,7 +371,7 @@ impl OptimizedMxbaiRerankerService {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
                 
-                // MXBai Qwen2 outputs logits [batch_size, seq_len, vocab_size]
+                // Qwen3 reranker outputs logits [batch_size, seq_len, vocab_size]
                 if shape_vec.len() == 3 && shape_vec[0] == batch_size as i64 {
                     let seq_len = shape_vec[1] as usize;
                     let vocab_size = shape_vec[2] as usize;
@@ -433,7 +434,7 @@ impl OptimizedMxbaiRerankerService {
     /// Get service statistics including memory pool stats
     pub fn get_stats(&self) -> RerankServiceStats {
         RerankServiceStats {
-            model_name: "mxbai-optimized".to_string(),
+            model_name: "qwen3-optimized".to_string(),
             max_seq_length: self.max_seq_length,
             batch_size: self.batch_size,
             optimization_level: "Level3+MemoryPool+Batch".to_string(),
@@ -474,11 +475,11 @@ mod tests {
     
     #[test]
     fn test_optimized_reranker_creation() {
-        let model_path = PathBuf::from("test_models/mxbai/model.onnx");
+        let model_path = PathBuf::from("test_models/qwen3_reranker/model.onnx");
         
-        match OptimizedMxbaiRerankerService::new(model_path, 512, 8) {
+        match OptimizedQwen3RerankerService::new(model_path, 512, 8) {
             Ok(_service) => {
-                println!("✅ Optimized MXBai service created successfully");
+                println!("✅ Optimized Qwen3 service created successfully");
             },
             Err(e) => {
                 println!("Expected error without model file: {}", e);
