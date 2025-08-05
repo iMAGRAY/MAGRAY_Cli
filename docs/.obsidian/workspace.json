@@ -209,6 +209,8 @@
   },
   "active": "61706f56cb748ec6",
   "lastOpenFiles": [
+    "di-optimization-summary.md",
+    "di-optimization-summary.md.tmp.35796.1754395943576",
     "performance-optimization-report.md",
     "performance-optimization-report.md.tmp.35796.1754395318469",
     "obsidian-comprehensive/Состояние готовности компонентов.md.tmp.57240.1754365717957",
@@ -229,7 +231,6 @@
     "obsidian-comprehensive/LLM Integration - Multi-Provider AI Architecture.md",
     "obsidian-comprehensive/Roadmap развития проекта.md",
     "troubleshooting/Troubleshooting Guide - Common Issues & Solutions.md",
-    "troubleshooting/Troubleshooting Guide - Common Issues & Solutions.md.tmp.57240.1754364137288",
     "obsidian-comprehensive/Router & Tools - Task Orchestration Layer.md",
     "obsidian-comprehensive/Состояние готовности компонентов.md",
     "obsidian-comprehensive/CLI Interface - Commands & User Experience.md",
@@ -244,7 +245,6 @@
     "obsidian-comprehensive/Архитектура системы - Детальный обзор.md",
     "MIGRATION_GUIDE.md",
     "MEMORY_SYSTEM_ARCHITECTURE.md",
-    "MEMORY_COMPONENT_STATUS.md",
     "Без названия/Без названия.canvas"
   ]
 }
