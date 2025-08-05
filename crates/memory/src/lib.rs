@@ -11,7 +11,7 @@ mod notifications;
 pub mod promotion;
 mod ml_promotion;
 mod service;
-mod service_di; // New DI-based service
+pub mod service_di; // New DI-based service
 pub mod storage;
 mod types;
 mod vector_index_hnswlib; // Critical for vector storage
@@ -31,7 +31,7 @@ mod database_manager;
 // Dependency Injection система
 mod di_container;
 mod di_container_optimized;
-mod di_memory_config;
+pub mod di_memory_config;
 // Новая orchestration система
 pub mod orchestration;
 pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};
@@ -48,6 +48,7 @@ pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 pub use service::{MemoryService, MemoryServiceConfig as MemoryConfig, default_config, BatchInsertResult, BatchSearchResult};
 pub use service_di::{DIMemoryService};
+pub use di_memory_config::{MemoryDIConfigurator};
 pub use health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus};
 pub use api::{UnifiedMemoryAPI, MemoryContext, SearchOptions as ApiSearchOptions, MemoryResult, OptimizationResult, SystemHealth, DetailedHealth, SystemStats, CacheStats, IndexSizes};
 pub use metrics::{MetricsCollector, MemoryMetrics, LatencyMetrics, LayerMetrics};

@@ -34,3 +34,4 @@ prettytable-rs = "0.10"
 async-trait = { workspace = true }
 sysinfo = "0.31"
 chrono = { workspace = true }
+uuid = { workspace = true }

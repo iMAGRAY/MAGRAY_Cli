@@ -209,7 +209,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
                 let store = container.resolve::<Arc<VectorStore>>()?;
                 let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
                 let promotion_config = PromotionConfig::default();
-                let store = (*store).clone();
+                let store = store;
                 let promotion_config = PromotionConfig::default();
                 // PromotionEngine требует db: Arc<Db>, создаем временную базу для тестов
                 let temp_db = Arc::new(sled::open(std::env::temp_dir().join("promotion_db")).map_err(|e| anyhow::anyhow!("Failed to create temp db: {}", e))?);
@@ -226,7 +226,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
                 info!("Создание MLPromotionEngine");
                 let ml_config = MLPromotionConfig::default();
                 let store_clone = container.resolve::<Arc<VectorStore>>()?;
-                let store_clone = (*store_clone).clone();
+                let store_clone = store_clone;
                 let rt = tokio::runtime::Handle::current();
                 let ml_engine = rt.block_on(async {
                     MLPromotionEngine::new(store_clone, ml_config).await
@@ -241,8 +241,8 @@ impl MemoryDIExtensions for DIContainerBuilder {
                 let store = container.resolve::<Arc<VectorStore>>()?;
                 let batch_config = BatchConfig::default();
                 let metrics = container.try_resolve::<Arc<MetricsCollector>>();
-                let store = (*store).clone();
-                let metrics = metrics.map(|m| (*m).clone());
+                let store = store;
+                let metrics = metrics;
                 let manager = BatchOperationManager::new(store, batch_config, metrics);
                 Ok(manager)
             })?;
@@ -260,7 +260,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
                     let rt = tokio::runtime::Handle::current();
                     let processor = rt.block_on(async {
                         let embedding_config = (**embedding_config).clone();
-                        let cache = (*cache).clone();
+                        let cache = cache;
                         GpuBatchProcessor::new(gpu_config, embedding_config, cache).await
                     })?;
                     Ok(processor)

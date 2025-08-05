@@ -70,7 +70,7 @@
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-05 03:10:15 UTC*
+*Last updated: 2025-08-05 03:26:11 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -128,7 +128,7 @@
 {"id":"tensorrt_cache","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"TensorRT model cache","x_file":"ai/src/tensorrt_cache.rs:8"}
 {"id":"test_qwen3_models","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Test Qwen3 models loading","x_file":"ai/examples/test_qwen3_models.rs:1"}
 {"f":["tools","execution","registry"],"id":"tool_registry","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Tool execution system","x_file":"tools/src/lib.rs:5"}
-{"d":["llm_client","smart_router"],"id":"unified_agent","k":"C","m":{"cur":60,"tgt":90,"u":"%"},"t":"Main agent orchestrator","x_file":"cli/src/agent.rs:7"}
+{"d":["llm_client","smart_router","di_memory_service"],"id":"unified_agent","k":"C","m":{"cur":70,"tgt":95,"u":"%"},"t":"Main agent orchestrator","x_file":"cli/src/agent.rs:8"}
 {"f":["vector","hnsw","search","legacy"],"id":"vector_index_hnsw","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"HNSW vector index wrapper","x_file":"memory/src/vector_index_hnswlib.rs:12"}
 {"f":["storage","hnsw"],"id":"vector_store","k":"C","m":{"cur":65,"tgt":100,"u":"%"},"t":"Vector storage with HNSW","x_file":"memory/src/storage.rs:18"}
 {"f":["benchmark","performance","comprehensive"],"id":"comprehensive_bench","k":"T","m":{"cur":100,"tgt":100,"u":"%"},"t":"Comprehensive performance benchmarks","x_file":"memory/benches/comprehensive_performance.rs:7"}

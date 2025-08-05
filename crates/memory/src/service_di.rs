@@ -24,10 +24,6 @@ use common::OperationTimer;
 pub struct DIMemoryService {
     /// DI контейнер со всеми зависимостями
     container: DIContainer,
-    /// Кэш разрешенных зависимостей для производительности
-    cached_store: Arc<VectorStore>,
-    cached_cache: Arc<dyn EmbeddingCacheInterface>,
-    cached_health: Arc<HealthMonitor>,
 }
 
 impl DIMemoryService {
@@ -38,20 +34,10 @@ impl DIMemoryService {
         // Настраиваем полный DI контейнер
         let container = MemoryDIConfigurator::configure_full(config).await?;
 
-        // Кэшируем часто используемые зависимости
-        let cached_store = (*container.resolve::<Arc<VectorStore>>()?).clone();
-        let cached_cache = (*container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?).clone();
-        let cached_health = (*container.resolve::<Arc<HealthMonitor>>()?).clone();
-
         info!("✅ DIMemoryService создан с {} зависимостями", 
               container.stats().total_types);
 
-        Ok(Self {
-            container,
-            cached_store,
-            cached_cache,
-            cached_health,
-        })
+        Ok(Self { container })
     }
 
     /// Создать минимальный сервис для тестов
@@ -60,28 +46,19 @@ impl DIMemoryService {
 
         let container = MemoryDIConfigurator::configure_minimal(config).await?;
 
-        let cached_store = (*container.resolve::<Arc<VectorStore>>()?).clone();
-        let cached_cache = (*container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?).clone();
-        
-        // Для минимального сервиса создаем простой health monitor
-        let health_config = HealthConfig::default();
-        let cached_health = Arc::new(HealthMonitor::new(health_config));
-
-        Ok(Self {
-            container,
-            cached_store,
-            cached_cache,
-            cached_health,
-        })
+        Ok(Self { container })
     }
 
     /// Инициализировать все слои памяти
     pub async fn initialize(&self) -> Result<()> {
         info!("🔧 Инициализация слоев памяти через DI");
 
+        // Получаем store из контейнера
+        let store = self.container.resolve::<Arc<VectorStore>>()?;
+
         // Инициализируем все слои
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-            self.cached_store.init_layer(layer).await
+            store.init_layer(layer).await
                 .map_err(|e| anyhow::anyhow!("Failed to initialize layer {:?}: {}", layer, e))?;
             debug!("✓ Слой {:?} инициализирован", layer);
         }
@@ -101,12 +78,14 @@ impl DIMemoryService {
         let _timer = OperationTimer::new("memory_insert");
 
         // Используем batch manager если доступен
+        let store = self.container.resolve::<Arc<VectorStore>>()?;
+        
         if let Ok(batch_manager) = self.container.resolve::<Arc<BatchOperationManager>>() {
             debug!("Вставка записи через batch manager");
             batch_manager.add(record).await?;
         } else {
             debug!("Прямая вставка записи в store");
-            self.cached_store.insert(&record).await?;
+            store.insert(&record).await?;
         }
 
         // Обновляем метрики если доступны
@@ -124,13 +103,15 @@ impl DIMemoryService {
 
         debug!("Batch insert {} записей", batch_size);
 
+        let store = self.container.resolve::<Arc<VectorStore>>()?;
+        
         if let Ok(batch_manager) = self.container.resolve::<Arc<BatchOperationManager>>() {
             batch_manager.add_batch(records).await?;
             debug!("✓ Batch обработан через batch manager");
         } else {
             // Fallback на прямую вставку
             let refs: Vec<&Record> = records.iter().collect();
-            self.cached_store.insert_batch(&refs).await?;
+            store.insert_batch(&refs).await?;
             debug!("✓ Batch обработан напрямую через store");
         }
 
@@ -168,7 +149,8 @@ impl DIMemoryService {
         };
 
         // Поиск в векторном хранилище
-        let results = self.cached_store.search(&embedding, layer, options.top_k).await?;
+        let store = self.container.resolve::<Arc<VectorStore>>()?;
+        let results = store.search(&embedding, layer, options.top_k).await?;
 
         debug!("Найдено {} результатов", results.len());
 
@@ -210,13 +192,23 @@ impl DIMemoryService {
         debug!("Сбор статистики системы через DI");
 
         // Собираем статистику от всех компонентов
-        let health_status = Ok(self.cached_health.get_system_health());
-        let cache_stats = self.cached_cache.stats();
+        let health = self.container.resolve::<Arc<HealthMonitor>>().unwrap_or_else(|_| {
+            use crate::health::HealthMonitorConfig;
+            Arc::new(HealthMonitor::new(HealthMonitorConfig::default()))
+        });
+        let cache = self.container.resolve::<Arc<dyn EmbeddingCacheInterface>>().unwrap_or_else(|_| {
+            use crate::cache::EmbeddingCache;
+            let temp_cache = EmbeddingCache::new(&std::env::temp_dir().join("fallback_cache")).unwrap();
+            Arc::new(temp_cache)
+        });
+        
+        let health_status = Ok(health.get_system_health());
+        let cache_stats = cache.stats();
 
         let promotion_stats = PromotionStats::default(); // TODO: получить настоящие stats
 
         let batch_stats = self.container.try_resolve::<Arc<BatchOperationManager>>()
-            .map(|manager| (*manager).stats())
+            .map(|manager| manager.stats())
             .unwrap_or_default();
 
         let gpu_stats = self.container.try_resolve::<Arc<GpuBatchProcessor>>()
@@ -243,7 +235,7 @@ impl DIMemoryService {
         debug!("Запуск promotion через DI");
 
         if let Ok(promotion_engine) = self.container.resolve::<Arc<PromotionEngine>>() {
-            let stats = (*promotion_engine).run_promotion_cycle().await?;
+            let stats = promotion_engine.run_promotion_cycle().await?;
             info!("✓ Promotion завершен: interact_to_insights={}, insights_to_assets={}", 
                   stats.interact_to_insights, stats.insights_to_assets);
             Ok(stats)
@@ -306,7 +298,8 @@ impl DIMemoryService {
 
     /// Проверить здоровье системы
     pub async fn check_health(&self) -> Result<SystemHealthStatus> {
-        Ok(self.cached_health.get_system_health())
+        let health = self.container.resolve::<Arc<HealthMonitor>>()?;
+        Ok(health.get_system_health())
     }
 
     /// Получить доступ к конкретному компоненту через DI
@@ -398,9 +391,9 @@ impl DIMemoryServiceBuilder {
             cpu_config.ai_config.reranking.use_gpu = false;
             
             let container = MemoryDIConfigurator::configure_cpu_only(cpu_config).await?;
-            let cached_store = (*container.resolve::<Arc<VectorStore>>()?).clone();
-            let cached_cache = (*container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?).clone();
-            let cached_health = (*container.resolve::<Arc<HealthMonitor>>()?).clone();
+            let cached_store = container.resolve::<Arc<VectorStore>>()?;
+            let cached_cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
+            let cached_health = container.resolve::<Arc<HealthMonitor>>()?;
 
             Ok(DIMemoryService {
                 container,
