@@ -187,11 +187,11 @@ impl HealthCheck for LlmHealthCheck {
 
 /// Проверка состояния памяти
 pub struct MemoryHealthCheck {
-    memory_service: Arc<memory::MemoryService>,
+    memory_service: Arc<memory::DIMemoryService>,
 }
 
 impl MemoryHealthCheck {
-    pub fn new(memory_service: Arc<memory::MemoryService>) -> Self {
+    pub fn new(memory_service: Arc<memory::DIMemoryService>) -> Self {
         Self { memory_service }
     }
 }
@@ -205,7 +205,11 @@ impl HealthCheck for MemoryHealthCheck {
     async fn check(&self) -> Result<HealthCheckResult> {
         // Проверяем базовую функциональность поиска
         let test_query = "test health check query";
-        let search_result = self.memory_service.search(test_query).execute().await;
+        let search_result = self.memory_service.search(
+            test_query,
+            memory::Layer::Interact,
+            memory::SearchOptions::default()
+        ).await;
         
         let mut metadata = HashMap::new();
         
@@ -413,7 +417,7 @@ impl HealthCheck for MemoryUsageCheck {
 /// Команда для запуска health checks
 pub async fn run_health_checks(
     llm_client: Option<Arc<llm::LlmClient>>,
-    memory_service: Option<Arc<memory::MemoryService>>,
+    memory_service: Option<Arc<memory::DIMemoryService>>,
 ) -> Result<()> {
     let mut health_system = HealthCheckSystem::new();
     

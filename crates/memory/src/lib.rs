@@ -10,8 +10,7 @@ mod metrics;
 mod notifications;
 pub mod promotion;
 mod ml_promotion;
-mod service;
-pub mod service_di; // New DI-based service
+pub mod service_di; // DI-based service (единственная реализация)
 pub mod storage;
 mod types;
 mod vector_index_hnswlib; // Critical for vector storage
@@ -39,8 +38,8 @@ pub use cache_lru::{EmbeddingCacheLRU as EmbeddingCache, CacheConfig};
 pub type CacheConfigType = CacheConfig;
 pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
-pub use service::{MemoryService, MemoryServiceConfig as MemoryConfig, default_config, BatchInsertResult, BatchSearchResult};
-pub use service_di::{DIMemoryService};
+// Legacy MemoryService удален - используем DIMemoryService
+pub use service_di::{DIMemoryService, DIMemoryService as MemoryService, MemoryServiceConfig, MemoryConfig, default_config, BatchInsertResult, BatchSearchResult};
 pub use di_memory_config::{MemoryDIConfigurator};
 pub use health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus};
 pub use api::{UnifiedMemoryAPI, MemoryContext, SearchOptions as ApiSearchOptions, MemoryResult, OptimizationResult, SystemHealth, DetailedHealth, SystemStats, CacheStats, IndexSizes};

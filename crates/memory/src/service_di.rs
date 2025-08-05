@@ -5,7 +5,6 @@ use tracing::{debug, info};
 use crate::{
     cache_interface::EmbeddingCacheInterface,
     di_container::DIContainer,
-    di_memory_config::MemoryDIConfigurator,
     health::{HealthMonitor, SystemHealthStatus},
     metrics::MetricsCollector,
     promotion::{PromotionEngine, PromotionStats},
@@ -14,10 +13,74 @@ use crate::{
     gpu_accelerated::{GpuBatchProcessor, BatchProcessorStats},
     backup::BackupManager,
     batch_manager::{BatchOperationManager, BatchStats},
-    MemoryConfig,
+    CacheConfigType,
 };
 
 use common::OperationTimer;
+
+// Re-export legacy types для обратной совместимости
+use crate::di_memory_config::MemoryDIConfigurator;
+
+// Алиас для удобства
+pub type MemoryConfig = MemoryServiceConfig;
+
+/// Конфигурация Memory Service
+#[derive(Debug, Clone)]
+pub struct MemoryServiceConfig {
+    pub db_path: std::path::PathBuf,
+    pub cache_path: std::path::PathBuf,
+    pub promotion: crate::types::PromotionConfig,
+    pub ml_promotion: Option<crate::ml_promotion::MLPromotionConfig>,
+    pub streaming_config: Option<crate::streaming::StreamingConfig>,
+    pub ai_config: ai::AiConfig,
+    pub cache_config: CacheConfigType,
+    pub health_enabled: bool,
+    pub health_config: crate::health::HealthMonitorConfig,
+    pub resource_config: crate::resource_manager::ResourceConfig,
+    pub notification_config: crate::notifications::NotificationConfig,
+    pub batch_config: crate::batch_manager::BatchConfig,
+}
+
+// Удален алиас MemoryConfig - используем напрямую MemoryServiceConfig
+
+/// Создать конфигурацию по умолчанию для memory service
+pub fn default_config() -> Result<MemoryServiceConfig> {
+    let cache_dir = dirs::cache_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine cache directory"))?
+        .join("magray");
+    
+    Ok(MemoryServiceConfig {
+        db_path: cache_dir.join("memory.db"),
+        cache_path: cache_dir.join("embeddings_cache"),
+        promotion: crate::types::PromotionConfig::default(),
+        ml_promotion: Some(crate::ml_promotion::MLPromotionConfig::default()),
+        streaming_config: Some(crate::streaming::StreamingConfig::default()),
+        ai_config: ai::AiConfig::default(),
+        cache_config: CacheConfigType::default(),
+        health_enabled: true,
+        health_config: crate::health::HealthMonitorConfig::default(),
+        resource_config: crate::resource_manager::ResourceConfig::default(),
+        notification_config: crate::notifications::NotificationConfig::default(),
+        batch_config: crate::batch_manager::BatchConfig::default(),
+    })
+}
+
+/// Результат батчевой вставки
+#[derive(Debug)]
+pub struct BatchInsertResult {
+    pub inserted: usize,
+    pub failed: usize,
+    pub errors: Vec<String>,
+    pub total_time_ms: u64,
+}
+
+/// Результат батчевого поиска
+#[derive(Debug)]
+pub struct BatchSearchResult {
+    pub queries: Vec<String>,
+    pub results: Vec<Vec<Record>>,
+    pub total_time_ms: u64,
+}
 
 /// DI-based Memory Service - упрощенная архитектура с инверсией зависимостей
 // @component: {"k":"C","id":"di_memory_service","t":"DI-based memory service orchestrator","m":{"cur":5,"tgt":95,"u":"%"},"f":["di","memory","clean_architecture","stub"]}
@@ -253,6 +316,11 @@ impl DIMemoryService {
                 cleanup_time_ms: 0,
             })
         }
+    }
+    
+    /// Алиас для run_promotion для обратной совместимости
+    pub async fn run_promotion_cycle(&self) -> Result<PromotionStats> {
+        self.run_promotion().await
     }
 
     /// Flush всех pending операций

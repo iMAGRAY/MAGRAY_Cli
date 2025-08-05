@@ -3,7 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    MemoryService, DIMemoryService, Layer, Record,
+    DIMemoryService, MemoryService, Layer, Record,
     types::SearchOptions as CoreSearchOptions,
     health::{HealthStatus, ComponentType, SystemHealthStatus},
     promotion::PromotionStats,
@@ -27,63 +27,7 @@ pub trait MemoryServiceTrait: Send + Sync {
     fn remember_sync(&self, text: String, layer: Layer) -> Result<Uuid>;
 }
 
-/// Реализация trait для legacy MemoryService
-impl MemoryServiceTrait for MemoryService {
-    fn search_sync(&self, query: &str, layer: Layer, top_k: usize) -> Result<Vec<Record>> {
-        // Используем runtime blocking для sync версии
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| anyhow::anyhow!("No tokio runtime available"))?;
-        
-        rt.block_on(async {
-            let builder = self.search(query)
-                .with_layers(&[layer])
-                .top_k(top_k);
-            builder.execute().await
-        })
-    }
-    
-    fn run_promotion_sync(&self) -> Result<PromotionStats> {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| anyhow::anyhow!("No tokio runtime available"))?;
-        
-        rt.block_on(async {
-            self.run_promotion_cycle().await
-        })
-    }
-    
-    fn get_system_health(&self) -> SystemHealthStatus {
-        self.get_system_health()
-    }
-    
-    fn cache_stats(&self) -> (u64, u64, u64) {
-        self.cache_stats()
-    }
-    
-    fn remember_sync(&self, text: String, layer: Layer) -> Result<Uuid> {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| anyhow::anyhow!("No tokio runtime available"))?;
-        
-        rt.block_on(async {
-            let record = Record {
-                id: Uuid::new_v4(),
-                text,
-                embedding: vec![],
-                layer,
-                kind: "note".to_string(),
-                tags: vec![],
-                project: "default".to_string(),
-                session: Uuid::new_v4().to_string(),
-                score: 0.5,
-                access_count: 1,
-                ts: chrono::Utc::now(),
-                last_access: chrono::Utc::now(),
-            };
-            
-            self.insert(record.clone()).await?;
-            Ok(record.id)
-        })
-    }
-}
+// Legacy MemoryService реализация удалена - используем только DIMemoryService
 
 /// Реализация trait для DIMemoryService
 impl MemoryServiceTrait for DIMemoryService {

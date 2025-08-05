@@ -7,7 +7,7 @@ use tracing::{debug, info, warn, error};
 use uuid::Uuid;
 
 use crate::{
-    MemoryService, Layer, Record,
+    DIMemoryService as MemoryService, Layer, Record,
     types::SearchOptions,
 };
 
@@ -422,11 +422,17 @@ impl StreamingMemoryAPI {
 
         let start_time = Instant::now();
 
-        let mut search_builder = self.service.search(query);
-        search_builder = search_builder.with_layers(&options.layers);
-        search_builder = search_builder.top_k(options.top_k);
-
-        let records = search_builder.execute().await?;
+        // Преобразуем опции в правильный формат для DIMemoryService
+        let layer = options.layers.first().copied().unwrap_or(Layer::Interact);
+        let search_options = crate::types::SearchOptions {
+            layers: options.layers.clone(),
+            top_k: options.top_k,
+            score_threshold: options.score_threshold,
+            tags: options.tags.clone(),
+            project: options.project.clone(),
+        };
+        
+        let records = self.service.search(query, layer, search_options).await?;
         session.stats.total_searches += 1;
 
         let search_time = start_time.elapsed().as_millis() as u64;

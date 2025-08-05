@@ -150,7 +150,7 @@ async fn main() -> Result<()> {
             let llm_client = LlmClient::from_env().ok().map(Arc::new);
             // Создаем базовую конфигурацию памяти для health check
             let memory_service = if let Ok(config) = memory::default_config() {
-                memory::MemoryService::new(config).await.ok().map(Arc::new)
+                memory::DIMemoryService::new(config).await.ok().map(Arc::new)
             } else {
                 None
             };
@@ -419,7 +419,7 @@ async fn show_goodbye_animation() -> Result<()> {
 
 // @component: {"k":"C","id":"status_cmd","t":"System status diagnostic command","m":{"cur":100,"tgt":100,"u":"%"},"f":["cli","diagnostic","graceful-fallback"]}
 async fn show_system_status() -> Result<()> {
-    use memory::{MemoryService, UnifiedMemoryAPI};
+    use memory::{DIMemoryService as MemoryService, UnifiedMemoryAPI};
     use std::sync::Arc;
     use colored::Colorize;
     use tracing::{warn, info};

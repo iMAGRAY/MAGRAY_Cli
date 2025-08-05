@@ -91,7 +91,7 @@
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-05 18:09:52 UTC*
+*Last updated: 2025-08-05 18:34:39 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -108,7 +108,7 @@
 {"f":["errors","database"],"id":"database_error","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Database error types","x_file":"common/src/errors.rs:74"}
 {"f":["sled","concurrent","pooling"],"id":"database_manager","k":"C","m":{"cur":70,"tgt":100,"u":"%"},"t":"Centralized sled database manager","x_file":"memory/src/database_manager.rs:9"}
 {"f":["di","ioc","architecture","validation","performance","async"],"id":"di_container","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Dependency injection container","x_file":"memory/src/di_container.rs:36"}
-{"f":["di","memory","clean_architecture","stub"],"id":"di_memory_service","k":"C","m":{"cur":5,"tgt":95,"u":"%"},"t":"DI-based memory service orchestrator","x_file":"memory/src/service_di.rs:23"}
+{"f":["di","memory","clean_architecture","stub"],"id":"di_memory_service","k":"C","m":{"cur":5,"tgt":95,"u":"%"},"t":"DI-based memory service orchestrator","x_file":"memory/src/service_di.rs:86"}
 {"f":["tools","directory","list"],"id":"dir_lister","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Directory listing tool","x_file":"tools/src/file_ops.rs:150"}
 {"f":["cache","lru","eviction","unified"],"id":"embedding_cache","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"LRU cache with eviction policy","x_file":"memory/src/cache_lru.rs:44"}
 {"f":["ai","config","embeddings"],"id":"embedding_config","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Embedding model configuration","x_file":"ai/src/config.rs:15"}
@@ -147,7 +147,6 @@
 {"f":["memory","hnsw","layers","orchestration"],"id":"memory_lib","k":"C","m":{"cur":75,"tgt":95,"u":"%"},"t":"3-layer HNSW memory system","x_file":"memory/src/lib.rs:1"}
 {"f":["orchestration","coordinator","main"],"id":"memory_orchestrator","k":"C","m":{"cur":0,"tgt":95,"u":"%"},"t":"Main memory system orchestrator","x_file":"memory/src/orchestration/memory_orchestrator.rs:24"}
 {"f":["memory","types","record"],"id":"memory_record","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Memory record structure","x_file":"memory/src/types.rs:32"}
-{"f":["memory","orchestration"],"id":"memory_service","k":"C","m":{"cur":70,"tgt":95,"u":"%"},"t":"Main memory service orchestrator","x_file":"memory/src/service.rs:53"}
 {"f":["memory","types","core"],"id":"memory_types","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Memory system core types","x_file":"memory/src/types.rs:1"}
 {"f":["metrics","monitoring"],"id":"metrics_collector","k":"C","m":{"cur":60,"tgt":95,"u":"%"},"t":"Memory system metrics","x_file":"memory/src/metrics.rs:9"}
 {"id":"ml_promotion_engine","k":"C","m":{"cur":70,"tgt":100,"u":"%"},"t":"ML-based smart promotion system","x_file":"memory/src/ml_promotion.rs:92"}
