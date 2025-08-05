@@ -25,13 +25,17 @@ pub struct PromotionDecision {
 /// Трекер использования записей
 #[derive(Debug, Clone)]
 pub struct UsageTracker {
+    #[allow(dead_code)] // Будет использоваться в ML алгоритмах
     access_patterns: HashMap<Uuid, AccessPattern>,
 }
 
 #[derive(Debug, Clone)]
 struct AccessPattern {
+    #[allow(dead_code)] // Для ML анализа
     total_accesses: u64,
+    #[allow(dead_code)] // Для ML анализа
     recent_accesses: u64,
+    #[allow(dead_code)] // Для ML анализа
     access_velocity: f32,
 }
 
@@ -46,8 +50,10 @@ impl UsageTracker {
 /// Семантический анализатор
 #[derive(Debug, Clone)]
 pub struct SemanticAnalyzer {
+    #[allow(dead_code)] // Для семантического анализа
     similarity_threshold: f32,
     keyword_weights: HashMap<String, f32>,
+    #[allow(dead_code)] // Для кэширования тем
     topic_cache: HashMap<String, Vec<f32>>,
 }
 
@@ -64,6 +70,7 @@ impl SemanticAnalyzer {
 /// Оптимизатор производительности
 #[derive(Debug, Clone)]
 pub struct PerformanceOptimizer {
+    #[allow(dead_code)] // Для оптимизации производительности
     target_latency_ms: f32,
     avg_inference_time_ms: f32,
     cache_hit_rate: f32,

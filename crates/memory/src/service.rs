@@ -6,8 +6,8 @@ use dirs;
 use uuid;
 
 use crate::{
-    cache::EmbeddingCache,
-    cache_lru::{EmbeddingCacheLRU, CacheConfig as LruCacheConfig},
+    EmbeddingCache,
+    CacheConfig,
     cache_interface::EmbeddingCacheInterface,
     health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus},
     CacheConfigType,
@@ -83,7 +83,7 @@ pub fn default_config() -> Result<MemoryConfig> {
         ml_promotion: Some(MLPromotionConfig::default()),
         streaming_config: Some(StreamingConfig::default()),
         ai_config: AiConfig::default(),
-        cache_config: CacheConfigType::Lru(LruCacheConfig::default()),
+        cache_config: CacheConfig::default(),
         health_enabled: true,
         health_config: HealthConfig::default(),
         resource_config: ResourceConfig::default(),
@@ -139,17 +139,9 @@ impl MemoryService {
             store.init_layer(layer).await?;
         }
 
-        // Initialize cache based on config
-        let cache: Arc<dyn EmbeddingCacheInterface> = match &config.cache_config {
-            CacheConfigType::Simple => {
-                info!("Using simple embedding cache");
-                Arc::new(EmbeddingCache::new(&config.cache_path)?)
-            }
-            CacheConfigType::Lru(lru_config) => {
-                info!("Using LRU embedding cache with eviction policy");
-                Arc::new(EmbeddingCacheLRU::new(&config.cache_path, lru_config.clone())?)
-            }
-        };
+        // Initialize LRU cache (единственный тип cache)
+        info!("Using LRU embedding cache with eviction policy");
+        let cache: Arc<dyn EmbeddingCacheInterface> = Arc::new(EmbeddingCache::new(&config.cache_path, config.cache_config.clone())?);
 
         // Initialize AI services with GPU batch processor
         let _model_loader = ModelLoader::new(&config.ai_config.models_dir)?;

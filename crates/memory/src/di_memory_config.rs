@@ -5,8 +5,8 @@ use tracing::{info, debug};
 #[allow(unused_imports)]
 use crate::{
     di_container::{DIContainer, DIContainerBuilder},
-    cache::EmbeddingCache,
-    cache_lru::EmbeddingCacheLRU,
+    EmbeddingCache,
+    CacheConfig,
     cache_interface::EmbeddingCacheInterface,
     health::{HealthMonitor, HealthMonitorConfig as HealthConfig},
     metrics::MetricsCollector,
@@ -226,18 +226,13 @@ impl MemoryDIExtensions for DIContainerBuilder {
         
         let final_self = self.register_singleton(move |_container| {
             info!("Настройка cache layer");
-            let cache_interface: Arc<dyn EmbeddingCacheInterface> = match &cache_config_clone {
-                CacheConfigType::Lru(lru_config) => {
-                    info!("Создание LRU cache: max_entries={}, ttl={}s", lru_config.max_entries, lru_config.ttl_seconds.unwrap_or(3600));
-                    let cache = EmbeddingCacheLRU::new(&cache_path, lru_config.clone())?;
-                    Arc::new(cache)
-                }
-                CacheConfigType::Simple => {
-                    info!("Создание Simple cache по пути: {:?}", cache_path);
-                    let cache = EmbeddingCache::new(&cache_path)?;
-                    Arc::new(cache)
-                }
-            };
+            // Только LRU cache (унифицировано)
+            info!("Создание LRU cache: max_entries={}, ttl={}s", 
+                  cache_config_clone.max_entries, 
+                  cache_config_clone.ttl_seconds.unwrap_or(3600));
+            let cache_interface: Arc<dyn EmbeddingCacheInterface> = Arc::new(
+                EmbeddingCache::new(&cache_path, cache_config_clone.clone())?
+            );
             Ok(cache_interface)
         })?;
 
@@ -358,7 +353,7 @@ pub mod test_helpers {
             },
         };
         
-        let cache_config = CacheConfigType::Simple;
+        let cache_config = CacheConfig::default();
         
         Ok(MemoryConfig {
             db_path,

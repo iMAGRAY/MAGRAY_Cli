@@ -91,7 +91,7 @@
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-05 12:54:18 UTC*
+*Last updated: 2025-08-05 13:26:59 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -110,8 +110,7 @@
 {"f":["di","ioc","architecture","validation","performance","async"],"id":"di_container","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Dependency injection container","x_file":"memory/src/di_container.rs:35"}
 {"f":["di","memory","clean_architecture","stub"],"id":"di_memory_service","k":"C","m":{"cur":5,"tgt":95,"u":"%"},"t":"DI-based memory service orchestrator","x_file":"memory/src/service_di.rs:23"}
 {"f":["tools","directory","list"],"id":"dir_lister","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Directory listing tool","x_file":"tools/src/file_ops.rs:150"}
-{"f":["cache","persistence"],"id":"embedding_cache","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Embedding cache with sled","x_file":"memory/src/cache.rs:31"}
-{"f":["cache","lru","eviction"],"id":"embedding_cache_lru","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"LRU cache with eviction policy","x_file":"memory/src/cache_lru.rs:44"}
+{"f":["cache","lru","eviction","unified"],"id":"embedding_cache","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"LRU cache with eviction policy","x_file":"memory/src/cache_lru.rs:44"}
 {"f":["ai","config","embeddings"],"id":"embedding_config","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Embedding model configuration","x_file":"ai/src/config.rs:15"}
 {"f":["orchestration","embeddings","coordinator"],"id":"embedding_coordinator","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Embedding orchestration coordinator","x_file":"memory/src/orchestration/embedding_coordinator.rs:16"}
 {"f":["errors","ai","embeddings"],"id":"embedding_error","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"Embedding error types","x_file":"common/src/errors.rs:142"}
@@ -133,7 +132,7 @@
 {"f":["errors","gpu"],"id":"gpu_error","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"GPU error types","x_file":"common/src/errors.rs:162"}
 {"f":["fallback","resilience","gpu"],"id":"gpu_fallback_manager","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Reliable GPU fallback system","x_file":"ai/src/gpu_fallback.rs:142"}
 {"id":"gpu_memory_pool","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"GPU memory pool manager","x_file":"ai/src/gpu_memory_pool.rs:6"}
-{"f":["gpu","pipeline","parallel","disabled"],"id":"gpu_pipeline_manager","k":"C","m":{"cur":65,"tgt":100,"u":"%"},"t":"GPU pipeline for parallel batches","x_file":"ai/src/gpu_pipeline.rs:9"}
+{"f":["gpu","pipeline","parallel","optimized"],"id":"gpu_pipeline_manager","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"GPU pipeline for parallel batches","x_file":"ai/src/gpu_pipeline.rs:9"}
 {"f":["fallback","resilience"],"id":"graceful_embedding","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Fallback embedding service","x_file":"memory/src/fallback.rs:137"}
 {"f":["monitoring","production"],"id":"health_checks","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Production health monitoring","x_file":"cli/src/health_checks.rs:10"}
 {"f":["orchestration","health","monitoring"],"id":"health_manager","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Health monitoring coordinator","x_file":"memory/src/orchestration/health_manager.rs:12"}
@@ -151,7 +150,7 @@
 {"f":["memory","orchestration"],"id":"memory_service","k":"C","m":{"cur":70,"tgt":95,"u":"%"},"t":"Main memory service orchestrator","x_file":"memory/src/service.rs:53"}
 {"f":["memory","types","core"],"id":"memory_types","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Memory system core types","x_file":"memory/src/types.rs:1"}
 {"f":["metrics","monitoring"],"id":"metrics_collector","k":"C","m":{"cur":60,"tgt":95,"u":"%"},"t":"Memory system metrics","x_file":"memory/src/metrics.rs:9"}
-{"id":"ml_promotion_engine","k":"C","m":{"cur":70,"tgt":100,"u":"%"},"t":"ML-based smart promotion system","x_file":"memory/src/ml_promotion.rs:85"}
+{"id":"ml_promotion_engine","k":"C","m":{"cur":70,"tgt":100,"u":"%"},"t":"ML-based smart promotion system","x_file":"memory/src/ml_promotion.rs:92"}
 {"id":"model_downloader","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Auto model downloader","x_file":"ai/src/model_downloader.rs:11"}
 {"f":["models","config","registry"],"id":"model_registry","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Centralized model registry","x_file":"ai/src/model_registry.rs:6"}
 {"f":["cli","commands","models"],"id":"models_commands","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Model management CLI","x_file":"cli/src/commands/models.rs:6"}

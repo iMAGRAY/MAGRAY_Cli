@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::path::Path;
 use tracing::{info, warn};
 
-use crate::{EmbeddingCache, EmbeddingCacheLRU, CacheConfig};
+use crate::{EmbeddingCache, CacheConfig};
 
 /// Migrate from simple cache to LRU cache
 #[allow(dead_code)]
@@ -15,11 +15,11 @@ pub async fn migrate_cache_to_lru(
           old_cache_path.as_ref(), 
           new_cache_path.as_ref());
 
-    // Open old cache
-    let old_cache = EmbeddingCache::new(&old_cache_path)?;
+    // Open old cache with default config (now it's LRU)
+    let old_cache = EmbeddingCache::new(&old_cache_path, CacheConfig::default())?;
     
-    // Create new LRU cache
-    let _new_cache = EmbeddingCacheLRU::new(&new_cache_path, config)?;
+    // Create new LRU cache (same type now)
+    let _new_cache = EmbeddingCache::new(&new_cache_path, config)?;
 
     // Get stats from old cache
     let (hits, misses, _) = old_cache.stats();

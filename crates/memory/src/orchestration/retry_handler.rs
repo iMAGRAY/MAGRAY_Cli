@@ -227,48 +227,57 @@ impl RetryHandler {
 }
 
 /// Builder для создания RetryHandler с кастомной конфигурацией
+#[allow(dead_code)] // Для будущего orchestration функционала
 pub struct RetryHandlerBuilder {
     policy: RetryPolicy,
 }
 
 impl RetryHandlerBuilder {
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn new() -> Self {
         Self {
             policy: RetryPolicy::default(),
         }
     }
     
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn max_attempts(mut self, attempts: u32) -> Self {
         self.policy.max_attempts = attempts;
         self
     }
     
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn initial_delay(mut self, delay: Duration) -> Self {
         self.policy.initial_delay = delay;
         self
     }
     
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn max_delay(mut self, delay: Duration) -> Self {
         self.policy.max_delay = delay;
         self
     }
     
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn backoff_multiplier(mut self, multiplier: f32) -> Self {
         self.policy.backoff_multiplier = multiplier;
         self
     }
     
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn with_jitter(mut self, jitter: bool) -> Self {
         self.policy.jitter = jitter;
         self
     }
     
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn build(self) -> RetryHandler {
         RetryHandler::new(self.policy)
     }
 }
 
 impl Default for RetryHandlerBuilder {
+    #[allow(dead_code)] // Для будущего orchestration функционала
     fn default() -> Self {
         Self::new()
     }

@@ -414,11 +414,13 @@ impl VectorIndex {
     }
     
     /// Получить все ID в индексе
+    #[allow(dead_code)] // Для будущего администрирования
     pub fn get_all_ids(&self) -> Vec<String> {
         self.id_to_point.read().keys().cloned().collect()
     }
     
     /// Оценить качество индекса (0.0 - 1.0)
+    #[allow(dead_code)] // Для будущего мониторинга
     pub fn estimate_quality(&self) -> f64 {
         let stats = self.stats.snapshot();
         

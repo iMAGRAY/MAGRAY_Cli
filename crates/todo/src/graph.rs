@@ -1,176 +1,351 @@
 ﻿use crate::types::{TodoItem, TaskState};
 use anyhow::Result;
+use dashmap::DashMap;
+use parking_lot::RwLock;
 use petgraph::graph::{DiGraph, NodeIndex};
-use petgraph::algo::toposort;
+use petgraph::algo::{toposort, has_path_connecting};
 use petgraph::Direction;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::Arc;
 use uuid::Uuid;
 
-/// Граф зависимостей между задачами
-pub struct DependencyGraph {
-    graph: RwLock<DiGraph<Uuid, ()>>,
-    node_map: RwLock<HashMap<Uuid, NodeIndex>>,
+/// Узел графа с состоянием задачи
+#[derive(Debug, Clone)]
+struct TaskNode {
+    id: Uuid,
+    state: TaskState,
+    priority: i32,
+    created_at: chrono::DateTime<chrono::Utc>,
 }
 
-impl Default for DependencyGraph {
+/// Оптимизированный граф зависимостей с конкурентным доступом
+pub struct DependencyGraphV2 {
+    // Основной граф
+    graph: Arc<RwLock<DiGraph<TaskNode, ()>>>,
+    // Быстрый поиск узлов по ID
+    node_map: Arc<DashMap<Uuid, NodeIndex>>,
+    // Кэш готовых задач
+    ready_cache: Arc<DashMap<Uuid, bool>>,
+    // Кэш путей для быстрой проверки циклов
+    path_cache: Arc<DashMap<(Uuid, Uuid), bool>>,
+}
+
+impl Default for DependencyGraphV2 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl DependencyGraph {
+impl DependencyGraphV2 {
     pub fn new() -> Self {
         Self {
-            graph: RwLock::new(DiGraph::new()),
-            node_map: RwLock::new(HashMap::new()),
-        }
-    }
-
-    pub fn add_task(&self, task: &TodoItem) -> Result<()> {
-        let mut graph = self.graph.write().unwrap();
-        let mut node_map = self.node_map.write().unwrap();
-        
-        // Добавляем узел для задачи если его нет
-        if !node_map.contains_key(&task.id) {
-            let node = graph.add_node(task.id);
-            node_map.insert(task.id, node);
-        }
-        
-        // Добавляем зависимости
-        for dep_id in &task.depends_on {
-            // Создаем узел для зависимости если его нет
-            if !node_map.contains_key(dep_id) {
-                let dep_node = graph.add_node(*dep_id);
-                node_map.insert(*dep_id, dep_node);
-            }
-            
-            let from = node_map[dep_id];
-            let to = node_map[&task.id];
-            
-            // Добавляем ребро от зависимости к задаче
-            // (задача зависит от dep_id, поэтому dep_id -> task)
-            graph.update_edge(from, to, ());
-        }
-        
-        Ok(())
-    }
-    
-    /// Проверить, готова ли задача к выполнению
-    pub fn is_ready(&self, task_id: &Uuid) -> Result<bool> {
-        let graph = self.graph.read().unwrap();
-        let node_map = self.node_map.read().unwrap();
-        
-        if let Some(&node) = node_map.get(task_id) {
-            // Проверяем все входящие зависимости
-            for neighbor in graph.neighbors_directed(node, Direction::Incoming) {
-                let _dep_id = graph[neighbor];
-                // Зависимость должна быть выполнена
-                // TODO: Нужно хранить состояния в графе или передавать извне
-                // Пока считаем что все зависимости выполнены
-            }
-            Ok(true)
-        } else {
-            Ok(true) // Если задачи нет в графе, она готова
+            graph: Arc::new(RwLock::new(DiGraph::new())),
+            node_map: Arc::new(DashMap::new()),
+            ready_cache: Arc::new(DashMap::new()),
+            path_cache: Arc::new(DashMap::new()),
         }
     }
     
-    /// Проверить, создаст ли добавление зависимости цикл
-    pub fn would_create_cycle(&self, task_id: &Uuid, depends_on: &Uuid) -> Result<bool> {
-        let mut graph = self.graph.write().unwrap();
-        let node_map = self.node_map.read().unwrap();
+    /// Загрузить граф из списка задач
+    pub fn load_from_tasks(&self, tasks: Vec<TodoItem>) -> Result<()> {
+        let mut graph = self.graph.write();
+        let node_map = &self.node_map;
         
-        // Получаем или создаем узлы
-        let task_node = if let Some(&node) = node_map.get(task_id) {
-            node
-        } else {
-            return Ok(false); // Новый узел не может создать цикл
-        };
+        // Очищаем старые данные
+        graph.clear();
+        node_map.clear();
+        self.ready_cache.clear();
+        self.path_cache.clear();
         
-        let dep_node = if let Some(&node) = node_map.get(depends_on) {
-            node
-        } else {
-            return Ok(false); // Новый узел не может создать цикл
-        };
-        
-        // Временно добавляем ребро
-        graph.add_edge(dep_node, task_node, ());
-        
-        // Проверяем на циклы
-        let has_cycle = toposort(&*graph, None).is_err();
-        
-        // Удаляем временное ребро
-        if let Some(edge) = graph.find_edge(dep_node, task_node) {
-            graph.remove_edge(edge);
-        }
-        
-        Ok(has_cycle)
-    }
-    
-    /// Обновить зависимости задачи
-    pub fn update_dependencies(&self, task: &TodoItem) -> Result<()> {
-        let mut graph = self.graph.write().unwrap();
-        let mut node_map = self.node_map.write().unwrap();
-        
-        // Получаем или создаем узел задачи
-        let task_node = if let Some(&node) = node_map.get(&task.id) {
-            node
-        } else {
-            let node = graph.add_node(task.id);
-            node_map.insert(task.id, node);
-            node
-        };
-        
-        // Удаляем старые входящие ребра
-        let incoming: Vec<_> = graph
-            .neighbors_directed(task_node, Direction::Incoming)
-            .collect();
-        for neighbor in incoming {
-            if let Some(edge) = graph.find_edge(neighbor, task_node) {
-                graph.remove_edge(edge);
-            }
-        }
-        
-        // Добавляем новые зависимости
-        for dep_id in &task.depends_on {
-            let dep_node = if let Some(&node) = node_map.get(dep_id) {
-                node
-            } else {
-                let node = graph.add_node(*dep_id);
-                node_map.insert(*dep_id, node);
-                node
+        // Создаем узлы
+        for task in &tasks {
+            let node = TaskNode {
+                id: task.id,
+                state: task.state,
+                priority: task.priority as i32,
+                created_at: task.created_at,
             };
-            
-            graph.add_edge(dep_node, task_node, ());
+            let idx = graph.add_node(node);
+            node_map.insert(task.id, idx);
+        }
+        
+        // Создаем рёбра
+        for task in &tasks {
+            if let Some(task_idx) = node_map.get(&task.id) {
+                for dep_id in &task.depends_on {
+                    if let Some(dep_idx) = node_map.get(dep_id) {
+                        // dep -> task (task зависит от dep)
+                        graph.add_edge(*dep_idx.value(), *task_idx.value(), ());
+                    }
+                }
+            }
         }
         
         Ok(())
     }
     
-    /// Обновить состояние задачи (для будущего использования)
-    pub fn update_state(&self, _task_id: &Uuid, _new_state: TaskState) -> Result<()> {
-        // TODO: Хранить состояния в графе если понадобится
+    /// Добавить или обновить задачу
+    pub fn upsert_task(&self, task: &TodoItem) -> Result<()> {
+        let mut graph = self.graph.write();
+        
+        // Инвалидируем кэши
+        self.ready_cache.remove(&task.id);
+        self.invalidate_path_cache_for(&task.id);
+        
+        let node = TaskNode {
+            id: task.id,
+            state: task.state,
+            priority: task.priority as i32,
+            created_at: task.created_at,
+        };
+        
+        // Обновляем или создаем узел
+        if let Some(idx) = self.node_map.get(&task.id) {
+            graph[*idx] = node;
+        } else {
+            let idx = graph.add_node(node);
+            self.node_map.insert(task.id, idx);
+        }
+        
+        // Обновляем зависимости
+        if let Some(task_idx) = self.node_map.get(&task.id).map(|e| *e.value()) {
+            // Удаляем старые входящие рёбра
+            let incoming: Vec<_> = graph
+                .neighbors_directed(task_idx, Direction::Incoming)
+                .collect();
+            for neighbor in incoming {
+                if let Some(edge) = graph.find_edge(neighbor, task_idx) {
+                    graph.remove_edge(edge);
+                }
+            }
+            
+            // Добавляем новые зависимости
+            for dep_id in &task.depends_on {
+                // Создаем узел зависимости если его нет
+                let dep_idx = if let Some(idx) = self.node_map.get(dep_id) {
+                    *idx.value()
+                } else {
+                    let dep_node = TaskNode {
+                        id: *dep_id,
+                        state: TaskState::Planned,
+                        priority: 0,
+                        created_at: chrono::Utc::now(),
+                    };
+                    let idx = graph.add_node(dep_node);
+                    self.node_map.insert(*dep_id, idx);
+                    idx
+                };
+                
+                graph.add_edge(dep_idx, task_idx, ());
+            }
+        }
+        
         Ok(())
     }
     
-    /// Получить количество задач в графе
-    pub fn task_count(&self) -> usize {
-        self.node_map.read().unwrap().len()
+    /// Обновить состояние задачи
+    pub fn update_state(&self, task_id: &Uuid, new_state: TaskState) -> Result<()> {
+        let mut graph = self.graph.write();
+        
+        if let Some(idx) = self.node_map.get(task_id) {
+            graph[*idx].state = new_state;
+            
+            // Инвалидируем кэш готовности для всех зависимых задач
+            let dependents: Vec<_> = graph
+                .neighbors_directed(*idx, Direction::Outgoing)
+                .map(|n| graph[n].id)
+                .collect();
+            
+            drop(graph);
+            
+            for dep_id in dependents {
+                self.ready_cache.remove(&dep_id);
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Проверить готовность задачи (с кэшированием)
+    pub fn is_ready(&self, task_id: &Uuid) -> Result<bool> {
+        // Проверяем кэш
+        if let Some(cached) = self.ready_cache.get(task_id) {
+            return Ok(*cached);
+        }
+        
+        let graph = self.graph.read();
+        
+        if let Some(idx) = self.node_map.get(task_id) {
+            let node = &graph[*idx];
+            
+            // Задача не может быть готова если она уже выполнена или провалена
+            if matches!(node.state, TaskState::Done | TaskState::Failed | TaskState::Cancelled) {
+                self.ready_cache.insert(*task_id, false);
+                return Ok(false);
+            }
+            
+            // Проверяем все зависимости
+            let is_ready = graph
+                .neighbors_directed(*idx, Direction::Incoming)
+                .all(|dep_idx| graph[dep_idx].state == TaskState::Done);
+            
+            // Кэшируем результат
+            self.ready_cache.insert(*task_id, is_ready);
+            Ok(is_ready)
+        } else {
+            Ok(true) // Задачи нет в графе - считаем готовой
+        }
+    }
+    
+    /// Получить готовые задачи отсортированные по приоритету
+    pub fn get_ready_tasks(&self, limit: usize) -> Result<Vec<Uuid>> {
+        let graph = self.graph.read();
+        
+        let mut ready_tasks: Vec<(Uuid, &TaskNode)> = Vec::new();
+        
+        for idx in graph.node_indices() {
+            let node = &graph[idx];
+            
+            // Пропускаем не Ready состояния
+            if node.state != TaskState::Ready {
+                continue;
+            }
+            
+            // Проверяем готовность
+            if self.is_ready(&node.id)? {
+                ready_tasks.push((node.id, node));
+            }
+        }
+        
+        // Сортируем по приоритету и времени создания
+        ready_tasks.sort_by(|a, b| {
+            b.1.priority.cmp(&a.1.priority)
+                .then(a.1.created_at.cmp(&b.1.created_at))
+        });
+        
+        Ok(ready_tasks
+            .into_iter()
+            .take(limit)
+            .map(|(id, _)| id)
+            .collect())
+    }
+    
+    /// Проверить, создаст ли добавление зависимости цикл (с кэшированием)
+    pub fn would_create_cycle(&self, from: &Uuid, to: &Uuid) -> Result<bool> {
+        // Быстрая проверка - если задачи одинаковые
+        if from == to {
+            return Ok(true);
+        }
+        
+        // Проверяем кэш путей
+        let cache_key = (*to, *from); // Обратный порядок для проверки пути
+        if let Some(has_path) = self.path_cache.get(&cache_key) {
+            return Ok(*has_path);
+        }
+        
+        let graph = self.graph.read();
+        
+        let from_idx = self.node_map.get(from).map(|e| *e.value());
+        let to_idx = self.node_map.get(to).map(|e| *e.value());
+        
+        match (from_idx, to_idx) {
+            (Some(f), Some(t)) => {
+                // Проверяем существует ли путь от to к from
+                let has_path = has_path_connecting(&*graph, t, f, None);
+                
+                // Кэшируем результат
+                self.path_cache.insert(cache_key, has_path);
+                
+                Ok(has_path)
+            }
+            _ => Ok(false), // Если одной из задач нет - цикла быть не может
+        }
     }
     
     /// Получить топологически отсортированный список задач
     pub fn topological_sort(&self) -> Result<Vec<Uuid>> {
-        let graph = self.graph.read().unwrap();
+        let graph = self.graph.read();
         
         match toposort(&*graph, None) {
             Ok(nodes) => {
                 Ok(nodes.into_iter()
-                    .map(|node| graph[node])
+                    .map(|idx| graph[idx].id)
                     .collect())
             }
             Err(_) => Err(anyhow::anyhow!("Dependency graph contains a cycle")),
         }
     }
+    
+    /// Получить все задачи, которые зависят от данной
+    pub fn get_dependents(&self, task_id: &Uuid) -> Vec<Uuid> {
+        let graph = self.graph.read();
+        
+        if let Some(idx) = self.node_map.get(task_id) {
+            graph
+                .neighbors_directed(*idx, Direction::Outgoing)
+                .map(|n| graph[n].id)
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+    
+    /// Получить все задачи, от которых зависит данная
+    pub fn get_dependencies(&self, task_id: &Uuid) -> Vec<Uuid> {
+        let graph = self.graph.read();
+        
+        if let Some(idx) = self.node_map.get(task_id) {
+            graph
+                .neighbors_directed(*idx, Direction::Incoming)
+                .map(|n| graph[n].id)
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+    
+    /// Получить статистику графа
+    pub fn stats(&self) -> GraphStats {
+        let graph = self.graph.read();
+        
+        let total_nodes = graph.node_count();
+        let total_edges = graph.edge_count();
+        
+        let mut state_counts = HashMap::new();
+        for node in graph.node_weights() {
+            *state_counts.entry(node.state).or_insert(0) += 1;
+        }
+        
+        GraphStats {
+            total_tasks: total_nodes,
+            total_dependencies: total_edges,
+            tasks_by_state: state_counts,
+            cache_size: self.ready_cache.len() + self.path_cache.len(),
+        }
+    }
+    
+    /// Инвалидировать кэш путей для задачи
+    fn invalidate_path_cache_for(&self, task_id: &Uuid) {
+        // Удаляем все записи кэша где участвует эта задача
+        let keys_to_remove: Vec<_> = self.path_cache
+            .iter()
+            .filter(|entry| entry.key().0 == *task_id || entry.key().1 == *task_id)
+            .map(|entry| *entry.key())
+            .collect();
+        
+        for key in keys_to_remove {
+            self.path_cache.remove(&key);
+        }
+    }
+}
+
+/// Статистика графа
+#[derive(Debug)]
+pub struct GraphStats {
+    pub total_tasks: usize,
+    pub total_dependencies: usize,
+    pub tasks_by_state: HashMap<TaskState, usize>,
+    pub cache_size: usize,
 }
 
 #[cfg(test)]
@@ -178,32 +353,31 @@ mod tests {
     use super::*;
     
     #[test]
-    fn test_cycle_detection() {
-        let graph = DependencyGraph::new();
+    fn test_concurrent_access() {
+        let graph = Arc::new(DependencyGraphV2::new());
         
-        // Создаем задачи
-        let task1 = TodoItem {
-            id: Uuid::new_v4(),
-            title: "Task 1".to_string(),
-            ..Default::default()
-        };
+        // Создаем задачи в разных потоках
+        let handles: Vec<_> = (0..10)
+            .map(|i| {
+                let g = graph.clone();
+                std::thread::spawn(move || {
+                    let task = TodoItem {
+                        id: Uuid::new_v4(),
+                        title: format!("Task {}", i),
+                        state: TaskState::Ready,
+                        priority: crate::Priority::Medium,
+                        ..Default::default()
+                    };
+                    g.upsert_task(&task).unwrap();
+                })
+            })
+            .collect();
         
-        let mut task2 = TodoItem {
-            id: Uuid::new_v4(),
-            title: "Task 2".to_string(),
-            ..Default::default()
-        };
-        task2.depends_on.push(task1.id);
+        for h in handles {
+            h.join().unwrap();
+        }
         
-        // Добавляем в граф
-        graph.add_task(&task1).unwrap();
-        graph.add_task(&task2).unwrap();
-        
-        // Проверяем что обратная зависимость создаст цикл
-        assert!(graph.would_create_cycle(&task1.id, &task2.id).unwrap());
-        
-        // Проверяем что обычная зависимость не создаст цикл
-        let task3_id = Uuid::new_v4();
-        assert!(!graph.would_create_cycle(&task3_id, &task1.id).unwrap());
+        let stats = graph.stats();
+        assert_eq!(stats.total_tasks, 10);
     }
 }

@@ -6,7 +6,6 @@ pub mod types;
 pub mod store;
 pub mod graph;
 pub mod store_v2;
-pub mod graph_v2;
 pub mod service_v2;
 
 // Экспортируем v2 как основную версию
@@ -15,7 +14,7 @@ pub use types::*;
 
 // Экспортируем для обратной совместимости
 pub use store::TodoStore;
-pub use graph::DependencyGraph;
+pub use graph::DependencyGraphV2 as DependencyGraph;
 
 /// Создать оптимизированный TodoService
 /// 

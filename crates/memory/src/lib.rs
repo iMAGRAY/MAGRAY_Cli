@@ -1,6 +1,5 @@
 // @component: {"k":"C","id":"memory_lib","t":"3-layer HNSW memory system","m":{"cur":75,"tgt":95,"u":"%"},"f":["memory","hnsw","layers","orchestration"]}
 mod batch_manager;
-mod cache;
 mod cache_lru;
 mod cache_interface;
 mod cache_migration;
@@ -30,18 +29,14 @@ mod database_manager;
 mod di_container;
 pub mod di_memory_config;
 pub use di_container::{DIContainer, DIPerformanceMetrics, DIContainerStats};
-// Новая orchestration система
+// Новая orchestration система (отключена - 0% готовности)
+#[allow(dead_code)] // Для будущего развития orchestration
 pub mod orchestration;
 pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};
-pub use cache::{EmbeddingCache, CacheConfig as SimpleCacheConfig};
-pub use cache_lru::{EmbeddingCacheLRU, CacheConfig};
+pub use cache_lru::{EmbeddingCacheLRU as EmbeddingCache, CacheConfig};
 
-// Cache configuration type for service
-#[derive(Debug, Clone)]
-pub enum CacheConfigType {
-    Simple,
-    Lru(CacheConfig),
-}
+// Cache configuration type for service - теперь только LRU
+pub type CacheConfigType = CacheConfig;
 pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 pub use service::{MemoryService, MemoryServiceConfig as MemoryConfig, default_config, BatchInsertResult, BatchSearchResult};

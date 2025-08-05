@@ -1,6 +1,6 @@
 ﻿use crate::types::*;
 use crate::store_v2::TodoStoreV2;
-use crate::graph_v2::{DependencyGraphV2, GraphStats};
+use crate::graph::{DependencyGraphV2, GraphStats};
 use anyhow::Result;
 use dashmap::DashMap;
 use lru::LruCache;

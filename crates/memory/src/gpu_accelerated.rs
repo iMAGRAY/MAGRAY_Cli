@@ -126,13 +126,12 @@ impl GpuBatchProcessor {
         Self::validate_gpu_capabilities()?;
         
         let pipeline_config = PipelineConfig {
-            num_gpu_streams: Self::get_optimal_gpu_streams()?,
-            max_batch_size: Self::get_safe_batch_size(config.max_batch_size)?,
+            max_concurrent_batches: Self::get_optimal_gpu_streams()?,
+            optimal_batch_size: Self::get_safe_batch_size(config.max_batch_size)?,
             min_batch_size: 32,
-            batch_timeout: std::time::Duration::from_millis(config.batch_timeout_ms),
-            use_pinned_memory: Self::can_use_pinned_memory(),
-            enable_prefetch: Self::can_use_prefetch(),
-            prefetch_count: 2,
+            prefetch_enabled: Self::can_use_prefetch(),
+            memory_pooling_enabled: Self::can_use_pinned_memory(),
+            adaptive_batching: true,
         };
         
         info!("🔍 Создание GPU Pipeline с конфигурацией: {:?}", pipeline_config);
@@ -140,7 +139,7 @@ impl GpuBatchProcessor {
         // Создаем с timeout и error handling
         match tokio::time::timeout(
             std::time::Duration::from_secs(30),
-            GpuPipelineManager::new(pipeline_config, embedding_config.clone())
+            GpuPipelineManager::new(embedding_config.clone(), pipeline_config)
         ).await {
             Ok(Ok(manager)) => {
                 info!("✅ GPU Pipeline успешно создан");
@@ -437,7 +436,7 @@ impl GpuBatchProcessor {
                 debug!("🚀 Используем GPU Pipeline для {} текстов", uncached_texts.len());
                 
                 // Пытаемся через GPU pipeline с fallback
-                match pipeline.process_with_prefetch(uncached_texts.clone()).await {
+                match pipeline.process_texts_optimized(uncached_texts.clone()).await {
                     Ok(embeddings) => embeddings,
                     Err(e) => {
                         warn!("🔄 GPU Pipeline failed: {}. Fallback на основной сервис", e);

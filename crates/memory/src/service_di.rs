@@ -197,8 +197,8 @@ impl DIMemoryService {
             Arc::new(HealthMonitor::new(HealthMonitorConfig::default()))
         });
         let cache = self.container.resolve::<Arc<dyn EmbeddingCacheInterface>>().unwrap_or_else(|_| {
-            use crate::cache::EmbeddingCache;
-            let temp_cache = EmbeddingCache::new(&std::env::temp_dir().join("fallback_cache")).unwrap();
+            use crate::{EmbeddingCache, CacheConfig};
+            let temp_cache = EmbeddingCache::new(&std::env::temp_dir().join("fallback_cache"), CacheConfig::default()).unwrap();
             Arc::new(Arc::new(temp_cache) as Arc<dyn EmbeddingCacheInterface>)
         });
         

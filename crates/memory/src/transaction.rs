@@ -29,6 +29,7 @@ pub struct Transaction {
     id: Uuid,
     operations: Vec<TransactionOp>,
     status: TransactionStatus,
+    #[allow(dead_code)] // Для будущего rollback функционала
     rollback_actions: Vec<RollbackAction>,
 }
 

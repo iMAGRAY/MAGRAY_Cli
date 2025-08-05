@@ -158,6 +158,7 @@ pub trait BackupCoordinator: Coordinator {
 
 /// Результат координации для цепочки обработки
 #[derive(Debug)]
+#[allow(dead_code)] // Для будущего orchestration функционала
 pub enum CoordinationResult<T> {
     /// Успешный результат
     Success(T),
@@ -170,10 +171,12 @@ pub enum CoordinationResult<T> {
 }
 
 impl<T> CoordinationResult<T> {
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn is_success(&self) -> bool {
         matches!(self, Self::Success(_) | Self::PartialSuccess(_, _))
     }
     
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn unwrap(self) -> T {
         match self {
             Self::Success(t) | Self::PartialSuccess(t, _) | Self::Fallback(t, _) => t,
@@ -181,6 +184,7 @@ impl<T> CoordinationResult<T> {
         }
     }
     
+    #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn warnings(&self) -> Vec<String> {
         match self {
             Self::PartialSuccess(_, warnings) => warnings.clone(),

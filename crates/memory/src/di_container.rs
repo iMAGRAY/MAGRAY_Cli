@@ -143,7 +143,7 @@ impl DIContainer {
         let start_time = Instant::now();
         let type_id = TypeId::of::<T>();
         let type_name = self.get_type_name(type_id);
-        let mut from_cache = false;
+        let from_cache = false;
 
         // Сначала проверяем singleton кэш
         {

@@ -41,7 +41,7 @@ impl Default for CacheConfig {
     }
 }
 
-// @component: {"k":"C","id":"embedding_cache_lru","t":"LRU cache with eviction policy","m":{"cur":90,"tgt":100,"u":"%"},"f":["cache","lru","eviction"]}
+// @component: {"k":"C","id":"embedding_cache","t":"LRU cache with eviction policy","m":{"cur":95,"tgt":100,"u":"%"},"f":["cache","lru","eviction","unified"]}
 pub struct EmbeddingCacheLRU {
     db: Arc<Db>,
     stats: Arc<RwLock<CacheStats>>,

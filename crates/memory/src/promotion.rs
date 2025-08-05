@@ -199,6 +199,7 @@ impl PromotionEngine {
     }
     
     /// Простая оценка доступной памяти (в production использовать sysinfo)
+    #[allow(dead_code)] // Используется в условном коде
     fn estimate_available_memory_mb(&self) -> usize {
         // Базовая эвристика - в реальности заменить на:
         // use sysinfo::{System, SystemExt};
@@ -234,6 +235,7 @@ impl PromotionEngine {
     }
     
     /// Обрабатывает batch кандидатов для предотвращения переполнения памяти
+    #[allow(dead_code)] // Используется в основном цикле promotion
     async fn process_candidates_batch(&self, candidates: &mut Vec<Record>, layer: Layer) -> Result<()> {
         if candidates.is_empty() {
             return Ok(());
@@ -272,6 +274,7 @@ impl PromotionEngine {
     }
     
     /// Продвигает batch записей из Interact в Insights
+    #[allow(dead_code)] // Используется в цикле promotion
     async fn promote_batch_to_insights(&self, candidates: Vec<Record>) -> Result<()> {
         if candidates.is_empty() {
             return Ok(());
@@ -299,6 +302,7 @@ impl PromotionEngine {
     }
     
     /// Продвигает batch записей из Insights в Assets
+    #[allow(dead_code)] // Используется в цикле promotion
     async fn promote_batch_to_assets(&self, candidates: Vec<Record>) -> Result<()> {
         if candidates.is_empty() {
             return Ok(());
