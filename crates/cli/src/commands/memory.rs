@@ -538,7 +538,7 @@ async fn manage_limits(
     max_cache_mb: Option<usize>,
     show: bool,
 ) -> Result<()> {
-    let config = service.config();
+    // Config не доступен через unified API, используем статистику
     
     if show || (max_vectors.is_none() && max_cache_mb.is_none()) {
         println!("{}", "=== Memory System Limits ===".bold().blue());

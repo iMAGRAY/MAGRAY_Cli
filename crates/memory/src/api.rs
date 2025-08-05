@@ -215,6 +215,12 @@ impl UnifiedMemoryAPI {
         Ok(false)
     }
     
+    /// Сохранить информацию в память
+    pub async fn remember(&self, text: String, context: MemoryContext) -> Result<Uuid> {
+        let layer = context.layer.unwrap_or(Layer::Interact);
+        self.service.remember_sync(text, layer)
+    }
+    
     // ========== УПРАВЛЕНИЕ СИСТЕМОЙ ==========
     
     /// Запустить цикл продвижения памяти
@@ -369,6 +375,14 @@ impl Default for MemoryContext {
     }
 }
 
+impl MemoryContext {
+    /// Установить тип записи
+    pub fn with_kind(mut self, kind: String) -> Self {
+        self.kind = kind;
+        self
+    }
+}
+
 /// Опции поиска
 #[derive(Debug, Clone, Default)]
 pub struct SearchOptions {
@@ -483,21 +497,25 @@ impl MemoryContext {
         }
     }
     
+    /// Добавить теги
     pub fn with_tags(mut self, tags: Vec<String>) -> Self {
         self.tags = tags;
         self
     }
     
+    /// Установить проект
     pub fn with_project(mut self, project: impl Into<String>) -> Self {
         self.project = Some(project.into());
         self
     }
     
+    /// Установить сессию
     pub fn with_session(mut self, session: impl Into<String>) -> Self {
         self.session = Some(session.into());
         self
     }
     
+    /// Установить слой
     pub fn with_layer(mut self, layer: Layer) -> Self {
         self.layer = Some(layer);
         self

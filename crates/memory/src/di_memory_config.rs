@@ -148,9 +148,148 @@ impl MemoryDIExtensions for DIContainerBuilder {
         Ok(final_self)
     }
 
-    /// Слой векторного хранилища
+    /// Слой хранения данных (VectorStore)
     async fn configure_storage_layer(self, config: &MemoryConfig) -> Result<Self> {
         debug!("Настройка storage layer");
+
+        let final_self = self
+            .register_singleton(|_container| {
+                info!("Создание VectorStore");
+                let store = VectorStore::new();
+                Ok(store)
+            })?;
+
+        debug!("✓ Storage layer настроен");
+        Ok(final_self)
+    }
+
+    /// Слой кэширования (EmbeddingCache)
+    async fn configure_cache_layer(self, config: &MemoryConfig) -> Result<Self> {
+        debug!("Настройка cache layer");
+
+        let final_self = match config.cache_config {
+            CacheConfigType::LRU { max_size, ttl_seconds } => {
+                info!("Настройка LRU cache: max_size={}, ttl={}s", max_size, ttl_seconds);
+                self.register_singleton(|_container| {
+                    let cache = EmbeddingCacheLRU::new(max_size, ttl_seconds)?;
+                    let cache_interface: Arc<dyn EmbeddingCacheInterface> = Arc::new(cache);
+                    Ok(cache_interface)
+                })?
+            }
+            CacheConfigType::Simple { max_entries } => {
+                info!("Настройка Simple cache: max_entries={}", max_entries);
+                self.register_singleton(|_container| {
+                    let cache = EmbeddingCache::new();
+                    let cache_interface: Arc<dyn EmbeddingCacheInterface> = Arc::new(cache);
+                    Ok(cache_interface)
+                })?
+            }
+        };
+
+        debug!("✓ Cache layer настроен");
+        Ok(final_self)
+    }
+
+    /// Слой обработки (GPU, Batch, Promotion)
+    async fn configure_processing_layer(self, config: &MemoryConfig) -> Result<Self> {
+        debug!("Настройка processing layer");
+
+        let mut builder = self;
+
+        // Promotion Engine
+        builder = builder
+            .register_singleton(|container| {
+                info!("Создание PromotionEngine");
+                let store = container.resolve::<Arc<VectorStore>>()?;
+                let promotion_config = PromotionConfig::default();
+                let engine = PromotionEngine::new(store, promotion_config);
+                Ok(engine)
+            })?;
+
+        // ML Promotion Engine
+        builder = builder
+            .register_singleton(|_container| {
+                info!("Создание MLPromotionEngine");
+                let ml_config = MLPromotionConfig::default();
+                let ml_engine = MLPromotionEngine::new(ml_config);
+                Ok(ml_engine)
+            })?;
+
+        // Batch Manager
+        builder = builder
+            .register_singleton(|container| {
+                info!("Создание BatchOperationManager");
+                let store = container.resolve::<Arc<VectorStore>>()?;
+                let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
+                let batch_config = BatchConfig::default();
+                let manager = BatchOperationManager::new(store, cache, batch_config);
+                Ok(manager)
+            })?;
+
+        // GPU Processor (опционально)
+        if config.ai_config.embedding.use_gpu {
+            builder = builder
+                .register_singleton(|_container| {
+                    info!("Создание GpuBatchProcessor");
+                    let gpu_config = BatchProcessorConfig::default();
+                    let processor = GpuBatchProcessor::new(gpu_config)?;
+                    Ok(processor)
+                })?;
+        }
+
+        debug!("✓ Processing layer настроен");
+        Ok(builder)
+    }
+
+    /// Слой мониторинга (HealthMonitor, Metrics)
+    async fn configure_monitoring_layer(self, config: &MemoryConfig) -> Result<Self> {
+        debug!("Настройка monitoring layer");
+
+        let mut builder = self;
+
+        // Health Monitor
+        builder = builder
+            .register_singleton(|_container| {
+                info!("Создание HealthMonitor");
+                let health_config = HealthConfig::default();
+                let monitor = HealthMonitor::new(health_config);
+                Ok(monitor)
+            })?;
+
+        // Metrics Collector
+        builder = builder
+            .register_singleton(|_container| {
+                info!("Создание MetricsCollector");
+                let collector = MetricsCollector::new();
+                Ok(collector)
+            })?;
+
+        // Notification Manager
+        builder = builder
+            .register_singleton(|_container| {
+                info!("Создание NotificationManager");
+                let manager = NotificationManager::new();
+                Ok(manager)
+            })?;
+
+        debug!("✓ Monitoring layer настроен");
+        Ok(builder)
+    }
+
+    /// Слой резервного копирования
+    async fn configure_backup_layer(self, _config: &MemoryConfig) -> Result<Self> {
+        debug!("Настройка backup layer");
+
+        let final_self = self
+            .register_singleton(|_container| {
+                info!("Создание BackupManager");
+                let manager = BackupManager::new(std::path::Path::new("./backups"));
+                Ok(manager)
+            })?;
+
+        debug!("✓ Backup layer настроен");
+        Ok(final_self)
+    }
 
         // Создаем VectorStore заранее в async контексте
         let store = Arc::new(VectorStore::new(&config.db_path).await?);

@@ -1,7 +1,6 @@
 ﻿use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::time::{timeout, Duration};
 use tracing::{info, warn, error};
 use colored::Colorize;
 use serde::{Serialize, Deserialize};
@@ -48,22 +47,40 @@ impl Default for HealthCheckSystem {
     }
 }
 
-                    latency_ms: start.elapsed().as_millis() as u64,
-                    metadata: HashMap::new(),
-                    timestamp: Utc::now(),
-                },
-                Err(_) => HealthCheckResult {
-                    component: check.name(),
-                    status: HealthStatus::Unhealthy,
-                    message: "Check timed out after 5 seconds".to_string(),
-                    latency_ms: 5000,
-                    metadata: HashMap::new(),
-                    timestamp: Utc::now(),
-                },
-            };
-            
-            timer.finish();
-            results.push(result);
+impl HealthCheckSystem {
+    pub fn new() -> Self {
+        Self {
+            checks: Vec::new(),
+        }
+    }
+    
+    /// Добавить проверку здоровья
+    pub fn add_check(&mut self, check: Box<dyn HealthCheck>) {
+        self.checks.push(check);
+    }
+    
+    /// Запуск всех проверок здоровья
+    pub async fn run_all_checks(&self) -> Vec<HealthCheckResult> {
+        let mut results = Vec::new();
+        
+        for check in &self.checks {
+            let timer = OperationTimer::new("health_check");
+            match check.check().await {
+                Ok(mut result) => {
+                    result.latency_ms = timer.elapsed().as_millis() as u64;
+                    results.push(result);
+                }
+                Err(e) => {
+                    results.push(HealthCheckResult {
+                        component: check.name(),
+                        status: HealthStatus::Unhealthy,
+                        message: format!("Health check failed: {e}"),
+                        latency_ms: timer.elapsed().as_millis() as u64,
+                        metadata: std::collections::HashMap::new(),
+                        timestamp: chrono::Utc::now(),
+                    });
+                }
+            }
         }
         
         results

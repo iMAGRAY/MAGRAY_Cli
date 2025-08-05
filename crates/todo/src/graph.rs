@@ -19,6 +19,23 @@ impl Default for DependencyGraph {
     }
 }
 
+impl DependencyGraph {
+    pub fn new() -> Self {
+        Self {
+            graph: RwLock::new(DiGraph::new()),
+            node_map: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub fn add_task(&self, task: &TodoItem) -> Result<()> {
+        let mut graph = self.graph.write().unwrap();
+        let mut node_map = self.node_map.write().unwrap();
+        
+        // Добавляем узел для задачи если его нет
+        if !node_map.contains_key(&task.id) {
+            let node = graph.add_node(task.id);
+            node_map.insert(task.id, node);
+        }
         
         // Добавляем зависимости
         for dep_id in &task.depends_on {

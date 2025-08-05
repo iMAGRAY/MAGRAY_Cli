@@ -152,6 +152,14 @@ impl DIContainer {
         }
     }
 
+    /// Попытаться разрешить зависимость (возвращает None вместо ошибки)
+    pub fn try_resolve<T>(&self) -> Option<Arc<T>>
+    where
+        T: Any + Send + Sync + 'static,
+    {
+        self.resolve::<T>().ok()
+    }
+
     /// Проверить, зарегистрирован ли тип
     pub fn is_registered<T>(&self) -> bool
     where
