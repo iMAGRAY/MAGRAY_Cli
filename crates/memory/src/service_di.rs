@@ -1,12 +1,12 @@
 use anyhow::Result;
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::{
     cache_interface::EmbeddingCacheInterface,
     di_container::DIContainer,
     di_memory_config::MemoryDIConfigurator,
-    health::{HealthMonitor, SystemHealthStatus, HealthMonitorConfig as HealthConfig},
+    health::{HealthMonitor, SystemHealthStatus},
     metrics::MetricsCollector,
     promotion::{PromotionEngine, PromotionStats},
     storage::VectorStore,
@@ -192,14 +192,14 @@ impl DIMemoryService {
         debug!("Сбор статистики системы через DI");
 
         // Собираем статистику от всех компонентов
-        let health = self.container.resolve::<Arc<HealthMonitor>>().unwrap_or_else(|_| {
+        let health = self.container.resolve::<HealthMonitor>().unwrap_or_else(|_| {
             use crate::health::HealthMonitorConfig;
             Arc::new(HealthMonitor::new(HealthMonitorConfig::default()))
         });
         let cache = self.container.resolve::<Arc<dyn EmbeddingCacheInterface>>().unwrap_or_else(|_| {
             use crate::cache::EmbeddingCache;
             let temp_cache = EmbeddingCache::new(&std::env::temp_dir().join("fallback_cache")).unwrap();
-            Arc::new(temp_cache)
+            Arc::new(Arc::new(temp_cache) as Arc<dyn EmbeddingCacheInterface>)
         });
         
         let health_status = Ok(health.get_system_health());
@@ -207,11 +207,11 @@ impl DIMemoryService {
 
         let promotion_stats = PromotionStats::default(); // TODO: получить настоящие stats
 
-        let batch_stats = self.container.try_resolve::<Arc<BatchOperationManager>>()
+        let batch_stats = self.container.try_resolve::<BatchOperationManager>()
             .map(|manager| manager.stats())
             .unwrap_or_default();
 
-        let gpu_stats = self.container.try_resolve::<Arc<GpuBatchProcessor>>()
+        let gpu_stats = self.container.try_resolve::<GpuBatchProcessor>()
             .map(|_processor| {
                 // GPU stats требуют async, пока возвращаем None
                 None
@@ -277,8 +277,9 @@ impl DIMemoryService {
     pub async fn create_backup(&self, path: &str) -> Result<crate::backup::BackupMetadata> {
         debug!("Создание backup через DI: {}", path);
 
-        if let Ok(backup_manager) = self.container.resolve::<Arc<BackupManager>>() {
-            let _backup_path = backup_manager.create_backup(self.cached_store.clone(), Some(path.to_string())).await?;
+        if let Ok(backup_manager) = self.container.resolve::<BackupManager>() {
+            let store = self.container.resolve::<VectorStore>()?;
+            let _backup_path = backup_manager.create_backup(store, Some(path.to_string())).await?;
             let metadata = crate::backup::BackupMetadata {
                 version: 1,
                 created_at: chrono::Utc::now(),
@@ -391,15 +392,8 @@ impl DIMemoryServiceBuilder {
             cpu_config.ai_config.reranking.use_gpu = false;
             
             let container = MemoryDIConfigurator::configure_cpu_only(cpu_config).await?;
-            let cached_store = container.resolve::<Arc<VectorStore>>()?;
-            let cached_cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
-            let cached_health = container.resolve::<Arc<HealthMonitor>>()?;
-
             Ok(DIMemoryService {
                 container,
-                cached_store,
-                cached_cache,
-                cached_health,
             })
         } else {
             DIMemoryService::new(self.config).await

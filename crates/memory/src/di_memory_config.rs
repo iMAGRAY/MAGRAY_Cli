@@ -140,8 +140,8 @@ impl MemoryDIExtensions for DIContainerBuilder {
         // Model Loader (singleton для переиспользования)
         let final_self = self_with_embedding
             .register_singleton(|container| {
-                let ai_config = container.resolve::<Arc<AiConfig>>()?;
-                Ok(ModelLoader::new(&ai_config.models_dir))
+                let ai_config = container.resolve::<AiConfig>()?;
+                Ok(Arc::new(ModelLoader::new(&ai_config.models_dir)))
             })?;
 
         debug!("✓ Core dependencies настроены");
@@ -161,7 +161,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
                 let store = rt.block_on(async {
                     VectorStore::new(&db_path).await
                 })?;
-                Ok(store)
+                Ok(Arc::new(store))
             })?;
 
         debug!("✓ Storage layer настроен");
@@ -206,10 +206,8 @@ impl MemoryDIExtensions for DIContainerBuilder {
         builder = builder
             .register_singleton(|container| {
                 info!("Создание PromotionEngine");
-                let store = container.resolve::<Arc<VectorStore>>()?;
-                let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
-                let promotion_config = PromotionConfig::default();
-                let store = store;
+                let store = container.resolve::<VectorStore>()?;
+                let _cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
                 let promotion_config = PromotionConfig::default();
                 // PromotionEngine требует db: Arc<Db>, создаем временную базу для тестов
                 let temp_db = Arc::new(sled::open(std::env::temp_dir().join("promotion_db")).map_err(|e| anyhow::anyhow!("Failed to create temp db: {}", e))?);
@@ -217,7 +215,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
                 let engine = rt.block_on(async {
                     PromotionEngine::new(store, promotion_config, temp_db).await
                 })?;
-                Ok(engine)
+                Ok(Arc::new(engine))
             })?;
 
         // ML Promotion Engine
@@ -225,26 +223,23 @@ impl MemoryDIExtensions for DIContainerBuilder {
             .register_singleton(|container| {
                 info!("Создание MLPromotionEngine");
                 let ml_config = MLPromotionConfig::default();
-                let store_clone = container.resolve::<Arc<VectorStore>>()?;
-                let store_clone = store_clone;
+                let store = container.resolve::<VectorStore>()?;
                 let rt = tokio::runtime::Handle::current();
                 let ml_engine = rt.block_on(async {
-                    MLPromotionEngine::new(store_clone, ml_config).await
+                    MLPromotionEngine::new(store, ml_config).await
                 })?;
-                Ok(ml_engine)
+                Ok(Arc::new(ml_engine))
             })?;
 
         // Batch Manager
         builder = builder
             .register_singleton(|container| {
                 info!("Создание BatchOperationManager");
-                let store = container.resolve::<Arc<VectorStore>>()?;
+                let store = container.resolve::<VectorStore>()?;
                 let batch_config = BatchConfig::default();
-                let metrics = container.try_resolve::<Arc<MetricsCollector>>();
-                let store = store;
-                let metrics = metrics;
+                let metrics = container.try_resolve::<MetricsCollector>();
                 let manager = BatchOperationManager::new(store, batch_config, metrics);
-                Ok(manager)
+                Ok(Arc::new(manager))
             })?;
 
         // GPU Processor (опционально)
@@ -253,17 +248,15 @@ impl MemoryDIExtensions for DIContainerBuilder {
                 .register_singleton(|container| {
                     info!("Создание GpuBatchProcessor");
                     let gpu_config = BatchProcessorConfig::default();
-                    let embedding_config = container.resolve::<Arc<EmbeddingConfig>>()?;
+                    let embedding_config = container.resolve::<EmbeddingConfig>()?;
                     let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
                     
                     // Создаем runtime для async вызова
                     let rt = tokio::runtime::Handle::current();
                     let processor = rt.block_on(async {
-                        let embedding_config = (**embedding_config).clone();
-                        let cache = cache;
-                        GpuBatchProcessor::new(gpu_config, embedding_config, cache).await
+                        GpuBatchProcessor::new(gpu_config, (*embedding_config).clone(), (*cache).clone()).await
                     })?;
-                    Ok(processor)
+                    Ok(Arc::new(processor))
                 })?;
         }
 
@@ -279,28 +272,28 @@ impl MemoryDIExtensions for DIContainerBuilder {
 
         // Health Monitor
         builder = builder
-            .register_singleton(|container| {
+            .register_singleton(|_container| {
                 info!("Создание HealthMonitor");
                 let health_config = HealthConfig::default();
                 let monitor = HealthMonitor::new(health_config);
-                Ok(monitor)
+                Ok(Arc::new(monitor))
             })?;
 
         // Metrics Collector
         builder = builder
-            .register_singleton(|container| {
+            .register_singleton(|_container| {
                 info!("Создание MetricsCollector");
                 let collector = MetricsCollector::new();
-                Ok(collector)
+                Ok(Arc::new(collector))
             })?;
 
         // Notification Manager
         builder = builder
-            .register_singleton(|container| {
+            .register_singleton(|_container| {
                 info!("Создание NotificationManager");
                 let notification_config = crate::notifications::NotificationConfig::default();
                 let manager = NotificationManager::new(notification_config)?;
-                Ok(manager)
+                Ok(Arc::new(manager))
             })?;
 
         debug!("✓ Monitoring layer настроен");
@@ -312,10 +305,10 @@ impl MemoryDIExtensions for DIContainerBuilder {
         debug!("Настройка backup layer");
 
         let final_self = self
-            .register_singleton(|container| {
+            .register_singleton(|_container| {
                 info!("Создание BackupManager");
                 let manager = BackupManager::new(std::path::Path::new("./backups"));
-                Ok(manager)
+                Ok(Arc::new(manager))
             })?;
 
         debug!("✓ Backup layer настроен");

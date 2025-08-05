@@ -14,7 +14,7 @@ use crate::{
     metrics::{MetricsCollector, LayerMetrics},
     notifications::NotificationManager,
     promotion::{PromotionEngine, PromotionStats},
-    ml_promotion::{MLPromotionEngine, MLPromotionConfig, MLPromotionStats},
+    ml_promotion::{MLPromotionEngine, MLPromotionConfig},
     streaming::{StreamingMemoryAPI, StreamingConfig},
     storage::VectorStore,
     types::{Layer, PromotionConfig, Record, SearchOptions},

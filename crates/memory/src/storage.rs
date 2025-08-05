@@ -12,7 +12,7 @@ use crate::metrics::{MetricsCollector, TimedOperation};
 use crate::{health_metric, health::{HealthMonitor, ComponentType}};
 use crate::types::{Layer, Record};
 use crate::vector_index_hnswlib::{VectorIndexHnswRs, HnswRsConfig};
-use crate::transaction::{TransactionManager, TransactionOp, TransactionGuard};
+use crate::transaction::{TransactionManager, TransactionGuard};
 use crate::flush_config::FlushConfig;
 
 // @component: {"k":"C","id":"vector_store","t":"Vector storage with HNSW","m":{"cur":65,"tgt":100,"u":"%"},"f":["storage","hnsw"]}
