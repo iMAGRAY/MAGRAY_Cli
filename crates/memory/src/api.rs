@@ -32,8 +32,8 @@ pub trait MemoryServiceTrait: Send + Sync {
 /// Реализация trait для DIMemoryService
 impl MemoryServiceTrait for DIMemoryService {
     fn search_sync(&self, query: &str, layer: Layer, top_k: usize) -> Result<Vec<Record>> {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| anyhow::anyhow!("No tokio runtime available"))?;
+        // Используем новый runtime чтобы избежать вложенности
+        let rt = tokio::runtime::Runtime::new()?;
         
         rt.block_on(async {
             let options = CoreSearchOptions {
@@ -45,8 +45,8 @@ impl MemoryServiceTrait for DIMemoryService {
     }
     
     fn run_promotion_sync(&self) -> Result<PromotionStats> {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| anyhow::anyhow!("No tokio runtime available"))?;
+        // Используем новый runtime чтобы избежать вложенности
+        let rt = tokio::runtime::Runtime::new()?;
         
         rt.block_on(async {
             self.run_promotion().await
@@ -54,9 +54,10 @@ impl MemoryServiceTrait for DIMemoryService {
     }
     
     fn get_system_health(&self) -> SystemHealthStatus {
-        match tokio::runtime::Handle::try_current() {
-            Ok(handle) => {
-                handle.block_on(async { 
+        // Используем новый runtime чтобы избежать вложенности
+        match tokio::runtime::Runtime::new() {
+            Ok(rt) => {
+                rt.block_on(async { 
                     self.check_health().await.unwrap_or_else(|_| SystemHealthStatus::default())
                 })
             }
@@ -71,8 +72,8 @@ impl MemoryServiceTrait for DIMemoryService {
     }
     
     fn remember_sync(&self, text: String, layer: Layer) -> Result<Uuid> {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| anyhow::anyhow!("No tokio runtime available"))?;
+        // Используем новый runtime чтобы избежать вложенности
+        let rt = tokio::runtime::Runtime::new()?;
         
         rt.block_on(async {
             let record = Record {

@@ -419,7 +419,7 @@ async fn show_goodbye_animation() -> Result<()> {
 
 // @component: {"k":"C","id":"status_cmd","t":"System status diagnostic command","m":{"cur":100,"tgt":100,"u":"%"},"f":["cli","diagnostic","graceful-fallback"]}
 async fn show_system_status() -> Result<()> {
-    use memory::{DIMemoryService as MemoryService, UnifiedMemoryAPI};
+    use memory::{DIMemoryService as MemoryService};
     use std::sync::Arc;
     use colored::Colorize;
     use tracing::{warn, info};
@@ -438,24 +438,31 @@ async fn show_system_status() -> Result<()> {
                 Ok(Ok(service)) => {
                     info!("✅ Memory service initialized successfully");
                     let service = Arc::new(service);
-                    let api = UnifiedMemoryAPI::new(service.clone());
                     
-                    match api.get_stats().await {
-                        Ok(stats) => {
-                            let health = match api.health_check().await {
-                                Ok(h) => h.status,
-                                Err(e) => {
-                                    warn!("Health check failed: {}", e);
-                                    "degraded"
-                                },
-                            }.to_string();
-                            Some((health, stats.total_records, stats.cache_stats.hit_rate))
-                        }
+                    // Используем DIMemoryService напрямую чтобы избежать вложенных runtime
+                    let stats = service.get_stats().await;
+                    let health_status = match service.check_health().await {
+                        Ok(h) => match h.overall_status {
+                            memory::health::HealthStatus::Healthy => "healthy",
+                            memory::health::HealthStatus::Degraded => "degraded",
+                            memory::health::HealthStatus::Unhealthy => "unhealthy",
+                            memory::health::HealthStatus::Down => "down",
+                        },
                         Err(e) => {
-                            warn!("Failed to get stats: {}", e);
-                            Some(("cpu-only".to_string(), 0, 0.0))
+                            warn!("Health check failed: {}", e);
+                            "degraded"
                         }
-                    }
+                    };
+                    
+                    // Получаем статистику кэша
+                    let total = stats.cache_hits + stats.cache_misses;
+                    let hit_rate = if total > 0 {
+                        stats.cache_hits as f64 / total as f64
+                    } else {
+                        0.0
+                    };
+                    
+                    Some((health_status.to_string(), 0, hit_rate as f32))
                 }
                 Ok(Err(e)) => {
                     warn!("⚠️ Memory service initialization failed: {}", e);
