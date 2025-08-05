@@ -163,19 +163,18 @@ impl GpuBatchProcessor {
             // Проверяем доступность GPU через AI модуль
             use ai::gpu_detector::GpuDetector;
             
-            let detector = GpuDetector::new();
-            let gpu_info = detector.detect_gpu()?;
+            let detector = GpuDetector::detect();
             
-            if gpu_info.devices.is_empty() {
+            if !detector.available || detector.devices.is_empty() {
                 return Err(anyhow::anyhow!("No GPU devices detected"));
             }
             
             // Проверяем минимальные требования
-            let primary_gpu = &gpu_info.devices[0];
-            if primary_gpu.memory_mb < 2048 {  // Минимум 2GB
+            let primary_gpu = &detector.devices[0];
+            if primary_gpu.total_memory_mb < 2048 {  // Минимум 2GB
                 return Err(anyhow::anyhow!(
                     "Insufficient GPU memory: {}MB < 2048MB required", 
-                    primary_gpu.memory_mb
+                    primary_gpu.total_memory_mb
                 ));
             }
             
@@ -203,11 +202,11 @@ impl GpuBatchProcessor {
         {
             use ai::gpu_detector::GpuDetector;
             
-            let detector = GpuDetector::new();
-            if let Ok(gpu_info) = detector.detect_gpu() {
-                if let Some(primary_gpu) = gpu_info.devices.first() {
+            let detector = GpuDetector::detect();
+            if detector.available {
+                if let Some(primary_gpu) = detector.devices.first() {
                     // 1 stream на 1GB памяти, максимум 8
-                    let streams = (primary_gpu.memory_mb / 1024).min(8).max(1);
+                    let streams = (primary_gpu.total_memory_mb / 1024).min(8).max(1);
                     return Ok(streams);
                 }
             }
@@ -230,7 +229,7 @@ impl GpuBatchProcessor {
             const EMBEDDING_SIZE_BYTES: usize = 768 * 4; // f32 = 4 bytes
             const SAFETY_MARGIN: f32 = 0.7; // Используем 70% памяти
             
-            let detector = GpuDetector::new();
+            let detector = GpuDetector::detect();
             if let Ok(gpu_info) = detector.detect_gpu() {
                 if let Some(primary_gpu) = gpu_info.devices.first() {
                     let available_memory = (primary_gpu.memory_mb as f32 * 1024.0 * 1024.0 * SAFETY_MARGIN) as usize;
@@ -258,7 +257,7 @@ impl GpuBatchProcessor {
         {
             use ai::gpu_detector::GpuDetector;
             
-            if let Ok(detector) = std::panic::catch_unwind(|| GpuDetector::new()) {
+            if let Ok(detector) = std::panic::catch_unwind(|| GpuDetector::detect()) {
                 if let Ok(gpu_info) = detector.detect_gpu() {
                     return gpu_info.devices.iter().any(|gpu| gpu.memory_mb > 4096);
                 }
@@ -279,7 +278,7 @@ impl GpuBatchProcessor {
         {
             use ai::gpu_detector::GpuDetector;
             
-            if let Ok(detector) = std::panic::catch_unwind(|| GpuDetector::new()) {
+            if let Ok(detector) = std::panic::catch_unwind(|| GpuDetector::detect()) {
                 if let Ok(gpu_info) = detector.detect_gpu() {
                     return gpu_info.devices.iter().any(|gpu| gpu.compute_capability >= (7, 0));
                 }
@@ -580,7 +579,7 @@ impl GpuBatchProcessor {
         {
             use ai::gpu_detector::GpuDetector;
             
-            let detector = GpuDetector::new();
+            let detector = GpuDetector::detect();
             match detector.detect_gpu() {
                 Ok(gpu_info) => {
                     if let Some(primary_gpu) = gpu_info.devices.first() {
@@ -590,8 +589,8 @@ impl GpuBatchProcessor {
                             available: true,
                             memory_total_mb: primary_gpu.memory_mb,
                             memory_used_estimate_mb: self.estimate_gpu_memory_usage().await,
-                            success_rate: fallback_stats.gpu_success_rate(),
-                            error_count: fallback_stats.gpu_error_count,
+                            success_rate: fallback_stats.gpu_success_rate() as f32,
+                            error_count: fallback_stats.gpu_error_count as u32,
                             temperature_celsius: None, // TODO: implement if NVML available
                             issues: self.detect_gpu_issues(&fallback_stats),
                         }
