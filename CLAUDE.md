@@ -32,10 +32,10 @@
 - Test coverage: 35.4% (целевой 80%)
 - Binary size: ~16MB release build
 
-**ОБЯЗАТЕЛЬНОЕ АННОТИРОВАНИЕ:**
-- При создании новых структур/модулей добавляй CTL аннотации
+**ОБЯЗАТЕЛЬНОЕ АННОТИРОВАНИЕ!!!!:**
+- При создании новых структур/модулей или изменении старых добавляй/обновляй CTL аннотации
 - Формат: `// @component: {"k":"C","id":"name","t":"description","m":{"cur":X,"tgt":Y,"u":"%"}}`
-- Sync daemon автоматически подхватит и добавит в CLAUDE.md
+- Sync daemon автоматически подхватит и добавит в CLAUDE.md для поддержания актуальной информации о состоянии проекта
 
 **PROJECT STRUCTURE:**
 - scripts/ - все утилиты и скрипты (PowerShell, Docker, Python)
@@ -70,7 +70,7 @@
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-05 03:33:04 UTC*
+*Last updated: 2025-08-05 04:02:39 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -79,9 +79,8 @@
 {"id":"auto_device_selector","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Auto CPU/GPU selector","x_file":"ai/src/auto_device_selector.rs:9"}
 {"f":["orchestration","backup","coordinator"],"id":"backup_coordinator","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Backup orchestration coordinator","x_file":"memory/src/orchestration/backup_coordinator.rs:13"}
 {"f":["sled","concurrent","pooling"],"id":"database_manager","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"Centralized sled database manager","x_file":"memory/src/database_manager.rs:9"}
-{"f":["di","ioc","architecture"],"id":"di_container","k":"C","m":{"cur":0,"tgt":95,"u":"%"},"t":"Dependency injection container","x_file":"memory/src/di_container.rs:24"}
+{"f":["di","ioc","architecture","validation","performance","async"],"id":"di_container","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Dependency injection container","x_file":"memory/src/di_container.rs:35"}
 {"f":["di","memory","clean_architecture"],"id":"di_memory_service","k":"C","m":{"cur":0,"tgt":95,"u":"%"},"t":"DI-based memory service orchestrator","x_file":"memory/src/service_di.rs:23"}
-{"f":["dimension","dynamic","adaptation"],"id":"dynamic_dimension","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Dynamic dimension support для векторов","x_file":"memory/src/dynamic_dimension.rs:12"}
 {"f":["cache","persistence"],"id":"embedding_cache","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Embedding cache with sled","x_file":"memory/src/cache.rs:31"}
 {"f":["cache","lru","eviction"],"id":"embedding_cache_lru","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"LRU cache with eviction policy","x_file":"memory/src/cache_lru.rs:44"}
 {"f":["orchestration","embeddings","coordinator"],"id":"embedding_coordinator","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Embedding orchestration coordinator","x_file":"memory/src/orchestration/embedding_coordinator.rs:16"}
@@ -111,7 +110,6 @@
 {"f":["models","config","registry"],"id":"model_registry","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Centralized model registry","x_file":"ai/src/model_registry.rs:6"}
 {"id":"models_commands","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"Model management CLI","x_file":"cli/src/commands/models.rs:6"}
 {"f":["alerts","notifications","production"],"id":"notification_system","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Production alert notification system","x_file":"memory/src/notifications.rs:10"}
-{"f":["di","performance","optimization"],"id":"optimized_di_container","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"High-performance DI container","x_file":"memory/src/di_container_optimized.rs:10"}
 {"f":["orchestration","promotion","coordinator"],"id":"promotion_coordinator","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Promotion orchestration coordinator","x_file":"memory/src/orchestration/promotion_coordinator.rs:13"}
 {"f":["promotion","time-index"],"id":"promotion_engine","k":"C","m":{"cur":75,"tgt":90,"u":"%"},"t":"Time-based memory promotion","x_file":"memory/src/promotion.rs:14"}
 {"id":"reranker_optimized","k":"C","m":{"cur":90,"tgt":100,"u":"%"},"t":"Optimized ONNX reranker","x_file":"ai/src/reranker_mxbai_optimized.rs:11"}
@@ -121,7 +119,7 @@
 {"f":["orchestration","search","coordinator"],"id":"search_coordinator","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"Search orchestration coordinator","x_file":"memory/src/orchestration/search_coordinator.rs:17"}
 {"id":"simple_qwen3_tokenizer","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Simplified Qwen3 tokenizer for ONNX","x_file":"ai/src/tokenization/simple_qwen3.rs:1"}
 {"d":["llm_client","tools"],"f":["routing","orchestration"],"id":"smart_router","k":"C","m":{"cur":70,"tgt":90,"u":"%"},"t":"Smart task orchestration","x_file":"router/src/lib.rs:9"}
-{"f":["cli","diagnostic","graceful-fallback"],"id":"status_cmd","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"System status diagnostic command","x_file":"cli/src/main.rs:415"}
+{"f":["cli","diagnostic","graceful-fallback"],"id":"status_cmd","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"System status diagnostic command","x_file":"cli/src/main.rs:420"}
 {"f":["tests","status","cli"],"id":"status_tests","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Unit tests for status command","x_file":"cli/src/status_tests.rs:150"}
 {"f":["streaming","real-time","async"],"id":"streaming_api","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"Real-time memory processing","x_file":"memory/src/streaming.rs:15"}
 {"f":["logging","json","production"],"id":"structured_logging","k":"C","m":{"cur":100,"tgt":100,"u":"%"},"t":"JSON structured logging system","x_file":"common/src/structured_logging.rs:11"}

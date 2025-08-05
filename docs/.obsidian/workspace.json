@@ -6,6 +6,7 @@
       {
         "id": "0846dbb259ff0e34",
         "type": "tabs",
+        "dimension": 75.30211480362537,
         "children": [
           {
             "id": "61706f56cb748ec6",
@@ -22,6 +23,7 @@
       {
         "id": "7d9d0a6e884de6d2",
         "type": "tabs",
+        "dimension": 24.69788519637462,
         "children": [
           {
             "id": "94b790b6061f528c",
@@ -207,6 +209,16 @@
   },
   "active": "61706f56cb748ec6",
   "lastOpenFiles": [
+    "obsidian-comprehensive/Состояние готовности компонентов.md.tmp.57240.1754365717957",
+    "obsidian-comprehensive/Состояние готовности компонентов.md.tmp.57240.1754365677543",
+    "obsidian-comprehensive/Состояние готовности компонентов.md.tmp.57240.1754365600275",
+    "troubleshooting/Troubleshooting Guide - Common Issues & Solutions.md.tmp.57240.1754365567984",
+    "GPU_ACCELERATION.md",
+    "BUILD_DEPLOYMENT.md",
+    "Без названия/ARCHITECTURE.md",
+    "obsidian-comprehensive/CLI Interface - Commands & User Experience.md.tmp.57240.1754365469141",
+    "obsidian-comprehensive/Performance Optimization Guide - Production Tuning.md.tmp.57240.1754365387689",
+    "obsidian-comprehensive/Memory Crate - Трёхслойная система памяти.md.tmp.57240.1754365195922",
     "obsidian-comprehensive/Security Architecture - Threat Model & Mitigations.md",
     "obsidian-comprehensive/Security Architecture - Threat Model & Mitigations.md.tmp.57240.1754364756738",
     "obsidian-comprehensive/Performance Optimization Guide - Production Tuning.md",
@@ -220,17 +232,11 @@
     "obsidian-comprehensive/Router & Tools - Task Orchestration Layer.md",
     "obsidian-comprehensive/Router & Tools - Task Orchestration Layer.md.tmp.57240.1754363914697",
     "obsidian-comprehensive/Состояние готовности компонентов.md",
-    "obsidian-comprehensive/LLM Integration - Multi-Provider AI Architecture.md.tmp.57240.1754363620633",
     "obsidian-comprehensive/CLI Interface - Commands & User Experience.md",
-    "obsidian-comprehensive/CLI Interface - Commands & User Experience.md.tmp.57240.1754363425359",
     "obsidian-comprehensive/README.md",
-    "obsidian-comprehensive/README.md.tmp.57240.1754363073965",
-    "obsidian-comprehensive/README.md.tmp.57240.1754363051922",
     "obsidian-comprehensive/Конфигурационные схемы и настройки.md",
-    "obsidian-comprehensive/Конфигурационные схемы и настройки.md.tmp.57240.1754363037034",
     "obsidian-comprehensive/Production метрики и мониторинг.md",
     "obsidian-comprehensive/Граф связей и зависимостей компонентов.md",
-    "obsidian-comprehensive/Граф связей и зависимостей компонентов.md.tmp.57240.1754362848766",
     "obsidian-comprehensive/Полная архитектурная документация MAGRAY CLI.md",
     "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
     "obsidian-comprehensive/Руководство по установке и использованию.md",
@@ -239,10 +245,6 @@
     "MIGRATION_GUIDE.md",
     "MEMORY_SYSTEM_ARCHITECTURE.md",
     "MEMORY_COMPONENT_STATUS.md",
-    "GPU_ACCELERATION.md",
-    "BUILD_DEPLOYMENT.md",
-    "ARCHITECTURE.md",
-    "Map of Content.md",
     "Без названия/Без названия.canvas"
   ]
 }

@@ -31,6 +31,148 @@ magray models list --check-integrity
 # Анализ memory system
 magray memory status --layers --stats
 magray memory health --components
+
+# 🆕 Новые diagnostic методы v2.4
+magray memory stats --detailed          # Детальная статистика памяти
+magray memory capacity-usage            # Проверка загрузки системы
+magray memory sync-health               # Состояние синхронизации
+magray health --di-container            # Диагностика DI системы
+```
+
+---
+
+## 🆕 New Diagnostic Methods v2.4
+
+### Smart Sync Health Diagnostics
+
+**Проверка состояния синхронизации** - новая критичная диагностика:
+
+```bash
+# Проверка состояния sync по слоям
+magray memory sync-health
+
+# Показывает:
+# - Pending changes по каждому слою
+# - Время последней синхронизации
+# - Нуждается ли синхронизация
+# - Оценка времени sync'а
+
+👀 Пример вывода:
+=== Sync Health Report ===
+Layer Interact:   47 pending changes, last sync 3m ago, NEEDS SYNC (est. 2ms)
+Layer Insights:   12 pending changes, last sync 1m ago, OK
+Layer Assets:     0 pending changes, last sync 5m ago, OK
+
+Recommendation: Run 'magray memory sync-now' for optimal performance
+```
+
+### Memory Statistics & Capacity
+
+**Детальная диагностика памяти** для production troubleshooting:
+
+```bash
+# Полная статистика памяти
+magray memory stats --detailed
+
+# Показывает:
+# - Total records по слоям
+# - Распределение по layer'ам
+# - Использование памяти индексов
+# - Эффективность кэша
+# - Использование диска
+
+# Проверка загрузки системы
+magray memory capacity-usage
+
+# Показывает:
+# - Memory utilization percentage
+# - Index capacity percentage  
+# - Рекомендации по оптимизации
+# - Resource limits
+
+👀 Пример вывода:
+=== Memory Capacity Report ===
+Memory Utilization: 67.2% (OK)
+Index Capacity: Interact 45%, Insights 78% (WARNING), Assets 23%
+Recommended Action: Consider promoting records from Insights to Assets
+Resource Limits: 4.2GB / 8GB max
+```
+
+### DI System Health Monitoring
+
+**Новая диагностика Dependency Injection** системы:
+
+```bash
+# Проверка DI container'а
+magray health --di-container
+
+# Показывает:
+# - Количество активных instances
+# - Производительность resolution
+# - Memory overhead DI системы
+# - Lifecycle errors
+
+# Полная статистика DI
+magray memory stats --di
+
+👀 Пример вывода:
+=== DI Container Health ===
+Active Instances: 12 (VectorStore: 3, EmbeddingCache: 5, HealthMonitor: 2)
+Resolution Performance: 0.3ms avg (GOOD)
+Memory Overhead: 2.1MB (acceptable)
+Lifecycle Errors: None
+```
+
+### Common Issues & Solutions v2.4
+
+#### 💥 Sync Performance Degradation
+
+**Symptoms:**
+- High latency в memory operations
+- Постоянные warning о sync backlog
+- Smart sync не работает
+
+**Diagnostic:**
+```bash
+magray memory sync-health
+magray memory stats --sync-analysis
+```
+
+**Solutions:**
+```bash
+# 1. Принудительная синхронизация всех слоев
+magray memory sync-now --all-layers
+
+# 2. Оптимизация sync threshold
+MAGRAY_SYNC_THRESHOLD=25 magray memory restart
+
+# 3. Перестройка индексов с оптимизацией
+magray memory rebuild-index --optimize --incremental
+```
+
+#### 📊 Memory Capacity Issues
+
+**Symptoms:**
+- "Index capacity exceeded" errors
+- Медленная вставка новых записей
+- High memory utilization
+
+**Diagnostic:**
+```bash
+magray memory capacity-usage
+magray memory stats --layer-analysis
+```
+
+**Solutions:**
+```bash
+# 1. Автоматическая promotion старых данных
+magray memory promote --auto --threshold=80%
+
+# 2. Увеличение лимитов индексов
+MAGRAY_MAX_VECTORS=2000000 magray memory restart
+
+# 3. Очистка устаревших записей
+magray memory cleanup --older-than=7d --layer=interact
 ```
 
 ---

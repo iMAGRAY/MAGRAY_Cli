@@ -93,6 +93,8 @@ enum Commands {
     Health,
     /// [📊] Показать состояние системы
     Status,
+    /// [📈] Показать performance метрики DI системы
+    Performance,
 }
 
 #[tokio::main]
@@ -163,6 +165,9 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Status) => {
             show_system_status().await?;
+        }
+        Some(Commands::Performance) => {
+            show_performance_metrics().await?;
         }
         None => {
             // По умолчанию запускаем интерактивный чат
@@ -526,6 +531,128 @@ async fn show_system_status() -> Result<()> {
     // Environment
     let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     println!("{} {}: {}", "ℹ".blue(), "Log Level".bold(), log_level);
+    
+    println!();
+    
+    Ok(())
+}
+
+async fn show_performance_metrics() -> Result<()> {
+    use colored::Colorize;
+    use tracing::info;
+    
+    let spinner = progress::ProgressBuilder::fast("Collecting performance metrics...");
+    
+    info!("📈 Initializing UnifiedAgent for performance metrics");
+    
+    // Создаем UnifiedAgent для доступа к DI системе
+    let agent = match UnifiedAgent::new().await {
+        Ok(agent) => {
+            info!("✅ UnifiedAgent initialized successfully");
+            agent
+        }
+        Err(e) => {
+            spinner.finish_error(&format!("Failed to initialize agent: {}", e));
+            println!("{} Error: {}", "✗".red(), e);
+            return Ok(());
+        }
+    };
+    
+    spinner.finish_success(Some("Performance metrics collected!"));
+    
+    // Выводим performance отчет
+    println!("{}", style("=== MAGRAY Performance Metrics ===").bold().cyan());
+    println!();
+    
+    // Основной performance отчет
+    let report = agent.get_performance_report();
+    println!("{}", report);
+    
+    // Дополнительные метрики
+    let metrics = agent.get_performance_metrics();
+    
+    if metrics.total_resolves > 0 {
+        println!();
+        println!("{}", style("=== Detailed Analysis ===").bold().yellow());
+        
+        // Анализ эффективности кэширования
+        let cache_efficiency = match metrics.cache_hit_rate() {
+            rate if rate >= 80.0 => ("Excellent".green(), "🚀"),
+            rate if rate >= 60.0 => ("Good".yellow(), "👍"),
+            rate if rate >= 40.0 => ("Fair".yellow(), "⚠️"),
+            _ => ("Poor".red(), "🐌"),
+        };
+        println!("{} Cache Efficiency: {} ({:.1}%)", 
+                 cache_efficiency.1, cache_efficiency.0, metrics.cache_hit_rate());
+        
+        // Анализ скорости разрешения зависимостей
+        let speed_analysis = match metrics.avg_resolve_time_us() {
+            time if time < 10.0 => ("Blazing Fast".green(), "⚡"),
+            time if time < 50.0 => ("Fast".green(), "🚀"),
+            time if time < 200.0 => ("Good".yellow(), "👍"),
+            time if time < 1000.0 => ("Slow".yellow(), "⚠️"),
+            _ => ("Very Slow".red(), "🐌"),
+        };
+        println!("{} Resolve Speed: {} ({:.1}μs avg)", 
+                 speed_analysis.1, speed_analysis.0, metrics.avg_resolve_time_us());
+        
+        // Показываем проблемные типы если есть
+        let slowest_types = metrics.slowest_types(3);
+        if !slowest_types.is_empty() {
+            println!();
+            println!("{}", style("Slowest Dependencies:").bold().red());
+            for (i, (type_name, type_metrics)) in slowest_types.iter().enumerate() {
+                let short_name = type_name.split("::").last().unwrap_or(type_name);
+                let avg_time = type_metrics.avg_creation_time_ns as f64 / 1000.0;
+                println!("  {}. {} - {:.1}μs ({} resolves)", 
+                         i + 1, short_name, avg_time, type_metrics.resolve_count);
+            }
+        }
+        
+        // Показываем ошибки если есть
+        let total_errors: u64 = metrics.type_metrics.values()
+            .map(|tm| tm.error_count)
+            .sum();
+        
+        if total_errors > 0 {
+            println!();
+            println!("{} {} Total Errors Found", "❌".red(), total_errors);
+            for (type_name, type_metrics) in &metrics.type_metrics {
+                if type_metrics.error_count > 0 {
+                    let short_name = type_name.split("::").last().unwrap_or(type_name);
+                    println!("  • {} - {} errors", short_name, type_metrics.error_count);
+                }
+            }
+        }
+        
+        // Рекомендации по оптимизации
+        println!();
+        println!("{}", style("=== Optimization Recommendations ===").bold().green());
+        
+        if metrics.cache_hit_rate() < 50.0 {
+            println!("{} Consider using more Singleton lifetimes for frequently accessed services", "💡".yellow());
+        }
+        
+        if metrics.avg_resolve_time_us() > 100.0 {
+            println!("{} Some dependencies are slow to create - consider pre-initialization", "💡".yellow());
+        }
+        
+        if total_errors > 0 {
+            println!("{} Fix dependency registration errors to improve system stability", "💡".red());
+        }
+        
+        if metrics.factory_creates as f64 / metrics.total_resolves as f64 > 0.7 {
+            println!("{} High factory creation rate - consider more singleton services", "💡".yellow());
+        }
+        
+        println!();
+        println!("{} Use 'magray performance' again to track improvements", "ℹ️".blue());
+        
+    } else {
+        println!();
+        println!("{} No performance data available yet.", "ℹ️".blue());
+        println!("  Try running some commands first to generate metrics.");
+    }
     
     println!();
     

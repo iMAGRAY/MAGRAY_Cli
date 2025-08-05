@@ -190,4 +190,19 @@ impl UnifiedAgent {
         self.memory_service.check_health().await
             .map_err(|e| anyhow::anyhow!("Ошибка проверки здоровья: {}", e))
     }
+
+    /// Получить performance метрики DI системы
+    pub fn get_performance_metrics(&self) -> memory::DIPerformanceMetrics {
+        self.memory_service.get_performance_metrics()
+    }
+
+    /// Получить краткий отчет о производительности DI системы
+    pub fn get_performance_report(&self) -> String {
+        self.memory_service.get_performance_report()
+    }
+
+    /// Сбросить performance метрики (для тестов/отладки)
+    pub fn reset_performance_metrics(&self) {
+        self.memory_service.reset_performance_metrics()
+    }
 }

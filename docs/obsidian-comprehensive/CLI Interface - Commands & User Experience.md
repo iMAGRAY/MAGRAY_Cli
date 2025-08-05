@@ -10,7 +10,7 @@ CLI компонент представляет собой главный пол
 
 ```mermaid
 graph TB
-    A[main.rs] --> B[UnifiedAgent]
+    A[main.rs] --> B[UnifiedAgent v2.4]
     A --> C[Commands]
     A --> D[ProgressSystem]
     A --> E[HealthChecks]
@@ -18,6 +18,13 @@ graph TB
     B --> F[LLMClient]
     B --> G[SmartRouter]
     B --> H[IntentAnalyzer]
+    B --> NEW1[DIMemoryService] %% 🆕 Новое v2.4
+    
+    NEW1 --> NEW2[Memory API Methods] %% 🆕 Новое v2.4
+    NEW2 --> NEW3[store_user_message]
+    NEW2 --> NEW4[search_memory]
+    NEW2 --> NEW5[run_memory_promotion]
+    NEW2 --> NEW6[check_system_health]
     
     C --> I[GpuCommand]
     C --> J[MemoryCommand]
@@ -28,6 +35,9 @@ graph TB
     
     E --> N[SystemHealthCheck]
     E --> O[ComponentChecks]
+    
+    classDef new fill:#e1f5fe
+    class NEW1,NEW2,NEW3,NEW4,NEW5,NEW6 new
 ```
 
 ## Структура команд
@@ -64,6 +74,67 @@ magray
 - Анимированные иконки для разных типов сообщений
 - Эффект печатания для ответов AI
 - Graceful выход с анимацией
+
+## 🆕 UnifiedAgent v2.4 - Memory Integration
+
+### Новые Memory API методы
+
+**Прямая интеграция** с DIMemoryService в CLI агенте:
+
+```rust
+// Новые возможности UnifiedAgent v2.4
+impl UnifiedAgent {
+    /// Сохраняет сообщения пользователя автоматически
+    pub async fn store_user_message(&self, message: &str) -> Result<()>
+    
+    /// Поиск по семантической памяти (Insights layer)
+    pub async fn search_memory(&self, query: &str) -> Result<Vec<String>>
+    
+    /// Получение статистики DI системы
+    pub async fn get_di_stats(&self) -> MemorySystemStats
+    
+    /// Запуск promotion процесса (перенос между слоями)
+    pub async fn run_memory_promotion(&self) -> Result<()>
+    
+    /// Проверка здоровья всей системы
+    pub async fn check_system_health(&self) -> Result<SystemHealthStatus>
+}
+```
+
+### Автоматическое сохранение контекста
+
+**Контекст-aware чат**: Каждое сообщение пользователя автоматически сохраняется в Interact layer для последующего семантического поиска.
+
+```bash
+# Пример автоматического workflow'а
+magray
+> Как оптимизировать HNSW индекс?
+[AI] ✨ Вот ключевые параметры...
+💾 Сообщение сохранено в Interact layer
+
+# Позже в том же сеансе
+> Покажи мне пример конфигурации
+[AI] Основано на вашем предыдущем вопросе о HNSW...
+🔍 Найден контекст в памяти
+```
+
+### CLI команды для Memory Management
+
+```bash
+# Проверка статистики DI системы
+magray memory stats --di
+
+# Запуск promotion процесса
+magray memory promote
+
+# Поиск по семантической памяти
+magray memory search "Оптимизация HNSW"
+
+# Проверка здоровья всей системы
+magray health --full --memory
+```
+
+---
 
 ## Детальный обзор команд
 

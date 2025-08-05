@@ -17,9 +17,6 @@ mod types;
 mod vector_index_hnswlib; // Critical for vector storage
 mod transaction;
 mod backup;
-mod incremental_backup;
-mod optimized_rebuild;
-mod dynamic_dimension;
 pub mod migration;
 pub mod api;
 mod streaming;
@@ -30,8 +27,8 @@ mod retry;
 mod database_manager;
 // Dependency Injection система
 mod di_container;
-mod di_container_optimized;
 pub mod di_memory_config;
+pub use di_container::{DIContainer, DIPerformanceMetrics, DIContainerStats};
 // Новая orchestration система
 pub mod orchestration;
 pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};

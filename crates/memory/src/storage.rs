@@ -286,7 +286,7 @@ impl VectorStore {
     }
 
     pub async fn insert(&self, record: &Record) -> Result<()> {
-        let start = Instant::now();
+        let _start = Instant::now();
         
         // Проверяем лимиты перед вставкой
         self.check_insert_limits(1)?;

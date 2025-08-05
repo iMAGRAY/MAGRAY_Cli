@@ -249,7 +249,7 @@ impl PromotionEngine {
         });
         
         // Обрабатываем top кандидатов
-        let batch_size = candidates.len().min(1000); // Максимум 1000 за раз
+        let batch_size = candidates.len().min(1000); // Максимум 1000 за раз  
         let top_candidates = candidates.drain(0..batch_size).collect::<Vec<_>>();
         
         info!("📋 Processing {} top priority candidates from batch", top_candidates.len());
@@ -455,7 +455,7 @@ impl PromotionEngine {
         limit: usize,
     ) -> Result<Vec<Record>> {
         let time_index = self.time_indices.get(&layer).unwrap();
-        let score_index = self.score_indices.get(&layer).unwrap();
+        let _score_index = self.score_indices.get(&layer).unwrap();
         let mut candidates = Vec::new();
         
         // Ищем записи старше указанного времени

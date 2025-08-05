@@ -1,4 +1,4 @@
-﻿use indicatif::{ProgressBar, ProgressStyle};
+﻿// use indicatif::{ProgressBar, ProgressStyle}; // TODO: Implement progress bars
 use std::time::Duration;
 use colored::Colorize;
 

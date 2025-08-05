@@ -429,4 +429,6 @@ impl VectorIndex {
         
         (error_penalty * speed_bonus * parallel_bonus).min(1.0)
     }
+    
+    
 }

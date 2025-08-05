@@ -54,7 +54,7 @@ impl DIMemoryService {
         info!("🔧 Инициализация слоев памяти через DI");
 
         // Получаем store из контейнера
-        let store = self.container.resolve::<Arc<VectorStore>>()?;
+        let store = self.container.resolve::<VectorStore>()?;
 
         // Инициализируем все слои
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
@@ -78,7 +78,7 @@ impl DIMemoryService {
         let _timer = OperationTimer::new("memory_insert");
 
         // Используем batch manager если доступен
-        let store = self.container.resolve::<Arc<VectorStore>>()?;
+        let store = self.container.resolve::<VectorStore>()?;
         
         if let Ok(batch_manager) = self.container.resolve::<Arc<BatchOperationManager>>() {
             debug!("Вставка записи через batch manager");
@@ -103,7 +103,7 @@ impl DIMemoryService {
 
         debug!("Batch insert {} записей", batch_size);
 
-        let store = self.container.resolve::<Arc<VectorStore>>()?;
+        let store = self.container.resolve::<VectorStore>()?;
         
         if let Ok(batch_manager) = self.container.resolve::<Arc<BatchOperationManager>>() {
             batch_manager.add_batch(records).await?;
@@ -149,7 +149,7 @@ impl DIMemoryService {
         };
 
         // Поиск в векторном хранилище
-        let store = self.container.resolve::<Arc<VectorStore>>()?;
+        let store = self.container.resolve::<VectorStore>()?;
         let results = store.search(&embedding, layer, options.top_k).await?;
 
         debug!("Найдено {} результатов", results.len());
@@ -320,8 +320,23 @@ impl DIMemoryService {
     }
 
     /// Получить статистику DI контейнера
-    pub fn di_stats(&self) -> crate::di_container::DIContainerStats {
+    pub fn di_stats(&self) -> crate::DIContainerStats {
         self.container.stats()
+    }
+
+    /// Получить performance метрики DI системы
+    pub fn get_performance_metrics(&self) -> crate::DIPerformanceMetrics {
+        self.container.get_performance_metrics()
+    }
+
+    /// Получить краткий отчет о производительности DI системы
+    pub fn get_performance_report(&self) -> String {
+        self.container.get_performance_report()
+    }
+
+    /// Сбросить performance метрики (для тестов)
+    pub fn reset_performance_metrics(&self) {
+        self.container.reset_performance_metrics()
     }
 }
 
@@ -335,7 +350,7 @@ pub struct MemorySystemStats {
     pub promotion_stats: PromotionStats,
     pub batch_stats: BatchStats,
     pub gpu_stats: Option<BatchProcessorStats>,
-    pub di_container_stats: crate::di_container::DIContainerStats,
+    pub di_container_stats: crate::DIContainerStats,
 }
 
 impl Default for MemorySystemStats {
@@ -348,7 +363,7 @@ impl Default for MemorySystemStats {
             promotion_stats: PromotionStats::default(),
             batch_stats: BatchStats::default(),
             gpu_stats: None,
-            di_container_stats: crate::di_container::DIContainerStats {
+            di_container_stats: crate::DIContainerStats {
                 registered_factories: 0,
                 cached_singletons: 0,
                 total_types: 0,
@@ -411,11 +426,12 @@ mod tests {
         let config = test_helpers::create_test_config()?;
         let service = DIMemoryService::new_minimal(config).await?;
 
-        // Проверяем основные компоненты
-        assert!(!(service.cached_store.as_ref() as *const _ == std::ptr::null()));
-        // Проверяем что cache инициализирован (базовая проверка)
-        assert!(service.cached_cache.stats().0 >= 0); // hits >= 0
-        assert!(!(service.cached_health.as_ref() as *const _ == std::ptr::null()));
+        // Проверяем основные компоненты через DI
+        let store = service.resolve::<VectorStore>()?;
+        assert!(!(store.as_ref() as *const _ == std::ptr::null()));
+        
+        let cache = service.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
+        assert!(cache.stats().0 >= 0); // hits >= 0
 
         let stats = service.di_stats();
         assert!(stats.total_types > 0);
@@ -460,7 +476,7 @@ mod tests {
         let service = DIMemoryService::new_minimal(config).await?;
 
         // Тестируем разрешение зависимостей
-        let store = service.resolve::<Arc<VectorStore>>()?;
+        let store = service.resolve::<VectorStore>()?;
         assert!(!(store.as_ref() as *const _ == std::ptr::null()));
 
         let cache = service.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
@@ -470,6 +486,37 @@ mod tests {
         // Тестируем опциональное разрешение
         let _optional_metrics = service.try_resolve::<Arc<MetricsCollector>>();
         // Может быть None в минимальной конфигурации
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_performance_metrics() -> Result<()> {
+        let config = test_helpers::create_test_config()?;
+        let service = DIMemoryService::new_minimal(config).await?;
+
+        // Сбрасываем метрики для чистого теста
+        service.reset_performance_metrics();
+
+        // Выполняем несколько операций resolve
+        let _store1 = service.resolve::<VectorStore>()?;
+        let _store2 = service.resolve::<VectorStore>()?; // Должен быть из кэша
+        let _cache = service.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
+
+        // Проверяем performance метрики
+        let metrics = service.get_performance_metrics();
+        assert!(metrics.total_resolves >= 3);
+        assert!(metrics.cache_hits >= 1); // store2 должен быть из кэша
+        
+        // Проверяем что отчет генерируется
+        let report = service.get_performance_report();
+        assert!(report.contains("Performance Report"));
+        assert!(report.contains("Total resolves:"));
+        assert!(report.contains("Cache hit rate:"));
+
+        // Проверяем базовые статистики
+        let stats = service.di_stats();
+        assert!(stats.total_types > 0);
 
         Ok(())
     }

@@ -43,6 +43,9 @@ impl MemoryDIConfigurator {
             .configure_backup_layer(&config).await?
             .build()?;
 
+        // Создаем async компоненты после базового контейнера
+        Self::configure_async_components(&container, &config).await?;
+
         info!("✅ DI контейнер настроен с {} зависимостями", 
               container.stats().total_types);
 
@@ -80,6 +83,54 @@ impl MemoryDIConfigurator {
 
         info!("✅ CPU-only DI контейнер настроен");
         Ok(container)
+    }
+
+    /// Настроить async компоненты после базового контейнера
+    pub async fn configure_async_components(container: &DIContainer, config: &MemoryConfig) -> Result<()> {
+        info!("🔧 Настройка async компонентов");
+        
+        // Создаем PromotionEngine
+        let store = container.resolve::<VectorStore>()
+            .map_err(|e| anyhow::anyhow!("Failed to resolve VectorStore for PromotionEngine: {}", e))?;
+        let promotion_config = PromotionConfig::default();
+        // PromotionEngine требует db: Arc<Db>, создаем временную базу для тестов
+        let temp_db = Arc::new(sled::open(std::env::temp_dir().join("promotion_db"))
+            .map_err(|e| anyhow::anyhow!("Failed to create temp db: {}", e))?);
+        
+        info!("Создание PromotionEngine");
+        let promotion_engine = PromotionEngine::new(store, promotion_config, temp_db).await
+            .map_err(|e| anyhow::anyhow!("Failed to create PromotionEngine: {}", e))?;
+        
+        container.register_instance(Arc::new(promotion_engine))?;
+
+        // Создаем MLPromotionEngine
+        let ml_config = MLPromotionConfig::default();
+        let store_for_ml = container.resolve::<VectorStore>()
+            .map_err(|e| anyhow::anyhow!("Failed to resolve VectorStore for MLPromotionEngine: {}", e))?;
+        
+        info!("Создание MLPromotionEngine");
+        let ml_engine = MLPromotionEngine::new(store_for_ml, ml_config).await
+            .map_err(|e| anyhow::anyhow!("Failed to create MLPromotionEngine: {}", e))?;
+        
+        container.register_instance(Arc::new(ml_engine))?;
+
+        // GPU Processor (опционально)
+        if config.ai_config.embedding.use_gpu {
+            let gpu_config = BatchProcessorConfig::default();
+            let embedding_config = container.resolve::<EmbeddingConfig>()
+                .map_err(|e| anyhow::anyhow!("Failed to resolve EmbeddingConfig: {}", e))?;
+            let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()
+                .map_err(|e| anyhow::anyhow!("Failed to resolve cache for GPU: {}", e))?;
+            
+            info!("Создание GpuBatchProcessor");
+            let processor = GpuBatchProcessor::new(gpu_config, (*embedding_config).clone(), (*cache).clone()).await
+                .map_err(|e| anyhow::anyhow!("Failed to create GpuBatchProcessor: {}", e))?;
+            
+            container.register_instance(Arc::new(processor))?;
+        }
+
+        info!("✅ Async компоненты настроены");
+        Ok(())
     }
 }
 
@@ -153,16 +204,14 @@ impl MemoryDIExtensions for DIContainerBuilder {
         debug!("Настройка storage layer");
 
         let db_path = config.db_path.clone();
+        
+        // Создаем VectorStore заранее в async контексте
+        info!("Создание VectorStore по пути: {:?}", db_path);
+        let store = VectorStore::new(&db_path).await
+            .map_err(|e| anyhow::anyhow!("Failed to create VectorStore: {}", e))?;
+        
         let final_self = self
-            .register_singleton(move |_container| {
-                info!("Создание VectorStore по пути: {:?}", db_path);
-                // Создаем runtime для async вызова
-                let rt = tokio::runtime::Handle::current();
-                let store = rt.block_on(async {
-                    VectorStore::new(&db_path).await
-                })?;
-                Ok(Arc::new(store))
-            })?;
+            .register_instance(store)?;
 
         debug!("✓ Storage layer настроен");
         Ok(final_self)
@@ -202,35 +251,6 @@ impl MemoryDIExtensions for DIContainerBuilder {
 
         let mut builder = self;
 
-        // Promotion Engine  
-        builder = builder
-            .register_singleton(|container| {
-                info!("Создание PromotionEngine");
-                let store = container.resolve::<VectorStore>()?;
-                let _cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
-                let promotion_config = PromotionConfig::default();
-                // PromotionEngine требует db: Arc<Db>, создаем временную базу для тестов
-                let temp_db = Arc::new(sled::open(std::env::temp_dir().join("promotion_db")).map_err(|e| anyhow::anyhow!("Failed to create temp db: {}", e))?);
-                let rt = tokio::runtime::Handle::current();
-                let engine = rt.block_on(async {
-                    PromotionEngine::new(store, promotion_config, temp_db).await
-                })?;
-                Ok(Arc::new(engine))
-            })?;
-
-        // ML Promotion Engine
-        builder = builder
-            .register_singleton(|container| {
-                info!("Создание MLPromotionEngine");
-                let ml_config = MLPromotionConfig::default();
-                let store = container.resolve::<VectorStore>()?;
-                let rt = tokio::runtime::Handle::current();
-                let ml_engine = rt.block_on(async {
-                    MLPromotionEngine::new(store, ml_config).await
-                })?;
-                Ok(Arc::new(ml_engine))
-            })?;
-
         // Batch Manager
         builder = builder
             .register_singleton(|container| {
@@ -242,22 +262,9 @@ impl MemoryDIExtensions for DIContainerBuilder {
                 Ok(Arc::new(manager))
             })?;
 
-        // GPU Processor (опционально)
+        // GPU Processor временно отключен - требует complex async setup
         if config.ai_config.embedding.use_gpu {
-            builder = builder
-                .register_singleton(|container| {
-                    info!("Создание GpuBatchProcessor");
-                    let gpu_config = BatchProcessorConfig::default();
-                    let embedding_config = container.resolve::<EmbeddingConfig>()?;
-                    let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
-                    
-                    // Создаем runtime для async вызова
-                    let rt = tokio::runtime::Handle::current();
-                    let processor = rt.block_on(async {
-                        GpuBatchProcessor::new(gpu_config, (*embedding_config).clone(), (*cache).clone()).await
-                    })?;
-                    Ok(Arc::new(processor))
-                })?;
+            debug!("GPU processor временно отключен для упрощения");
         }
 
         debug!("✓ Processing layer настроен");
