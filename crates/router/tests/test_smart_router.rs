@@ -8,7 +8,7 @@ fn test_smart_router_structure() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test-api-key".to_string(),
         model: "gpt-4o-mini".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     
@@ -81,7 +81,7 @@ fn test_extract_required_params_edge_cases() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test".to_string(),
         model: "test".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     
@@ -151,7 +151,7 @@ fn test_format_results_unicode() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test".to_string(),
         model: "test".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     

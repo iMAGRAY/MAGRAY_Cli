@@ -10,7 +10,7 @@ async fn test_llm_client_configuration() {
         model: "gpt-4".to_string(),
     };
     
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     // Test that client can be cloned
     let cloned_client = client.clone();
@@ -163,7 +163,7 @@ async fn test_openai_completion_with_system_prompt() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Hello")
         .system_prompt("You are a helpful assistant");
@@ -198,7 +198,7 @@ async fn test_anthropic_completion_with_parameters() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Hello")
         .max_tokens(150)
@@ -233,7 +233,7 @@ async fn test_local_completion_with_custom_endpoint() {
         model: "custom-model".to_string(),
     };
     
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Test local");
     let response = client.complete(request).await.unwrap();
@@ -269,7 +269,7 @@ async fn test_chat_simple_wrapper() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     // Test the chat_simple method
     let response = client.chat_simple("Hello!").await.unwrap();
@@ -305,7 +305,7 @@ async fn test_chat_with_empty_messages() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let messages: Vec<ChatMessage> = vec![];
     let response = client.chat(&messages).await.unwrap();
@@ -335,7 +335,7 @@ async fn test_api_response_parsing_edge_cases() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Test");
     let result = client.complete(request).await;
@@ -366,7 +366,7 @@ async fn test_anthropic_response_parsing_edge_cases() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Test");
     let result = client.complete(request).await;
@@ -394,7 +394,7 @@ async fn test_api_error_status_codes() {
             url: server.url(),
             model: "test-model".to_string(),
         };
-        let client = LlmClient::new(provider);
+        let client = LlmClient::new(provider, 1000, 0.7);
         
         let request = CompletionRequest::new("Test");
         let result = client.complete(request).await;
@@ -420,7 +420,7 @@ async fn test_network_timeout_handling() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Test timeout");
     
@@ -451,7 +451,7 @@ async fn test_malformed_json_response() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Test malformed");
     let result = client.complete(request).await;
@@ -488,7 +488,7 @@ async fn test_concurrent_requests() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     // Run multiple requests concurrently
     let mut handles = vec![];

@@ -512,7 +512,7 @@ async fn create_mock_client() -> LlmClient {
         url: "http://localhost:8080".to_string(),
         model: "test-model".to_string(),
     };
-    LlmClient::new(provider)
+    LlmClient::new(provider, 1000, 0.7)
 }
 
 async fn create_mock_client_with_server(server: &Server) -> LlmClient {
@@ -520,5 +520,5 @@ async fn create_mock_client_with_server(server: &Server) -> LlmClient {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    LlmClient::new(provider)
+    LlmClient::new(provider, 1000, 0.7)
 }

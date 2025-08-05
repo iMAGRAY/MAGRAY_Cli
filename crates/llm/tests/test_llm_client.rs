@@ -149,7 +149,7 @@ async fn test_openai_completion_mock() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Hello");
     let response = client.complete(request).await.unwrap();
@@ -178,7 +178,7 @@ async fn test_anthropic_completion_mock() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Hello");
     let response = client.complete(request).await.unwrap();
@@ -203,7 +203,7 @@ async fn test_local_completion_mock() {
         model: "llama2".to_string(),
     };
     
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Hello");
     let response = client.complete(request).await.unwrap();
@@ -232,7 +232,7 @@ async fn test_chat_with_history() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let messages = vec![
         ChatMessage::system("You are helpful"),
@@ -291,7 +291,7 @@ async fn test_error_handling() {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    let client = LlmClient::new(provider);
+    let client = LlmClient::new(provider, 1000, 0.7);
     
     let request = CompletionRequest::new("Hello");
     let result = client.complete(request).await;

@@ -50,7 +50,7 @@ async fn create_test_router_with_tools() -> (SmartRouter, ToolRegistry) {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4o-mini".to_string(),
-    });
+    }, 1000, 0.7);
     
     let mut registry = ToolRegistry::new();
     
@@ -74,7 +74,7 @@ async fn test_execute_plan_success() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4o-mini".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     
@@ -102,7 +102,7 @@ async fn test_execute_plan_empty() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4o-mini".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     
@@ -125,7 +125,7 @@ async fn test_analyze_and_plan_conversion() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4o-mini".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     
@@ -142,7 +142,7 @@ async fn test_process_single_tool_request_no_tools() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4o-mini".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     
@@ -158,7 +158,7 @@ async fn test_process_smart_request_simple() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4o-mini".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     
@@ -174,7 +174,7 @@ fn test_extract_required_params_complex_schema() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4o-mini".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     
@@ -199,7 +199,7 @@ fn test_format_results_mixed_success() {
     let llm_client = LlmClient::new(LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4o-mini".to_string(),
-    });
+    }, 1000, 0.7);
     
     let router = SmartRouter::new(llm_client);
     

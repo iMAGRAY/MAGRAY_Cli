@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ai::reranker_mxbai::OptimizedMxbaiRerankerService;
+use ai::reranker_qwen3::OptimizedQwen3RerankerService;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {

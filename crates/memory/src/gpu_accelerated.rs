@@ -178,15 +178,21 @@ impl GpuBatchProcessor {
                 ));
             }
             
-            if primary_gpu.compute_capability < (6, 0) {
-                return Err(anyhow::anyhow!(
-                    "Insufficient compute capability: {:?} < (6,0) required", 
-                    primary_gpu.compute_capability
-                ));
+            // Парсим compute capability (например "7.5" -> (7, 5))
+            let parts: Vec<&str> = primary_gpu.compute_capability.split('.').collect();
+            if parts.len() == 2 {
+                if let (Ok(major), Ok(_minor)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
+                    if major < 6 {
+                        return Err(anyhow::anyhow!(
+                            "Insufficient compute capability: {} < 6.0 required", 
+                            primary_gpu.compute_capability
+                        ));
+                    }
+                }
             }
             
             info!("✅ GPU validation passed: {} with {}MB memory", 
-                  primary_gpu.name, primary_gpu.memory_mb);
+                  primary_gpu.name, primary_gpu.total_memory_mb);
             Ok(())
         }
         
@@ -206,7 +212,7 @@ impl GpuBatchProcessor {
             if detector.available {
                 if let Some(primary_gpu) = detector.devices.first() {
                     // 1 stream на 1GB памяти, максимум 8
-                    let streams = (primary_gpu.total_memory_mb / 1024).min(8).max(1);
+                    let streams = (primary_gpu.total_memory_mb / 1024).min(8).max(1) as usize;
                     return Ok(streams);
                 }
             }
@@ -230,9 +236,9 @@ impl GpuBatchProcessor {
             const SAFETY_MARGIN: f32 = 0.7; // Используем 70% памяти
             
             let detector = GpuDetector::detect();
-            if let Ok(gpu_info) = detector.detect_gpu() {
-                if let Some(primary_gpu) = gpu_info.devices.first() {
-                    let available_memory = (primary_gpu.memory_mb as f32 * 1024.0 * 1024.0 * SAFETY_MARGIN) as usize;
+            if detector.available {
+                if let Some(primary_gpu) = detector.devices.first() {
+                    let available_memory = (primary_gpu.total_memory_mb as f32 * 1024.0 * 1024.0 * SAFETY_MARGIN) as usize;
                     let max_batch_by_memory = available_memory / EMBEDDING_SIZE_BYTES;
                     let safe_batch = requested_size.min(max_batch_by_memory).max(1);
                     
@@ -257,10 +263,9 @@ impl GpuBatchProcessor {
         {
             use ai::gpu_detector::GpuDetector;
             
-            if let Ok(detector) = std::panic::catch_unwind(|| GpuDetector::detect()) {
-                if let Ok(gpu_info) = detector.detect_gpu() {
-                    return gpu_info.devices.iter().any(|gpu| gpu.memory_mb > 4096);
-                }
+            let detector = GpuDetector::detect();
+            if detector.available {
+                return detector.devices.iter().any(|gpu| gpu.total_memory_mb > 4096);
             }
             
             false
@@ -278,10 +283,18 @@ impl GpuBatchProcessor {
         {
             use ai::gpu_detector::GpuDetector;
             
-            if let Ok(detector) = std::panic::catch_unwind(|| GpuDetector::detect()) {
-                if let Ok(gpu_info) = detector.detect_gpu() {
-                    return gpu_info.devices.iter().any(|gpu| gpu.compute_capability >= (7, 0));
-                }
+            let detector = GpuDetector::detect();
+            if detector.available {
+                return detector.devices.iter().any(|gpu| {
+                    // Парсим compute capability строку (например "7.5" -> 7)
+                    let parts: Vec<&str> = gpu.compute_capability.split('.').collect();
+                    if parts.len() >= 1 {
+                        if let Ok(major) = parts[0].parse::<u32>() {
+                            return major >= 7;
+                        }
+                    }
+                    false
+                });
             }
             
             false
@@ -580,27 +593,24 @@ impl GpuBatchProcessor {
             use ai::gpu_detector::GpuDetector;
             
             let detector = GpuDetector::detect();
-            match detector.detect_gpu() {
-                Ok(gpu_info) => {
-                    if let Some(primary_gpu) = gpu_info.devices.first() {
-                        let fallback_stats = self.get_fallback_stats();
-                        
-                        GpuHealthStatus {
-                            available: true,
-                            memory_total_mb: primary_gpu.memory_mb,
-                            memory_used_estimate_mb: self.estimate_gpu_memory_usage().await,
-                            success_rate: fallback_stats.gpu_success_rate() as f32,
-                            error_count: fallback_stats.gpu_error_count as u32,
-                            temperature_celsius: None, // TODO: implement if NVML available
-                            issues: self.detect_gpu_issues(&fallback_stats),
-                        }
-                    } else {
-                        GpuHealthStatus::unavailable("No GPU devices found")
+            if detector.available {
+                if let Some(primary_gpu) = detector.devices.first() {
+                    let fallback_stats = self.get_fallback_stats();
+                    
+                    GpuHealthStatus {
+                        available: true,
+                        memory_total_mb: primary_gpu.total_memory_mb as u32,
+                        memory_used_estimate_mb: self.estimate_gpu_memory_usage().await,
+                        success_rate: fallback_stats.gpu_success_rate() as f32,
+                        error_count: fallback_stats.gpu_error_count as u32,
+                        temperature_celsius: primary_gpu.temperature_c.map(|t| t as f32),
+                        issues: self.detect_gpu_issues(&fallback_stats),
                     }
+                } else {
+                    GpuHealthStatus::unavailable("No GPU devices found")
                 }
-                Err(e) => {
-                    GpuHealthStatus::unavailable(&format!("GPU detection failed: {}", e))
-                }
+            } else {
+                GpuHealthStatus::unavailable("GPU not available")
             }
         }
         
@@ -682,7 +692,7 @@ mod tests {
             }
         };
         
-        let cache = match crate::EmbeddingCache::new(temp_dir.path()) {
+        let cache = match crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()) {
             Ok(c) => Arc::new(c) as Arc<dyn EmbeddingCacheInterface>,
             Err(e) => {
                 println!("Failed to create cache: {}", e);
@@ -715,7 +725,7 @@ mod tests {
             }
         };
         
-        let cache = match crate::EmbeddingCache::new(temp_dir.path()) {
+        let cache = match crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()) {
             Ok(c) => Arc::new(c) as Arc<dyn EmbeddingCacheInterface>,
             Err(e) => {
                 println!("Failed to create cache: {}", e);
@@ -759,7 +769,7 @@ mod tests {
             }
         };
         
-        let cache = match crate::EmbeddingCache::new(temp_dir.path()) {
+        let cache = match crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()) {
             Ok(c) => Arc::new(c) as Arc<dyn EmbeddingCacheInterface>,
             Err(e) => {
                 println!("Failed to create cache: {}", e);
@@ -806,7 +816,7 @@ mod tests {
     #[tokio::test]
     async fn test_gpu_health_check() {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let cache = Arc::new(crate::EmbeddingCache::new(temp_dir.path()).expect("Failed to create cache")) as Arc<dyn EmbeddingCacheInterface>;
+        let cache = Arc::new(crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()).expect("Failed to create cache")) as Arc<dyn EmbeddingCacheInterface>;
         
         let config = BatchProcessorConfig {
             use_gpu_if_available: false, // Safe for tests
@@ -833,7 +843,7 @@ mod tests {
     #[tokio::test]
     async fn test_fallback_behavior() {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let cache = Arc::new(crate::EmbeddingCache::new(temp_dir.path()).expect("Failed to create cache")) as Arc<dyn EmbeddingCacheInterface>;
+        let cache = Arc::new(crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()).expect("Failed to create cache")) as Arc<dyn EmbeddingCacheInterface>;
         
         let config = BatchProcessorConfig {
             use_gpu_if_available: true, // Request GPU but expect fallback

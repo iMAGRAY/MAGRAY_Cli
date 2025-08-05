@@ -275,7 +275,7 @@ async fn test_provider_switching_workflow() {
         url: openai_server.url(),
         model: "test-model".to_string(),
     };
-    let openai_client = LlmClient::new(openai_provider);
+    let openai_client = LlmClient::new(openai_provider, 1000, 0.7);
     
     // Test OpenAI provider
     let request = CompletionRequest::new("Test query");
@@ -468,5 +468,5 @@ async fn create_test_client(server: &Server) -> LlmClient {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    LlmClient::new(provider)
+    LlmClient::new(provider, 1000, 0.7)
 }
