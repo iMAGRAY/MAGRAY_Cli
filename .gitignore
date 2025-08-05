@@ -41,8 +41,17 @@ models/**/*.onnx
 
 # Test artifacts
 test_memory_db/
+test_*_db/
+*_test_db/
 temp/
 tmp/
+test_temp/
+test_tmp/
+.test_cache/
+.test_*/
+**/test_data/
+**/test_output/
+**/test_temp/
 
 # OS
 .DS_Store
@@ -107,10 +116,59 @@ onnxruntime.dll
 !scripts/onnxruntime/lib/onnxruntime.dll
 !target/debug/deps/onnxruntime.dll
 
+# ===========================================
+# Test Results and Artifacts
+# ===========================================
 # Benchmarks and test outputs
 bench_results/
 test_results/
 perf/
+benchmark_results/
+*.bench
+*.perf
+
+# Test coverage
+coverage/
+*.profdata
+*.gcov
+*.lcov
+tarpaulin-report.html
+cobertura.xml
+coverage.json
+
+# Test artifacts and reports
+test-results/
+test-output/
+test_output/
+**/test_output/
+**/*.test
+*.test.log
+test_*.log
+test-*.log
+junit.xml
+test-report.xml
+*.test-result
+
+# Cargo test artifacts
+**/target/debug/deps/*.d
+**/target/debug/incremental/
+**/target/release/deps/*.d
+**/target/release/incremental/
+
+# Benchmark artifacts
+criterion/
+benches/target/
+*.bench.json
+perf.data
+perf.data.old
+flamegraph.svg
+*.heap
+*.massif
+
+# Memory profiling
+valgrind-*.log
+heaptrack.*
+*.hprof
 
 # Doc sync artifacts  
 docs-daemon/target/
@@ -133,6 +191,20 @@ test_*.rs
 !crates/*/src/**/*test*.rs
 !run_ctl_*.ps1
 !run_doc_sync.ps1
+
+# MAGRAY specific test artifacts
+**/vector_test_*.db
+**/embedding_cache_test*.db
+**/promotion_test_*.db
+**/test_migration_*.db
+**/test_backup_*.tar.gz
+test_vector_index/
+test_hnsw_*/
+memory_test_*/
+di_test_*/
+gpu_test_*/
+benchmark_output/
+perf_results/
 crates/memory/models/qwen3emb/model.opt.onnx
 crates/memory/models/qwen3_reranker/model.opt.onnx
 /scripts/onnxruntime_gpu_extracted
