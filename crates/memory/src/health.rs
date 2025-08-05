@@ -421,6 +421,7 @@ impl HealthMonitor {
     }
     
     /// Обработчик alerts (запускается в фоне)
+    #[allow(dead_code)] // Для будущего background processing
     async fn alert_processor(self, mut receiver: mpsc::UnboundedReceiver<HealthAlert>) {
         while let Some(alert) = receiver.recv().await {
             match alert.severity {

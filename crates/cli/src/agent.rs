@@ -109,6 +109,7 @@ impl UnifiedAgent {
     }
 
     /// Сохранить сообщение пользователя в память (Interact layer)
+    #[allow(dead_code)] // Для будущей интеграции с памятью
     pub async fn store_user_message(&self, message: &str) -> Result<()> {
         use memory::{Record, Layer};
         use uuid::Uuid;
@@ -137,6 +138,7 @@ impl UnifiedAgent {
     }
 
     /// Поиск релевантных сообщений в памяти
+    #[allow(dead_code)] // Для будущего поиска по памяти
     pub async fn search_memory(&self, query: &str) -> Result<Vec<String>> {
         use memory::{Layer, SearchOptions};
         
@@ -161,11 +163,13 @@ impl UnifiedAgent {
     }
 
     /// Получить статистику DI системы
+    #[allow(dead_code)] // Для административных команд
     pub async fn get_di_stats(&self) -> memory::service_di::MemorySystemStats {
         self.memory_service.get_stats().await
     }
 
     /// Запустить promotion процесс (перенос данных между слоями)
+    #[allow(dead_code)] // Для административных команд
     pub async fn run_memory_promotion(&self) -> Result<()> {
         let stats = self.memory_service.run_promotion().await
             .map_err(|e| anyhow::anyhow!("Ошибка promotion: {}", e))?;
@@ -176,6 +180,7 @@ impl UnifiedAgent {
     }
 
     /// Проверить здоровье системы
+    #[allow(dead_code)] // Для мониторинга
     pub async fn check_system_health(&self) -> Result<memory::health::SystemHealthStatus> {
         self.memory_service.check_health().await
             .map_err(|e| anyhow::anyhow!("Ошибка проверки здоровья: {}", e))
@@ -192,6 +197,7 @@ impl UnifiedAgent {
     }
 
     /// Сбросить performance метрики (для тестов/отладки)
+    #[allow(dead_code)] // Для тестирования
     pub fn reset_performance_metrics(&self) {
         self.memory_service.reset_performance_metrics()
     }

@@ -62,6 +62,7 @@ impl Default for FlushConfig {
 
 impl FlushConfig {
     /// Создать конфигурацию для высокой производительности
+    #[allow(dead_code)] // Конфигурационный профиль
     pub fn high_performance() -> Self {
         Self {
             vector_storage_ms: Some(5000),     // 5 секунд
@@ -76,6 +77,7 @@ impl FlushConfig {
     }
     
     /// Создать конфигурацию для высокой надежности
+    #[allow(dead_code)] // Конфигурационный профиль
     pub fn high_reliability() -> Self {
         Self {
             vector_storage_ms: Some(500),      // 0.5 секунды
@@ -90,6 +92,7 @@ impl FlushConfig {
     }
     
     /// Создать сбалансированную конфигурацию
+    #[allow(dead_code)] // Конфигурационный профиль
     pub fn balanced() -> Self {
         Self {
             vector_storage_ms: Some(2000),     // 2 секунды
@@ -104,6 +107,7 @@ impl FlushConfig {
     }
     
     /// Получить значение flush interval для компонента или дефолт
+    #[allow(dead_code)] // Конфигурационный getter
     pub fn get_vector_storage_ms(&self) -> u64 {
         self.vector_storage_ms.unwrap_or(match self.performance_mode {
             PerformanceMode::HighPerformance => 5000,
@@ -113,6 +117,7 @@ impl FlushConfig {
         })
     }
     
+    #[allow(dead_code)] // Конфигурационный getter
     pub fn get_embedding_cache_ms(&self) -> u64 {
         self.embedding_cache_ms.unwrap_or(match self.performance_mode {
             PerformanceMode::HighPerformance => 10000,
@@ -122,6 +127,7 @@ impl FlushConfig {
         })
     }
     
+    #[allow(dead_code)] // Конфигурационный getter
     pub fn get_lru_cache_ms(&self) -> u64 {
         self.lru_cache_ms.unwrap_or(match self.performance_mode {
             PerformanceMode::HighPerformance => 8000,
@@ -131,6 +137,7 @@ impl FlushConfig {
         })
     }
     
+    #[allow(dead_code)] // Конфигурационный getter
     pub fn get_promotion_indices_ms(&self) -> u64 {
         self.promotion_indices_ms.unwrap_or(match self.performance_mode {
             PerformanceMode::HighPerformance => 3000,
@@ -140,6 +147,7 @@ impl FlushConfig {
         })
     }
     
+    #[allow(dead_code)] // Конфигурационный getter
     pub fn get_migration_db_ms(&self) -> u64 {
         self.migration_db_ms.unwrap_or(match self.performance_mode {
             PerformanceMode::HighPerformance => 2000,
@@ -150,6 +158,7 @@ impl FlushConfig {
     }
     
     /// Получить compression factor в зависимости от режима
+    #[allow(dead_code)] // Конфигурационный getter
     pub fn get_compression_factor(&self) -> i32 {
         if !self.enable_compression {
             return 0;
@@ -213,6 +222,7 @@ impl FlushConfig {
     }
     
     /// Сохранить конфигурацию в переменные окружения
+    #[allow(dead_code)] // Для внешнего использования
     pub fn to_env(&self) {
         std::env::set_var("MAGRAY_PERFORMANCE_MODE", match self.performance_mode {
             PerformanceMode::HighPerformance => "high_performance",
@@ -246,6 +256,7 @@ impl FlushConfig {
     }
     
     /// Получить описание текущей конфигурации
+    #[allow(dead_code)] // Для отладки и логирования
     pub fn describe(&self) -> String {
         format!(
             "Performance Mode: {:?}\nVector Storage: {}ms\nEmbedding Cache: {}ms\nLRU Cache: {}ms\nPromotion: {}ms\nMigration: {}ms\nCompression: {} (factor: {})",

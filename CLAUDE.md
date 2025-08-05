@@ -91,7 +91,7 @@
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-05 13:26:59 UTC*
+*Last updated: 2025-08-05 17:53:40 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -107,7 +107,7 @@
 {"f":["common","logging","structured","utils"],"id":"common_lib","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Common utilities and logging","x_file":"common/src/lib.rs:1"}
 {"f":["errors","database"],"id":"database_error","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Database error types","x_file":"common/src/errors.rs:74"}
 {"f":["sled","concurrent","pooling"],"id":"database_manager","k":"C","m":{"cur":70,"tgt":100,"u":"%"},"t":"Centralized sled database manager","x_file":"memory/src/database_manager.rs:9"}
-{"f":["di","ioc","architecture","validation","performance","async"],"id":"di_container","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Dependency injection container","x_file":"memory/src/di_container.rs:35"}
+{"f":["di","ioc","architecture","validation","performance","async"],"id":"di_container","k":"C","m":{"cur":90,"tgt":95,"u":"%"},"t":"Dependency injection container","x_file":"memory/src/di_container.rs:36"}
 {"f":["di","memory","clean_architecture","stub"],"id":"di_memory_service","k":"C","m":{"cur":5,"tgt":95,"u":"%"},"t":"DI-based memory service orchestrator","x_file":"memory/src/service_di.rs:23"}
 {"f":["tools","directory","list"],"id":"dir_lister","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Directory listing tool","x_file":"tools/src/file_ops.rs:150"}
 {"f":["cache","lru","eviction","unified"],"id":"embedding_cache","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"LRU cache with eviction policy","x_file":"memory/src/cache_lru.rs:44"}

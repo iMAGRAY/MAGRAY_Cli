@@ -42,6 +42,7 @@ impl RetryManager {
         Self { config }
     }
     
+    #[allow(dead_code)] // Convenience constructor
     pub fn with_defaults() -> Self {
         Self::new(RetryConfig::default())
     }
@@ -107,6 +108,7 @@ impl RetryManager {
     }
     
     /// Проверить является ли ошибка retriable
+    #[allow(dead_code)] // Utility function для внешнего использования
     pub fn is_retriable_error(error: &anyhow::Error) -> bool {
         let error_str = error.to_string().to_lowercase();
         

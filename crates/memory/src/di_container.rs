@@ -15,6 +15,7 @@ pub type Factory = Box<dyn Fn(&DIContainer) -> Result<Arc<dyn Any + Send + Sync>
 pub type AsyncFactory = Box<dyn Fn(&DIContainer) -> Pin<Box<dyn Future<Output = Result<Arc<dyn Any + Send + Sync>>> + Send>> + Send + Sync>;
 
 /// Placeholder для lazy async компонентов
+#[allow(dead_code)] // Для будущей async DI функциональности
 pub struct LazyAsync<T> {
     _phantom: std::marker::PhantomData<T>,
 }
@@ -37,6 +38,7 @@ pub struct DIContainer {
     /// Зарегистрированные factory функции
     factories: RwLock<HashMap<TypeId, (Factory, Lifetime)>>,
     /// Зарегистрированные async factory функции
+    #[allow(dead_code)] // Для будущей async DI функциональности
     async_factories: RwLock<HashMap<TypeId, (AsyncFactory, Lifetime)>>,
     /// Кэш singleton экземпляров
     singletons: RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>,
@@ -764,6 +766,7 @@ impl DIContainerBuilder {
     }
 
     /// Зарегистрировать transient
+    #[allow(dead_code)] // Для будущей DI функциональности
     pub fn register_transient<T, F>(self, factory: F) -> Result<Self>
     where
         T: Any + Send + Sync + 'static,
@@ -783,6 +786,7 @@ impl DIContainerBuilder {
     }
 
     /// Зарегистрировать placeholder для async singleton
+    #[allow(dead_code)] // Для будущей async DI функциональности
     pub fn register_async_placeholder<T>(self) -> Result<Self>
     where
         T: Any + Send + Sync + 'static,
@@ -792,6 +796,7 @@ impl DIContainerBuilder {
     }
 
     /// Получить доступ к контейнеру для разрешения зависимостей во время конфигурации
+    #[allow(dead_code)] // Для будущей DI функциональности
     pub fn resolve<T>(&self) -> Result<Arc<T>>
     where
         T: Any + Send + Sync + 'static,

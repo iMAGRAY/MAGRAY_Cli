@@ -612,6 +612,7 @@ impl GpuBatchProcessor {
     }
     
     /// Оценка использования GPU памяти
+    #[allow(dead_code)] // Для будущего мониторинга ресурсов
     async fn estimate_gpu_memory_usage(&self) -> u32 {
         // Приблизительная оценка на основе активных операций
         let queue_size = self.processing_queue.lock().await.len();
@@ -620,6 +621,7 @@ impl GpuBatchProcessor {
     }
     
     /// Обнаружение проблем с GPU
+    #[allow(dead_code)] // Для будущей диагностики
     fn detect_gpu_issues(&self, stats: &FallbackStats) -> Vec<String> {
         let mut issues = Vec::new();
         

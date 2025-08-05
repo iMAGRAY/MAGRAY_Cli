@@ -142,6 +142,7 @@ impl DatabaseManager {
     }
     
     /// Получить статистику всех открытых соединений
+    #[allow(dead_code)] // Для мониторинга и телеметрии
     pub fn get_connection_stats(&self) -> HashMap<PathBuf, DatabaseStats> {
         let connections = self.connections.lock();
         let mut stats = HashMap::new();
@@ -160,6 +161,7 @@ impl DatabaseManager {
     }
     
     /// Принудительно flush всех баз данных
+    #[allow(dead_code)] // Для административных целей
     pub fn flush_all(&self) -> Result<()> {
         let connections = self.connections.lock();
         
@@ -175,6 +177,7 @@ impl DatabaseManager {
 
 /// Статистика подключения к базе данных
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Для будущего мониторинга
 pub struct DatabaseStats {
     pub path: PathBuf,
     pub size_on_disk: u64,
