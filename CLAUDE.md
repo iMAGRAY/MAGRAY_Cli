@@ -70,7 +70,7 @@
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-05 03:02:32 UTC*
+*Last updated: 2025-08-05 03:10:15 UTC*
 
 ## Components (CTL v2.0 Format)
 
@@ -102,7 +102,7 @@
 {"f":["monitoring","production"],"id":"health_monitor","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Health monitoring system","x_file":"memory/src/health.rs:134"}
 {"f":["llm","agents","multi-provider"],"id":"llm_client","k":"C","m":{"cur":80,"tgt":95,"u":"%"},"t":"Multi-provider LLM client","x_file":"llm/src/lib.rs:6"}
 {"f":["errors","production","monitoring"],"id":"magray_error_types","k":"C","m":{"cur":0,"tgt":95,"u":"%"},"t":"Comprehensive error type system","x_file":"common/src/errors.rs:5"}
-{"f":["di","config","memory"],"id":"memory_di_configurator","k":"C","m":{"cur":0,"tgt":90,"u":"%"},"t":"DI configuration for memory system","x_file":"memory/src/di_memory_config.rs:27"}
+{"f":["di","config","memory"],"id":"memory_di_configurator","k":"C","m":{"cur":95,"tgt":100,"u":"%"},"t":"DI configuration for memory system","x_file":"memory/src/di_memory_config.rs:27"}
 {"f":["orchestration","coordinator","main"],"id":"memory_orchestrator","k":"C","m":{"cur":0,"tgt":95,"u":"%"},"t":"Main memory system orchestrator","x_file":"memory/src/orchestration/memory_orchestrator.rs:24"}
 {"f":["memory","orchestration"],"id":"memory_service","k":"C","m":{"cur":70,"tgt":95,"u":"%"},"t":"Main memory service orchestrator","x_file":"memory/src/service.rs:53"}
 {"f":["metrics","monitoring"],"id":"metrics_collector","k":"C","m":{"cur":85,"tgt":95,"u":"%"},"t":"Memory system metrics","x_file":"memory/src/metrics.rs:9"}

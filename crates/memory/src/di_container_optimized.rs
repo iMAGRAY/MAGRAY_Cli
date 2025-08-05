@@ -319,7 +319,7 @@ impl OptimizedDIContainer {
         info!("Validating {} registered dependencies", registry.len());
         
         // Проверяем, что все factory функции корректные
-        for (type_id, entry) in registry.iter() {
+        for (_type_id, entry) in registry.iter() {
             // Быстрая валидация без выполнения factory
             debug!("✓ Dependency {} validated (order: {})", 
                    entry.type_name, entry.registration_order);

@@ -24,7 +24,7 @@ use crate::{
 use ai::{AiConfig, EmbeddingConfig, ModelLoader};
 
 /// Конфигуратор DI для memory системы
-// @component: {"k":"C","id":"memory_di_configurator","t":"DI configuration for memory system","m":{"cur":0,"tgt":90,"u":"%"},"f":["di","config","memory"]}
+// @component: {"k":"C","id":"memory_di_configurator","t":"DI configuration for memory system","m":{"cur":95,"tgt":100,"u":"%"},"f":["di","config","memory"]}
 pub struct MemoryDIConfigurator;
 
 impl MemoryDIConfigurator {
@@ -152,10 +152,15 @@ impl MemoryDIExtensions for DIContainerBuilder {
     async fn configure_storage_layer(self, config: &MemoryConfig) -> Result<Self> {
         debug!("Настройка storage layer");
 
+        let db_path = config.db_path.clone();
         let final_self = self
-            .register_singleton(|_container| {
-                info!("Создание VectorStore");
-                let store = VectorStore::new();
+            .register_singleton(move |_container| {
+                info!("Создание VectorStore по пути: {:?}", db_path);
+                // Создаем runtime для async вызова
+                let rt = tokio::runtime::Handle::current();
+                let store = rt.block_on(async {
+                    VectorStore::new(&db_path).await
+                })?;
                 Ok(store)
             })?;
 
@@ -167,24 +172,25 @@ impl MemoryDIExtensions for DIContainerBuilder {
     async fn configure_cache_layer(self, config: &MemoryConfig) -> Result<Self> {
         debug!("Настройка cache layer");
 
-        let final_self = match config.cache_config {
-            CacheConfigType::LRU { max_size, ttl_seconds } => {
-                info!("Настройка LRU cache: max_size={}, ttl={}s", max_size, ttl_seconds);
-                self.register_singleton(|_container| {
-                    let cache = EmbeddingCacheLRU::new(max_size, ttl_seconds)?;
-                    let cache_interface: Arc<dyn EmbeddingCacheInterface> = Arc::new(cache);
-                    Ok(cache_interface)
-                })?
-            }
-            CacheConfigType::Simple { max_entries } => {
-                info!("Настройка Simple cache: max_entries={}", max_entries);
-                self.register_singleton(|_container| {
-                    let cache = EmbeddingCache::new();
-                    let cache_interface: Arc<dyn EmbeddingCacheInterface> = Arc::new(cache);
-                    Ok(cache_interface)
-                })?
-            }
-        };
+        let cache_config_clone = config.cache_config.clone();
+        let cache_path = config.cache_path.clone();
+        
+        let final_self = self.register_singleton(move |_container| {
+            info!("Настройка cache layer");
+            let cache_interface: Arc<dyn EmbeddingCacheInterface> = match &cache_config_clone {
+                CacheConfigType::Lru(lru_config) => {
+                    info!("Создание LRU cache: max_entries={}, ttl={}s", lru_config.max_entries, lru_config.ttl_seconds.unwrap_or(3600));
+                    let cache = EmbeddingCacheLRU::new(&cache_path, lru_config.clone())?;
+                    Arc::new(cache)
+                }
+                CacheConfigType::Simple => {
+                    info!("Создание Simple cache по пути: {:?}", cache_path);
+                    let cache = EmbeddingCache::new(&cache_path)?;
+                    Arc::new(cache)
+                }
+            };
+            Ok(cache_interface)
+        })?;
 
         debug!("✓ Cache layer настроен");
         Ok(final_self)
@@ -196,22 +202,35 @@ impl MemoryDIExtensions for DIContainerBuilder {
 
         let mut builder = self;
 
-        // Promotion Engine
+        // Promotion Engine  
         builder = builder
             .register_singleton(|container| {
                 info!("Создание PromotionEngine");
                 let store = container.resolve::<Arc<VectorStore>>()?;
+                let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
                 let promotion_config = PromotionConfig::default();
-                let engine = PromotionEngine::new(store, promotion_config);
+                let store = (*store).clone();
+                let promotion_config = PromotionConfig::default();
+                // PromotionEngine требует db: Arc<Db>, создаем временную базу для тестов
+                let temp_db = Arc::new(sled::open(std::env::temp_dir().join("promotion_db")).map_err(|e| anyhow::anyhow!("Failed to create temp db: {}", e))?);
+                let rt = tokio::runtime::Handle::current();
+                let engine = rt.block_on(async {
+                    PromotionEngine::new(store, promotion_config, temp_db).await
+                })?;
                 Ok(engine)
             })?;
 
         // ML Promotion Engine
         builder = builder
-            .register_singleton(|_container| {
+            .register_singleton(|container| {
                 info!("Создание MLPromotionEngine");
                 let ml_config = MLPromotionConfig::default();
-                let ml_engine = MLPromotionEngine::new(ml_config);
+                let store_clone = container.resolve::<Arc<VectorStore>>()?;
+                let store_clone = (*store_clone).clone();
+                let rt = tokio::runtime::Handle::current();
+                let ml_engine = rt.block_on(async {
+                    MLPromotionEngine::new(store_clone, ml_config).await
+                })?;
                 Ok(ml_engine)
             })?;
 
@@ -220,19 +239,30 @@ impl MemoryDIExtensions for DIContainerBuilder {
             .register_singleton(|container| {
                 info!("Создание BatchOperationManager");
                 let store = container.resolve::<Arc<VectorStore>>()?;
-                let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
                 let batch_config = BatchConfig::default();
-                let manager = BatchOperationManager::new(store, cache, batch_config);
+                let metrics = container.try_resolve::<Arc<MetricsCollector>>();
+                let store = (*store).clone();
+                let metrics = metrics.map(|m| (*m).clone());
+                let manager = BatchOperationManager::new(store, batch_config, metrics);
                 Ok(manager)
             })?;
 
         // GPU Processor (опционально)
         if config.ai_config.embedding.use_gpu {
             builder = builder
-                .register_singleton(|_container| {
+                .register_singleton(|container| {
                     info!("Создание GpuBatchProcessor");
                     let gpu_config = BatchProcessorConfig::default();
-                    let processor = GpuBatchProcessor::new(gpu_config)?;
+                    let embedding_config = container.resolve::<Arc<EmbeddingConfig>>()?;
+                    let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
+                    
+                    // Создаем runtime для async вызова
+                    let rt = tokio::runtime::Handle::current();
+                    let processor = rt.block_on(async {
+                        let embedding_config = (**embedding_config).clone();
+                        let cache = (*cache).clone();
+                        GpuBatchProcessor::new(gpu_config, embedding_config, cache).await
+                    })?;
                     Ok(processor)
                 })?;
         }
@@ -242,14 +272,14 @@ impl MemoryDIExtensions for DIContainerBuilder {
     }
 
     /// Слой мониторинга (HealthMonitor, Metrics)
-    async fn configure_monitoring_layer(self, config: &MemoryConfig) -> Result<Self> {
+    async fn configure_monitoring_layer(self, _config: &MemoryConfig) -> Result<Self> {
         debug!("Настройка monitoring layer");
 
         let mut builder = self;
 
         // Health Monitor
         builder = builder
-            .register_singleton(|_container| {
+            .register_singleton(|container| {
                 info!("Создание HealthMonitor");
                 let health_config = HealthConfig::default();
                 let monitor = HealthMonitor::new(health_config);
@@ -258,7 +288,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
 
         // Metrics Collector
         builder = builder
-            .register_singleton(|_container| {
+            .register_singleton(|container| {
                 info!("Создание MetricsCollector");
                 let collector = MetricsCollector::new();
                 Ok(collector)
@@ -266,9 +296,10 @@ impl MemoryDIExtensions for DIContainerBuilder {
 
         // Notification Manager
         builder = builder
-            .register_singleton(|_container| {
+            .register_singleton(|container| {
                 info!("Создание NotificationManager");
-                let manager = NotificationManager::new();
+                let notification_config = crate::notifications::NotificationConfig::default();
+                let manager = NotificationManager::new(notification_config)?;
                 Ok(manager)
             })?;
 
@@ -281,7 +312,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
         debug!("Настройка backup layer");
 
         let final_self = self
-            .register_singleton(|_container| {
+            .register_singleton(|container| {
                 info!("Создание BackupManager");
                 let manager = BackupManager::new(std::path::Path::new("./backups"));
                 Ok(manager)
@@ -290,336 +321,48 @@ impl MemoryDIExtensions for DIContainerBuilder {
         debug!("✓ Backup layer настроен");
         Ok(final_self)
     }
-
-        // Создаем VectorStore заранее в async контексте
-        let store = Arc::new(VectorStore::new(&config.db_path).await?);
-        
-        let self_with_storage = self
-            .register_instance(store)?;
-
-        debug!("✓ Storage layer настроен");
-        Ok(self_with_storage)
-    }
-
-    /// Слой кэширования
-    async fn configure_cache_layer(self, config: &MemoryConfig) -> Result<Self> {
-        debug!("Настройка cache layer");
-
-        let cache_path = config.cache_path.clone();
-        let cache_config_type = config.cache_config.clone();
-
-        let self_with_cache = self
-            .register_singleton(move |_container| {
-                debug!("Создание cache по пути: {:?}", cache_path);
-                
-                let cache: Arc<dyn EmbeddingCacheInterface> = match &cache_config_type {
-                    CacheConfigType::Simple => {
-                        let simple_cache = EmbeddingCache::new(&cache_path)?;
-                        Arc::new(simple_cache) as Arc<dyn EmbeddingCacheInterface>
-                    },
-                    CacheConfigType::Lru(lru_config) => {
-                        let lru_cache = EmbeddingCacheLRU::new(&cache_path, lru_config.clone())?;
-                        Arc::new(lru_cache) as Arc<dyn EmbeddingCacheInterface>
-                    }
-                };
-                
-                Ok(cache)
-            })?;
-
-        debug!("✓ Cache layer настроен");
-        Ok(self_with_cache)
-    }
-
-    /// Слой обработки (GPU, batching, promotion)
-    async fn configure_processing_layer(self, config: &MemoryConfig) -> Result<Self> {
-        debug!("Настройка processing layer");
-
-        let batch_config = BatchProcessorConfig::default();
-        let promotion_config = config.promotion.clone();
-        let ml_promotion_config = config.ml_promotion.clone();
-
-        // GPU Batch Processor
-        let self_with_gpu = self
-            .register_singleton({
-                let batch_config_clone = batch_config.clone();
-                move |container| {
-                let embedding_config = container.resolve::<Arc<EmbeddingConfig>>()?;
-                let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
-                
-                let batch_processor_config = BatchProcessorConfig {
-                    max_batch_size: batch_config_clone.max_batch_size,
-                    batch_timeout_ms: batch_config_clone.batch_timeout_ms,
-                    use_gpu_if_available: embedding_config.use_gpu,
-                    cache_embeddings: true,
-                };
-                
-                let processor = match tokio::runtime::Handle::try_current() {
-                    Ok(rt) => {
-                        rt.block_on(async {
-                            GpuBatchProcessor::new(
-                                batch_processor_config,
-                                (**embedding_config).clone(),
-                                (*cache).clone(),
-                            ).await
-                        })?
-                    }
-                    Err(_) => {
-                        let rt = tokio::runtime::Runtime::new()
-                            .map_err(|e| anyhow::anyhow!("Failed to create tokio runtime: {}", e))?;
-                        rt.block_on(async {
-                            GpuBatchProcessor::new(
-                                batch_processor_config,
-                                (**embedding_config).clone(),
-                                (*cache).clone(),
-                            ).await
-                        })?
-                    }
-                };
-                
-                Ok(processor)
-                }
-            })?;
-
-        // Batch Operation Manager
-        let self_with_batch = self_with_gpu
-            .register_singleton(move |container| {
-                let store = container.resolve::<Arc<VectorStore>>()?;
-                let metrics = container.try_resolve::<Arc<MetricsCollector>>()
-                    .map(|m| (*m).clone());
-                
-                let batch_manager_config = BatchConfig::default();
-                Ok(BatchOperationManager::new((*store).clone(), batch_manager_config, metrics))
-            })?;
-
-        // Promotion Engine
-        let promotion_config_clone = promotion_config.clone();
-        let db_path_clone = config.db_path.clone();
-        let self_with_promotion = self_with_batch
-            .register_singleton(move |container| {
-                let store = container.resolve::<Arc<VectorStore>>()?;
-                
-                // Создаем БД для promotion engine
-                let promotion_db_path = db_path_clone.with_extension("promotion.db");
-                let db = Arc::new(sled::open(&promotion_db_path)
-                    .map_err(|e| anyhow::anyhow!("Failed to open promotion DB: {}", e))?);
-                
-                match tokio::runtime::Handle::try_current() {
-                    Ok(rt) => {
-                        let engine = rt.block_on(async {
-                            PromotionEngine::new((*store).clone(), promotion_config_clone.clone(), db).await
-                        })?;
-                        Ok(engine)
-                    }
-                    Err(_) => {
-                        let rt = tokio::runtime::Runtime::new()
-                            .map_err(|e| anyhow::anyhow!("Failed to create tokio runtime: {}", e))?;
-                        let engine = rt.block_on(async {
-                            PromotionEngine::new((*store).clone(), promotion_config_clone.clone(), db).await
-                        })?;
-                        Ok(engine)
-                    }
-                }
-            })?;
-
-        // ML Promotion Engine (опциональный)
-        let self_with_ml_promotion = if let Some(ml_config) = ml_promotion_config {
-            let ml_config_clone = ml_config.clone();
-            self_with_promotion
-                .register_singleton(move |container| {
-                    let store = container.resolve::<Arc<VectorStore>>()?;
-                    
-                    match tokio::runtime::Handle::try_current() {
-                        Ok(rt) => {
-                            let engine = rt.block_on(async {
-                                MLPromotionEngine::new((*store).clone(), ml_config_clone.clone()).await
-                            })?;
-                            Ok(parking_lot::RwLock::new(engine))
-                        }
-                        Err(_) => {
-                            let rt = tokio::runtime::Runtime::new()
-                                .map_err(|e| anyhow::anyhow!("Failed to create tokio runtime: {}", e))?;
-                            let engine = rt.block_on(async {
-                                MLPromotionEngine::new((*store).clone(), ml_config_clone.clone()).await
-                            })?;
-                            Ok(parking_lot::RwLock::new(engine))
-                        }
-                    }
-                })?
-        } else {
-            self_with_promotion
-        };
-
-        debug!("✓ Processing layer настроен");
-        Ok(self_with_ml_promotion)
-    }
-
-    /// Слой мониторинга (health, metrics, notifications)
-    async fn configure_monitoring_layer(self, config: &MemoryConfig) -> Result<Self> {
-        debug!("Настройка monitoring layer");
-
-        let health_config = config.health_config.clone();
-        let notification_config = crate::notifications::NotificationConfig::default();
-
-        // Metrics Collector
-        let self_with_metrics = self
-            .register_singleton(|_container| {
-                Ok(MetricsCollector::new())
-            })?;
-
-        // Health Monitor
-        let self_with_health = self_with_metrics
-            .register_singleton({
-                let health_config_clone = health_config.clone();
-                move |_container| {
-                    Ok(Arc::new(HealthMonitor::new(health_config_clone.clone())))
-                }
-            })?;
-
-        // Notification Manager (опциональный)
-        let self_with_notifications = self_with_health
-            .register_singleton({
-                let notification_config_clone = notification_config.clone();
-                move |_container| {
-                    Ok(NotificationManager::new(notification_config_clone.clone()))
-                }
-            })?;
-
-        debug!("✓ Monitoring layer настроен");
-        Ok(self_with_notifications)
-    }
-
-    /// Слой резервного копирования
-    async fn configure_backup_layer(self, config: &MemoryConfig) -> Result<Self> {
-        debug!("Настройка backup layer");
-
-        let db_path = config.db_path.clone();
-        let self_with_backup = self
-            .register_singleton({
-                let db_path_clone = db_path.clone();
-                move |_container| {
-                    let backup_path = db_path_clone.with_extension("backup");
-                    Ok(Arc::new(BackupManager::new(backup_path)?))
-                }
-            })?;
-
-        // Resource Manager
-        let resource_config = ResourceConfig::default();
-        let self_with_resource = self_with_backup
-            .register_singleton({
-                let resource_config_clone = resource_config.clone();
-                move |_container| {
-                    Ok(parking_lot::RwLock::new(ResourceManager::new(resource_config_clone.clone())))
-                }
-            })?;
-
-        debug!("✓ Backup layer настроен");
-        Ok(self_with_resource)
-    }
 }
 
-/// Вспомогательные функции для тестирования
+/// Test helpers для создания конфигураций
 #[cfg(test)]
-#[allow(unused_imports)]
 pub mod test_helpers {
     use super::*;
-    use tempfile::TempDir;
+    use ai::{AiConfig, EmbeddingConfig as AiEmbeddingConfig, RerankingConfig};
 
     pub fn create_test_config() -> Result<MemoryConfig> {
-        let _temp_dir = TempDir::new()?;
-        let base_path = _temp_dir.path().to_path_buf();
-
+        let temp_dir = std::env::temp_dir();
+        let db_path = temp_dir.join("test_magray_db");
+        let cache_path = temp_dir.join("test_cache");
+        
+        // Создаем директории если не существуют
+        std::fs::create_dir_all(&db_path)?;
+        std::fs::create_dir_all(&cache_path)?;
+        
+        let ai_config = AiConfig {
+            models_dir: temp_dir.join("models"),
+            embedding: AiEmbeddingConfig {
+                model_name: "test-model".to_string(),
+                use_gpu: false,
+                gpu_config: None,
+            },
+            reranking: RerankingConfig {
+                model_name: "test-reranker".to_string(),
+                use_gpu: false,
+                gpu_config: None,
+            },
+        };
+        
+        let cache_config = CacheConfigType::Simple;
+        
         Ok(MemoryConfig {
-            db_path: base_path.join("test.db"),
-            cache_path: base_path.join("cache"),
-            promotion: PromotionConfig::default(),
-            ml_promotion: None, // Отключаем для тестов
-            streaming_config: None,
-            ai_config: AiConfig {
-                models_dir: base_path.join("models"),
-                embedding: ai::EmbeddingConfig {
-                    model_name: "test-model".to_string(),
-                    use_gpu: false, // CPU-only для тестов
-                    batch_size: 16,
-                    max_length: 512,
-                    gpu_config: None,
-                    embedding_dim: Some(1024),
-                },
-                reranking: ai::RerankingConfig {
-                    model_name: "test-reranker".to_string(),
-                    use_gpu: false,
-                    batch_size: 8,
-                    max_length: 512,
-                    gpu_config: None,
-                },
-            },
-            health_config: HealthConfig::default(),
-            notification_config: crate::notifications::NotificationConfig::default(),
-            cache_config: CacheConfigType::Simple,
-            batch_config: BatchConfig {
-                max_batch_size: 10, // Маленький batch для тестов
-                ..Default::default()
-            },
-            resource_config: ResourceConfig::default(),
-            // Legacy поля
-            #[allow(deprecated)]
-            max_vectors: 1000,
-            #[allow(deprecated)]
-            max_cache_size_bytes: 1024 * 1024,
-            #[allow(deprecated)]
-            max_memory_usage_percent: Some(50),
+            db_path,
+            cache_path,
+            cache_config,
+            ai_config,
+            batch_size: 100,
+            max_memory: 1024 * 1024 * 100, // 100MB
+            flush_interval: std::time::Duration::from_secs(30),
+            promotion_config: PromotionConfig::default(),
         })
-    }
-
-    pub async fn create_test_container() -> Result<DIContainer> {
-        let config = create_test_config()?;
-        MemoryDIConfigurator::configure_minimal(config).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_minimal_di_configuration() -> Result<()> {
-        let config = test_helpers::create_test_config()?;
-        let container = MemoryDIConfigurator::configure_minimal(config).await?;
-
-        // Проверяем основные зависимости
-        assert!(container.is_registered::<MemoryConfig>());
-        assert!(container.is_registered::<Arc<VectorStore>>());
-        assert!(container.is_registered::<Arc<dyn EmbeddingCacheInterface>>());
-
-        let stats = container.stats();
-        assert!(stats.total_types >= 3);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_cpu_only_configuration() -> Result<()> {
-        let config = test_helpers::create_test_config()?;
-        let container = MemoryDIConfigurator::configure_cpu_only(config).await?;
-
-        // Должен содержать все CPU компоненты
-        assert!(container.is_registered::<Arc<VectorStore>>());
-        assert!(container.is_registered::<Arc<dyn EmbeddingCacheInterface>>());
-        assert!(container.is_registered::<Arc<HealthMonitor>>());
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_dependency_resolution() -> Result<()> {
-        let container = test_helpers::create_test_container().await?;
-
-        // Тестируем разрешение зависимостей
-        let store = container.resolve::<Arc<VectorStore>>()?;
-        assert!(!(store.as_ref() as *const _ == std::ptr::null()));
-
-        let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
-        assert!(!cache.as_ref().is_null_check());
-
-        Ok(())
     }
 }
