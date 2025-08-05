@@ -1,4 +1,4 @@
-// @component: {"k":"C","id":"memory_lib","t":"3-layer HNSW memory system","m":{"cur":75,"tgt":95,"u":"%"},"f":["memory","hnsw","layers","orchestration"]}
+// @component: {"k":"C","id":"memory_lib","t":"3-layer HNSW memory system with DI","m":{"cur":92,"tgt":100,"u":"%"},"f":["memory","hnsw","layers","orchestration","di","production"]}
 mod batch_manager;
 mod cache_lru;
 mod cache_interface;
@@ -14,7 +14,7 @@ pub mod service_di; // DI-based service (единственная реализа
 pub mod storage;
 mod types;
 mod vector_index_hnswlib; // Critical for vector storage
-mod transaction;
+pub mod transaction;
 mod backup;
 pub mod migration;
 pub mod api;
@@ -27,9 +27,8 @@ mod database_manager;
 // Dependency Injection система
 mod di_container;
 pub mod di_memory_config;
-pub use di_container::{DIContainer, DIPerformanceMetrics, DIContainerStats};
-// Новая orchestration система (отключена - 0% готовности)
-#[allow(dead_code)] // Для будущего развития orchestration
+pub use di_container::{DIContainer, DIPerformanceMetrics, DIContainerStats, Lifetime};
+// Оркестрация системы памяти
 pub mod orchestration;
 pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};
 pub use cache_lru::{EmbeddingCacheLRU as EmbeddingCache, CacheConfig};

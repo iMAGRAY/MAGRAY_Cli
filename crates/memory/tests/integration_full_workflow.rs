@@ -1,7 +1,7 @@
 ﻿use anyhow::Result;
 use memory::{
-    MemoryService, MemoryConfig, Record, Layer, ResourceConfig, HealthConfig,
-    CacheConfigType, CacheConfig, PromotionConfig
+    DIMemoryService as MemoryService, MemoryServiceConfig as MemoryConfig, Record, Layer, ResourceConfig, HealthConfig,
+    CacheConfig, PromotionConfig, SearchOptions
 };
 use ai::AiConfig;
 use std::sync::Arc;
@@ -26,17 +26,15 @@ async fn test_complete_memory_system_workflow() -> Result<()> {
         db_path: base_path.join("memory_db"),
         cache_path: base_path.join("memory_cache"),
         promotion: PromotionConfig::default(),
+        ml_promotion: Some(memory::ml_promotion::MLPromotionConfig::default()),
+        streaming_config: Some(memory::streaming::StreamingConfig::default()),
         ai_config: AiConfig::default(),
+        cache_config: CacheConfig::default(),
+        health_enabled: true,
         health_config: HealthConfig::default(),
-        cache_config: CacheConfigType::Lru(CacheConfig::default()),
         resource_config: ResourceConfig::default(),
-        #[allow(deprecated)]
-        max_vectors: 10_000,
-        #[allow(deprecated)]
-        max_cache_size_bytes: 100 * 1024 * 1024,
-        #[allow(deprecated)]
-        max_memory_usage_percent: Some(80),
-        ..Default::default()
+        notification_config: memory::notifications::NotificationConfig::default(),
+        batch_config: memory::batch_manager::BatchConfig::default(),
     };
     let memory_service = MemoryService::new(memory_config).await?;
     
@@ -60,10 +58,10 @@ async fn test_complete_memory_system_workflow() -> Result<()> {
     for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
         let query = "test programming algorithms";
         let results = memory_service
-            .search(query)
-            .with_layer(layer)
-            .top_k(10)
-            .execute()
+            .search(query, layer, SearchOptions {
+                top_k: 10,
+                ..Default::default()
+            })
             .await?;
         
         assert!(!results.is_empty(), "Search returned no results for layer {:?}", layer);
@@ -86,7 +84,7 @@ async fn test_complete_memory_system_workflow() -> Result<()> {
     // === ФАЗА 5: BACKUP & RESTORE ===
     
     // Создаём backup
-    let backup_path = memory_service.create_backup(Some("integration_test_full".to_string())).await?;
+    let _backup_metadata = memory_service.create_backup("integration_test_full").await?;
     
     // Добавляем ещё данных для incremental backup
     let delta_records = create_diverse_test_records(50);
@@ -94,23 +92,26 @@ async fn test_complete_memory_system_workflow() -> Result<()> {
         memory_service.insert(record).await?;
     }
     
-    println!("✅ Phase 5: Backup created: {:?}", backup_path);
+    println!("✅ Phase 5: Backup created successfully");
 
     // === ФАЗА 6: HEALTH MONITORING ===
     
     // Получаем статистику системы
-    let health = memory_service.run_health_check().await?;
+    let health = memory_service.check_health().await?;
     println!("✅ Phase 6: System health status: {:?}", health.overall_status);
 
     // === ФАЗА 7: CACHE STATISTICS ===
     
-    let (hits, _misses, total) = memory_service.cache_stats();
+    let stats = memory_service.get_stats().await;
+    let hits = stats.cache_hits;
+    let misses = stats.cache_misses;
+    let total = hits + misses;
     let hit_rate = if total > 0 { hits as f32 / total as f32 * 100.0 } else { 0.0 };
     println!("✅ Phase 7: Cache hit rate: {:.1}%", hit_rate);
 
     // === ФАЗА 8: PROMOTION CYCLE ===
     
-    let promotion_stats = memory_service.run_promotion_cycle().await?;
+    let promotion_stats = memory_service.run_promotion().await?;
     println!("✅ Phase 8: Promotion cycle - {} promoted, {} expired", 
              promotion_stats.interact_to_insights + promotion_stats.insights_to_assets,
              promotion_stats.expired_interact + promotion_stats.expired_insights);
@@ -154,10 +155,10 @@ async fn test_performance_under_load() -> Result<()> {
     for i in 0..100 {
         let query = format!("test record {} programming", i);
         let results = memory_service
-            .search(&query)
-            .with_layer(Layer::Interact)
-            .top_k(10)
-            .execute()
+            .search(&query, Layer::Interact, SearchOptions {
+                top_k: 10,
+                ..Default::default()
+            })
             .await?;
         search_results.push(results.len());
     }
@@ -218,10 +219,10 @@ async fn test_resilience_and_recovery() -> Result<()> {
     // === ПРОВЕРКА ВОССТАНОВЛЕНИЯ ===
     let query = "test programming";
     let results = recovered_service
-        .search(query)
-        .with_layer(Layer::Interact)
-        .top_k(10)
-        .execute()
+        .search(query, Layer::Interact, SearchOptions {
+            top_k: 10,
+            ..Default::default()
+        })
         .await?;
     
     assert!(!results.is_empty(), "Service should recover and have searchable data");
@@ -306,10 +307,10 @@ async fn test_multi_layer_promotion_workflow() -> Result<()> {
     for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
         let query = "programming software";
         let results = memory_service
-            .search(query)
-            .with_layer(layer)
-            .top_k(5)
-            .execute()
+            .search(query, layer, SearchOptions {
+                top_k: 5,
+                ..Default::default()
+            })
             .await?;
         
         assert!(!results.is_empty(), "Layer {:?} should have search results", layer);
@@ -394,10 +395,10 @@ async fn test_memory_system_benchmarks() -> Result<()> {
         for _ in 0..10 {
             let query = "test algorithms programming";
             let _results = memory_service
-                .search(query)
-                .with_layer(Layer::Interact)
-                .top_k(search_k)
-                .execute()
+                .search(query, Layer::Interact, SearchOptions {
+                    top_k: search_k,
+                    ..Default::default()
+                })
                 .await?;
         }
         
@@ -467,10 +468,10 @@ async fn test_concurrent_operations() -> Result<()> {
             
             for i in 0..10 {
                 let query = format!("concurrent_record_{}_{}", thread_id, i);
-                match service.search(&query)
-                    .with_layer(Layer::Interact)
-                    .top_k(5)
-                    .execute().await {
+                match service.search(&query, Layer::Interact, SearchOptions {
+                    top_k: 5,
+                    ..Default::default()
+                }).await {
                     Ok(res) => results.push(res.len()),
                     Err(_) => results.push(0),
                 }

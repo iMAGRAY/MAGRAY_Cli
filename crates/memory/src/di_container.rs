@@ -33,7 +33,7 @@ pub enum Lifetime {
 }
 
 /// Dependency Injection Container для MAGRAY архитектуры
-// @component: {"k":"C","id":"di_container","t":"Dependency injection container","m":{"cur":90,"tgt":95,"u":"%"},"f":["di","ioc","architecture","validation","performance","async"]}
+// @component: {"k":"C","id":"di_container","t":"Dependency injection container","m":{"cur":88,"tgt":100,"u":"%"},"f":["di","ioc","architecture","validation","performance","async"]}
 pub struct DIContainer {
     /// Зарегистрированные factory функции
     factories: RwLock<HashMap<TypeId, (Factory, Lifetime)>>,
@@ -756,6 +756,7 @@ impl DIContainerBuilder {
     }
 
     /// Зарегистрировать singleton
+    #[allow(dead_code)]
     pub fn register_singleton<T, F>(self, factory: F) -> Result<Self>
     where
         T: Any + Send + Sync + 'static,
@@ -777,6 +778,7 @@ impl DIContainerBuilder {
     }
 
     /// Зарегистрировать экземпляр
+    #[allow(dead_code)]
     pub fn register_instance<T>(self, instance: T) -> Result<Self>
     where
         T: Any + Send + Sync + 'static,
@@ -805,6 +807,7 @@ impl DIContainerBuilder {
     }
 
     /// Построить контейнер
+    #[allow(dead_code)]
     pub fn build(self) -> Result<DIContainer> {
         self.container.validate_dependencies()?;
         Ok(self.container)

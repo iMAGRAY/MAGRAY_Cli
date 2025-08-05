@@ -5,10 +5,14 @@ use tokio;
 
 // Helper функция для создания тестового LLM клиента
 fn create_test_llm_client() -> LlmClient {
-    LlmClient::new(LlmProvider::OpenAI {
-        api_key: "test-key".to_string(),
-        model: "gpt-4o-mini".to_string(),
-    })
+    LlmClient::new(
+        LlmProvider::OpenAI {
+            api_key: "test-key".to_string(),
+            model: "gpt-4o-mini".to_string(),
+        },
+        500,   // max_tokens
+        0.7    // temperature
+    )
 }
 
 #[test]

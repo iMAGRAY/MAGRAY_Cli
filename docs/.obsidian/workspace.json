@@ -4,26 +4,8 @@
     "type": "split",
     "children": [
       {
-        "id": "0846dbb259ff0e34",
-        "type": "tabs",
-        "dimension": 75.30211480362537,
-        "children": [
-          {
-            "id": "61706f56cb748ec6",
-            "type": "leaf",
-            "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Граф"
-            }
-          }
-        ]
-      },
-      {
         "id": "7d9d0a6e884de6d2",
         "type": "tabs",
-        "dimension": 24.69788519637462,
         "children": [
           {
             "id": "94b790b6061f528c",
@@ -53,7 +35,7 @@
                   "repelStrength": 10,
                   "linkStrength": 1,
                   "linkDistance": 250,
-                  "scale": 0.713275462622445,
+                  "scale": 3.863410568617514,
                   "close": true
                 }
               },
@@ -207,8 +189,11 @@
       "infranodus-graph-view:InfraNodus Graph View": false
     }
   },
-  "active": "61706f56cb748ec6",
+  "active": "94b790b6061f528c",
   "lastOpenFiles": [
+    "CTL_v3_Implementation_Guide.md",
+    "CTL_v3_Implementation_Guide.md.tmp.46824.1754427109897",
+    "Конфигурация компонентов.md",
     "optimization-work-summary.md",
     "optimization-work-summary.md.tmp.35796.1754396614305",
     "di-optimization-summary.md",
@@ -224,7 +209,6 @@
     "Без названия/ARCHITECTURE.md",
     "obsidian-comprehensive/CLI Interface - Commands & User Experience.md.tmp.57240.1754365469141",
     "obsidian-comprehensive/Performance Optimization Guide - Production Tuning.md.tmp.57240.1754365387689",
-    "obsidian-comprehensive/Memory Crate - Трёхслойная система памяти.md.tmp.57240.1754365195922",
     "obsidian-comprehensive/Security Architecture - Threat Model & Mitigations.md",
     "obsidian-comprehensive/Performance Optimization Guide - Production Tuning.md",
     "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md",
@@ -243,8 +227,6 @@
     "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
     "obsidian-comprehensive/Руководство по установке и использованию.md",
     "obsidian-comprehensive/AI Crate - Embedding и модели.md",
-    "obsidian-comprehensive/Архитектура системы - Детальный обзор.md",
-    "MIGRATION_GUIDE.md",
     "Без названия/Без названия.canvas"
   ]
 }

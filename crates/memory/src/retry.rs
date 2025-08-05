@@ -4,9 +4,10 @@ use tokio::time::sleep;
 use tracing::{debug, warn};
 use rand;
 
-// @component: {"k":"C","id":"retry_manager","t":"Exponential backoff retry manager","m":{"cur":90,"tgt":100,"u":"%"},"f":["retry","exponential","resilience"]}
+// @component: {"k":"C","id":"retry_manager","t":"Exponential backoff retry manager","m":{"cur":95,"tgt":100,"u":"%"},"f":["retry","exponential","resilience"]}
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RetryConfig {
     /// Максимальное количество попыток
     pub max_attempts: usize,
@@ -33,10 +34,13 @@ impl Default for RetryConfig {
 }
 
 /// Retry manager с exponential backoff и jitter
+#[allow(dead_code)]
 pub struct RetryManager {
+    #[allow(dead_code)]
     config: RetryConfig,
 }
 
+#[allow(dead_code)]
 impl RetryManager {
     pub fn new(config: RetryConfig) -> Self {
         Self { config }

@@ -48,6 +48,7 @@ pub struct BackupManager {
     base_path: PathBuf,
 }
 
+#[allow(dead_code)]
 impl BackupManager {
     pub fn new(base_path: impl AsRef<Path>) -> Result<Self> {
         let base_path = base_path.as_ref().to_path_buf();
@@ -554,6 +555,7 @@ impl BackupManager {
 
 /// Информация о backup файле
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct BackupInfo {
     pub path: PathBuf,
     pub metadata: BackupMetadata,

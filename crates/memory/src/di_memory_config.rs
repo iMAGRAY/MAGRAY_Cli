@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::sync::Arc;
-use tracing::{info, debug};
+use tracing::{info, debug, warn};
 
 #[allow(unused_imports)]
 use crate::{
@@ -20,6 +20,15 @@ use crate::{
     resource_manager::{ResourceManager, ResourceConfig},
     batch_manager::{BatchOperationManager, BatchConfig},
     CacheConfigType, MemoryConfig,
+    orchestration::{
+        EmbeddingCoordinator,
+        SearchCoordinator, 
+        HealthManager,
+        PromotionCoordinator,
+        ResourceController,
+        BackupCoordinator,
+        MemoryOrchestrator,
+    },
 };
 use ai::{AiConfig, EmbeddingConfig, ModelLoader};
 
@@ -41,6 +50,7 @@ impl MemoryDIConfigurator {
             .configure_monitoring_layer(&config).await?  // Мониторинг до processing layer
             .configure_processing_layer(&config).await?
             .configure_backup_layer(&config).await?
+            .configure_orchestration_layer(&config).await?  // Координаторы после всех dependencies
             .build()?;
 
         // Создаем async компоненты после базового контейнера
@@ -56,13 +66,24 @@ impl MemoryDIConfigurator {
     pub async fn configure_minimal(config: MemoryConfig) -> Result<DIContainer> {
         info!("🔧 Настройка минимального DI контейнера");
 
-        let container = DIContainerBuilder::new()
+        let builder = DIContainerBuilder::new()
             .configure_core_dependencies(&config).await?
             .configure_storage_layer(&config).await?
             .configure_cache_layer(&config).await?
-            .build()?;
+            .configure_monitoring_layer(&config).await?  // Нужно для координаторов
+            .configure_backup_layer(&config).await?;  // Нужно для BackupCoordinator
 
-        info!("✅ Минимальный DI контейнер настроен");
+        // Создаем основной контейнер БЕЗ orchestration layer пока
+        let container = builder.build()?;
+
+        // Создаем async компоненты сначала (PromotionEngine, MLPromotionEngine)
+        Self::configure_async_components(&container, &config).await?;
+        
+        // Теперь можем добавить orchestration координаторы вручную
+        Self::register_orchestration_coordinators(&container).await?;
+
+        info!("✅ Минимальный DI контейнер настроен с {} зависимостями", 
+              container.stats().total_types);
         Ok(container)
     }
 
@@ -132,6 +153,65 @@ impl MemoryDIConfigurator {
         info!("✅ Async компоненты настроены");
         Ok(())
     }
+    
+    /// Регистрировать orchestration координаторы ПОСЛЕ async компонентов
+    async fn register_orchestration_coordinators(container: &DIContainer) -> Result<()> {
+        info!("🔧 Регистрация orchestration координаторов");
+        
+        // EmbeddingCoordinator
+        let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
+        let embedding_coordinator = if let Some(gpu_processor) = container.try_resolve::<GpuBatchProcessor>() {
+            EmbeddingCoordinator::new(gpu_processor, (*cache).clone())
+        } else {
+            // Fallback - создаем CPU processor
+            warn!("GPU processor недоступен, создаем CPU fallback для EmbeddingCoordinator");
+            let embedding_config = container.resolve::<ai::EmbeddingConfig>()?;
+            let mut cpu_config = (*embedding_config).clone();
+            cpu_config.use_gpu = false;
+            
+            let gpu_config = BatchProcessorConfig::default();
+            let gpu_processor = GpuBatchProcessor::new(gpu_config, cpu_config, (*cache).clone()).await?;
+            EmbeddingCoordinator::new(Arc::new(gpu_processor), (*cache).clone())
+        };
+        container.register_instance(embedding_coordinator)?;
+        
+        // SearchCoordinator
+        let store = container.resolve::<VectorStore>()?;
+        let embedding_coord = container.resolve::<EmbeddingCoordinator>()?;
+        let search_coordinator = SearchCoordinator::new(store, embedding_coord);
+        container.register_instance(search_coordinator)?;
+        
+        // HealthManager
+        let health_monitor = container.resolve::<HealthMonitor>()?;
+        let health_manager = HealthManager::new(health_monitor);
+        container.register_instance(health_manager)?;
+        
+        // PromotionCoordinator
+        let promotion_engine = container.resolve::<PromotionEngine>()?;
+        let ml_promotion = container.try_resolve::<parking_lot::RwLock<MLPromotionEngine>>();
+        let promotion_coordinator = PromotionCoordinator::new(promotion_engine, ml_promotion);
+        container.register_instance(promotion_coordinator)?;
+        
+        // ResourceController
+        let resource_config = ResourceConfig::default();
+        let resource_manager = ResourceManager::new(resource_config)?;
+        let wrapped_manager = Arc::new(parking_lot::RwLock::new(resource_manager));
+        let resource_controller = ResourceController::new(wrapped_manager);
+        container.register_instance(resource_controller)?;
+        
+        // BackupCoordinator
+        let backup_manager = container.resolve::<BackupManager>()?;
+        let store = container.resolve::<VectorStore>()?;
+        let backup_coordinator = BackupCoordinator::new(backup_manager, store);
+        container.register_instance(backup_coordinator)?;
+        
+        // MemoryOrchestrator (главный)
+        let memory_orchestrator = MemoryOrchestrator::from_container(container)?;
+        container.register_instance(memory_orchestrator)?;
+        
+        info!("✅ Orchestration координаторы зарегистрированы");
+        Ok(())
+    }
 }
 
 /// Extension trait для удобной настройки
@@ -157,6 +237,10 @@ trait MemoryDIExtensions {
         Self: Sized;
     
     async fn configure_backup_layer(self, config: &MemoryConfig) -> Result<Self>
+    where 
+        Self: Sized;
+    
+    async fn configure_orchestration_layer(self, config: &MemoryConfig) -> Result<Self>
     where 
         Self: Sized;
 }
@@ -316,6 +400,102 @@ impl MemoryDIExtensions for DIContainerBuilder {
 
         debug!("✓ Backup layer настроен");
         Ok(final_self)
+    }
+    
+    /// Слой orchestration координаторов
+    async fn configure_orchestration_layer(self, _config: &MemoryConfig) -> Result<Self> {
+        debug!("Настройка orchestration layer");
+        
+        let mut builder = self;
+        
+        // EmbeddingCoordinator
+        builder = builder
+            .register_singleton(|container| {
+                info!("Создание EmbeddingCoordinator");
+                let cache = container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?;
+                
+                // Пытаемся получить GPU processor, если нет - создаем fallback
+                if let Some(gpu_processor) = container.try_resolve::<GpuBatchProcessor>() {
+                    Ok(Arc::new(EmbeddingCoordinator::new(gpu_processor, (*cache).clone())))
+                } else {
+                    // Fallback на создание CPU-only embedding coordinator без GPU processor
+                    warn!("GPU processor недоступен в минимальной конфигурации");
+                    
+                    // Пытаемся создать GPU processor с CPU fallback
+                    let embedding_config = container.resolve::<ai::EmbeddingConfig>()?;
+                    let mut cpu_config = (*embedding_config).clone();
+                    cpu_config.use_gpu = false; // Принудительно CPU режим
+                    
+                    let gpu_config = BatchProcessorConfig::default();
+                    
+                    // Создаем в async контексте
+                    let gpu_processor_result = tokio::task::block_in_place(|| {
+                        tokio::runtime::Handle::current().block_on(async {
+                            GpuBatchProcessor::new(gpu_config, cpu_config, (*cache).clone()).await
+                        })
+                    });
+                    
+                    match gpu_processor_result {
+                        Ok(processor) => Ok(Arc::new(EmbeddingCoordinator::new(Arc::new(processor), (*cache).clone()))),
+                        Err(e) => Err(anyhow::anyhow!("Failed to create fallback EmbeddingCoordinator: {}", e))
+                    }
+                }
+            })?;
+        
+        // SearchCoordinator
+        builder = builder
+            .register_singleton(|container| {
+                info!("Создание SearchCoordinator");
+                let store = container.resolve::<VectorStore>()?;
+                let embedding_coordinator = container.resolve::<EmbeddingCoordinator>()?;
+                Ok(Arc::new(SearchCoordinator::new(store, embedding_coordinator)))
+            })?;
+        
+        // HealthManager
+        builder = builder
+            .register_singleton(|container| {
+                info!("Создание HealthManager");
+                let health_monitor = container.resolve::<HealthMonitor>()?;
+                Ok(Arc::new(HealthManager::new(health_monitor)))
+            })?;
+        
+        // PromotionCoordinator
+        builder = builder
+            .register_singleton(|container| {
+                info!("Создание PromotionCoordinator");
+                let promotion_engine = container.resolve::<PromotionEngine>()?;
+                let ml_promotion = container.try_resolve::<parking_lot::RwLock<MLPromotionEngine>>();
+                Ok(Arc::new(PromotionCoordinator::new(promotion_engine, ml_promotion)))
+            })?;
+        
+        // ResourceController
+        builder = builder
+            .register_singleton(|_container| {
+                info!("Создание ResourceController");
+                let resource_config = ResourceConfig::default();
+                let resource_manager = ResourceManager::new(resource_config)?;
+                let wrapped_manager = Arc::new(parking_lot::RwLock::new(resource_manager));
+                Ok(Arc::new(ResourceController::new(wrapped_manager)))
+            })?;
+        
+        // BackupCoordinator
+        builder = builder
+            .register_singleton(|container| {
+                info!("Создание BackupCoordinator");
+                let backup_manager = container.resolve::<BackupManager>()?;
+                let store = container.resolve::<VectorStore>()?;
+                Ok(Arc::new(BackupCoordinator::new(backup_manager, store)))
+            })?;
+        
+        // MemoryOrchestrator (центральный координатор)
+        builder = builder
+            .register_singleton(|container| {
+                info!("Создание MemoryOrchestrator");
+                Ok(Arc::new(MemoryOrchestrator::from_container(container)?))
+            })?;
+        
+        debug!("✓ Orchestration layer настроен");
+        Ok(builder)
     }
 }
 

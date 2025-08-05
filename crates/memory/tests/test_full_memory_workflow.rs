@@ -1,12 +1,13 @@
 use anyhow::Result;
 use chrono::Utc;
 use memory::{
-    DIMemoryService, MemoryConfig, 
+    DIMemoryService, MemoryServiceConfig as MemoryConfig, 
     Layer, Record, SearchOptions,
     BatchConfig, // Публичный экспорт
-    CacheConfigType, CacheConfig as LruCacheConfig, // Публичный экспорт
-    PromotionConfig, HealthConfig, // Публичный экспорт из types
-    ResourceConfig, NotificationConfig, // Публичные экспорты
+    CacheConfig as CacheConfigType, // Публичный экспорт
+    PromotionConfig, 
+    health::HealthMonitorConfig as HealthConfig, // Публичный экспорт из health
+    resource_manager::ResourceConfig, // Публичные экспорты
 };
 use ai::{AiConfig, EmbeddingConfig, RerankingConfig};
 use uuid::Uuid;
@@ -40,25 +41,19 @@ async fn create_test_di_memory_service() -> Result<DIMemoryService> {
                 gpu_config: None,
             },
         },
+        health_enabled: true,
         health_config: HealthConfig::default(),
-        notification_config: NotificationConfig::default(),
-        cache_config: CacheConfigType::Simple, // Простой кэш для тестов
+        notification_config: Default::default(), // Временно используем default
+        cache_config: CacheConfigType::default(), // Простой кэш для тестов
         batch_config: BatchConfig {
             max_batch_size: 10,
             ..Default::default()
         },
         resource_config: ResourceConfig::default(),
-        // Legacy поля
-        #[allow(deprecated)]
-        max_vectors: 1000,
-        #[allow(deprecated)]
-        max_cache_size_bytes: 1024 * 1024,
-        #[allow(deprecated)]
-        max_memory_usage_percent: Some(50),
     };
     
-    // Используем CPU-only конфигурацию для тестов вместо полной DI
-    DIMemoryService::new_minimal(config).await
+    // Используем стандартный конструктор
+    DIMemoryService::new(config).await
 }
 
 /// Comprehensive integration test для полного memory workflow

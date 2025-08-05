@@ -59,12 +59,18 @@ impl Transaction {
         self.operations.push(op);
     }
     
-    pub fn take_operations(&mut self) -> Vec<TransactionOp> {
-        std::mem::take(&mut self.operations)
+    pub fn take_operations(&mut self) -> Result<Vec<TransactionOp>> {
+        if self.status == TransactionStatus::Aborted {
+            return Err(anyhow!("Cannot take operations from aborted transaction"));
+        }
+        self.status = TransactionStatus::Committed;
+        Ok(std::mem::take(&mut self.operations))
     }
     
     pub fn abort(&mut self) {
         self.status = TransactionStatus::Aborted;
+        self.operations.clear();
+        self.rollback_actions.clear();
     }
     
     pub fn commit(&mut self) {
@@ -78,12 +84,76 @@ impl Transaction {
     /// Helper method for tests - добавляет операцию вставки
     #[cfg(test)]
     pub fn insert(&mut self, record: Record) -> Result<()> {
+        if self.status != TransactionStatus::Active {
+            return Err(anyhow!("Transaction is not active"));
+        }
         self.operations.push(TransactionOp::Insert { record: record.clone() });
         self.rollback_actions.push(RollbackAction::DeleteInserted {
             layer: record.layer,
             id: record.id,
         });
         Ok(())
+    }
+    
+    /// Helper method for tests - добавляет операцию обновления
+    #[cfg(test)]
+    pub fn update(&mut self, layer: Layer, id: Uuid, record: Record) -> Result<()> {
+        if self.status != TransactionStatus::Active {
+            return Err(anyhow!("Transaction is not active"));
+        }
+        self.operations.push(TransactionOp::Update { layer, id, record });
+        Ok(())
+    }
+    
+    /// Helper method for tests - добавляет операцию удаления
+    #[cfg(test)]
+    pub fn delete(&mut self, layer: Layer, id: Uuid) -> Result<()> {
+        if self.status != TransactionStatus::Active {
+            return Err(anyhow!("Transaction is not active"));
+        }
+        self.operations.push(TransactionOp::Delete { layer, id });
+        Ok(())
+    }
+    
+    /// Helper method for tests - добавляет операцию батчевой вставки
+    #[cfg(test)]
+    pub fn batch_insert(&mut self, records: Vec<Record>) -> Result<()> {
+        if self.status != TransactionStatus::Active {
+            return Err(anyhow!("Transaction is not active"));
+        }
+        // Добавляем rollback actions для каждой записи в батче
+        for record in &records {
+            self.rollback_actions.push(RollbackAction::DeleteInserted {
+                layer: record.layer,
+                id: record.id,
+            });
+        }
+        self.operations.push(TransactionOp::BatchInsert { records });
+        Ok(())
+    }
+    
+    /// Получить количество операций
+    #[cfg(test)]
+    pub fn operations_count(&self) -> usize {
+        self.operations.len()
+    }
+    
+    /// Получить количество rollback actions
+    #[cfg(test)]
+    pub fn rollback_actions_count(&self) -> usize {
+        self.rollback_actions.len()
+    }
+    
+    /// Получить rollback actions (для тестов)
+    #[cfg(test)]
+    pub fn rollback_actions(&self) -> &[RollbackAction] {
+        &self.rollback_actions
+    }
+    
+    /// Добавить rollback action (для тестов)
+    #[cfg(test)]
+    pub fn add_rollback_action(&mut self, action: RollbackAction) {
+        self.rollback_actions.push(action);
     }
 }
 
@@ -141,7 +211,7 @@ impl TransactionManager {
         let mut transaction = transactions.remove(&tx_id)
             .ok_or_else(|| anyhow!("Transaction {} not found", tx_id))?;
         
-        Ok(transaction.take_operations())
+        transaction.take_operations()
     }
 
     /// Откатить транзакцию
@@ -232,7 +302,7 @@ mod tests {
         assert_eq!(tx.operations.len(), 1);
         assert_eq!(tx.rollback_actions.len(), 1);
         
-        let ops = tx.take_operations();
+        let ops = tx.take_operations().unwrap();
         assert_eq!(ops.len(), 1);
         assert_eq!(tx.status, TransactionStatus::Committed);
     }

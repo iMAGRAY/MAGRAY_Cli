@@ -23,6 +23,7 @@ struct CtlSync {
     claude_path: PathBuf,
     cache: FileCache,
     component_regex: Regex,
+    ctl3_tensor_regex: Regex,
     schema: JSONSchema,
 }
 
@@ -126,6 +127,7 @@ impl CtlSync {
             claude_path,
             cache,
             component_regex: Regex::new(r#"//\s*@component:\s*(\{.*\})"#).unwrap(),
+            ctl3_tensor_regex: Regex::new(r#"//\s*@ctl3:\s*(Ⱦ\[.*?\]\s*:=\s*\{[^}]*\})"#).unwrap(),
             schema,
         }
     }
@@ -141,9 +143,10 @@ impl CtlSync {
         let mut components = Vec::new();
         
         for (line_no, line) in content.lines().enumerate() {
+            // CTL v2.0 JSON format
             if let Some(caps) = self.component_regex.captures(line) {
                 if let Some(json_str) = caps.get(1) {
-                    println!("      Found annotation: {}", json_str.as_str());
+                    println!("      Found CTL v2.0 annotation: {}", json_str.as_str());
                     match serde_json::from_str::<Value>(json_str.as_str()) {
                         Ok(mut component) => {
                             // Validate against CTL schema
@@ -170,9 +173,122 @@ impl CtlSync {
                     }
                 }
             }
+            
+            // CTL v3.0 Tensor format
+            if let Some(caps) = self.ctl3_tensor_regex.captures(line) {
+                if let Some(tensor_str) = caps.get(1) {
+                    println!("      Found CTL v3.0 tensor: {}", tensor_str.as_str());
+                    if let Some(component) = self.parse_ctl3_tensor(tensor_str.as_str(), file_path, line_no + 1) {
+                        components.push(component);
+                    }
+                }
+            }
         }
         
         components
+    }
+
+    fn parse_ctl3_tensor(&self, tensor_str: &str, file_path: &str, line_no: usize) -> Option<Value> {
+        // CTL v3.0 tensor pattern: Ⱦ[id:type] := {tensor_operations}
+        let tensor_regex = Regex::new(r"Ⱦ\[([^:]+):([^\]]+)\]\s*:=\s*\{([^}]*)\}").unwrap();
+        
+        if let Some(caps) = tensor_regex.captures(tensor_str) {
+            let id = caps.get(1)?.as_str().trim();
+            let type_str = caps.get(2)?.as_str().trim();
+            let operations = caps.get(3)?.as_str().trim();
+            
+            // Convert CTL v3.0 to CTL v2.0 format for compatibility
+            let mut component = serde_json::json!({
+                "k": self.infer_kind_from_type(type_str),
+                "id": id,
+                "t": format!("{} (CTL v3.0)", type_str),
+                "x_file": format!("{}:{}", file_path, line_no),
+                "ctl3_tensor": tensor_str
+            });
+            
+            // Parse tensor operations for metadata
+            if let Some(maturity) = self.extract_maturity_tensor(operations) {
+                component["m"] = maturity;
+            }
+            
+            if let Some(flags) = self.extract_flags_tensor(operations) {
+                component["f"] = serde_json::Value::Array(flags);
+            }
+            
+            if let Some(dependencies) = self.extract_dependencies_tensor(operations) {
+                component["d"] = serde_json::Value::Array(dependencies);
+            }
+            
+            Some(component)
+        } else {
+            println!("        Failed to parse CTL v3.0 tensor: {}", tensor_str);
+            None
+        }
+    }
+    
+    fn infer_kind_from_type(&self, type_str: &str) -> &str {
+        match type_str.to_lowercase().as_str() {
+            s if s.contains("test") => "T",
+            s if s.contains("agent") => "A", 
+            s if s.contains("batch") => "B",
+            s if s.contains("function") => "F",
+            s if s.contains("module") => "M",
+            s if s.contains("service") => "S",
+            s if s.contains("resource") => "R",
+            s if s.contains("process") => "P",
+            s if s.contains("data") => "D",
+            s if s.contains("error") => "E",
+            _ => "C" // Component by default
+        }
+    }
+    
+    fn extract_maturity_tensor(&self, operations: &str) -> Option<Value> {
+        // Look for ∇[cur→tgt] pattern
+        let maturity_regex = Regex::new(r"∇\[(\d+)→(\d+)\]").unwrap();
+        if let Some(caps) = maturity_regex.captures(operations) {
+            let cur: u32 = caps.get(1)?.as_str().parse().ok()?;
+            let tgt: u32 = caps.get(2)?.as_str().parse().ok()?;
+            
+            Some(serde_json::json!({
+                "cur": cur,
+                "tgt": tgt,
+                "u": "%"
+            }))
+        } else {
+            None
+        }
+    }
+    
+    fn extract_flags_tensor(&self, operations: &str) -> Option<Vec<Value>> {
+        // Look for feature flags in tensor operations
+        let mut flags = Vec::new();
+        
+        // Extract from various tensor operators
+        if operations.contains("⊗") { flags.push("tensor_composition".into()); }
+        if operations.contains("⊕") { flags.push("tensor_addition".into()); }
+        if operations.contains("∇") { flags.push("optimization".into()); }
+        if operations.contains("∂") { flags.push("partial_implementation".into()); }
+        if operations.contains("⟹") { flags.push("implication".into()); }
+        if operations.contains("gpu") { flags.push("gpu".into()); }
+        if operations.contains("ai") || operations.contains("ml") { flags.push("ai".into()); }
+        if operations.contains("async") { flags.push("async".into()); }
+        
+        if flags.is_empty() { None } else { Some(flags) }
+    }
+    
+    fn extract_dependencies_tensor(&self, operations: &str) -> Option<Vec<Value>> {
+        // Look for ⊗[dep1, dep2] pattern
+        let dep_regex = Regex::new(r"⊗\[([^\]]+)\]").unwrap();
+        if let Some(caps) = dep_regex.captures(operations) {
+            let deps_str = caps.get(1)?.as_str();
+            let deps: Vec<Value> = deps_str
+                .split(',')
+                .map(|s| s.trim().to_string().into())
+                .collect();
+            Some(deps)
+        } else {
+            None
+        }
     }
 
     fn scan_crates(&mut self) -> (bool, Vec<Value>) {
@@ -233,7 +349,7 @@ impl CtlSync {
             let mut new_section = format!(
                 "# AUTO-GENERATED ARCHITECTURE\n\n\
                 *Last updated: {}*\n\n\
-                ## Components (CTL v2.0 Format)\n\n\
+                ## Components (CTL v2.0/v3.0 Mixed Format)\n\n\
                 ```json\n",
                 timestamp
             );
@@ -319,8 +435,13 @@ impl CtlSync {
 }
 
 fn main() {
-    println!("CTL v2.0 Sync Daemon (Rust)");
-    println!("===========================\n");
+    println!("CTL v3.0 Tensor Sync Daemon (Rust)");
+    println!("===================================");
+    println!("Supports:");
+    println!("  - CTL v2.0 JSON format: // @component: {{...}}");
+    println!("  - CTL v3.0 Tensor format: // @ctl3: Ⱦ[id:type] := {{...}}");
+    println!("  - Tensor operators: ⊗,⊕,∇,∂,⟹ with auto-parsing");
+    println!();
 
     let args: Vec<String> = std::env::args().collect();
     let mode = args.get(1).map(|s| s.as_str()).unwrap_or("once");

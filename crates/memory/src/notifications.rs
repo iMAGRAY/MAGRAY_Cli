@@ -92,6 +92,7 @@ impl Default for NotificationConfig {
 
 /// Трейт для отправки уведомлений
 #[async_trait]
+#[allow(dead_code)]
 pub trait NotificationSender: Send + Sync {
     /// Уникальное имя канала
     fn channel_name(&self) -> &str;
@@ -115,6 +116,7 @@ pub trait NotificationSender: Send + Sync {
 }
 
 /// Консольный отправитель уведомлений
+#[allow(dead_code)]
 pub struct ConsoleSender {
     colored: bool,
 }
@@ -152,6 +154,7 @@ impl NotificationSender for ConsoleSender {
 }
 
 /// Log отправитель уведомлений
+#[allow(dead_code)]
 pub struct LogSender;
 
 #[async_trait]
@@ -177,6 +180,7 @@ impl NotificationSender for LogSender {
 }
 
 /// Webhook отправитель уведомлений
+#[allow(dead_code)]
 pub struct WebhookSender {
     url: String,
     method: String,
@@ -185,6 +189,7 @@ pub struct WebhookSender {
     client: reqwest::Client,
 }
 
+#[allow(dead_code)]
 impl WebhookSender {
     pub fn new(url: String, method: String, headers: HashMap<String, String>, auth_token: Option<String>) -> Self {
         Self {
@@ -257,6 +262,7 @@ impl NotificationSender for WebhookSender {
 }
 
 /// Slack отправитель уведомлений
+#[allow(dead_code)]
 pub struct SlackSender {
     webhook_url: String,
     channel: Option<String>,
@@ -264,6 +270,7 @@ pub struct SlackSender {
     client: reqwest::Client,
 }
 
+#[allow(dead_code)]
 impl SlackSender {
     pub fn new(webhook_url: String, channel: Option<String>, mention_users: Vec<String>) -> Self {
         Self {
@@ -382,6 +389,7 @@ impl NotificationSender for SlackSender {
 }
 
 /// Главный менеджер уведомлений
+#[allow(dead_code)]
 pub struct NotificationManager {
     config: NotificationConfig,
     senders: HashMap<String, Arc<dyn NotificationSender>>,
@@ -389,6 +397,7 @@ pub struct NotificationManager {
     grouped_alerts: Arc<parking_lot::RwLock<Vec<HealthAlert>>>,
 }
 
+#[allow(dead_code)]
 impl NotificationManager {
     /// Создает новый менеджер уведомлений
     pub fn new(config: NotificationConfig) -> Result<Self> {

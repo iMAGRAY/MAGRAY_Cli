@@ -299,13 +299,13 @@ async fn test_metrics_performance_tracking() -> Result<()> {
     assert_eq!(search_latency.count, 5);
     assert!(search_latency.min_ms <= 5.0);
     assert!(search_latency.max_ms >= 100.0);
-    assert!(search_latency.avg_ms > 0.0);
+    assert!(search_latency.avg_ms() > 0.0);
     
     println!("Search latency stats:");
     println!("  Count: {}", search_latency.count);
     println!("  Min: {:.2}ms", search_latency.min_ms);
     println!("  Max: {:.2}ms", search_latency.max_ms);
-    println!("  Avg: {:.2}ms", search_latency.avg_ms);
+    println!("  Avg: {:.2}ms", search_latency.avg_ms());
     println!("  P50: {:.2}ms", search_latency.p50_ms);
     println!("  P90: {:.2}ms", search_latency.p90_ms);
     println!("  P99: {:.2}ms", search_latency.p99_ms);

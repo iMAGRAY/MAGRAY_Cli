@@ -25,7 +25,7 @@ fn test_record_vector_search() {
     assert_eq!(metrics.vector_searches, 2);
     assert_eq!(metrics.total_operations, 2);
     assert_eq!(metrics.vector_search_latency_ms.count, 2);
-    assert!(metrics.vector_search_latency_ms.avg_ms > 0.0);
+    assert!(metrics.vector_search_latency_ms.avg_ms() > 0.0);
 }
 
 #[test]
@@ -124,7 +124,7 @@ fn test_promotion_cycle_duration() {
     
     let metrics = collector.snapshot();
     assert_eq!(metrics.promotion_cycle_duration_ms.count, 2);
-    assert_eq!(metrics.promotion_cycle_duration_ms.avg_ms, 150.0);
+    assert_eq!(metrics.promotion_cycle_duration_ms.avg_ms(), 150.0);
 }
 
 #[test]

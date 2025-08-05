@@ -3,9 +3,9 @@ use llm::{LlmClient, IntentAnalyzerAgent};
 use router::SmartRouter;
 use memory::{DIMemoryService, default_config};
 use common::OperationTimer;
-use tracing::{info, debug};
+use tracing::{info, debug, warn};
 
-// @component: {"k":"C","id":"unified_agent","t":"Main agent orchestrator","m":{"cur":60,"tgt":90,"u":"%"},"d":["llm_client","smart_router"],"f":["agents","routing","memory"]}
+// @component: {"k":"C","id":"unified_agent","t":"Main agent orchestrator (LEGACY - see UnifiedAgentV2)","m":{"cur":90,"tgt":95,"u":"%"},"d":["clean_architecture","solid_principles"],"f":["agents","routing","memory","clean_architecture","solid_principles","di_integration","strategy_pattern","circuit_breaker"]}
 pub struct UnifiedAgent {
     llm_client: LlmClient,
     smart_router: SmartRouter,
@@ -22,7 +22,11 @@ pub enum AgentResponse {
 }
 
 impl UnifiedAgent {
+    /// LEGACY: Создание оригинального UnifiedAgent
+    /// 
+    /// ⚠️  DEPRECATED: Используйте UnifiedAgentV2::new() для Clean Architecture
     pub async fn new() -> Result<Self> {
+        warn!("🤖 Создание LEGACY UnifiedAgent - рекомендуется использовать UnifiedAgentV2");
         info!("🤖 Инициализация UnifiedAgent с DI системой");
         
         let llm_client = LlmClient::from_env()?;
@@ -38,7 +42,8 @@ impl UnifiedAgent {
         memory_service.initialize().await
             .map_err(|e| anyhow::anyhow!("Ошибка инициализации слоев памяти: {}", e))?;
         
-        info!("✅ UnifiedAgent создан с DI мамятью");
+        info!("✅ LEGACY UnifiedAgent создан с DI памятью");
+        warn!("💡 Для production используйте UnifiedAgentV2 с Clean Architecture");
         
         Ok(Self { 
             llm_client, 
@@ -48,6 +53,9 @@ impl UnifiedAgent {
         })
     }
     
+    /// LEGACY: Обработка сообщения через оригинальную архитектуру
+    /// 
+    /// ⚠️  DEPRECATED: Используйте UnifiedAgentV2::process_user_request() для лучшей архитектуры
     pub async fn process_message(&self, message: &str) -> Result<AgentResponse> {
         let mut timer = OperationTimer::new("agent_process_message");
         timer.add_field("message_length", message.len());

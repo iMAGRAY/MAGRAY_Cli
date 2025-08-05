@@ -4,8 +4,8 @@
 use anyhow::Result;
 use memory::{default_config, MemoryDIConfigurator};
 
-#[tokio::main]
-async fn main() -> Result<()> {
+#[tokio::test]
+async fn test_simple_di_system() -> Result<()> {
     println!("🧪 Простейший тест DI системы");
     
     // Тест создания конфигурации
@@ -20,3 +20,5 @@ async fn main() -> Result<()> {
     
     Ok(())
 }
+
+// Убираем main функцию, это должен быть тест, а не бинарный файл

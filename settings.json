@@ -1,0 +1,37 @@
+{
+  "project": {
+    "name": "MAGRAY_CLI",
+    "description": "Production-ready Rust AI агент с многослойной памятью",
+    "crates_dir": "crates",
+    "claude_md_file": "CLAUDE.md",
+    "file_extensions": [
+      ".rs",
+      ".toml"
+    ]
+  },
+  "scanning": {
+    "exclude_dirs": [
+      "target",
+      "node_modules",
+      ".git",
+      "__pycache__"
+    ],
+    "file_extensions": [
+      ".rs",
+      ".toml"
+    ],
+    "max_file_size_mb": 5
+  },
+  "parsing": {
+    "ctl2": {
+      "enabled": true
+    },
+    "ctl3": {
+      "enabled": true
+    }
+  },
+  "features": {
+    "colored_output": true,
+    "statistics": true
+  }
+}

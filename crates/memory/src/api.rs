@@ -32,68 +32,148 @@ pub trait MemoryServiceTrait: Send + Sync {
 /// Реализация trait для DIMemoryService
 impl MemoryServiceTrait for DIMemoryService {
     fn search_sync(&self, query: &str, layer: Layer, top_k: usize) -> Result<Vec<Record>> {
-        // Используем новый runtime чтобы избежать вложенности
-        let rt = tokio::runtime::Runtime::new()?;
-        
-        rt.block_on(async {
-            let options = CoreSearchOptions {
-                top_k,
-                ..Default::default()
-            };
-            self.search(query, layer, options).await
-        })
+        // Проверяем, если мы уже в async контексте
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => {
+                // Мы в async контексте, используем block_in_place
+                let options = CoreSearchOptions {
+                    top_k,
+                    ..Default::default()
+                };
+                tokio::task::block_in_place(|| {
+                    let rt = tokio::runtime::Runtime::new()?;
+                    rt.block_on(async {
+                        self.search(query, layer, options).await
+                    })
+                })
+            }
+            Err(_) => {
+                // Мы не в async контексте, создаем новый runtime
+                let rt = tokio::runtime::Runtime::new()?;
+                let options = CoreSearchOptions {
+                    top_k,
+                    ..Default::default()
+                };
+                rt.block_on(async {
+                    self.search(query, layer, options).await
+                })
+            }
+        }
     }
     
     fn run_promotion_sync(&self) -> Result<PromotionStats> {
-        // Используем новый runtime чтобы избежать вложенности
-        let rt = tokio::runtime::Runtime::new()?;
-        
-        rt.block_on(async {
-            self.run_promotion().await
-        })
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => {
+                tokio::task::block_in_place(|| {
+                    let rt = tokio::runtime::Runtime::new()?;
+                    rt.block_on(async {
+                        self.run_promotion().await
+                    })
+                })
+            }
+            Err(_) => {
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(async {
+                    self.run_promotion().await
+                })
+            }
+        }
     }
     
     fn get_system_health(&self) -> SystemHealthStatus {
-        // Используем новый runtime чтобы избежать вложенности
-        match tokio::runtime::Runtime::new() {
-            Ok(rt) => {
-                rt.block_on(async { 
-                    self.check_health().await.unwrap_or_else(|_| SystemHealthStatus::default())
-                })
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => {
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    tokio::task::block_in_place(|| {
+                        let rt = tokio::runtime::Runtime::new().ok()?;
+                        rt.block_on(async { 
+                            self.check_health().await.ok()
+                        })
+                    })
+                })) {
+                    Ok(Some(result)) => result,
+                    _ => SystemHealthStatus::default()
+                }
             }
-            Err(_) => SystemHealthStatus::default()
+            Err(_) => {
+                match tokio::runtime::Runtime::new() {
+                    Ok(rt) => {
+                        rt.block_on(async { 
+                            self.check_health().await.unwrap_or_else(|_| SystemHealthStatus::default())
+                        })
+                    }
+                    Err(_) => SystemHealthStatus::default()
+                }
+            }
         }
     }
     
     fn cache_stats(&self) -> (u64, u64, u64) {
-        // Для DIMemoryService возвращаем базовую статистику
-        // так как полная реализация требует async доступа к координаторам
-        (0, 0, 0) // hits, misses, total
+        // Безопасное получение статистики кэша
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => {
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    tokio::task::block_in_place(|| {
+                        let rt = tokio::runtime::Runtime::new().ok()?;
+                        rt.block_on(async {
+                            let stats = self.get_stats().await;
+                            Some((stats.cache_hits, stats.cache_misses, stats.cache_hits + stats.cache_misses))
+                        })
+                    })
+                })) {
+                    Ok(Some(result)) => result,
+                    _ => (0, 0, 0)
+                }
+            }
+            Err(_) => {
+                match tokio::runtime::Runtime::new() {
+                    Ok(rt) => {
+                        rt.block_on(async {
+                            let stats = self.get_stats().await;
+                            (stats.cache_hits, stats.cache_misses, stats.cache_hits + stats.cache_misses)
+                        })
+                    }
+                    Err(_) => (0, 0, 0)
+                }
+            }
+        }
     }
     
     fn remember_sync(&self, text: String, layer: Layer) -> Result<Uuid> {
-        // Используем новый runtime чтобы избежать вложенности
-        let rt = tokio::runtime::Runtime::new()?;
+        let record = Record {
+            id: Uuid::new_v4(),
+            text: text.clone(),
+            embedding: vec![],
+            layer,
+            kind: "note".to_string(),
+            tags: vec![],
+            project: "default".to_string(),
+            session: Uuid::new_v4().to_string(),
+            score: 0.5,
+            access_count: 1,
+            ts: chrono::Utc::now(),
+            last_access: chrono::Utc::now(),
+        };
+        let record_id = record.id;
         
-        rt.block_on(async {
-            let record = Record {
-                id: Uuid::new_v4(),
-                text,
-                embedding: vec![],
-                layer,
-                kind: "note".to_string(),
-                tags: vec![],
-                project: "default".to_string(),
-                session: Uuid::new_v4().to_string(),
-                score: 0.5,
-                access_count: 1,
-                ts: chrono::Utc::now(),
-                last_access: chrono::Utc::now(),
-            };
-            
-            self.insert(record.clone()).await?;
-            Ok(record.id)
-        })
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => {
+                tokio::task::block_in_place(|| {
+                    let rt = tokio::runtime::Runtime::new()?;
+                    rt.block_on(async {
+                        self.insert(record).await?;
+                        Ok(record_id)
+                    })
+                })
+            }
+            Err(_) => {
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(async {
+                    self.insert(record).await?;
+                    Ok(record_id)
+                })
+            }
+        }
     }
 }
 
@@ -114,36 +194,44 @@ impl UnifiedMemoryAPI {
         Self { service }
     }
     
-    /// Найти релевантную информацию
+    /// Найти релевантную информацию с timeout защитой
     pub async fn recall(&self, query: &str, options: SearchOptions) -> Result<Vec<MemoryResult>> {
-        // Поиск по всем указанным слоям или всем слоям если не указано
-        let layers_to_search = options.layers.unwrap_or_else(|| vec![Layer::Interact, Layer::Insights, Layer::Assets]);
-        let limit = options.limit.unwrap_or(10);
+        use tokio::time::{timeout, Duration};
         
-        let mut all_results = Vec::new();
+        let search_future = async {
+            // Поиск по всем указанным слоям или всем слоям если не указано
+            let layers_to_search = options.layers.unwrap_or_else(|| vec![Layer::Interact, Layer::Insights, Layer::Assets]);
+            let limit = options.limit.unwrap_or(10);
+            
+            let mut all_results = Vec::new();
+            
+            for layer in layers_to_search {
+                let layer_results = self.service.search_sync(query, layer, limit)?;
+                all_results.extend(layer_results);
+            }
+            
+            // Сортируем по релевантности и берем топ результатов
+            all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+            all_results.truncate(limit);
+            
+            Ok::<Vec<MemoryResult>, anyhow::Error>(all_results.into_iter()
+                .map(|r| MemoryResult {
+                    id: r.id,
+                    text: r.text,
+                    layer: r.layer,
+                    kind: r.kind,
+                    tags: r.tags,
+                    project: r.project,
+                    relevance_score: r.score,
+                    created_at: r.ts,
+                    access_count: r.access_count,
+                })
+                .collect())
+        };
         
-        for layer in layers_to_search {
-            let layer_results = self.service.search_sync(query, layer, limit)?;
-            all_results.extend(layer_results);
-        }
-        
-        // Сортируем по релевантности и берем топ результатов
-        all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
-        all_results.truncate(limit);
-        
-        Ok(all_results.into_iter()
-            .map(|r| MemoryResult {
-                id: r.id,
-                text: r.text,
-                layer: r.layer,
-                kind: r.kind,
-                tags: r.tags,
-                project: r.project,
-                relevance_score: r.score,
-                created_at: r.ts,
-                access_count: r.access_count,
-            })
-            .collect())
+        // Защита от зависания с таймаутом 30 секунд
+        timeout(Duration::from_secs(30), search_future).await
+            .map_err(|_| anyhow::anyhow!("Search timeout after 30 seconds"))?
     }
     
     /// Получить конкретную запись по ID
@@ -160,17 +248,33 @@ impl UnifiedMemoryAPI {
         Ok(false)
     }
     
-    /// Сохранить информацию в память
+    /// Сохранить информацию в память с timeout защитой
     pub async fn remember(&self, text: String, context: MemoryContext) -> Result<Uuid> {
+        use tokio::time::{timeout, Duration};
+        
         let layer = context.layer.unwrap_or(Layer::Interact);
-        self.service.remember_sync(text, layer)
+        let remember_future = async {
+            self.service.remember_sync(text, layer)
+        };
+        
+        // Защита от зависания с таймаутом 15 секунд
+        timeout(Duration::from_secs(15), remember_future).await
+            .map_err(|_| anyhow::anyhow!("Remember timeout after 15 seconds"))?
     }
     
     // ========== УПРАВЛЕНИЕ СИСТЕМОЙ ==========
     
-    /// Запустить цикл продвижения памяти
+    /// Запустить цикл продвижения памяти с timeout защитой
     pub async fn optimize_memory(&self) -> Result<OptimizationResult> {
-        let stats = self.service.run_promotion_sync()?;
+        use tokio::time::{timeout, Duration};
+        
+        let promotion_future = async {
+            self.service.run_promotion_sync()
+        };
+        
+        // Защита от зависания с таймаутом 60 секунд для promotion
+        let stats = timeout(Duration::from_secs(60), promotion_future).await
+            .map_err(|_| anyhow::anyhow!("Memory optimization timeout after 60 seconds"))??;
         
         Ok(OptimizationResult {
             promoted_to_insights: stats.interact_to_insights,

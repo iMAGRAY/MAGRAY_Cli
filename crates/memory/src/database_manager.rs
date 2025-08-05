@@ -98,6 +98,7 @@ impl DatabaseManager {
     }
     
     /// Создать базу данных для системных данных (метрики, промотирование, etc)
+    #[allow(dead_code)]
     pub fn get_system_database(&self, system_path: impl AsRef<Path>) -> Result<Arc<Db>> {
         let path = system_path.as_ref().to_path_buf();
         let mut connections = self.connections.lock();

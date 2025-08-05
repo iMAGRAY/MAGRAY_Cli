@@ -62,6 +62,9 @@ pub struct CurrentLimits {
     pub scaling_factor: f64,
 }
 
+// Alias для совместимости с orchestration coordinators
+pub type ResourceLimits = CurrentLimits;
+
 #[derive(Debug, Clone)]
 pub struct ScalingEvent {
     pub timestamp: Instant,
@@ -287,6 +290,13 @@ impl ResourceManager {
         if let Err(e) = self.update_limits_if_needed(&current_usage) {
             warn!("Ошибка при адаптации лимитов: {}", e);
         }
+    }
+    
+    /// Применить новые лимиты принудительно
+    pub fn apply_limits(&mut self, limits: ResourceLimits) {
+        info!("🔧 Применены новые лимиты: {} vectors, {:.1}MB cache", 
+              limits.max_vectors, limits.cache_size_bytes as f64 / 1024.0 / 1024.0);
+        *self.current_limits.write() = limits;
     }
     /// Получить статистику масштабирования
     pub fn get_scaling_stats(&self) -> ScalingStats {

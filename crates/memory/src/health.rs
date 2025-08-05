@@ -43,7 +43,7 @@ impl ComponentType {
 }
 
 /// Health статус компонента
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum HealthStatus {
     Healthy,
     Degraded,

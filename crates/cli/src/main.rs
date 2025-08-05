@@ -1,4 +1,5 @@
-﻿use anyhow::Result;
+// @component: {"k":"C","id":"cli_main","t":"CLI entry point with unified agent","m":{"cur":75,"tgt":100,"u":"%"},"f":["cli","agent","routing","services"]}
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use console::{style, Term};
 use indicatif::ProgressStyle;
@@ -232,7 +233,30 @@ async fn show_welcome_animation() -> Result<()> {
 }
 
 async fn handle_chat(message: Option<String>) -> Result<()> {
+    use tokio::time::{timeout, Duration as TokioDuration};
+    
     let _term = Term::stdout();
+    
+    // Проверяем, есть ли входные данные из pipe/stdin
+    let mut stdin_message = None;
+    if message.is_none() {
+        // Проверяем синхронно, есть ли данные в stdin
+        match std::thread::spawn(|| {
+            use std::io::{self, Read};
+            let mut input = String::new();
+            match io::stdin().read_to_string(&mut input) {
+                Ok(0) => None, // Нет данных
+                Ok(_) => {
+                    let trimmed = input.trim();
+                    if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+                }
+                Err(_) => None, // Ошибка чтения
+            }
+        }).join() {
+            Ok(result) => stdin_message = result,
+            Err(_) => {} // Паника в треде
+        }
+    }
     
     // Инициализация LLM клиента с анимацией
     let spinner = indicatif::ProgressBar::new_spinner();
@@ -277,11 +301,19 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
         }
     };
 
-    // Создаем единый агент
-    let agent = UnifiedAgent::new().await?;
+    // Создаем единый агент с timeout защитой
+    let agent_future = UnifiedAgent::new();
+    let agent = match timeout(TokioDuration::from_secs(30), agent_future).await {
+        Ok(Ok(agent)) => agent,
+        Ok(Err(e)) => return Err(e),
+        Err(_) => return Err(anyhow::anyhow!("Agent initialization timeout after 30 seconds")),
+    };
 
-    if let Some(msg) = message {
-        // Одиночное сообщение
+    // Определяем, какое сообщение обрабатывать
+    let final_message = message.or(stdin_message);
+    
+    if let Some(msg) = final_message {
+        // Одиночное сообщение (из аргументов или stdin)
         process_single_message(&agent, &msg).await?;
     } else {
         // Интерактивный чат
@@ -292,12 +324,27 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
 }
 
 async fn process_single_message(agent: &UnifiedAgent, message: &str) -> Result<()> {
-    let response = agent.process_message(message).await?;
+    use tokio::time::{timeout, Duration as TokioDuration};
+    
+    // Защита от зависания с таймаутом 60 секунд
+    let process_future = agent.process_message(message);
+    let response = match timeout(TokioDuration::from_secs(60), process_future).await {
+        Ok(Ok(response)) => response,
+        Ok(Err(e)) => return Err(e),
+        Err(_) => {
+            println!("{} Message processing timeout after 60 seconds", 
+                style("[⚠]").yellow().bold());
+            return Err(anyhow::anyhow!("Message processing timeout"));
+        }
+    };
+    
     display_response(response).await;
     Ok(())
 }
 
 async fn run_interactive_chat(agent: &UnifiedAgent) -> Result<()> {
+    use tokio::time::{timeout, Duration as TokioDuration};
+    
     println!("{} {}", 
         style("[★]").green().bold(), 
         style("Добро пожаловать в интерактивный режим!").bright().bold()
@@ -321,9 +368,31 @@ async fn run_interactive_chat(agent: &UnifiedAgent) -> Result<()> {
         );
         io::stdout().flush()?;
 
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        let input = input.trim();
+        // Читаем ввод в отдельном треде чтобы избежать зависания
+        let input_future = tokio::task::spawn_blocking(|| {
+            let mut input = String::new();
+            match io::stdin().read_line(&mut input) {
+                Ok(_) => Ok(input),
+                Err(e) => Err(e),
+            }
+        });
+        
+        let input = match timeout(TokioDuration::from_secs(300), input_future).await {
+            Ok(Ok(Ok(input))) => input.trim().to_string(),
+            Ok(Ok(Err(e))) => {
+                println!("{} Input error: {}", style("[✗]").red().bold(), e);
+                continue;
+            }
+            Ok(Err(_)) => {
+                println!("{} Input thread panicked", style("[✗]").red().bold());
+                continue;
+            }
+            Err(_) => {
+                println!("{} Input timeout after 5 minutes - exiting", 
+                    style("[⚠]").yellow().bold());
+                break;
+            }
+        };
 
         if input.is_empty() {
             continue;
@@ -334,7 +403,22 @@ async fn run_interactive_chat(agent: &UnifiedAgent) -> Result<()> {
             break;
         }
 
-        let response = agent.process_message(input).await?;
+        // Обрабатываем сообщение с timeout защитой
+        let process_future = agent.process_message(&input);
+        let response = match timeout(TokioDuration::from_secs(60), process_future).await {
+            Ok(Ok(response)) => response,
+            Ok(Err(e)) => {
+                println!("{} Processing error: {}", 
+                    style("[✗]").red().bold(), e);
+                continue;
+            }
+            Err(_) => {
+                println!("{} Message processing timeout after 60 seconds", 
+                    style("[⚠]").yellow().bold());
+                continue;
+            }
+        };
+        
         display_response(response).await;
         println!();
     }
