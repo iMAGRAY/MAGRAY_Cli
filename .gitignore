@@ -3,6 +3,8 @@ target/
 Cargo.lock
 **/*.rs.bk
 *.pdb
+implementation_plan/rust_skeleton/target/
+demo_db/
 
 # IDE
 .vscode/
@@ -53,10 +55,8 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
-<<<<<<< HEAD
-build_rs_cov_*.profraw
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
+*.profraw
+build_rs_cov.profraw
 
 # Documentation build
 docs/_build/
@@ -91,6 +91,14 @@ NUL
 *.zip
 *.tar.gz
 *.rar
+
+# Large binary files
+*.whl
+*.dll
+*.so
+*.dylib
+*.exe
+!scripts/onnxruntime/lib/*.dll
 
 # ONNX Runtime copies (keep only in scripts/)
 crates/memory/onnxruntime/
