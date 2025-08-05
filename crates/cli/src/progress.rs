@@ -2,6 +2,7 @@
 use std::time::Duration;
 use colored::Colorize;
 
+// @component: {"k":"C","id":"progress_type","t":"Operation types for progress","m":{"cur":95,"tgt":100,"u":"%"},"f":["ui","progress"]}
 /// Типы операций для адаптивных прогресс-баров
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
@@ -104,6 +105,7 @@ impl ProgressType {
     }
 }
 
+// @component: {"k":"C","id":"adaptive_spinner","t":"Smart adaptive progress spinner","m":{"cur":95,"tgt":100,"u":"%"},"f":["ui","progress","adaptive"]}
 /// Умный спиннер с адаптивным поведением
 pub struct AdaptiveSpinner {
     spinner: indicatif::ProgressBar,
@@ -261,6 +263,4 @@ impl ProgressBuilder {
         ProgressType::Memory.create_spinner(message)
     }
 }
-
-// @component: {"k":"C","id":"adaptive_progress","t":"Adaptive progress indicators","m":{"cur":95,"tgt":100,"u":"%"},"f":["ui","progress","adaptive"]}
 

@@ -1,3 +1,4 @@
+// @component: {"k":"C","id":"status_tests","t":"Unit tests for status command","m":{"cur":95,"tgt":100,"u":"%"},"f":["tests","status","cli"]}
 #[cfg(test)]
 mod tests {
     use crate::show_system_status;
@@ -147,4 +148,3 @@ mod tests {
     }
 }
 
-// @component: {"k":"C","id":"status_tests","t":"Unit tests for status command","m":{"cur":95,"tgt":100,"u":"%"},"f":["tests","status","cli"]}

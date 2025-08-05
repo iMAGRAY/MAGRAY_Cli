@@ -1,5 +1,6 @@
 ﻿use serde::{Deserialize, Serialize};
 
+// @component: {"k":"C","id":"flush_config","t":"Configurable flush intervals","m":{"cur":95,"tgt":100,"u":"%"},"f":["config","performance","reliability"]}
 /// Конфигурация flush intervals для различных компонентов
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlushConfig {
@@ -260,4 +261,3 @@ impl FlushConfig {
     }
 }
 
-// @component: {"k":"C","id":"flush_config","t":"Configurable flush intervals","m":{"cur":95,"tgt":100,"u":"%"},"f":["config","performance","reliability"]}

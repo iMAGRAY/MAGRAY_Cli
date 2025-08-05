@@ -24,7 +24,7 @@ use crate::{
 use ai::{AiConfig, EmbeddingConfig, ModelLoader};
 
 /// Конфигуратор DI для memory системы
-// @component: {"k":"C","id":"memory_di_configurator","t":"DI configuration for memory system","m":{"cur":95,"tgt":100,"u":"%"},"f":["di","config","memory"]}
+// @component: {"k":"C","id":"memory_di_config","t":"DI configuration for memory system","m":{"cur":60,"tgt":100,"u":"%"},"f":["di","config","memory"]}
 pub struct MemoryDIConfigurator;
 
 impl MemoryDIConfigurator {
@@ -38,8 +38,8 @@ impl MemoryDIConfigurator {
             .configure_core_dependencies(&config).await?
             .configure_storage_layer(&config).await?
             .configure_cache_layer(&config).await?
+            .configure_monitoring_layer(&config).await?  // Мониторинг до processing layer
             .configure_processing_layer(&config).await?
-            .configure_monitoring_layer(&config).await?
             .configure_backup_layer(&config).await?
             .build()?;
 
@@ -101,7 +101,7 @@ impl MemoryDIConfigurator {
         let promotion_engine = PromotionEngine::new(store, promotion_config, temp_db).await
             .map_err(|e| anyhow::anyhow!("Failed to create PromotionEngine: {}", e))?;
         
-        container.register_instance(Arc::new(promotion_engine))?;
+        container.register_instance(promotion_engine)?;
 
         // Создаем MLPromotionEngine
         let ml_config = MLPromotionConfig::default();
@@ -112,7 +112,7 @@ impl MemoryDIConfigurator {
         let ml_engine = MLPromotionEngine::new(store_for_ml, ml_config).await
             .map_err(|e| anyhow::anyhow!("Failed to create MLPromotionEngine: {}", e))?;
         
-        container.register_instance(Arc::new(ml_engine))?;
+        container.register_instance(ml_engine)?;
 
         // GPU Processor (опционально)
         if config.ai_config.embedding.use_gpu {
@@ -126,7 +126,7 @@ impl MemoryDIConfigurator {
             let processor = GpuBatchProcessor::new(gpu_config, (*embedding_config).clone(), (*cache).clone()).await
                 .map_err(|e| anyhow::anyhow!("Failed to create GpuBatchProcessor: {}", e))?;
             
-            container.register_instance(Arc::new(processor))?;
+            container.register_instance(processor)?;
         }
 
         info!("✅ Async компоненты настроены");
@@ -257,7 +257,8 @@ impl MemoryDIExtensions for DIContainerBuilder {
                 info!("Создание BatchOperationManager");
                 let store = container.resolve::<VectorStore>()?;
                 let batch_config = BatchConfig::default();
-                let metrics = container.try_resolve::<MetricsCollector>();
+                let metrics = container.try_resolve::<Arc<MetricsCollector>>()
+                    .map(|arc_arc| arc_arc.as_ref().clone());
                 let manager = BatchOperationManager::new(store, batch_config, metrics);
                 Ok(Arc::new(manager))
             })?;

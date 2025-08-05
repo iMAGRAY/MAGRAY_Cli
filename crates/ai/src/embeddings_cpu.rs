@@ -12,7 +12,7 @@ use tracing::{info, debug};
 #[cfg(feature = "gpu")]
 use tracing::warn;
 
-/// @component: {"k":"C","id":"embeddings_cpu","t":"CPU-based embeddings","m":{"cur":90,"tgt":95,"u":"%"}}
+/// @component: {"k":"C","id":"embeddings_cpu","t":"CPU-based embeddings","m":{"cur":90,"tgt":95,"u":"%"},"f":["ai","embeddings","cpu","onnx"]}
 /// CPU-based Embedding Service with real tokenization and batching (supports BGE-M3 and Qwen3)
 pub struct CpuEmbeddingService {
     session: Arc<Mutex<Session>>,

@@ -10,7 +10,7 @@ use ai::{
 };
 use tracing::{info, warn, error};
 
-/// @component: {"k":"C","id":"gpu_commands","t":"GPU management CLI","m":{"cur":95,"tgt":100,"u":"%"}}
+/// @component: {"k":"C","id":"gpu_commands","t":"GPU management CLI","m":{"cur":95,"tgt":100,"u":"%"},"f":["cli","commands","gpu"]}
 #[derive(Debug, Args)]
 pub struct GpuCommand {
     #[command(subcommand)]

@@ -1,7 +1,9 @@
+// @component: {"k":"C","id":"memory_types","t":"Memory system core types","m":{"cur":95,"tgt":100,"u":"%"},"f":["memory","types","core"]}
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+// @component: {"k":"C","id":"layer_enum","t":"Memory layer enum types","m":{"cur":100,"tgt":100,"u":"%"},"f":["memory","types","enum"]}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum Layer {
     Interact,   // L1 - hot context (24h TTL)
@@ -27,6 +29,7 @@ impl Layer {
     }
 }
 
+// @component: {"k":"C","id":"memory_record","t":"Memory record structure","m":{"cur":95,"tgt":100,"u":"%"},"f":["memory","types","record"]}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Record {
     pub id: Uuid,

@@ -2,7 +2,7 @@ use std::fmt;
 use thiserror::Error;
 
 /// Основная иерархия ошибок для MAGRAY CLI
-// @component: {"k":"C","id":"magray_error_types","t":"Comprehensive error type system","m":{"cur":0,"tgt":95,"u":"%"},"f":["errors","production","monitoring"]}
+// @component: {"k":"C","id":"magray_error_types","t":"Comprehensive error type system","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","production","monitoring"]}
 #[derive(Error, Debug)]
 pub enum MagrayError {
     // === Системные ошибки ===
@@ -71,6 +71,7 @@ pub enum MagrayError {
 }
 
 /// Database-specific errors
+// @component: {"k":"C","id":"database_error","t":"Database error types","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","database"]}
 #[derive(Error, Debug)]
 pub enum DatabaseError {
     #[error("Connection failed: {0}")]
@@ -93,6 +94,7 @@ pub enum DatabaseError {
 }
 
 /// Network-specific errors
+// @component: {"k":"C","id":"network_error","t":"Network error types","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","network"]}
 #[derive(Error, Debug)]
 pub enum NetworkError {
     #[error("Connection refused: {0}")]
@@ -112,6 +114,7 @@ pub enum NetworkError {
 }
 
 /// Validation errors
+// @component: {"k":"C","id":"validation_error","t":"Validation error types","m":{"cur":90,"tgt":95,"u":"%"},"f":["errors","validation"]}
 #[derive(Error, Debug)]
 pub enum ValidationError {
     #[error("Invalid input: {field} - {reason}")]
@@ -136,6 +139,7 @@ pub enum ValidationError {
 }
 
 /// AI/Embedding errors
+// @component: {"k":"C","id":"embedding_error","t":"Embedding error types","m":{"cur":80,"tgt":95,"u":"%"},"f":["errors","ai","embeddings"]}
 #[derive(Error, Debug)]
 pub enum EmbeddingError {
     #[error("Model not loaded: {0}")]
@@ -155,6 +159,7 @@ pub enum EmbeddingError {
 }
 
 /// GPU-specific errors
+// @component: {"k":"C","id":"gpu_error","t":"GPU error types","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","gpu"]}
 #[derive(Error, Debug)]
 pub enum GpuError {
     #[error("GPU not available: {0}")]
@@ -174,6 +179,7 @@ pub enum GpuError {
 }
 
 /// Memory system errors
+// @component: {"k":"C","id":"memory_error","t":"Memory system error types","m":{"cur":80,"tgt":95,"u":"%"},"f":["errors","memory"]}
 #[derive(Error, Debug)]
 pub enum MemoryError {
     #[error("Memory limit exceeded: {used}MB / {limit}MB")]
@@ -190,6 +196,7 @@ pub enum MemoryError {
 }
 
 /// Cache errors
+// @component: {"k":"C","id":"cache_error","t":"Cache error types","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","cache"]}
 #[derive(Error, Debug)]
 pub enum CacheError {
     #[error("Cache miss for key: {0}")]
@@ -209,6 +216,7 @@ pub enum CacheError {
 }
 
 /// Vector index errors
+// @component: {"k":"C","id":"index_error","t":"Vector index error types","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","index","vector"]}
 #[derive(Error, Debug)]
 pub enum IndexError {
     #[error("Index not built")]
@@ -281,6 +289,7 @@ impl IsRecoverable for MagrayError {
 }
 
 /// Error severity для alerting
+// @component: {"k":"C","id":"error_severity","t":"Error severity levels","m":{"cur":95,"tgt":100,"u":"%"},"f":["errors","monitoring","alerting"]}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ErrorSeverity {
     Low,

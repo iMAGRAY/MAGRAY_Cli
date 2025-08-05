@@ -5,6 +5,7 @@ use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 
+// @component: {"k":"C","id":"file_reader","t":"File reading tool","m":{"cur":90,"tgt":95,"u":"%"},"f":["tools","file","read"]}
 // FileReader - чтение файлов с простым форматированием
 pub struct FileReader;
 
@@ -78,6 +79,7 @@ impl Tool for FileReader {
     }
 }
 
+// @component: {"k":"C","id":"file_writer","t":"File writing tool","m":{"cur":90,"tgt":95,"u":"%"},"f":["tools","file","write"]}
 // FileWriter - запись файлов
 pub struct FileWriter;
 
@@ -145,6 +147,7 @@ impl Tool for FileWriter {
     }
 }
 
+// @component: {"k":"C","id":"dir_lister","t":"Directory listing tool","m":{"cur":85,"tgt":95,"u":"%"},"f":["tools","directory","list"]}
 // DirLister - просмотр директорий
 pub struct DirLister;
 
@@ -247,6 +250,7 @@ impl Tool for DirLister {
     }
 }
 
+// @component: {"k":"C","id":"file_searcher","t":"File search tool","m":{"cur":80,"tgt":90,"u":"%"},"f":["tools","search","file"]}
 // FileSearcher - поиск файлов
 pub struct FileSearcher;
 

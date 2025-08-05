@@ -5,17 +5,7 @@ use memory::{DIMemoryService, default_config};
 use common::OperationTimer;
 use tracing::{info, debug};
 
-// @component: {"k":"C","id":"unified_agent","t":"Main agent orchestrator","m":{"cur":70,"tgt":95,"u":"%"},"d":["llm_client","smart_router","di_memory_service"]}
-
-// @component: UnifiedAgent
-// @file: crates/cli/src/agent.rs:6-70
-// @status: WORKING
-// @performance: O(1) routing, O(n) downstream
-// @dependencies: LlmClient(✅), SmartRouter(⚠️), IntentAnalyzerAgent(✅)
-// @tests: ❌ No unit tests found
-// @production_ready: 60%
-// @issues: Missing error handling for LLM failures
-// @upgrade_path: Add retry logic, timeout configuration
+// @component: {"k":"C","id":"unified_agent","t":"Main agent orchestrator","m":{"cur":60,"tgt":90,"u":"%"},"d":["llm_client","smart_router"],"f":["agents","routing","memory"]}
 pub struct UnifiedAgent {
     llm_client: LlmClient,
     smart_router: SmartRouter,

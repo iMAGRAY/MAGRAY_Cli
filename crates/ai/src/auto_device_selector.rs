@@ -6,7 +6,7 @@ use tracing::warn;
 use crate::gpu_detector::GpuDetector;
 use crate::EmbeddingConfig;
 
-/// @component: {"k":"C","id":"auto_device_selector","t":"Auto CPU/GPU selector","m":{"cur":95,"tgt":100,"u":"%"}}
+/// @component: {"k":"C","id":"auto_device_selector","t":"Auto CPU/GPU selector","m":{"cur":95,"tgt":100,"u":"%"},"f":["ai","gpu","device-selection"]}
 #[derive(Debug, Clone)]
 pub struct AutoDeviceSelector {
     /// Размер теста для бенчмарка

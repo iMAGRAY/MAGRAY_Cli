@@ -10,6 +10,7 @@ pub struct ParameterExtraction {
     pub missing_params: Vec<String>,
 }
 
+// @component: {"k":"C","id":"param_extractor","t":"Parameter extraction agent","m":{"cur":70,"tgt":95,"u":"%"},"f":["agent","nlp","extraction"]}
 /// Агент для извлечения параметров из естественного языка
 pub struct ParameterExtractorAgent {
     llm: LlmClient,

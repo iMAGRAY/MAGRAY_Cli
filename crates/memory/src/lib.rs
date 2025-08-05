@@ -1,4 +1,5 @@
-﻿mod batch_manager;
+// @component: {"k":"C","id":"memory_lib","t":"3-layer HNSW memory system","m":{"cur":75,"tgt":95,"u":"%"},"f":["memory","hnsw","layers","orchestration"]}
+mod batch_manager;
 mod cache;
 mod cache_lru;
 mod cache_interface;

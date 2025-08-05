@@ -176,6 +176,7 @@ impl DIContainer {
                         let mut metrics = self.performance_metrics.write();
                         metrics.record_error(&type_name);
                     }
+                    warn!("Type {} not registered in DI container", type_name);
                     anyhow::anyhow!("Type {} not registered", type_name)
                 })?
         };
@@ -236,6 +237,10 @@ impl DIContainer {
             Ok(instance) => Some(instance),
             Err(e) => {
                 let type_name = std::any::type_name::<T>();
+                // Более детальное логирование для отладки Unknown type
+                if e.to_string().contains("not registered") {
+                    warn!("Optional dependency {} not registered (try_resolve)", type_name);
+                }
                 debug!("Failed to resolve optional dependency {}: {}", type_name, e);
                 None
             }

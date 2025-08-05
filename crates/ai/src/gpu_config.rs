@@ -10,7 +10,7 @@ use ort::execution_providers::{CUDAExecutionProvider, TensorRTExecutionProvider,
 use crate::gpu_detector::{GpuDetector, GpuOptimalParams};
 
 /// GPU конфигурация для ONNX Runtime
-/// @component: {"k":"C","id":"gpu_config","t":"GPU configuration for ONNX","m":{"cur":100,"tgt":100,"u":"%"}}
+/// @component: {"k":"C","id":"gpu_config","t":"GPU configuration for ONNX","m":{"cur":100,"tgt":100,"u":"%"},"f":["ai","gpu","config","onnx"]}
 #[derive(Debug, Clone)]
 pub struct GpuConfig {
     /// ID устройства CUDA (обычно 0)

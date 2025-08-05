@@ -1,3 +1,4 @@
+// @component: {"k":"C","id":"cli_lib","t":"CLI interface and commands","m":{"cur":85,"tgt":95,"u":"%"},"f":["cli","interface","commands","interactive"]}
 //! MAGRAY CLI Library
 //! 
 //! CLI components for the MAGRAY AI agent system

@@ -47,6 +47,7 @@ pub struct EmbeddingCacheLRU {
     stats: Arc<RwLock<CacheStats>>,
     lru_index: Arc<Mutex<LruIndex>>,
     config: CacheConfig,
+    index_initialized: Arc<RwLock<bool>>,
 }
 
 #[derive(Debug)]
@@ -146,16 +147,38 @@ impl EmbeddingCacheLRU {
             stats: Arc::new(RwLock::new(CacheStats::default())),
             lru_index: Arc::new(Mutex::new(LruIndex::new())),
             config,
+            index_initialized: Arc::new(RwLock::new(false)),
         };
 
-        // Rebuild LRU index from existing data
-        cache.rebuild_index()?;
+        // Skip index rebuild during construction for faster startup
+        // Index will be rebuilt lazily on first access
+        info!("LRU cache created, index will be rebuilt on first use");
 
         Ok(cache)
     }
 
+    /// Ensure index is initialized (lazy initialization)
+    fn ensure_index_initialized(&self) -> Result<()> {
+        // Fast path: already initialized
+        if *self.index_initialized.read() {
+            return Ok(());
+        }
+
+        // Slow path: need to initialize
+        let mut initialized = self.index_initialized.write();
+        if *initialized {
+            return Ok(()); // Double-check after acquiring write lock
+        }
+
+        info!("Lazy initialization of LRU index starting...");
+        self.rebuild_index_internal()?;
+        *initialized = true;
+        
+        Ok(())
+    }
+
     /// Rebuild the LRU index from database
-    fn rebuild_index(&self) -> Result<()> {
+    fn rebuild_index_internal(&self) -> Result<()> {
         let mut index = match self.lru_index.try_lock() {
             Some(lock) => lock,
             None => {
@@ -187,6 +210,11 @@ impl EmbeddingCacheLRU {
     }
 
     pub fn get(&self, text: &str, model: &str) -> Option<Vec<f32>> {
+        // Ensure index is initialized on first access
+        if let Err(e) = self.ensure_index_initialized() {
+            warn!("Failed to initialize LRU index: {}", e);
+        }
+
         let key = self.make_key(text, model);
         
         match self.db.get(&key) {
@@ -255,6 +283,11 @@ impl EmbeddingCacheLRU {
     }
 
     pub fn insert(&self, text: &str, model: &str, embedding: Vec<f32>) -> Result<()> {
+        // Ensure index is initialized on first access
+        if let Err(e) = self.ensure_index_initialized() {
+            warn!("Failed to initialize LRU index: {}", e);
+        }
+
         // Validate inputs
         if embedding.is_empty() {
             return Err(anyhow::anyhow!("Cannot cache empty embedding"));
@@ -382,12 +415,22 @@ impl EmbeddingCacheLRU {
     }
 
     pub fn get_batch(&self, texts: &[String], model: &str) -> Vec<Option<Vec<f32>>> {
+        // Ensure index is initialized on first access
+        if let Err(e) = self.ensure_index_initialized() {
+            warn!("Failed to initialize LRU index: {}", e);
+        }
+
         texts.iter()
             .map(|text| self.get(text, model))
             .collect()
     }
 
     pub fn insert_batch(&self, items: Vec<(&str, Vec<f32>)>, model: &str) -> Result<()> {
+        // Ensure index is initialized on first access
+        if let Err(e) = self.ensure_index_initialized() {
+            warn!("Failed to initialize LRU index: {}", e);
+        }
+
         if items.is_empty() {
             return Ok(());
         }
@@ -422,6 +465,11 @@ impl EmbeddingCacheLRU {
     }
 
     pub fn stats(&self) -> (u64, u64, u64) {
+        // Ensure index is initialized before reading stats
+        if let Err(e) = self.ensure_index_initialized() {
+            warn!("Failed to initialize LRU index for stats: {}", e);
+        }
+
         let stats = self.stats.read();
         let size = if let Some(index) = self.lru_index.try_lock() {
             index.total_size as u64

@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use sled::{Db, Config};
 use tracing::{debug, info, warn};
 
-// @component: {"k":"C","id":"database_manager","t":"Centralized sled database manager","m":{"cur":90,"tgt":100,"u":"%"},"f":["sled","concurrent","pooling"]}
+// @component: {"k":"C","id":"database_manager","t":"Centralized sled database manager","m":{"cur":65,"tgt":100,"u":"%"},"f":["sled","concurrent","pooling"]}
 
 /// Централизованный менеджер sled баз данных для предотвращения concurrent access issues
 pub struct DatabaseManager {
@@ -75,19 +75,25 @@ impl DatabaseManager {
         
         debug!("Creating new cache connection for: {:?}", path);
         
+        // Оптимизированные настройки для быстрого старта
         let config = Config::new()
             .path(&path)
-            // Настройки для кэша (высокая производительность, меньше durability)
-            .cache_capacity(32 * 1024 * 1024) // 32MB cache для embedding данных
-            .flush_every_ms(Some(10000)) // Flush реже для кэша
-            .compression_factor(4) // Меньше сжатие для скорости
-            .use_compression(true)
-            .mode(sled::Mode::HighThroughput);
+            // Уменьшаем начальный размер кэша для быстрой инициализации
+            .cache_capacity(8 * 1024 * 1024) // 8MB вместо 32MB - растет динамически
+            .flush_every_ms(Some(30000)) // Flush еще реже - 30 секунд
+            .compression_factor(1) // Минимальное сжатие для скорости
+            .use_compression(false) // Нет сжатия = быстрее старт
+            .mode(sled::Mode::HighThroughput)
+            // Отключаем синхронизацию на диск при старте
+            .temporary(true); // Помечаем как временную БД для оптимизаций
         
+        let start = std::time::Instant::now();
         let db = Arc::new(config.open()?);
+        let elapsed = start.elapsed();
+        
         connections.insert(path, db.clone());
         
-        info!("✅ Opened cache database with cache-optimized settings");
+        info!("✅ Opened cache database in {:?} with fast-start settings", elapsed);
         Ok(db)
     }
     

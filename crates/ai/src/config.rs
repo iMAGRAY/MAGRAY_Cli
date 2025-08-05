@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+// @component: {"k":"C","id":"ai_config","t":"AI system configuration","m":{"cur":95,"tgt":100,"u":"%"},"f":["ai","config","models"]}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiConfig {
     /// Path to models directory
@@ -11,6 +12,7 @@ pub struct AiConfig {
     pub reranking: RerankingConfig,
 }
 
+// @component: {"k":"C","id":"embedding_config","t":"Embedding model configuration","m":{"cur":95,"tgt":100,"u":"%"},"f":["ai","config","embeddings"]}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingConfig {
     /// Model name (directory name in models/)
@@ -28,6 +30,7 @@ pub struct EmbeddingConfig {
     pub embedding_dim: Option<usize>,
 }
 
+// @component: {"k":"C","id":"reranking_config","t":"Reranking model configuration","m":{"cur":95,"tgt":100,"u":"%"},"f":["ai","config","reranking"]}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RerankingConfig {
     /// Model name (directory name in models/)

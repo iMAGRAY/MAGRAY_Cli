@@ -6,7 +6,7 @@ use std::time::Instant;
 use tokio::sync::{Semaphore, Mutex};
 use tracing::{info, debug};
 
-/// @component: {"k":"C","id":"gpu_pipeline_optimized","t":"Optimized GPU pipeline with memory pooling","m":{"cur":95,"tgt":100,"u":"%"}}
+/// @component: {"k":"C","id":"gpu_pipeline_opt","t":"Optimized GPU pipeline with memory pooling","m":{"cur":95,"tgt":100,"u":"%"}}
 pub struct OptimizedGpuPipelineManager {
     services: Vec<Arc<GpuEmbeddingService>>,
     semaphore: Arc<Semaphore>,

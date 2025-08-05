@@ -528,8 +528,10 @@ mod tests {
     use anyhow::Result;
     
     async fn create_test_store() -> Result<Arc<VectorStore>> {
-        let config = crate::storage::VectorStoreConfig::default();
-        Ok(Arc::new(VectorStore::new(config)?))
+        let temp_dir = std::env::temp_dir().join("test_batch_manager");
+        std::fs::create_dir_all(&temp_dir)?;
+        let store = VectorStore::new(&temp_dir).await?;
+        Ok(Arc::new(store))
     }
     
     fn create_test_record(layer: Layer) -> Record {

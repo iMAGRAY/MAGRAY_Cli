@@ -138,7 +138,7 @@ impl DIMemoryService {
         debug!("Поиск в слое {:?}: '{}'", layer, query);
 
         // Пытаемся использовать GPU обработку для embedding
-        let embedding = if let Some(gpu_processor) = self.container.try_resolve::<Arc<GpuBatchProcessor>>() {
+        let embedding = if let Some(gpu_processor) = self.container.try_resolve::<GpuBatchProcessor>() {
             debug!("Получение embedding через GPU processor");
             let result = gpu_processor.embed(query).await?;
             result.to_vec()
@@ -234,7 +234,7 @@ impl DIMemoryService {
     pub async fn run_promotion(&self) -> Result<PromotionStats> {
         debug!("Запуск promotion через DI");
 
-        if let Ok(promotion_engine) = self.container.resolve::<Arc<PromotionEngine>>() {
+        if let Ok(promotion_engine) = self.container.resolve::<PromotionEngine>() {
             let stats = promotion_engine.run_promotion_cycle().await?;
             info!("✓ Promotion завершен: interact_to_insights={}, insights_to_assets={}", 
                   stats.interact_to_insights, stats.insights_to_assets);

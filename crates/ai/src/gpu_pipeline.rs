@@ -6,7 +6,7 @@ use tracing::{info, debug, warn};
 use futures::stream::{FuturesUnordered, StreamExt};
 use crate::embeddings_gpu::GpuEmbeddingService;
 
-/// @component: {"k":"C","id":"gpu_pipeline_manager","t":"GPU pipeline for parallel batches","m":{"cur":95,"tgt":100,"u":"%"},"f":["gpu","pipeline","parallel"]}
+/// @component: {"k":"C","id":"gpu_pipeline_manager","t":"GPU pipeline for parallel batches","m":{"cur":80,"tgt":100,"u":"%"},"f":["gpu","pipeline","parallel"]}
 pub struct GpuPipelineManager {
     /// GPU сервисы для параллельной обработки
     gpu_services: Vec<Arc<GpuEmbeddingService>>,
