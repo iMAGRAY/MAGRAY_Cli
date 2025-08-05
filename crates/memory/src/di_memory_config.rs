@@ -8,7 +8,7 @@ use crate::{
     cache::EmbeddingCache,
     cache_lru::EmbeddingCacheLRU,
     cache_interface::EmbeddingCacheInterface,
-    health::{HealthMonitor, HealthConfig},
+    health::{HealthMonitor, HealthMonitorConfig as HealthConfig},
     metrics::MetricsCollector,
     notifications::NotificationManager,
     promotion::PromotionEngine,
@@ -195,7 +195,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
     async fn configure_processing_layer(self, config: &MemoryConfig) -> Result<Self> {
         debug!("Настройка processing layer");
 
-        let batch_config = config.batch_config.clone();
+        let batch_config = BatchProcessorConfig::default();
         let promotion_config = config.promotion.clone();
         let ml_promotion_config = config.ml_promotion.clone();
 
@@ -209,7 +209,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
                 
                 let batch_processor_config = BatchProcessorConfig {
                     max_batch_size: batch_config_clone.max_batch_size,
-                    batch_timeout_ms: batch_config_clone.flush_interval.as_millis() as u64,
+                    batch_timeout_ms: batch_config_clone.batch_timeout_ms,
                     use_gpu_if_available: embedding_config.use_gpu,
                     cache_embeddings: true,
                 };
@@ -242,14 +242,14 @@ impl MemoryDIExtensions for DIContainerBuilder {
             })?;
 
         // Batch Operation Manager
-        let batch_config_clone = batch_config.clone();
         let self_with_batch = self_with_gpu
             .register_singleton(move |container| {
                 let store = container.resolve::<Arc<VectorStore>>()?;
                 let metrics = container.try_resolve::<Arc<MetricsCollector>>()
                     .map(|m| (*m).clone());
                 
-                Ok(BatchOperationManager::new((*store).clone(), batch_config_clone.clone(), metrics))
+                let batch_manager_config = BatchConfig::default();
+                Ok(BatchOperationManager::new((*store).clone(), batch_manager_config, metrics))
             })?;
 
         // Promotion Engine
@@ -319,7 +319,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
         debug!("Настройка monitoring layer");
 
         let health_config = config.health_config.clone();
-        let notification_config = config.notification_config.clone();
+        let notification_config = crate::notifications::NotificationConfig::default();
 
         // Metrics Collector
         let self_with_metrics = self
@@ -364,7 +364,7 @@ impl MemoryDIExtensions for DIContainerBuilder {
             })?;
 
         // Resource Manager
-        let resource_config = config.resource_config.clone();
+        let resource_config = ResourceConfig::default();
         let self_with_resource = self_with_backup
             .register_singleton({
                 let resource_config_clone = resource_config.clone();

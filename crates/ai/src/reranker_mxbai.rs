@@ -1,7 +1,7 @@
 use crate::RerankingConfig;
 #[cfg(feature = "gpu")]
 use crate::{GpuConfig, GpuInfo};
-use crate::memory_pool::{GLOBAL_MEMORY_POOL, PoolStats};
+use crate::memory_pool::GLOBAL_MEMORY_POOL;
 use anyhow::Result as AnyhowResult;
 use ort::{session::Session, value::Tensor, inputs};
 use std::path::PathBuf;
@@ -272,9 +272,9 @@ impl OptimizedMxbaiRerankerService {
         }
         
         // Create batch tensors [batch_size, seq_len]
-        let input_ids_tensor = Tensor::from_array(([batch_size, padded_len], flat_input_ids.clone()))?;
-        let attention_mask_tensor = Tensor::from_array(([batch_size, padded_len], flat_attention_masks.clone()))?;
-        let position_ids_tensor = Tensor::from_array(([batch_size, padded_len], flat_position_ids.clone()))?;
+        let input_ids_tensor = Tensor::from_array(([batch_size, padded_len], flat_input_ids.to_vec()))?;
+        let attention_mask_tensor = Tensor::from_array(([batch_size, padded_len], flat_attention_masks.to_vec()))?;
+        let position_ids_tensor = Tensor::from_array(([batch_size, padded_len], flat_position_ids.to_vec()))?;
         
         // Single ONNX call for entire batch
         let mut session = self.session.lock().map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
@@ -285,10 +285,7 @@ impl OptimizedMxbaiRerankerService {
             "position_ids" => position_ids_tensor
         ])?;
         
-        // Return buffers to pools
-        GLOBAL_MEMORY_POOL.return_input_buffer(flat_input_ids);
-        GLOBAL_MEMORY_POOL.return_attention_buffer(flat_attention_masks);
-        GLOBAL_MEMORY_POOL.return_token_type_buffer(flat_position_ids);
+        // Buffers are automatically returned to pool via Drop trait
         
         // Extract batch scores
         let scores = self.extract_batch_scores(&outputs, batch_size)?;
@@ -362,9 +359,7 @@ impl OptimizedMxbaiRerankerService {
         let attention_mask = vec![1i64; seq_len];
         let position_ids: Vec<i64> = (0..seq_len as i64).collect();
         
-        // Return tokenization buffers to pool
-        GLOBAL_MEMORY_POOL.return_input_buffer(query_tokens);
-        GLOBAL_MEMORY_POOL.return_input_buffer(doc_tokens);
+        // Buffers are automatically returned to pool via Drop trait
         
         (input_ids, attention_mask, position_ids)
     }
@@ -446,7 +441,7 @@ impl OptimizedMxbaiRerankerService {
     }
     
     /// Get memory pool statistics
-    pub fn get_pool_stats(&self) -> PoolStats {
+    pub fn get_pool_stats(&self) -> crate::memory_pool::PoolStats {
         GLOBAL_MEMORY_POOL.get_stats()
     }
     

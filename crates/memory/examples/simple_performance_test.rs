@@ -1,4 +1,4 @@
-use memory::{VectorIndexHnswRs, HnswRsConfig, VectorStore};
+﻿use memory::{VectorIndexHnswRs, HnswRsConfig, VectorStore};
 use std::time::Instant;
 use tempfile::TempDir;
 use uuid::Uuid;

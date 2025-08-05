@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+﻿use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -298,11 +298,7 @@ impl NotificationSender for SlackSender {
         
         let mentions = if !self.mention_users.is_empty() {
             format!(" cc: {}", self.mention_users.iter()
-<<<<<<< HEAD
                 .map(|u| format!("<@{u}>"))
-=======
-                .map(|u| format!("<@{}>", u))
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 .collect::<Vec<_>>()
                 .join(" "))
         } else {

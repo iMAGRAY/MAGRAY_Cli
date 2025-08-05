@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-use anyhow::Result;
-=======
-use anyhow::{Context, Result};
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
+﻿use anyhow::Result;
 use parking_lot::{RwLock, Mutex};
 use serde::{Deserialize, Serialize};
 use sled::Db;
@@ -10,11 +6,7 @@ use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-<<<<<<< HEAD
 use tracing::{debug, error, info, warn};
-=======
-use tracing::{debug, info, warn};
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedEmbedding {
@@ -125,27 +117,11 @@ struct CacheStats {
 }
 
 impl EmbeddingCacheLRU {
-<<<<<<< HEAD
     /// Открывает sled БД для LRU кэша через DatabaseManager
     fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Arc<Db>> {
         let db_manager = crate::database_manager::DatabaseManager::global();
         let db = db_manager.get_cache_database(cache_path.as_ref())?;
         info!("✅ LRU cache database opened through DatabaseManager");
-=======
-    /// Открывает sled БД для LRU кэша с crash recovery
-    fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Db> {
-        use sled::Config;
-        
-        let config = Config::new()
-            .path(cache_path.as_ref())
-            .mode(sled::Mode::HighThroughput)
-            .flush_every_ms(Some(3000))      // LRU кэш реже flush
-            .use_compression(true)
-            .compression_factor(19);
-            
-        let db = config.open().context("Failed to open LRU cache database")?;
-        info!("LRU cache database opened with crash recovery");
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Ok(db)
     }
 
@@ -166,11 +142,7 @@ impl EmbeddingCacheLRU {
         let db = Self::open_cache_database(cache_path)?;
 
         let cache = Self {
-<<<<<<< HEAD
             db,
-=======
-            db: Arc::new(db),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             stats: Arc::new(RwLock::new(CacheStats::default())),
             lru_index: Arc::new(Mutex::new(LruIndex::new())),
             config,
@@ -184,7 +156,6 @@ impl EmbeddingCacheLRU {
 
     /// Rebuild the LRU index from database
     fn rebuild_index(&self) -> Result<()> {
-<<<<<<< HEAD
         let mut index = match self.lru_index.try_lock() {
             Some(lock) => lock,
             None => {
@@ -205,15 +176,6 @@ impl EmbeddingCacheLRU {
                     warn!("Error reading item during index rebuild: {}, continuing...", e);
                     continue;
                 }
-=======
-        let mut index = self.lru_index.lock();
-        index.clear();
-
-        for item in self.db.iter() {
-            let (key, value) = item?;
-            if let Ok(cached) = bincode::deserialize::<CachedEmbedding>(&value) {
-                index.touch(key.to_vec(), cached.size_bytes);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
 
@@ -233,7 +195,6 @@ impl EmbeddingCacheLRU {
                     Ok(mut cached) => {
                         // Check TTL
                         if let Some(ttl) = self.config.ttl_seconds {
-<<<<<<< HEAD
                             let now = current_timestamp();
                             // Handle potential time issues gracefully
                             if now >= cached.created_at {
@@ -247,14 +208,6 @@ impl EmbeddingCacheLRU {
                             } else {
                                 warn!("Clock skew detected: now={} < created_at={}", now, cached.created_at);
                                 // Don't expire due to clock issues
-=======
-                            let age = current_timestamp() - cached.created_at;
-                            if age > ttl {
-                                debug!("Cache entry expired: age={} > ttl={}", age, ttl);
-                                self.stats.write().expired += 1;
-                                let _ = self.remove_entry(&key);
-                                return None;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                             }
                         }
 
@@ -262,7 +215,6 @@ impl EmbeddingCacheLRU {
                         cached.last_accessed = current_timestamp();
                         cached.access_count += 1;
                         
-<<<<<<< HEAD
                         // Update in database - don't fail if this fails
                         if let Ok(updated_bytes) = bincode::serialize(&cached) {
                             if let Err(e) = self.db.insert(&key, updated_bytes) {
@@ -277,33 +229,19 @@ impl EmbeddingCacheLRU {
                         } else {
                             warn!("Failed to update LRU index - poisoned lock detected");
                         }
-=======
-                        // Update in database
-                        if let Ok(updated_bytes) = bincode::serialize(&cached) {
-                            let _ = self.db.insert(&key, updated_bytes);
-                        }
-
-                        // Update LRU index
-                        self.lru_index.lock().touch(key.to_vec(), cached.size_bytes);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
                         self.stats.write().hits += 1;
                         debug!("Cache hit for text hash: {}", self.hash_text(text));
                         Some(cached.embedding)
                     }
                     Err(e) => {
-<<<<<<< HEAD
                         warn!("Failed to deserialize cached embedding, removing corrupted entry: {}", e);
                         let _ = self.remove_entry(&key); // Clean up corrupted entry
                         self.stats.write().misses += 1;
-=======
-                        debug!("Failed to deserialize cached embedding: {}", e);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                         None
                     }
                 }
             }
-<<<<<<< HEAD
             Ok(None) => {
                 self.stats.write().misses += 1;
                 None
@@ -313,17 +251,10 @@ impl EmbeddingCacheLRU {
                 self.stats.write().misses += 1;
                 None // Graceful degradation - treat as cache miss
             }
-=======
-            _ => {
-                self.stats.write().misses += 1;
-                None
-            }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
     }
 
     pub fn insert(&self, text: &str, model: &str, embedding: Vec<f32>) -> Result<()> {
-<<<<<<< HEAD
         // Validate inputs
         if embedding.is_empty() {
             return Err(anyhow::anyhow!("Cannot cache empty embedding"));
@@ -340,13 +271,6 @@ impl EmbeddingCacheLRU {
         if let Err(e) = self.maybe_evict(size_bytes) {
             warn!("Eviction failed but continuing with insert: {}", e);
         }
-=======
-        let key = self.make_key(text, model);
-        let size_bytes = embedding.len() * std::mem::size_of::<f32>() + 256; // Overhead
-        
-        // Check if we need to evict entries
-        self.maybe_evict(size_bytes)?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
         let cached = CachedEmbedding {
             embedding,
@@ -357,7 +281,6 @@ impl EmbeddingCacheLRU {
             size_bytes,
         };
         
-<<<<<<< HEAD
         match bincode::serialize(&cached) {
             Ok(bytes) => {
                 match self.db.insert(&key, bytes) {
@@ -385,23 +308,10 @@ impl EmbeddingCacheLRU {
                 Err(e.into())
             }
         }
-=======
-        let bytes = bincode::serialize(&cached)?;
-        self.db.insert(&key, bytes)?;
-        
-        // Update LRU index
-        self.lru_index.lock().touch(key.to_vec(), size_bytes);
-        
-        self.stats.write().inserts += 1;
-        debug!("Cached embedding for text hash: {}", self.hash_text(text));
-        
-        Ok(())
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
 
     /// Check if eviction is needed and perform it
     fn maybe_evict(&self, needed_size: usize) -> Result<()> {
-<<<<<<< HEAD
         let mut index = match self.lru_index.try_lock() {
             Some(lock) => lock,
             None => {
@@ -409,9 +319,6 @@ impl EmbeddingCacheLRU {
                 return Ok(()); // Graceful degradation
             }
         };
-=======
-        let mut index = self.lru_index.lock();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         // Check size constraint
         let mut entries_to_evict = Vec::new();
@@ -459,7 +366,6 @@ impl EmbeddingCacheLRU {
 
     /// Remove an entry from cache
     fn remove_entry(&self, key: &[u8]) -> Result<()> {
-<<<<<<< HEAD
         // Try to update index, but don't fail if lock is poisoned
         if let Some(mut index) = self.lru_index.try_lock() {
             index.remove(key);
@@ -472,10 +378,6 @@ impl EmbeddingCacheLRU {
             warn!("Failed to remove entry from database: {}", e);
             // Don't propagate the error - this is not critical
         }
-=======
-        self.lru_index.lock().remove(key);
-        self.db.remove(key)?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Ok(())
     }
 
@@ -486,7 +388,6 @@ impl EmbeddingCacheLRU {
     }
 
     pub fn insert_batch(&self, items: Vec<(&str, Vec<f32>)>, model: &str) -> Result<()> {
-<<<<<<< HEAD
         if items.is_empty() {
             return Ok(());
         }
@@ -518,42 +419,27 @@ impl EmbeddingCacheLRU {
         } else {
             Ok(())
         }
-=======
-        for (text, embedding) in items {
-            self.insert(text, model, embedding)?;
-        }
-        self.db.flush()?;
-        Ok(())
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
 
     pub fn stats(&self) -> (u64, u64, u64) {
         let stats = self.stats.read();
-<<<<<<< HEAD
         let size = if let Some(index) = self.lru_index.try_lock() {
             index.total_size as u64
         } else {
             warn!("Failed to read cache size - lock poisoned");
             0 // Return 0 size if can't access index
         };
-=======
-        let size = self.lru_index.lock().total_size as u64;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         (stats.hits, stats.misses, size)
     }
 
     pub fn detailed_stats(&self) -> CacheStatsReport {
         let stats = self.stats.read();
-<<<<<<< HEAD
         let (entries, total_size_bytes) = if let Some(index) = self.lru_index.try_lock() {
             (index.entries.len(), index.total_size)
         } else {
             warn!("Failed to read detailed cache stats - lock poisoned");
             (0, 0) // Return zero stats if can't access index
         };
-=======
-        let index = self.lru_index.lock();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         CacheStatsReport {
             hits: stats.hits,
@@ -561,13 +447,8 @@ impl EmbeddingCacheLRU {
             inserts: stats.inserts,
             evictions: stats.evictions,
             expired: stats.expired,
-<<<<<<< HEAD
             entries,
             total_size_bytes,
-=======
-            entries: index.entries.len(),
-            total_size_bytes: index.total_size,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             hit_rate: self.calculate_hit_rate(&stats),
         }
     }
@@ -587,7 +468,6 @@ impl EmbeddingCacheLRU {
     }
 
     pub fn clear(&self) -> Result<()> {
-<<<<<<< HEAD
         // Clear database first
         if let Err(e) = self.db.clear() {
             error!("Failed to clear cache database: {}", e);
@@ -608,32 +488,22 @@ impl EmbeddingCacheLRU {
         }
         
         // Clear stats
-=======
-        self.db.clear()?;
-        self.db.flush()?;
-        self.lru_index.lock().clear();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         *self.stats.write() = CacheStats::default();
         info!("LRU embedding cache cleared");
         Ok(())
     }
 
     pub fn size(&self) -> Result<u64> {
-<<<<<<< HEAD
         if let Some(index) = self.lru_index.try_lock() {
             Ok(index.entries.len() as u64)
         } else {
             warn!("Failed to read cache size - lock poisoned, returning 0");
             Ok(0) // Graceful degradation
         }
-=======
-        Ok(self.lru_index.lock().entries.len() as u64)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
 
     /// Remove expired entries
     pub fn cleanup_expired(&self) -> Result<u64> {
-<<<<<<< HEAD
         let ttl = match self.config.ttl_seconds {
             Some(ttl) => ttl,
             None => return Ok(0), // No TTL configured
@@ -647,19 +517,10 @@ impl EmbeddingCacheLRU {
             }
         };
         
-=======
-        if self.config.ttl_seconds.is_none() {
-            return Ok(0);
-        }
-
-        let ttl = self.config.ttl_seconds.unwrap();
-        let now = current_timestamp();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let mut expired_count = 0;
         let mut keys_to_remove = Vec::new();
 
         for item in self.db.iter() {
-<<<<<<< HEAD
             match item {
                 Ok((key, value)) => {
                     if let Ok(cached) = bincode::deserialize::<CachedEmbedding>(&value) {
@@ -671,25 +532,15 @@ impl EmbeddingCacheLRU {
                 Err(e) => {
                     warn!("Error reading item during cleanup: {}, continuing...", e);
                     continue;
-=======
-            let (key, value) = item?;
-            if let Ok(cached) = bincode::deserialize::<CachedEmbedding>(&value) {
-                if now - cached.created_at > ttl {
-                    keys_to_remove.push(key.to_vec());
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 }
             }
         }
 
         for key in keys_to_remove {
-<<<<<<< HEAD
             if let Err(e) = self.remove_entry(&key) {
                 warn!("Failed to remove expired entry: {}, continuing...", e);
                 continue;
             }
-=======
-            self.remove_entry(&key)?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             expired_count += 1;
         }
 
@@ -703,11 +554,7 @@ impl EmbeddingCacheLRU {
 
     fn make_key(&self, text: &str, model: &str) -> Vec<u8> {
         let text_hash = self.hash_text(text);
-<<<<<<< HEAD
         format!("{model}:{text_hash}").into_bytes()
-=======
-        format!("{}:{}", model, text_hash).into_bytes()
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
 
     fn hash_text(&self, text: &str) -> u64 {
@@ -735,7 +582,6 @@ pub struct CacheStatsReport {
 fn current_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-<<<<<<< HEAD
         .map(|d| d.as_secs())
         .unwrap_or_else(|_| {
             warn!("System time error, using fallback timestamp");
@@ -749,10 +595,6 @@ fn current_timestamp_safe() -> Result<u64> {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .map_err(|e| anyhow::anyhow!("System time error: {}", e))
-=======
-        .unwrap()
-        .as_secs()
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 #[cfg(test)]

@@ -1,10 +1,9 @@
-mod batch_manager;
+﻿mod batch_manager;
 mod cache;
 mod cache_lru;
 mod cache_interface;
 mod cache_migration;
 pub mod fallback;
-<<<<<<< HEAD
 mod hnsw_index; // Модульная HNSW архитектура
 pub mod health;
 mod metrics;
@@ -14,15 +13,6 @@ mod ml_promotion;
 mod service;
 mod service_di; // New DI-based service
 pub mod storage;
-=======
-pub mod health;
-mod metrics;
-mod notifications;
-mod promotion;
-mod ml_promotion;
-mod service;
-mod storage;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 mod types;
 mod vector_index_hnswlib; // Critical for vector storage
 mod transaction;
@@ -36,7 +26,6 @@ mod streaming;
 mod flush_config;
 pub mod gpu_accelerated;
 pub mod resource_manager;
-<<<<<<< HEAD
 mod retry;
 mod database_manager;
 // Dependency Injection система
@@ -45,61 +34,36 @@ mod di_container_optimized;
 mod di_memory_config;
 // Новая orchestration система
 pub mod orchestration;
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-
-// Основные компоненты памяти
-pub use cache::EmbeddingCache;
-pub use cache_lru::{EmbeddingCacheLRU, CacheConfig, CacheStatsReport};
-pub use cache_interface::EmbeddingCacheInterface;
-pub use cache_migration::{migrate_cache_to_lru, recommend_cache_config};
-pub use fallback::{FallbackEmbeddingService, GracefulEmbeddingService, EmbeddingProvider, GracefulServiceStatus};
-pub use health::{HealthMonitor, HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus, HealthMetric, HealthAlert, ComponentPerformanceStats};
-pub use notifications::{NotificationConfig, NotificationChannel, NotificationManager};
-pub use metrics::{MetricsCollector, MemoryMetrics, LayerMetrics};
-pub use promotion::{PromotionEngine, PromotionStats, PromotionPerformanceStats};
-pub use service::{MemoryConfig, MemoryService, SearchBuilder, CacheConfigType, default_config, BatchBuilder, BatchInsertResult, BatchSearchResult};
-<<<<<<< HEAD
-pub use service_di::{DIMemoryService, DIMemoryServiceBuilder, MemorySystemStats};
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};
+pub use cache::{EmbeddingCache, CacheConfig as SimpleCacheConfig};
+pub use cache_lru::{EmbeddingCacheLRU, CacheConfig};
+
+// Cache configuration type for service
+#[derive(Debug, Clone)]
+pub enum CacheConfigType {
+    Simple,
+    Lru(CacheConfig),
+}
 pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
+pub use service::{MemoryService, MemoryServiceConfig as MemoryConfig, default_config, BatchInsertResult, BatchSearchResult};
+pub use service_di::{DIMemoryService};
+pub use health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus};
 pub use api::{UnifiedMemoryAPI, MemoryContext, SearchOptions as ApiSearchOptions, MemoryResult, OptimizationResult, SystemHealth, DetailedHealth, SystemStats, CacheStats, IndexSizes};
-<<<<<<< HEAD
+pub use metrics::{MetricsCollector, MemoryMetrics, LatencyMetrics, LayerMetrics};
+pub use transaction::{Transaction, TransactionManager, TransactionGuard};
 
 /// Быстрое создание DI Memory Service с конфигурацией по умолчанию
 pub async fn create_di_memory_service() -> anyhow::Result<DIMemoryService> {
     let config = default_config()?;
     DIMemoryService::new(config).await
 }
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-pub use gpu_accelerated::{GpuBatchProcessor, BatchProcessorConfig, BatchProcessorStats};
-pub use backup::{BackupManager, BackupMetadata, BackupInfo};
-pub use incremental_backup::{IncrementalBackupManager, IncrementalBackupMetadata, BackupType, DeltaInfo};
-pub use optimized_rebuild::{OptimizedRebuildManager, RebuildConfig, RebuildStats, RebuildResult, RebuildMethod, RebuildProgress};
-pub use dynamic_dimension::{DynamicDimensionManager, DimensionConfig, DimensionStats, DimensionInfo, DimensionAwareVectorStore};
-pub use resource_manager::{ResourceManager, ResourceConfig, ResourceUsage, CurrentLimits, ScalingStats};
-pub use flush_config::{FlushConfig, PerformanceMode};
-<<<<<<< HEAD
-pub use retry::{RetryManager, RetryConfig};
-pub use database_manager::{DatabaseManager, DatabaseStats};
-pub use transaction::{Transaction, TransactionManager, TransactionGuard, TransactionOp, TransactionStatus, RollbackAction};
-
-// Dependency Injection система
-pub use di_container::{DIContainer, DIContainerBuilder, DIContainerStats, Lifetime};
-pub use di_container_optimized::{OptimizedDIContainer, OptimizedDIContainerBuilder, DIPerformanceMetrics};
-pub use di_memory_config::{MemoryDIConfigurator};
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 // Профессиональная HNSW реализация - единственная векторная реализация
 pub use vector_index_hnswlib::{VectorIndexHnswRs, HnswRsConfig, HnswRsStats};
 
 // ML-based promotion system
-pub use ml_promotion::{MLPromotionEngine, MLPromotionConfig, MLPromotionStats, PromotionFeatures};
+pub use ml_promotion::{MLPromotionEngine, MLPromotionConfig, MLPromotionStats, PromotionFeatures, PromotionDecision, UsageTracker};
 
 // Streaming API system
 pub use streaming::{StreamingMemoryAPI, StreamingConfig, StreamingRequest, StreamingResponse, StreamingOperation, StreamingResult, SessionConfig, StreamingPriority, GlobalStreamingStats, StreamingInsertRecord, SessionAction};

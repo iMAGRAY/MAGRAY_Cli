@@ -1,4 +1,4 @@
-use crate::types::*;
+﻿use crate::types::*;
 use memory::Layer;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -260,11 +260,7 @@ impl TodoStoreV2 {
         
         // Формируем список ID для SQL
         let id_list = ids.iter()
-<<<<<<< HEAD
             .map(|id| format!("'{id}'"))
-=======
-            .map(|id| format!("'{}'", id))
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .collect::<Vec<_>>()
             .join(",");
         
@@ -290,22 +286,12 @@ impl TodoStoreV2 {
                     WHERE task_id = t.id
                 ) as context_refs
             FROM todos t
-<<<<<<< HEAD
             WHERE t.id IN ({id_list})
             "#
         );
         
         let mut stmt = conn.prepare(&query)?;
         let tasks = stmt.query_map(params![], Self::parse_todo_row)?
-=======
-            WHERE t.id IN ({})
-            "#,
-            id_list
-        );
-        
-        let mut stmt = conn.prepare(&query)?;
-        let tasks = stmt.query_map(params![], |row| Self::parse_todo_row(row))?
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .collect::<Result<Vec<_>, _>>()?;
         
         Ok(tasks)
@@ -348,11 +334,7 @@ impl TodoStoreV2 {
         "#;
         
         let mut stmt = conn.prepare(query)?;
-<<<<<<< HEAD
         let tasks = stmt.query_map(params![limit as i64], Self::parse_todo_row)?
-=======
-        let tasks = stmt.query_map(params![limit as i64], |row| Self::parse_todo_row(row))?
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .collect::<Result<Vec<_>, _>>()?;
         
         Ok(tasks)
@@ -430,11 +412,7 @@ impl TodoStoreV2 {
         let conn = self.pool.get()?;
         
         // Используем LIKE для простого поиска (можно заменить на FTS5)
-<<<<<<< HEAD
         let search_pattern = format!("%{query}%");
-=======
-        let search_pattern = format!("%{}%", query);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         let sql = r#"
             SELECT 

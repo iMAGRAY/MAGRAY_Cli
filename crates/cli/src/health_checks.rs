@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::{timeout, Duration};
@@ -42,49 +42,12 @@ pub struct HealthCheckSystem {
     checks: Vec<Box<dyn HealthCheck>>,
 }
 
-<<<<<<< HEAD
 impl Default for HealthCheckSystem {
     fn default() -> Self {
         Self::new()
     }
 }
 
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-impl HealthCheckSystem {
-    pub fn new() -> Self {
-        Self {
-            checks: Vec::new(),
-        }
-    }
-    
-    /// Добавить новую проверку
-    pub fn add_check(&mut self, check: Box<dyn HealthCheck>) {
-        self.checks.push(check);
-    }
-    
-    /// Запустить все проверки здоровья
-    pub async fn run_all_checks(&self) -> Vec<HealthCheckResult> {
-        let mut results = Vec::new();
-        
-        for check in &self.checks {
-            let timer = OperationTimer::new(format!("health_check_{}", check.name()));
-            let start = std::time::Instant::now();
-            
-            // Таймаут для каждой проверки
-            let result = match timeout(Duration::from_secs(5), check.check()).await {
-                Ok(Ok(mut result)) => {
-                    result.latency_ms = start.elapsed().as_millis() as u64;
-                    result
-                }
-                Ok(Err(e)) => HealthCheckResult {
-                    component: check.name(),
-                    status: HealthStatus::Unhealthy,
-<<<<<<< HEAD
-                    message: format!("Check failed: {e}"),
-=======
-                    message: format!("Check failed: {}", e),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                     latency_ms: start.elapsed().as_millis() as u64,
                     metadata: HashMap::new(),
                     timestamp: Utc::now(),
@@ -184,11 +147,7 @@ impl HealthCheck for LlmHealthCheck {
     
     async fn check(&self) -> Result<HealthCheckResult> {
         let test_message = "ping";
-<<<<<<< HEAD
         match self.llm_client.chat_simple(test_message).await {
-=======
-        match self.llm_client.chat(test_message).await {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             Ok(_) => Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Healthy,
@@ -200,11 +159,7 @@ impl HealthCheck for LlmHealthCheck {
             Err(e) => Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Unhealthy,
-<<<<<<< HEAD
                 message: format!("LLM service error: {e}"),
-=======
-                message: format!("LLM service error: {}", e),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 latency_ms: 0,
                 metadata: HashMap::new(),
                 timestamp: Utc::now(),
@@ -253,11 +208,7 @@ impl HealthCheck for MemoryHealthCheck {
             Err(e) => Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Degraded,
-<<<<<<< HEAD
                 message: format!("Memory service degraded: {e}"),
-=======
-                message: format!("Memory service degraded: {}", e),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 latency_ms: 0,
                 metadata,
                 timestamp: Utc::now(),
@@ -291,11 +242,7 @@ impl HealthCheck for GpuHealthCheck {
             Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Healthy,
-<<<<<<< HEAD
                 message: format!("GPU detected: {device_name}"),
-=======
-                message: format!("GPU detected: {}", device_name),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 latency_ms: 0,
                 metadata,
                 timestamp: Utc::now(),
@@ -353,11 +300,7 @@ impl HealthCheck for DiskSpaceCheck {
         let mut metadata = HashMap::new();
         metadata.insert("free_gb".to_string(), free_gb.into());
         metadata.insert("total_gb".to_string(), total_gb.into());
-<<<<<<< HEAD
         metadata.insert("used_percent".to_string(), format!("{used_percent:.1}").into());
-=======
-        metadata.insert("used_percent".to_string(), format!("{:.1}", used_percent).into());
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         let (status, message) = if free_gb < self.min_free_gb {
             (
@@ -367,20 +310,12 @@ impl HealthCheck for DiskSpaceCheck {
         } else if free_gb < self.min_free_gb * 2 {
             (
                 HealthStatus::Degraded,
-<<<<<<< HEAD
                 format!("Disk space warning: {free_gb}GB free"),
-=======
-                format!("Disk space warning: {}GB free", free_gb),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             )
         } else {
             (
                 HealthStatus::Healthy,
-<<<<<<< HEAD
                 format!("Disk space OK: {free_gb}GB free"),
-=======
-                format!("Disk space OK: {}GB free", free_gb),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             )
         };
         
@@ -428,11 +363,7 @@ impl HealthCheck for MemoryUsageCheck {
         metadata.insert("total_mb".to_string(), (total_memory / 1024).into());
         metadata.insert("used_mb".to_string(), (used_memory / 1024).into());
         metadata.insert("free_mb".to_string(), (free_memory / 1024).into());
-<<<<<<< HEAD
         metadata.insert("usage_percent".to_string(), format!("{usage_percent:.1}").into());
-=======
-        metadata.insert("usage_percent".to_string(), format!("{:.1}", usage_percent).into());
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         let (status, message) = if usage_percent > self.max_usage_percent {
             (
@@ -442,20 +373,12 @@ impl HealthCheck for MemoryUsageCheck {
         } else if usage_percent > self.max_usage_percent * 0.9 {
             (
                 HealthStatus::Degraded,
-<<<<<<< HEAD
                 format!("Memory usage warning: {usage_percent:.1}%"),
-=======
-                format!("Memory usage warning: {:.1}%", usage_percent),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             )
         } else {
             (
                 HealthStatus::Healthy,
-<<<<<<< HEAD
                 format!("Memory usage OK: {usage_percent:.1}%"),
-=======
-                format!("Memory usage OK: {:.1}%", usage_percent),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             )
         };
         

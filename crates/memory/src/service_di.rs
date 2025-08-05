@@ -6,7 +6,7 @@ use crate::{
     cache_interface::EmbeddingCacheInterface,
     di_container::DIContainer,
     di_memory_config::MemoryDIConfigurator,
-    health::{HealthMonitor, SystemHealthStatus},
+    health::{HealthMonitor, SystemHealthStatus, HealthMonitorConfig as HealthConfig},
     metrics::MetricsCollector,
     promotion::{PromotionEngine, PromotionStats},
     storage::VectorStore,
@@ -64,8 +64,8 @@ impl DIMemoryService {
         let cached_cache = (*container.resolve::<Arc<dyn EmbeddingCacheInterface>>()?).clone();
         
         // Для минимального сервиса создаем простой health monitor
-        let health_config = crate::health::HealthConfig::default();
-        let cached_health = Arc::new(crate::health::HealthMonitor::new(health_config));
+        let health_config = HealthConfig::default();
+        let cached_health = Arc::new(HealthMonitor::new(health_config));
 
         Ok(Self {
             container,

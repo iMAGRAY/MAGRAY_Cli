@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use tracing::info;
 
 #[cfg(feature = "gpu")]
@@ -139,15 +139,9 @@ impl GpuConfig {
             .with_device_id(self.device_id)
             .with_max_workspace_size(self.tensorrt_cache_size)
             .with_fp16(self.enable_fp16)
-<<<<<<< HEAD
             .with_engine_cache(true)
             .with_engine_cache_path("./tensorrt_cache")
             .with_timing_cache(true)
-=======
-            .with_engine_cache_enable(true)
-            .with_engine_cache_path("./tensorrt_cache")
-            .with_timing_cache_enable(true)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .with_force_sequential_engine_build(false) // Параллельная сборка
             .build();
             

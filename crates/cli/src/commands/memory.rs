@@ -1,10 +1,6 @@
-use anyhow::{anyhow, Result};
+﻿use anyhow::{anyhow, Result};
 use clap::{Subcommand, Args};
-<<<<<<< HEAD
 use memory::{Layer, UnifiedMemoryAPI, MemoryContext, create_di_memory_service};
-=======
-use memory::{MemoryService, Layer, UnifiedMemoryAPI, MemoryContext};
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 use std::path::PathBuf;
 use std::sync::Arc;
 use colored::*;
@@ -130,7 +126,6 @@ impl MemoryCommand {
 }
 
 async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
-<<<<<<< HEAD
     let _config = memory::default_config()?;
     
     // Пытаемся создать DI сервис, fallback на legacy если не получается
@@ -148,16 +143,6 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
     match cmd {
         MemorySubcommand::Stats { detailed } => {
             show_memory_stats(&api, detailed).await?;
-=======
-    // Инициализируем сервис памяти
-    let config = memory::default_config()?;
-    let service = Arc::new(MemoryService::new(config).await?);
-    let api = UnifiedMemoryAPI::new(service.clone());
-    
-    match cmd {
-        MemorySubcommand::Stats { detailed } => {
-            show_memory_stats(&api, &service, detailed).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         MemorySubcommand::Search { query, layer, top_k, min_score } => {
@@ -169,7 +154,6 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
         }
         
         MemorySubcommand::Backup { name } => {
-<<<<<<< HEAD
             create_backup(&api, name).await?;
         }
         
@@ -183,21 +167,6 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
         
         MemorySubcommand::Promote => {
             run_promotion(&api).await?;
-=======
-            create_backup(&service, name).await?;
-        }
-        
-        MemorySubcommand::Restore { backup_path } => {
-            restore_backup(&service, backup_path).await?;
-        }
-        
-        MemorySubcommand::ListBackups => {
-            list_backups(&service)?;
-        }
-        
-        MemorySubcommand::Promote => {
-            run_promotion(&service).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         MemorySubcommand::Health { detailed } => {
@@ -205,11 +174,7 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
         }
         
         MemorySubcommand::ClearCache => {
-<<<<<<< HEAD
             clear_cache(&api).await?;
-=======
-            clear_cache(&service).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         MemorySubcommand::Optimize => {
@@ -217,22 +182,14 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
         }
         
         MemorySubcommand::Limits { max_vectors, max_cache_mb, show } => {
-<<<<<<< HEAD
             manage_limits(&api, max_vectors, max_cache_mb, show).await?;
-=======
-            manage_limits(&service, max_vectors, max_cache_mb, show).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
     }
     
     Ok(())
 }
 
-<<<<<<< HEAD
 async fn show_memory_stats(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()> {
-=======
-async fn show_memory_stats(api: &UnifiedMemoryAPI, service: &MemoryService, detailed: bool) -> Result<()> {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     let stats = api.get_stats().await?;
     
     println!("{}", "=== Memory System Statistics ===".bold().blue());
@@ -276,7 +233,6 @@ async fn show_memory_stats(api: &UnifiedMemoryAPI, service: &MemoryService, deta
     table.printstd();
     
     if detailed {
-<<<<<<< HEAD
         // Детальная статистика через API
         println!("\n{}", "Performance Metrics:".bold());
         
@@ -299,43 +255,6 @@ async fn show_memory_stats(api: &UnifiedMemoryAPI, service: &MemoryService, deta
         if health.alert_count > 0 {
             println!("{}: {} active alerts", "Alerts".yellow(), health.alert_count);
         }
-=======
-        // Детальная статистика
-        println!("\n{}", "Performance Metrics:".bold());
-        
-        if let Some(metrics) = service.metrics() {
-            let snapshot = metrics.snapshot();
-            
-            println!("{}: {} ops", "Total operations".cyan(), snapshot.total_operations);
-            println!("{}: {} searches (avg: {:.2}ms)", 
-                "Vector searches".cyan(),
-                snapshot.vector_searches,
-                snapshot.vector_search_latency_ms.avg_ms
-            );
-            println!("{}: {} inserts (avg: {:.2}ms)",
-                "Vector inserts".cyan(),
-                snapshot.vector_inserts,
-                snapshot.vector_insert_latency_ms.avg_ms
-            );
-            
-            // Promotion статистика
-            println!("\n{}", "Promotion Statistics:".bold());
-            println!("{}: {}", "Interact → Insights".cyan(), snapshot.promotions_interact_to_insights);
-            println!("{}: {}", "Insights → Assets".cyan(), snapshot.promotions_insights_to_assets);
-            println!("{}: {}", "Expired records".cyan(), snapshot.records_expired);
-        }
-        
-        // Health статус
-        let health = service.get_system_health();
-        println!("\n{}: {}", "System health".bold(), 
-            match health.overall_status {
-                memory::health::HealthStatus::Healthy => "HEALTHY".green(),
-                memory::health::HealthStatus::Degraded => "DEGRADED".yellow(),
-                memory::health::HealthStatus::Unhealthy => "UNHEALTHY".red(),
-                memory::health::HealthStatus::Down => "DOWN".red().bold(),
-            }
-        );
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     Ok(())
@@ -348,21 +267,13 @@ async fn search_memory(
     top_k: usize,
     _min_score: Option<f32>
 ) -> Result<()> {
-<<<<<<< HEAD
     let layers = if let Some(layer_str) = layer {
-=======
-    let mut options = memory::api::SearchOptions::default();
-    options.limit = Some(top_k);
-    
-    if let Some(layer_str) = layer {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let layer = match layer_str.as_str() {
             "interact" => Layer::Interact,
             "insights" => Layer::Insights,
             "assets" => Layer::Assets,
             _ => return Err(anyhow!("Invalid layer: {}", layer_str)),
         };
-<<<<<<< HEAD
         Some(vec![layer])
     } else {
         None
@@ -373,10 +284,6 @@ async fn search_memory(
         layers,
         ..Default::default()
     };
-=======
-        options.layers = Some(vec![layer]);
-    }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     
     // Note: min_score filter is not available in current API
     // You can filter results after retrieval if needed
@@ -456,7 +363,6 @@ async fn add_to_memory(
     Ok(())
 }
 
-<<<<<<< HEAD
 async fn create_backup(api: &UnifiedMemoryAPI, name: Option<String>) -> Result<()> {
     let spinner = ProgressBuilder::backup("Creating memory backup...");
     
@@ -501,67 +407,10 @@ fn list_backups(_api: &UnifiedMemoryAPI) -> Result<()> {
     println!("{}", "Available backups:".bold());
     println!("{}", "Note: Backup listing requires legacy API".yellow());
     println!("{}", "No backups found (feature not implemented in current architecture)".dimmed());
-=======
-async fn create_backup(service: &MemoryService, name: Option<String>) -> Result<()> {
-    let spinner = ProgressBuilder::backup("Creating memory backup...");
-    
-    let path = service.create_backup(name).await?;
-    
-    spinner.finish_success(Some("Backup created successfully!"));
-    println!("{}: {}", "Path".cyan(), path.display());
     
     Ok(())
 }
 
-async fn restore_backup(service: &MemoryService, backup_path: PathBuf) -> Result<()> {
-    let file_name = backup_path.file_name().unwrap_or_default().to_string_lossy();
-    let spinner = ProgressBuilder::backup(&format!("Restoring from backup: {}", file_name));
-    
-    let metadata = service.restore_backup(&backup_path).await?;
-    
-    spinner.finish_success(Some("Backup restored successfully!"));
-    println!("{}: {} records", "Restored".cyan(), metadata.total_records);
-    println!("{}: {}", "Created at".cyan(), metadata.created_at.format("%Y-%m-%d %H:%M:%S"));
-    
-    Ok(())
-}
-
-fn list_backups(service: &MemoryService) -> Result<()> {
-    let backups = service.list_backups()?;
-    
-    if backups.is_empty() {
-        println!("{}", "No backup files found.".yellow());
-        return Ok(());
-    }
-    
-    println!("{}", "Available backups:".bold());
-    println!();
-    
-    let mut table = Table::new();
-    table.add_row(row!["Name", "Created", "Records", "Size"]);
-    
-    for backup in backups {
-        let name = backup.path.file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unknown");
-        
-        let size_mb = backup.size_bytes as f64 / (1024.0 * 1024.0);
-        
-        table.add_row(row![
-            name,
-            backup.metadata.created_at.format("%Y-%m-%d %H:%M"),
-            backup.metadata.total_records,
-            format!("{:.2} MB", size_mb)
-        ]);
-    }
-    
-    table.printstd();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-    
-    Ok(())
-}
-
-<<<<<<< HEAD
 async fn run_promotion(api: &UnifiedMemoryAPI) -> Result<()> {
     let spinner = ProgressBuilder::memory("Running memory promotion cycle...");
     
@@ -572,18 +421,6 @@ async fn run_promotion(api: &UnifiedMemoryAPI) -> Result<()> {
     println!("{}: {} records", "Insights → Assets".cyan(), result.promoted_to_assets);
     println!("{}: {} records", "Expired".cyan(), result.expired_interact + result.expired_insights);
     println!("{}: {}ms", "Total time".cyan(), result.total_time_ms);
-=======
-async fn run_promotion(service: &MemoryService) -> Result<()> {
-    let spinner = ProgressBuilder::memory("Running memory promotion cycle...");
-    
-    let stats = service.run_promotion_cycle().await?;
-    
-    spinner.finish_success(Some("Promotion cycle completed!"));
-    println!("{}: {} records", "Interact → Insights".cyan(), stats.interact_to_insights);
-    println!("{}: {} records", "Insights → Assets".cyan(), stats.insights_to_assets);
-    println!("{}: {} records", "Expired".cyan(), stats.expired_interact + stats.expired_insights);
-    println!("{}: {}ms", "Total time".cyan(), stats.total_time_ms);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     
     Ok(())
 }
@@ -655,7 +492,6 @@ async fn check_health(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()> {
     Ok(())
 }
 
-<<<<<<< HEAD
 async fn clear_cache(api: &UnifiedMemoryAPI) -> Result<()> {
     let spinner = ProgressBuilder::fast("Clearing embedding cache...");
     
@@ -674,14 +510,6 @@ async fn clear_cache(api: &UnifiedMemoryAPI) -> Result<()> {
             spinner.finish_success(Some("Cache clear timeout"));
         }
     }
-=======
-async fn clear_cache(service: &MemoryService) -> Result<()> {
-    let spinner = ProgressBuilder::fast("Clearing embedding cache...");
-    
-    service.clear_cache().await?;
-    
-    spinner.finish_success(Some("Cache cleared successfully!"));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     
     Ok(())
 }
@@ -705,25 +533,17 @@ async fn optimize_memory(api: &UnifiedMemoryAPI) -> Result<()> {
 }
 
 async fn manage_limits(
-<<<<<<< HEAD
     api: &UnifiedMemoryAPI,
-=======
-    service: &MemoryService,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     max_vectors: Option<usize>,
     max_cache_mb: Option<usize>,
     show: bool,
 ) -> Result<()> {
-<<<<<<< HEAD
-=======
     let config = service.config();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     
     if show || (max_vectors.is_none() && max_cache_mb.is_none()) {
         println!("{}", "=== Memory System Limits ===".bold().blue());
         println!();
         
-<<<<<<< HEAD
         // Показываем текущие лимиты через API
         println!("{}", "Configuration limits not directly accessible through unified API".yellow());
         println!("{}", "To view detailed limits, check memory configuration file".dimmed());
@@ -741,56 +561,6 @@ async fn manage_limits(
         
         // Показываем здоровье кэша
         let (hits, misses, size) = api.cache_stats();
-=======
-        // Показываем текущие лимиты
-        println!("{}: {}", "Base max vectors".cyan(), config.resource_config.base_max_vectors);
-        println!("{}: {}", "Scaling max vectors".cyan(), config.resource_config.scaling_max_vectors);
-        println!("{}: {} MB", 
-            "Base cache size".cyan(), 
-            config.resource_config.base_cache_size_bytes / (1024 * 1024)
-        );
-        println!("{}: {} MB", 
-            "Scaling max cache size".cyan(), 
-            config.resource_config.scaling_max_cache_bytes / (1024 * 1024)
-        );
-        println!("{}: {}%", "Target memory usage".cyan(), config.resource_config.target_memory_usage_percent);
-        println!("{}: {}%", "Critical memory usage".cyan(), config.resource_config.critical_memory_usage_percent);
-        
-        // Показываем текущее использование
-        let store = service.get_store();
-        let memory_stats = store.memory_stats();
-        let capacity_usage = store.capacity_usage();
-        
-        println!("\n{}", "Current Usage:".bold());
-        println!("{}: {} / {} ({:.1}%)", 
-            "Total vectors".cyan(),
-            memory_stats.total_vectors,
-            config.resource_config.base_max_vectors,
-            (memory_stats.total_vectors as f64 / config.resource_config.base_max_vectors as f64) * 100.0
-        );
-        
-        println!("\n{}", "Usage by layer:".bold());
-        for (layer, usage_percent) in capacity_usage {
-            let layer_name = match layer {
-                Layer::Interact => "Interact",
-                Layer::Insights => "Insights",
-                Layer::Assets => "Assets",
-            };
-            
-            let color = if usage_percent > 90.0 {
-                usage_percent.to_string().red()
-            } else if usage_percent > 70.0 {
-                usage_percent.to_string().yellow()
-            } else {
-                usage_percent.to_string().green()
-            };
-            
-            println!("  {}: {}%", layer_name.cyan(), color);
-        }
-        
-        // Показываем здоровье кэша
-        let (hits, misses, size) = service.cache_stats();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let hit_rate = if hits + misses > 0 {
             (hits as f64 / (hits + misses) as f64) * 100.0
         } else {

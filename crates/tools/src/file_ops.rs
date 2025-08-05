@@ -2,60 +2,21 @@ use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use walkdir::WalkDir;
 
 // FileReader - чтение файлов с простым форматированием
 pub struct FileReader;
 
-<<<<<<< HEAD
-impl Default for FileReader {
-    fn default() -> Self {
-        Self::new()
+impl FileReader {
+    pub fn new() -> Self {
+        FileReader
     }
 }
 
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-impl FileReader {
-    pub fn new() -> Self {
-        Self
-    }
-    
-    fn format_file_content(&self, path: &Path, content: &str) -> String {
-        // Простое форматирование без syntect для надежности
-        let mut formatted = String::new();
-        
-        // Добавляем красивый заголовок
-        formatted.push_str(&format!("┌─ {} {}\n", 
-            "📄",
-            path.display()
-        ));
-        
-        // Простое форматирование с номерами строк
-        let lines: Vec<&str> = content.lines().collect();
-        let line_count = lines.len();
-        let line_width = line_count.to_string().len().max(3);
-        
-        for (i, line) in lines.iter().enumerate() {
-            let line_num = format!("{:width$}", i + 1, width = line_width);
-<<<<<<< HEAD
-            formatted.push_str(&format!("│ {line_num} │ {line}\n"));
-        }
-        
-        formatted.push('└');
-=======
-            formatted.push_str(&format!("│ {} │ {}\n", line_num, line));
-        }
-        
-        formatted.push_str("└");
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-        for _ in 0..60 {
-            formatted.push('─');
-        }
-        formatted.push('\n');
-        
-        formatted
+impl Default for FileReader {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -74,65 +35,39 @@ impl Tool for FileReader {
             input_schema: r#"{"path": "string"}"#.to_string(),
         }
     }
-    
+
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
-        let path_str = input.args.get("path")
-            .ok_or_else(|| anyhow!("Требуется параметр 'path'"))?;
-        let path = PathBuf::from(path_str);
+        let path = input.args.get("path")
+            .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
         
-        if !path.exists() {
-            return Ok(ToolOutput {
-                success: false,
-                result: format!("Файл не найден: {}", path.display()),
-                formatted_output: None,
-                metadata: HashMap::new(),
-            });
-        }
+        let content = fs::read_to_string(path)?;
         
-        if path.is_dir() {
-            return Ok(ToolOutput {
-                success: false,
-                result: format!("Это директория, не файл: {}", path.display()),
-                formatted_output: None,
-                metadata: HashMap::new(),
-            });
-        }
-        
-        let content = fs::read_to_string(&path)
-            .map_err(|e| anyhow!("Ошибка чтения файла: {}", e))?;
-            
-        let formatted = self.format_file_content(&path, &content);
-        
-        let mut metadata = HashMap::new();
-        metadata.insert("file_size".to_string(), content.len().to_string());
-        metadata.insert("line_count".to_string(), content.lines().count().to_string());
+        // Простое форматирование с заголовком
+        let mut formatted = String::new();
+        formatted.push_str(&format!("\n📄 Файл: {}\n", path));
+        formatted.push_str(&"─".repeat(60));
+        formatted.push('\n');
+        formatted.push_str(&content);
+        formatted.push('\n');
+        formatted.push_str(&"─".repeat(60));
+        formatted.push('\n');
         
         Ok(ToolOutput {
             success: true,
             result: content,
             formatted_output: Some(formatted),
-            metadata,
+            metadata: HashMap::new(),
         })
     }
     
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
-        // Простой парсинг естественного языка
         let mut args = HashMap::new();
         
-        // Ищем путь в запросе
-        let words: Vec<&str> = query.split_whitespace().collect();
-        
-        // Ищем файл с расширением или путем
-        for word in &words {
-            if word.contains('.') || word.starts_with('/') || word.starts_with("./") || word.starts_with("src/") {
-                args.insert("path".to_string(), word.to_string());
-                break;
-            }
-        }
-        
-        // Если не нашли явный путь, берем последнее слово
-        if args.is_empty() && !words.is_empty() {
-            args.insert("path".to_string(), words[words.len() - 1].to_string());
+        // Извлекаем путь из запроса
+        if let Some(path) = extract_path_from_query(query) {
+            args.insert("path".to_string(), path);
+        } else {
+            args.insert("path".to_string(), query.to_string());
         }
         
         Ok(ToolInput {
@@ -146,18 +81,15 @@ impl Tool for FileReader {
 // FileWriter - запись файлов
 pub struct FileWriter;
 
-<<<<<<< HEAD
-impl Default for FileWriter {
-    fn default() -> Self {
-        Self::new()
+impl FileWriter {
+    pub fn new() -> Self {
+        FileWriter
     }
 }
 
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-impl FileWriter {
-    pub fn new() -> Self {
-        Self
+impl Default for FileWriter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -166,42 +98,29 @@ impl Tool for FileWriter {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: "file_write".to_string(),
-            description: "Записывает содержимое в файл".to_string(),
+            description: "Создаёт или перезаписывает файл с указанным содержимым".to_string(),
             usage: "file_write <путь> <содержимое>".to_string(),
             examples: vec![
-                "file_write README.md '# My Project'".to_string(),
-                "создать файл config.toml с настройками".to_string(),
+                "file_write test.txt Hello World".to_string(),
+                "создать файл config.json с содержимым {...}".to_string(),
             ],
             input_schema: r#"{"path": "string", "content": "string"}"#.to_string(),
         }
     }
-    
+
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
-        let path_str = input.args.get("path")
-            .ok_or_else(|| anyhow!("Требуется параметр 'path'"))?;
+        let path = input.args.get("path")
+            .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
         let content = input.args.get("content")
-            .ok_or_else(|| anyhow!("Требуется параметр 'content'"))?;
-            
-        let path = PathBuf::from(path_str);
-        
-        // Создаем директории если нужно
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| anyhow!("Ошибка создания директории: {}", e))?;
-        }
-        
-        fs::write(&path, content)
-            .map_err(|e| anyhow!("Ошибка записи файла: {}", e))?;
-            
-        let formatted = format!("✓ Файл успешно записан: {}\n📄 Размер: {} байт",
-            path.display(),
-            content.len()
-        );
+            .map(|s| s.as_str())
+            .unwrap_or("");
+
+        fs::write(path, content)?;
         
         Ok(ToolOutput {
             success: true,
-            result: format!("Файл записан: {}", path.display()),
-            formatted_output: Some(formatted),
+            result: format!("✅ Файл '{}' успешно создан", path),
+            formatted_output: None,
             metadata: HashMap::new(),
         })
     }
@@ -209,72 +128,13 @@ impl Tool for FileWriter {
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         let mut args = HashMap::new();
         
-        // Улучшенный парсинг для создания файлов
-        if query.contains("создай") || query.contains("create") {
-            let words: Vec<&str> = query.split_whitespace().collect();
-            
-            // Ищем путь (файл с расширением или без)
-            let mut found_path = None;
-            for word in &words {
-                if word.contains('.') {
-                    found_path = Some(word.to_string());
-                    break;
-                }
-            }
-            
-            // Если не нашли файл с расширением, ищем просто имя файла
-            if found_path.is_none() {
-                for (i, word) in words.iter().enumerate() {
-<<<<<<< HEAD
-                    if (*word == "файл" || *word == "file")
-                        && i + 1 < words.len() {
-=======
-                    if *word == "файл" || *word == "file" {
-                        if i + 1 < words.len() {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-                            let mut filename = words[i + 1].to_string();
-                            // Добавляем расширение если его нет
-                            if !filename.contains('.') {
-                                filename.push_str(".txt");
-                            }
-                            found_path = Some(filename);
-                            break;
-                        }
-<<<<<<< HEAD
-=======
-                    }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-                }
-            }
-            
-            let file_path = found_path.unwrap_or_else(|| "new_file.txt".to_string());
-            args.insert("path".to_string(), file_path.clone());
-            
-            // Ищем содержимое в запросе
-            let content = if query.contains("с текстом") || query.contains("с содержимым") {
-                // Извлекаем текст после "с текстом" или "с содержимым"
-                let content_markers = ["с текстом", "с содержимым", "содержимым"];
-                let mut content = String::new();
-                
-                for marker in &content_markers {
-                    if let Some(pos) = query.find(marker) {
-                        let after_marker = &query[pos + marker.len()..].trim();
-                        // Убираем кавычки если есть
-                        content = after_marker.trim_matches('"').trim_matches('\'').to_string();
-                        break;
-                    }
-                }
-                
-                if content.is_empty() {
-                    FileWriter::generate_default_content(&file_path)
-                } else {
-                    content
-                }
-            } else {
-                FileWriter::generate_default_content(&file_path)
-            };
-            
-            args.insert("content".to_string(), content);
+        // Простой парсинг для создания файла
+        let parts: Vec<&str> = query.split(" с содержимым ").collect();
+        if parts.len() == 2 {
+            args.insert("path".to_string(), parts[0].trim().to_string());
+            args.insert("content".to_string(), parts[1].trim().to_string());
+        } else {
+            return Err(anyhow!("Не удалось распарсить запрос на создание файла"));
         }
         
         Ok(ToolInput {
@@ -285,94 +145,18 @@ impl Tool for FileWriter {
     }
 }
 
-impl FileWriter {
-    fn generate_default_content(file_path: &str) -> String {
-        if file_path.ends_with(".rs") {
-            "fn main() {\n    println!(\"Hello, world!\");\n}".to_string()
-        } else if file_path.ends_with(".md") {
-            let name = file_path.replace(".md", "");
-<<<<<<< HEAD
-            format!("# {name}\n\nОписание проекта...\n\n## Использование\n\nИнструкции по использованию...\n")
-=======
-            format!("# {}\n\nОписание проекта...\n\n## Использование\n\nИнструкции по использованию...\n", name)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-        } else if file_path.ends_with(".toml") {
-            "[settings]\nname = \"example\"\nversion = \"1.0.0\"\n".to_string()
-        } else if file_path.ends_with(".json") {
-            "{\n  \"name\": \"example\",\n  \"version\": \"1.0.0\"\n}".to_string()
-        } else {
-<<<<<<< HEAD
-            format!("# Файл: {file_path}\n\nСодержимое файла...\n")
-=======
-            format!("# Файл: {}\n\nСодержимое файла...\n", file_path)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-        }
-    }
-}
-
 // DirLister - просмотр директорий
 pub struct DirLister;
 
-<<<<<<< HEAD
-impl Default for DirLister {
-    fn default() -> Self {
-        Self::new()
+impl DirLister {
+    pub fn new() -> Self {
+        DirLister
     }
 }
 
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-impl DirLister {
-    pub fn new() -> Self {
-        Self
-    }
-    
-    fn format_directory_tree(&self, path: &Path) -> Result<String> {
-        let mut output = String::new();
-        
-        output.push_str(&format!("📁 {}\n", path.display()));
-        
-        let walker = WalkDir::new(path)
-            .max_depth(3)
-            .follow_links(false);
-            
-        for entry in walker {
-            let entry = entry.map_err(|e| anyhow!("Ошибка обхода директории: {}", e))?;
-            let entry_path = entry.path();
-            let depth = entry.depth();
-            
-            if depth == 0 { continue; }
-            
-            let indent = "  ".repeat(depth);
-            let name = entry_path.file_name()
-                .unwrap_or_default()
-                .to_string_lossy();
-                
-            if entry_path.is_dir() {
-<<<<<<< HEAD
-                output.push_str(&format!("{indent}📁 {name}\n"));
-=======
-                output.push_str(&format!("{}📁 {}\n", indent, name));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-            } else {
-                let icon = match entry_path.extension().and_then(|s| s.to_str()) {
-                    Some("rs") => "📄",
-                    Some("toml") => "📄", 
-                    Some("md") => "📄",
-                    Some("json") => "📄",
-                    Some("txt") => "📄",
-                    _ => "📄",
-                };
-                
-<<<<<<< HEAD
-                output.push_str(&format!("{indent}{icon} {name}\n"));
-=======
-                output.push_str(&format!("{}{} {}\n", indent, icon, name));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-            }
-        }
-        
-        Ok(output)
+impl Default for DirLister {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -391,36 +175,56 @@ impl Tool for DirLister {
             input_schema: r#"{"path": "string"}"#.to_string(),
         }
     }
-    
+
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
-        let default_path = ".".to_string();
-        let path_str = input.args.get("path").unwrap_or(&default_path);
-        let path = PathBuf::from(path_str);
+        let path = input.args.get("path")
+            .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
         
-        if !path.exists() {
-            return Ok(ToolOutput {
-                success: false,
-                result: format!("Директория не найдена: {}", path.display()),
-                formatted_output: None,
-                metadata: HashMap::new(),
-            });
-        }
-        
+        let path = Path::new(path);
         if !path.is_dir() {
-            return Ok(ToolOutput {
-                success: false,
-                result: format!("Это файл, не директория: {}", path.display()),
-                formatted_output: None,
-                metadata: HashMap::new(),
-            });
+            return Err(anyhow!("'{}' не является директорией", path.display()));
         }
         
-        let formatted = self.format_directory_tree(&path)?;
+        let mut output = String::new();
+        output.push_str(&format!("\n📁 Директория: {}\n", path.display()));
+        output.push_str(&"─".repeat(60));
+        output.push('\n');
+        
+        // Собираем entries
+        let mut entries: Vec<_> = fs::read_dir(path)?
+            .filter_map(|e| e.ok())
+            .collect();
+        
+        // Сортируем: сначала директории, потом файлы
+        entries.sort_by(|a, b| {
+            let a_is_dir = a.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            let b_is_dir = b.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            b_is_dir.cmp(&a_is_dir).then_with(|| a.file_name().cmp(&b.file_name()))
+        });
+        
+        for entry in entries {
+            let entry_path = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            
+            if entry_path.is_dir() {
+                output.push_str(&format!("📁 {}/\n", name_str));
+            } else {
+                let icon = "📄";
+                let size = entry.metadata()
+                    .map(|m| format_size(m.len()))
+                    .unwrap_or_else(|_| "?".to_string());
+                output.push_str(&format!("{} {} ({})\n", icon, name_str, size));
+            }
+        }
+        
+        output.push_str(&"─".repeat(60));
+        output.push('\n');
         
         Ok(ToolOutput {
             success: true,
-            result: format!("Содержимое: {}", path.display()),
-            formatted_output: Some(formatted),
+            result: output.clone(),
+            formatted_output: Some(output),
             metadata: HashMap::new(),
         })
     }
@@ -428,18 +232,10 @@ impl Tool for DirLister {
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         let mut args = HashMap::new();
         
-        // Ищем путь в запросе
-        let words: Vec<&str> = query.split_whitespace().collect();
-        
-        for word in &words {
-            if word.ends_with('/') || *word == "." || *word == ".." || word.starts_with("./") {
-                args.insert("path".to_string(), word.to_string());
-                break;
-            }
-        }
-        
-        // По умолчанию текущая директория
-        if args.is_empty() {
+        // Извлекаем путь из запроса
+        if let Some(path) = extract_path_from_query(query) {
+            args.insert("path".to_string(), path);
+        } else {
             args.insert("path".to_string(), ".".to_string());
         }
         
@@ -449,4 +245,163 @@ impl Tool for DirLister {
             context: Some(query.to_string()),
         })
     }
+}
+
+// FileSearcher - поиск файлов
+pub struct FileSearcher;
+
+impl FileSearcher {
+    pub fn new() -> Self {
+        FileSearcher
+    }
+}
+
+impl Default for FileSearcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait::async_trait]
+impl Tool for FileSearcher {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec {
+            name: "file_search".to_string(),
+            description: "Ищет файлы по имени или расширению".to_string(),
+            usage: "file_search <паттерн> [путь]".to_string(),
+            examples: vec![
+                "file_search *.rs".to_string(),
+                "file_search main.rs src/".to_string(),
+                "найти все файлы .toml".to_string(),
+            ],
+            input_schema: r#"{"pattern": "string", "path": "string?"}"#.to_string(),
+        }
+    }
+
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
+        let pattern = input.args.get("pattern")
+            .ok_or_else(|| anyhow!("Отсутствует параметр 'pattern'"))?;
+        let search_path = input.args.get("path")
+            .map(|s| s.as_str())
+            .unwrap_or(".");
+        
+        let mut results = Vec::new();
+        let pattern_lower = pattern.to_lowercase();
+        
+        for entry in WalkDir::new(search_path)
+            .max_depth(10)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            let file_name = path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+            
+            // Простой поиск по паттерну
+            let matches = if pattern.contains('*') {
+                // Простая поддержка wildcard
+                let pattern_parts: Vec<&str> = pattern.split('*').collect();
+                if pattern_parts.len() == 2 {
+                    if pattern.starts_with('*') {
+                        file_name.to_lowercase().ends_with(&pattern_parts[1].to_lowercase())
+                    } else if pattern.ends_with('*') {
+                        file_name.to_lowercase().starts_with(&pattern_parts[0].to_lowercase())
+                    } else {
+                        file_name.to_lowercase().starts_with(&pattern_parts[0].to_lowercase()) &&
+                        file_name.to_lowercase().ends_with(&pattern_parts[1].to_lowercase())
+                    }
+                } else {
+                    file_name.to_lowercase().contains(&pattern_lower)
+                }
+            } else {
+                file_name.to_lowercase().contains(&pattern_lower)
+            };
+            
+            if matches {
+                results.push(path.display().to_string());
+            }
+        }
+        
+        let mut output = String::new();
+        output.push_str(&format!("\n🔍 Поиск: {} в {}\n", pattern, search_path));
+        output.push_str(&"─".repeat(60));
+        output.push('\n');
+        
+        if results.is_empty() {
+            output.push_str("Файлы не найдены\n");
+        } else {
+            output.push_str(&format!("Найдено {} файлов:\n", results.len()));
+            for result in results.iter().take(100) {
+                output.push_str(&format!("  📄 {}\n", result));
+            }
+            if results.len() > 100 {
+                output.push_str(&format!("  ... и ещё {} файлов\n", results.len() - 100));
+            }
+        }
+        
+        output.push_str(&"─".repeat(60));
+        output.push('\n');
+        
+        Ok(ToolOutput {
+            success: true,
+            result: output.clone(),
+            formatted_output: Some(output),
+            metadata: HashMap::new(),
+        })
+    }
+    
+    async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
+        let mut args = HashMap::new();
+        
+        // Извлекаем паттерн поиска
+        if query.contains("файлы") || query.contains("файл") {
+            // Пытаемся найти расширение файла
+            if let Some(ext_start) = query.find('.') {
+                let ext_end = query[ext_start..].find(' ').unwrap_or(query.len() - ext_start);
+                let pattern = format!("*{}", &query[ext_start..ext_start + ext_end]);
+                args.insert("pattern".to_string(), pattern);
+            } else {
+                args.insert("pattern".to_string(), "*".to_string());
+            }
+        } else {
+            args.insert("pattern".to_string(), query.to_string());
+        }
+        
+        Ok(ToolInput {
+            command: "file_search".to_string(),
+            args,
+            context: Some(query.to_string()),
+        })
+    }
+}
+
+// Вспомогательная функция для форматирования размера файла
+fn format_size(size: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
+    let mut size = size as f64;
+    let mut unit_index = 0;
+    
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
+    }
+    
+    if unit_index == 0 {
+        format!("{} {}", size as u64, UNITS[unit_index])
+    } else {
+        format!("{:.1} {}", size, UNITS[unit_index])
+    }
+}
+
+// Вспомогательная функция для извлечения пути из запроса
+fn extract_path_from_query(query: &str) -> Option<String> {
+    // Простой поиск путей в запросе
+    let words: Vec<&str> = query.split_whitespace().collect();
+    for word in words {
+        if word.contains('/') || word.contains('\\') || word.ends_with(".rs") || word.ends_with(".md") || word.ends_with(".toml") {
+            return Some(word.to_string());
+        }
+    }
+    None
 }

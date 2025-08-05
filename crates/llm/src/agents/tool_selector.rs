@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+﻿use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use crate::LlmClient;
 
@@ -24,15 +24,9 @@ impl ToolSelectorAgent {
         
         let prompt = format!(r#"Ты - эксперт по выбору инструментов. Проанализируй запрос пользователя и выбери наиболее подходящий инструмент.
 
-<<<<<<< HEAD
 ДОСТУПНЫЕ ИНСТРУМЕНТЫ: {tools_list}
 
 ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{user_query}"
-=======
-ДОСТУПНЫЕ ИНСТРУМЕНТЫ: {}
-
-ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{}"
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 АНАЛИЗ ПО КЛЮЧЕВЫМ СЛОВАМ:
 - "файл", "создать", "записать", "сохранить" → file_write
@@ -53,15 +47,9 @@ impl ToolSelectorAgent {
     "tool_name": "название_инструмента",
     "confidence": 0.9,
     "reasoning": "краткое объяснение выбора"
-<<<<<<< HEAD
 }}"#);
 
         let response = self.llm.chat_simple(&prompt).await?;
-=======
-}}"#, tools_list, user_query);
-
-        let response = self.llm.chat(&prompt).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         self.parse_tool_selection(&response)
     }
     

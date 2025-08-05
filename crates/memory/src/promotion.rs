@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use sled::{Db, Tree};
 use std::collections::BTreeMap;
@@ -31,13 +31,8 @@ impl PromotionEngine {
         
         // Создаем индексы для каждого слоя
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-<<<<<<< HEAD
             let time_tree_name = format!("time_index_{layer:?}");
             let score_tree_name = format!("score_index_{layer:?}");
-=======
-            let time_tree_name = format!("time_index_{:?}", layer);
-            let score_tree_name = format!("score_index_{:?}", layer);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             
             let time_tree = db.open_tree(&time_tree_name)?;
             let score_tree = db.open_tree(&score_tree_name)?;
@@ -127,11 +122,7 @@ impl PromotionEngine {
             // Удаляем из старого слоя и обновляем индексы
             for record in &promoted {
                 self.delete_record_with_index_update(Layer::Interact, &record.id).await?;
-<<<<<<< HEAD
                 self.update_indices_for_record(record, true).await?;
-=======
-                self.update_indices_for_record(&record, true).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
         
@@ -165,11 +156,7 @@ impl PromotionEngine {
             
             for record in &promoted {
                 self.delete_record_with_index_update(Layer::Insights, &record.id).await?;
-<<<<<<< HEAD
                 self.update_indices_for_record(record, true).await?;
-=======
-                self.update_indices_for_record(&record, true).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
         
@@ -200,7 +187,6 @@ impl PromotionEngine {
         Ok(count)
     }
     
-<<<<<<< HEAD
     /// Основной API метод для координатора
     pub async fn promote(&self) -> Result<PromotionStats> {
         self.run_promotion_cycle().await
@@ -210,186 +196,6 @@ impl PromotionEngine {
     pub fn stats(&self) -> PromotionStats {
         // Возвращаем базовую статистику
         PromotionStats::default()
-    }
-    
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-    /// Быстрый поиск кандидатов используя time-based индекс
-    async fn find_candidates_by_time(
-        &self,
-        layer: Layer,
-        before: DateTime<Utc>,
-        min_score: f32,
-        min_access_count: u32,
-    ) -> Result<Vec<Record>> {
-        let time_index = self.time_indices.get(&layer)
-            .ok_or_else(|| anyhow::anyhow!("Time index not found for layer {:?}", layer))?;
-        
-        let mut candidates = Vec::new();
-        let before_key = self.datetime_to_key(before);
-        
-        // Сканируем только записи до указанного времени (гораздо быстрее чем O(n))
-        let range = time_index.range(..before_key);
-        
-        for result in range {
-            let (_time_key, record_id_bytes) = result?;
-            let record_id_str = String::from_utf8(record_id_bytes.to_vec())?;
-            
-            // Получаем полную запись для проверки остальных критериев
-            if let Ok(Some(record)) = self.store.get_by_id(&record_id_str.parse()?, layer).await {
-                if record.layer == layer 
-                    && record.score >= min_score 
-                    && record.access_count >= min_access_count 
-                {
-                    candidates.push(record);
-                    
-                    // Динамический лимит на основе доступной памяти
-                    let memory_limit = self.calculate_safe_candidates_limit();
-                    if candidates.len() >= memory_limit {
-                        debug!("🎯 Достигнут безопасный лимит кандидатов ({}), продолжаем с batch обработкой", memory_limit);
-                        
-                        // Обрабатываем текущий batch перед продолжением
-                        if !candidates.is_empty() {
-                            self.process_candidates_batch(&mut candidates, layer).await?;
-                            debug!("✅ Обработан batch из {} кандидатов", candidates.len());
-                            candidates.clear();
-                        }
-                    }
-                }
-            }
-        }
-        
-        debug!("🔍 Найдено {} кандидатов в {:?} (time-based search)", candidates.len(), layer);
-        Ok(candidates)
-    }
-    
-    /// Быстрый поиск устаревших записей
-    async fn find_expired_records(
-        &self,
-        layer: Layer,
-        before: DateTime<Utc>,
-    ) -> Result<Vec<uuid::Uuid>> {
-        let time_index = self.time_indices.get(&layer)
-            .ok_or_else(|| anyhow::anyhow!("Time index not found for layer {:?}", layer))?;
-        
-        let mut expired_ids = Vec::new();
-        let before_key = self.datetime_to_key(before);
-        
-        // Все записи до указанного времени считаются устаревшими
-        let range = time_index.range(..before_key);
-        
-        for result in range {
-            let (_, record_id_bytes) = result?;
-            let record_id_str = String::from_utf8(record_id_bytes.to_vec())?;
-            expired_ids.push(record_id_str.parse()?);
-        }
-        
-        debug!("🗑️ Найдено {} устаревших записей в {:?}", expired_ids.len(), layer);
-        Ok(expired_ids)
-    }
-    
-    /// Обновляем индексы инкрементально
-    async fn update_indices_incremental(&self) -> Result<()> {
-        debug!("📊 Инкрементальное обновление индексов");
-        
-        // В реальной реализации здесь был бы более сложный алгоритм
-        // отслеживания изменений с последнего update
-        // Пока делаем базовое обновление только при необходимости
-        
-        for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-            let index_size = self.time_indices.get(&layer).unwrap().len();
-            debug!("  {:?}: {} записей в time-индексе", layer, index_size);
-        }
-        
-        Ok(())
-    }
-    
-    /// Обновляем индексы для конкретной записи
-    async fn update_indices_for_record(&self, record: &Record, is_new: bool) -> Result<()> {
-        let time_index = self.time_indices.get(&record.layer)
-            .ok_or_else(|| anyhow::anyhow!("Time index not found for layer {:?}", record.layer))?;
-        let score_index = self.score_indices.get(&record.layer)
-            .ok_or_else(|| anyhow::anyhow!("Score index not found for layer {:?}", record.layer))?;
-        
-        let time_key = self.datetime_to_key(record.ts);
-        let score_key = self.score_to_key(record.score);
-        let record_id_bytes = record.id.to_string().as_bytes().to_vec();
-        
-        if is_new {
-            time_index.insert(time_key, record_id_bytes.clone())?;
-            score_index.insert(score_key, record_id_bytes)?;
-        } else {
-            time_index.remove(time_key)?;
-            score_index.remove(score_key)?;
-        }
-        
-        Ok(())
-    }
-    
-    /// Удаляет запись и обновляет индексы
-    async fn delete_record_with_index_update(&self, layer: Layer, id: &uuid::Uuid) -> Result<()> {
-        // Сначала получаем запись для обновления индексов
-        if let Ok(Some(record)) = self.store.get_by_id(id, layer).await {
-            // Удаляем из индексов
-            self.update_indices_for_record(&record, false).await?;
-        }
-        
-        // Удаляем саму запись
-        self.store.delete_by_id(id, layer).await?;
-        Ok(())
-    }
-    
-    /// Rebuilds all indices (expensive operation, only on first run)
-    async fn rebuild_indices_if_needed(&self) -> Result<()> {
-        // Проверяем есть ли данные в индексах
-        let interact_index_size = self.time_indices.get(&Layer::Interact).unwrap().len();
-        
-        if interact_index_size == 0 {
-            info!("🔧 Первый запуск: rebuild всех индексов");
-            // В реальной реализации здесь был бы полный rebuild
-            info!("✅ Индексы готовы к работе");
-        } else {
-            debug!("📊 Индексы уже существуют, используем инкрементальное обновление");
-        }
-        
-        Ok(())
-    }
-    
-    /// Преобразует DateTime в ключ для индекса
-    fn datetime_to_key(&self, dt: DateTime<Utc>) -> [u8; 8] {
-        (dt.timestamp() as u64).to_be_bytes()
-    }
-    
-    /// Преобразует score в ключ для индекса
-    fn score_to_key(&self, score: f32) -> [u8; 4] {
-        score.to_bits().to_be_bytes()
-    }
-    
-    /// Вычисляет безопасный лимит кандидатов на основе доступной памяти
-    fn calculate_safe_candidates_limit(&self) -> usize {
-        // Базовая оценка: 1 запись ≈ 2KB (text + embeddings + metadata)
-        const ESTIMATED_RECORD_SIZE: usize = 2048;
-        
-        // Получаем примерную оценку доступной памяти (в реальности использовать sysinfo)
-        let available_memory_mb = self.estimate_available_memory_mb();
-        
-        // Используем максимум 10% от доступной памяти для кандидатов
-        let memory_for_candidates = (available_memory_mb * 1024 * 1024) / 10;
-        let safe_limit = memory_for_candidates / ESTIMATED_RECORD_SIZE;
-        
-        // Интеллектуальные границы:
-        // - Минимум 500 кандидатов (для эффективности)
-        // - Максимум 50,000 кандидатов (для предотвращения OOM)
-<<<<<<< HEAD
-        let final_limit = safe_limit.clamp(500, 50_000);
-=======
-        let final_limit = safe_limit.max(500).min(50_000);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-        
-        debug!("💾 Calculated safe candidates limit: {} (available memory: {}MB)", 
-               final_limit, available_memory_mb);
-        
-        final_limit
     }
     
     /// Простая оценка доступной памяти (в production использовать sysinfo)
@@ -485,11 +291,7 @@ impl PromotionEngine {
         // Удаляем из старого слоя
         for record in &promoted {
             self.delete_record_with_index_update(Layer::Interact, &record.id).await?;
-<<<<<<< HEAD
             self.update_indices_for_record(record, true).await?;
-=======
-            self.update_indices_for_record(&record, true).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         debug!("✅ Promoted {} records: Interact -> Insights", promoted.len());
@@ -514,11 +316,7 @@ impl PromotionEngine {
         
         for record in &promoted {
             self.delete_record_with_index_update(Layer::Insights, &record.id).await?;
-<<<<<<< HEAD
             self.update_indices_for_record(record, true).await?;
-=======
-            self.update_indices_for_record(&record, true).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         debug!("✅ Promoted {} records: Insights -> Assets", promoted.len());

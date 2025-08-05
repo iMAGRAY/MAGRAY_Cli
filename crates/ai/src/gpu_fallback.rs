@@ -1,96 +1,14 @@
 use anyhow::{Result, Context};
+use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::{info, warn, debug};
-<<<<<<< HEAD
 #[cfg(feature = "gpu")]
 use tracing::error;
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-use async_trait::async_trait;
 
-use crate::{EmbeddingConfig, embeddings_cpu::CpuEmbeddingService};
+use crate::{EmbeddingConfig, CpuEmbeddingService, EmbeddingServiceTrait};
 #[cfg(feature = "gpu")]
-use crate::embeddings_gpu::GpuEmbeddingService;
-use crate::auto_device_selector::EmbeddingServiceTrait;
-
-/// @component: {"k":"C","id":"gpu_fallback_manager","t":"Reliable GPU fallback system","m":{"cur":100,"tgt":100,"u":"%"},"f":["fallback","resilience","gpu"]}
-pub struct GpuFallbackManager {
-    /// Основной GPU сервис (если доступен)
-    #[cfg(feature = "gpu")]
-    #[allow(dead_code)]
-    gpu_service: Option<Arc<GpuEmbeddingService>>,
-    #[cfg(not(feature = "gpu"))]
-    #[allow(dead_code)]
-    gpu_service: Option<()>, // Placeholder for CPU-only builds
-    /// Резервный CPU сервис
-    cpu_service: Arc<CpuEmbeddingService>,
-    /// Статистика fallback'ов
-    fallback_stats: Arc<Mutex<FallbackStats>>,
-    /// Конфигурация fallback политики
-    #[allow(dead_code)]
-    policy: FallbackPolicy,
-    /// Блокировка GPU после серии ошибок
-    gpu_circuit_breaker: Arc<Mutex<CircuitBreaker>>,
-}
-
-/// Статистика использования fallback
-#[derive(Debug, Default, Clone)]
-pub struct FallbackStats {
-    /// Успешные GPU вызовы
-    gpu_success_count: u64,
-    /// Ошибки GPU
-    gpu_error_count: u64,
-    /// Таймауты GPU
-    gpu_timeout_count: u64,
-    /// Fallback на CPU
-    cpu_fallback_count: u64,
-    /// Общее время GPU (ms)
-    #[allow(dead_code)]
-    gpu_total_time_ms: u64,
-    /// Общее время CPU (ms)
-    cpu_total_time_ms: u64,
-}
-
-impl FallbackStats {
-    pub fn gpu_success_rate(&self) -> f32 {
-        let total = self.gpu_success_count + self.gpu_error_count + self.gpu_timeout_count;
-        if total == 0 {
-            0.0
-        } else {
-            self.gpu_success_count as f32 / total as f32
-        }
-    }
-    
-    pub fn fallback_rate(&self) -> f32 {
-        let total = self.gpu_success_count + self.cpu_fallback_count;
-        if total == 0 {
-            0.0
-        } else {
-            self.cpu_fallback_count as f32 / total as f32
-        }
-    }
-<<<<<<< HEAD
-    
-    // Геттеры для приватных полей
-    pub fn gpu_error_count(&self) -> u64 {
-        self.gpu_error_count
-    }
-    
-    pub fn gpu_success_count(&self) -> u64 {
-        self.gpu_success_count
-    }
-    
-    pub fn gpu_timeout_count(&self) -> u64 {
-        self.gpu_timeout_count
-    }
-    
-    pub fn cpu_fallback_count(&self) -> u64 {
-        self.cpu_fallback_count
-    }
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-}
+use crate::GpuEmbeddingService;
 
 /// Политика fallback
 #[derive(Debug, Clone)]
@@ -185,6 +103,52 @@ impl CircuitBreaker {
     }
 }
 
+/// Статистика fallback операций
+#[derive(Debug, Default, Clone)]
+pub struct FallbackStats {
+    pub gpu_successes: u64,
+    pub gpu_failures: u64,
+    pub cpu_fallbacks: u64,
+    pub total_requests: u64,
+    pub avg_gpu_time_ms: f64,
+    pub avg_cpu_time_ms: f64,
+    pub circuit_breaks: u64,
+    pub gpu_timeout_count: u64,
+    pub gpu_success_count: u64,
+    pub gpu_error_count: u64,
+    pub cpu_fallback_count: u64,
+}
+
+impl FallbackStats {
+    pub fn gpu_success_rate(&self) -> f64 {
+        let total = self.gpu_success_count + self.gpu_error_count + self.gpu_timeout_count;
+        if total == 0 {
+            0.0
+        } else {
+            self.gpu_success_count as f64 / total as f64
+        }
+    }
+    
+    pub fn fallback_rate(&self) -> f64 {
+        let total = self.gpu_success_count + self.cpu_fallback_count;
+        if total == 0 {
+            0.0
+        } else {
+            self.cpu_fallback_count as f64 / total as f64
+        }
+    }
+}
+
+/// @component: {"k":"C","id":"gpu_fallback_manager","t":"Reliable GPU fallback system","m":{"cur":100,"tgt":100,"u":"%"},"f":["fallback","resilience","gpu"]}
+pub struct GpuFallbackManager {
+    #[cfg(feature = "gpu")]
+    gpu_service: Option<Arc<GpuEmbeddingService>>,
+    cpu_service: Arc<CpuEmbeddingService>,
+    fallback_stats: Arc<Mutex<FallbackStats>>,
+    policy: FallbackPolicy,
+    gpu_circuit_breaker: Arc<Mutex<CircuitBreaker>>,
+}
+
 impl GpuFallbackManager {
     /// Создать новый менеджер с автоматическим fallback
     pub async fn new(config: EmbeddingConfig) -> Result<Self> {
@@ -226,7 +190,7 @@ impl GpuFallbackManager {
         };
         
         #[cfg(not(feature = "gpu"))]
-        let gpu_service = {
+        let _gpu_service: Option<Arc<()>> = {
             if config.use_gpu {
                 warn!("⚠️ GPU запрошен, но не скомпилирован. Используется CPU-only режим.");
             }
@@ -234,6 +198,7 @@ impl GpuFallbackManager {
         };
         
         Ok(Self {
+            #[cfg(feature = "gpu")]
             gpu_service,
             cpu_service,
             fallback_stats: Arc::new(Mutex::new(FallbackStats::default())),
@@ -284,11 +249,7 @@ impl GpuFallbackManager {
         
         if use_gpu {
             // Пытаемся использовать GPU
-<<<<<<< HEAD
             match self.try_gpu_embed(&texts[..]).await {
-=======
-            match self.try_gpu_embed(&texts).await {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 Ok(embeddings) => {
                     self.record_gpu_success();
                     return Ok(embeddings);
@@ -302,20 +263,12 @@ impl GpuFallbackManager {
         }
         
         // Используем CPU
-<<<<<<< HEAD
         self.embed_with_cpu(&texts[..]).await
-=======
-        self.embed_with_cpu(&texts).await
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     /// Попытка получить embeddings через GPU с timeout
     #[cfg(feature = "gpu")]
-<<<<<<< HEAD
     async fn try_gpu_embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-=======
-    async fn try_gpu_embed(&self, texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let gpu_service = self.gpu_service.as_ref()
             .ok_or_else(|| anyhow::anyhow!("GPU service not available"))?;
         
@@ -324,11 +277,7 @@ impl GpuFallbackManager {
         // Применяем timeout
         match tokio::time::timeout(
             self.policy.gpu_timeout, 
-<<<<<<< HEAD
             gpu_service.embed_batch(texts.to_vec())
-=======
-            gpu_service.embed_batch(texts.clone())
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         ).await {
             Ok(Ok(embeddings)) => {
                 let elapsed = start.elapsed();
@@ -349,28 +298,16 @@ impl GpuFallbackManager {
     
     /// CPU-only версия метода
     #[cfg(not(feature = "gpu"))]
-<<<<<<< HEAD
     async fn try_gpu_embed(&self, _texts: &[String]) -> Result<Vec<Vec<f32>>> {
-=======
-    async fn try_gpu_embed(&self, _texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Err(anyhow::anyhow!("GPU support not compiled"))
     }
     
     /// Получить embeddings через CPU
-<<<<<<< HEAD
     async fn embed_with_cpu(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let start = Instant::now();
-        self.fallback_stats.lock().unwrap().cpu_fallback_count += 1;
+        self.fallback_stats.lock().unwrap().cpu_fallbacks += 1;
         
         let results = self.cpu_service.embed_batch(texts)?;
-=======
-    async fn embed_with_cpu(&self, texts: &Vec<String>) -> Result<Vec<Vec<f32>>> {
-        let start = Instant::now();
-        self.fallback_stats.lock().unwrap().cpu_fallback_count += 1;
-        
-        let results = self.cpu_service.embed_batch(&texts[..])?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         // Конвертируем OptimizedEmbeddingResult в Vec<Vec<f32>>
         let embeddings: Vec<Vec<f32>> = results
@@ -379,7 +316,8 @@ impl GpuFallbackManager {
             .collect();
         
         let elapsed = start.elapsed();
-        self.fallback_stats.lock().unwrap().cpu_total_time_ms += elapsed.as_millis() as u64;
+        let mut stats = self.fallback_stats.lock().unwrap();
+        stats.avg_cpu_time_ms = (stats.avg_cpu_time_ms * stats.cpu_fallbacks as f64 + elapsed.as_millis() as f64) / (stats.cpu_fallbacks + 1) as f64;
         
         debug!("✅ CPU embedding успешно за {:?}", elapsed);
         Ok(embeddings)
@@ -388,7 +326,7 @@ impl GpuFallbackManager {
     /// Записать успешный GPU вызов
     fn record_gpu_success(&self) {
         let mut stats = self.fallback_stats.lock().unwrap();
-        stats.gpu_success_count += 1;
+        stats.gpu_successes += 1;
         
         let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
         breaker.record_success();
@@ -397,7 +335,7 @@ impl GpuFallbackManager {
     /// Записать ошибку GPU
     fn record_gpu_error(&self) {
         let mut stats = self.fallback_stats.lock().unwrap();
-        stats.gpu_error_count += 1;
+        stats.gpu_failures += 1;
         
         let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
         breaker.record_error();

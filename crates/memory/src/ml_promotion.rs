@@ -1,18 +1,84 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-<<<<<<< HEAD
 use std::collections::HashMap;
-=======
-use std::collections::{HashMap, BTreeMap};
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 use std::sync::Arc;
 use tracing::{debug, info};
+use uuid::Uuid;
 
 use crate::{
     storage::VectorStore,
     types::{Layer, Record},
 };
+
+/// Решение о promotion
+#[derive(Debug, Clone)]
+pub struct PromotionDecision {
+    pub record_id: Uuid,
+    pub current_layer: Layer,
+    pub target_layer: Layer,
+    pub confidence: f32,
+    pub features: PromotionFeatures,
+}
+
+/// Трекер использования записей
+#[derive(Debug, Clone)]
+pub struct UsageTracker {
+    access_patterns: HashMap<Uuid, AccessPattern>,
+}
+
+#[derive(Debug, Clone)]
+struct AccessPattern {
+    total_accesses: u64,
+    recent_accesses: u64,
+    access_velocity: f32,
+}
+
+impl UsageTracker {
+    pub fn new() -> Self {
+        Self {
+            access_patterns: HashMap::new(),
+        }
+    }
+}
+
+/// Семантический анализатор
+#[derive(Debug, Clone)]
+pub struct SemanticAnalyzer {
+    similarity_threshold: f32,
+    keyword_weights: HashMap<String, f32>,
+    topic_cache: HashMap<String, Vec<f32>>,
+}
+
+impl SemanticAnalyzer {
+    pub fn new() -> Self {
+        Self {
+            similarity_threshold: 0.7,
+            keyword_weights: HashMap::new(),
+            topic_cache: HashMap::new(),
+        }
+    }
+}
+
+/// Оптимизатор производительности
+#[derive(Debug, Clone)]
+pub struct PerformanceOptimizer {
+    target_latency_ms: f32,
+    avg_inference_time_ms: f32,
+    cache_hit_rate: f32,
+    gpu_utilization: f32,
+}
+
+impl PerformanceOptimizer {
+    pub fn new() -> Self {
+        Self {
+            target_latency_ms: 100.0,
+            avg_inference_time_ms: 0.0,
+            cache_hit_rate: 0.0,
+            gpu_utilization: 0.0,
+        }
+    }
+}
 
 /// ML-based promotion engine с машинным обучением для smart promotion
 /// @component: {"k":"C","id":"ml_promotion_engine","t":"ML-based smart promotion system","m":{"cur":95,"tgt":100,"u":"%"}}
@@ -72,77 +138,13 @@ pub struct PromotionModel {
     /// Статистика производительности модели
     accuracy: f32,
     last_training: DateTime<Utc>,
-<<<<<<< HEAD
     /// Лучшие веса во время обучения
     best_temporal_weights: Option<Vec<f32>>,
     best_semantic_weights: Option<Vec<f32>>,
     best_usage_weights: Option<Vec<f32>>,
     best_bias: Option<f32>,
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
-/// Трекер использования для ML features
-#[derive(Debug, Default)]
-pub struct UsageTracker {
-<<<<<<< HEAD
-    // Пустая структура для будущего использования
-}
-
-=======
-    /// Паттерны доступа по времени суток
-    hourly_access_patterns: BTreeMap<u32, f32>,
-    /// Частота доступа к similar records
-    semantic_clusters: HashMap<String, ClusterStats>,
-    /// Co-occurrence patterns
-    access_sequences: HashMap<String, Vec<String>>,
-    /// User behavior patterns
-    user_sessions: HashMap<String, SessionStats>,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct ClusterStats {
-    pub total_accesses: u64,
-    pub avg_promotion_time: f32,
-    pub success_rate: f32,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct SessionStats {
-    pub avg_session_length: f32,
-    pub access_frequency: f32,
-    pub preferred_layers: HashMap<Layer, f32>,
-}
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-
-/// Семантический анализатор для определения важности контента
-#[derive(Debug)]
-pub struct SemanticAnalyzer {
-    /// Важные keywords и их веса
-    keyword_weights: HashMap<String, f32>,
-<<<<<<< HEAD
-=======
-    /// Topic modeling cache
-    topic_cache: HashMap<String, Vec<f32>>,
-    /// Semantic similarity threshold
-    similarity_threshold: f32,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-}
-
-/// Оптимизатор производительности для ML operations
-#[derive(Debug)]
-pub struct PerformanceOptimizer {
-    /// Статистика производительности
-    avg_inference_time_ms: f32,
-    cache_hit_rate: f32,
-<<<<<<< HEAD
-=======
-    /// Adaptive batch sizing
-    optimal_batch_size: usize,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-    /// GPU utilization stats
-    gpu_utilization: f32,
-}
 
 /// Результаты ML-based promotion
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -260,11 +262,7 @@ impl MLPromotionEngine {
     }
 
     /// Извлечение features для ML модели
-<<<<<<< HEAD
     pub async fn extract_features(&self, record: &Record) -> Result<PromotionFeatures> {
-=======
-    async fn extract_features(&self, record: &Record) -> Result<PromotionFeatures> {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let now = Utc::now();
         
         // Temporal features
@@ -304,11 +302,7 @@ impl MLPromotionEngine {
     }
 
     /// ML inference для предсказания promotion score
-<<<<<<< HEAD
     pub fn predict_promotion_score(&self, features: &PromotionFeatures) -> f32 {
-=======
-    fn predict_promotion_score(&self, features: &PromotionFeatures) -> f32 {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         // Temporal component
         let temporal_score = 
             features.age_hours * self.model.temporal_weights[0] +
@@ -359,10 +353,7 @@ impl MLPromotionEngine {
                     decisions.push(PromotionDecision {
                         record: record.clone(),
                         confidence: promotion_score,
-<<<<<<< HEAD
-=======
                         features,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                         target_layer: self.determine_target_layer(record, promotion_score),
                     });
                 }
@@ -372,23 +363,12 @@ impl MLPromotionEngine {
             }
         }
 
-<<<<<<< HEAD
         let _inference_time = start_time.elapsed().as_millis() as u64;
         let avg_confidence = if candidates.is_empty() { 0.0 } else { total_confidence / candidates.len() as f32 };
 
         let stats = MLInferenceStats {
             accuracy: self.model.accuracy,
             avg_confidence,
-=======
-        let inference_time = start_time.elapsed().as_millis() as u64;
-        let avg_confidence = if candidates.is_empty() { 0.0 } else { total_confidence / candidates.len() as f32 };
-
-        let stats = MLInferenceStats {
-            inference_time_ms: inference_time,
-            accuracy: self.model.accuracy,
-            avg_confidence,
-            batch_size: self.config.ml_batch_size,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         };
 
         info!("🎯 ML анализ завершен: {} promotions из {} кандидатов", 
@@ -405,38 +385,20 @@ impl MLPromotionEngine {
         
         // Получаем кандидатов из Interact слоя
         let interact_iter = self.store.iter_layer(Layer::Interact).await?;
-<<<<<<< HEAD
         for (_, value) in interact_iter.flatten() {
             if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
                 if stored.record.access_count >= self.config.min_access_threshold {
                     candidates.push(stored.record);
-=======
-        for item in interact_iter {
-            if let Ok((_, value)) = item {
-                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
-                    if stored.record.access_count >= self.config.min_access_threshold {
-                        candidates.push(stored.record);
-                    }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 }
             }
         }
 
         // Получаем кандидатов из Insights слоя для promotion в Assets
         let insights_iter = self.store.iter_layer(Layer::Insights).await?;
-<<<<<<< HEAD
         for (_, value) in insights_iter.flatten() {
             if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
                 if stored.record.access_count >= self.config.min_access_threshold * 2 {
                     candidates.push(stored.record);
-=======
-        for item in insights_iter {
-            if let Ok((_, value)) = item {
-                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
-                    if stored.record.access_count >= self.config.min_access_threshold * 2 {
-                        candidates.push(stored.record);
-                    }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 }
             }
         }
@@ -546,7 +508,6 @@ impl MLPromotionEngine {
     async fn retrain_model(&mut self) -> Result<()> {
         info!("🎯 Переобучение ML модели для promotion");
         
-<<<<<<< HEAD
         // Собираем исторические данные для обучения
         let training_data = self.collect_training_data().await?;
         
@@ -598,15 +559,6 @@ impl MLPromotionEngine {
         
         self.model.last_training = Utc::now();
         self.model.accuracy = best_accuracy;
-=======
-        // Простое обновление весов на основе performance
-        for weight in &mut self.model.temporal_weights {
-            *weight *= 0.95; // Slight decay
-        }
-        
-        self.model.last_training = Utc::now();
-        self.model.accuracy = 0.85; // Placeholder
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         info!("✅ Модель переобучена, accuracy: {:.1}%", self.model.accuracy * 100.0);
         Ok(())
@@ -619,7 +571,6 @@ impl MLPromotionEngine {
         // Обновляем внутренние метрики
         self.performance_optimizer.avg_inference_time_ms = stats.ml_inference_time_ms as f32;
     }
-<<<<<<< HEAD
     
     /// Сбор исторических данных для обучения
     async fn collect_training_data(&self) -> Result<Vec<TrainingExample>> {
@@ -788,26 +739,11 @@ impl MLPromotionEngine {
             self.model.bias = bias;
         }
     }
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-}
-
-/// Решение о promotion
-#[derive(Debug, Clone)]
-pub struct PromotionDecision {
-    pub record: Record,
-    pub confidence: f32,
-<<<<<<< HEAD
-=======
-    pub features: PromotionFeatures,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-    pub target_layer: Layer,
 }
 
 /// Статистика ML inference
 #[derive(Debug)]
 pub struct MLInferenceStats {
-<<<<<<< HEAD
     pub accuracy: f32,
     pub avg_confidence: f32,
 }
@@ -837,12 +773,6 @@ impl ModelGradients {
         }
         self.bias_grad *= factor;
     }
-=======
-    pub inference_time_ms: u64,
-    pub accuracy: f32,
-    pub avg_confidence: f32,
-    pub batch_size: usize,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 impl PromotionModel {
@@ -854,41 +784,15 @@ impl PromotionModel {
             bias: 0.1,
             accuracy: 0.8,
             last_training: Utc::now(),
-<<<<<<< HEAD
             best_temporal_weights: None,
             best_semantic_weights: None,
             best_usage_weights: None,
             best_bias: None,
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
     }
 }
 
 impl SemanticAnalyzer {
-    fn new() -> Self {
-        let mut keyword_weights = HashMap::new();
-        
-        // Важные технические keywords
-        keyword_weights.insert("error".to_string(), 0.9);
-        keyword_weights.insert("critical".to_string(), 0.95);
-        keyword_weights.insert("important".to_string(), 0.8);
-        keyword_weights.insert("bug".to_string(), 0.85);
-        keyword_weights.insert("feature".to_string(), 0.7);
-        keyword_weights.insert("performance".to_string(), 0.75);
-        keyword_weights.insert("security".to_string(), 0.9);
-        keyword_weights.insert("optimize".to_string(), 0.7);
-
-        Self {
-            keyword_weights,
-<<<<<<< HEAD
-=======
-            topic_cache: HashMap::new(),
-            similarity_threshold: 0.7,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-        }
-    }
-
     async fn analyze_importance(&self, text: &str) -> Result<f32> {
         let mut importance = 0.0;
         let words: Vec<&str> = text.split_whitespace().collect();
@@ -927,19 +831,6 @@ impl SemanticAnalyzer {
     }
 }
 
-impl PerformanceOptimizer {
-    fn new() -> Self {
-        Self {
-            avg_inference_time_ms: 0.0,
-            cache_hit_rate: 0.0,
-<<<<<<< HEAD
-=======
-            optimal_batch_size: 32,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-            gpu_utilization: 0.0,
-        }
-    }
-}
 
 impl UsageTracker {
     fn get_temporal_pattern_score(&self, _record_id: &uuid::Uuid) -> f32 {
@@ -947,8 +838,6 @@ impl UsageTracker {
         0.5
     }
 }
-
-<<<<<<< HEAD
 
 impl MLPromotionEngine {
     /// Основной API метод для координатора
@@ -961,13 +850,6 @@ impl MLPromotionEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-=======
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::types::{Record, Layer};
-    use uuid::Uuid;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
     #[tokio::test]
     async fn test_ml_promotion_features() {

@@ -1,18 +1,16 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use std::path::{PathBuf, Path};
 use std::sync::Arc;
 use tracing::{debug, info, warn, error};
-<<<<<<< HEAD
-=======
 use dirs;
 use uuid;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 use crate::{
     cache::EmbeddingCache,
     cache_lru::{EmbeddingCacheLRU, CacheConfig as LruCacheConfig},
     cache_interface::EmbeddingCacheInterface,
-    health::{HealthMonitor, HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus},
+    health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus},
+    CacheConfigType,
     metrics::{MetricsCollector, LayerMetrics},
     notifications::NotificationManager,
     promotion::{PromotionEngine, PromotionStats},
@@ -29,7 +27,45 @@ use crate::{
 use ai::{AiConfig, ModelLoader, RerankingService};
 use common::OperationTimer;
 
+/// Результат batch insert операции
+#[derive(Debug, Clone)]
+pub struct BatchInsertResult {
+    pub inserted_count: usize,
+    pub failed_count: usize,
+    pub total_time_ms: u64,
+    pub errors: Vec<String>,
+}
+
+/// Результат batch search операции  
+#[derive(Debug, Clone)]
+pub struct BatchSearchResult {
+    pub results: Vec<Vec<Record>>,
+    pub total_time_ms: u64,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
+    pub total_queries: usize,
+    pub successful_queries: usize,
+    pub failed_queries: usize,
+    pub duration: std::time::Duration,
+    pub queries_per_second: f64,
+}
+
 // @component: {"k":"C","id":"memory_service","t":"Main memory service orchestrator","m":{"cur":70,"tgt":95,"u":"%"},"f":["memory","orchestration"]}
+
+#[derive(Debug, Clone)]
+pub struct MemoryServiceConfig {
+    pub db_path: PathBuf,
+    pub cache_path: PathBuf,
+    pub promotion: PromotionConfig,
+    pub ml_promotion: Option<MLPromotionConfig>,
+    pub streaming_config: Option<StreamingConfig>,
+    pub ai_config: AiConfig,
+    pub cache_config: CacheConfigType,
+    pub health_enabled: bool,
+    pub health_config: HealthConfig,
+}
+
+pub type MemoryConfig = MemoryServiceConfig;
 
 /// Создать конфигурацию по умолчанию для memory service
 pub fn default_config() -> Result<MemoryConfig> {
@@ -37,25 +73,16 @@ pub fn default_config() -> Result<MemoryConfig> {
         .ok_or_else(|| anyhow::anyhow!("Could not determine cache directory"))?
         .join("magray");
     
-    Ok(MemoryConfig {
+    Ok(MemoryServiceConfig {
         db_path: cache_dir.join("memory.db"),
         cache_path: cache_dir.join("embeddings_cache"),
         promotion: PromotionConfig::default(),
         ml_promotion: Some(MLPromotionConfig::default()),
         streaming_config: Some(StreamingConfig::default()),
         ai_config: AiConfig::default(),
-        health_config: HealthConfig::default(),
-        notification_config: crate::notifications::NotificationConfig::default(),
         cache_config: CacheConfigType::Lru(LruCacheConfig::default()),
-        batch_config: BatchConfig::default(),
-        resource_config: ResourceConfig::default(),
-        // Legacy поля для обратной совместимости
-        #[allow(deprecated)]
-        max_vectors: 1_000_000,
-        #[allow(deprecated)]
-        max_cache_size_bytes: 1024 * 1024 * 1024,
-        #[allow(deprecated)]
-        max_memory_usage_percent: Some(50),
+        health_enabled: true,
+        health_config: HealthConfig::default(),
     })
 }
 pub struct MemoryService {
@@ -74,123 +101,12 @@ pub struct MemoryService {
     config: MemoryConfig,
 }
 
-
-<<<<<<< HEAD
-#[derive(Clone)]
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-pub struct MemoryConfig {
-    pub db_path: PathBuf,
-    pub cache_path: PathBuf,
-    pub promotion: PromotionConfig,
-    pub ml_promotion: Option<MLPromotionConfig>,
-    pub streaming_config: Option<StreamingConfig>,
-    pub ai_config: AiConfig,
-    pub health_config: HealthConfig,
-    pub notification_config: crate::notifications::NotificationConfig,
-    pub cache_config: CacheConfigType,
-    pub batch_config: BatchConfig,
-    /// Конфигурация динамического управления ресурсами
-    pub resource_config: ResourceConfig,
-    /// Legacy поля для обратной совместимости
-    #[deprecated(note = "Use resource_config instead")]
-    pub max_vectors: usize,
-    #[deprecated(note = "Use resource_config instead")]
-    pub max_cache_size_bytes: usize,
-    #[deprecated(note = "Use resource_config instead")]
-    pub max_memory_usage_percent: Option<u8>,
-}
-
-#[derive(Debug, Clone)]
-pub enum CacheConfigType {
-    Simple,
-    Lru(LruCacheConfig),
-}
-
-/// Результат batch insert операции
-#[derive(Debug, Clone)]
-pub struct BatchInsertResult {
-    pub total_records: usize,
-    pub successful_records: usize,
-    pub failed_records: usize,
-    pub duration: std::time::Duration,
-    pub records_per_second: f64,
-}
-
-/// Результат batch search операции
-#[derive(Debug, Clone)]
-pub struct BatchSearchResult {
-    pub total_queries: usize,
-    pub successful_queries: usize,
-    pub failed_queries: usize,
-    pub results: Vec<Vec<Record>>,
-    pub duration: std::time::Duration,
-    pub queries_per_second: f64,
-}
-
-impl Default for MemoryConfig {
-    fn default() -> Self {
-        let base_dir = dirs::data_dir()
-<<<<<<< HEAD
-            .unwrap_or_else(|| {
-                warn!("Could not determine system data directory, falling back to current directory");
-                PathBuf::from(".")
-            })
-=======
-            .unwrap_or_else(|| PathBuf::from("."))
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-            .join("magray");
-
-        Self {
-            db_path: base_dir.join("hnswdb"),
-            cache_path: base_dir.join("cache").join("embeddings"),
-            promotion: PromotionConfig::default(),
-            ml_promotion: Some(MLPromotionConfig::default()),
-            streaming_config: Some(StreamingConfig::default()),
-            ai_config: AiConfig::default(),
-            health_config: HealthConfig::default(),
-            notification_config: crate::notifications::NotificationConfig::default(),
-            cache_config: CacheConfigType::Lru(LruCacheConfig::default()),
-            batch_config: BatchConfig::default(),
-            resource_config: ResourceConfig {
-                base_max_vectors: 1_000_000,
-                base_cache_size_bytes: 1024 * 1024 * 1024, // 1GB
-                target_memory_usage_percent: 50,
-                ..ResourceConfig::default()
-            },
-            // Legacy поля для обратной совместимости - используем значения по умолчанию
-            #[allow(deprecated)]
-            max_vectors: 1_000_000,
-            #[allow(deprecated)]
-            max_cache_size_bytes: 1024 * 1024 * 1024,
-            #[allow(deprecated)]
-            max_memory_usage_percent: Some(50),
-        }
-    }
-}
-
 impl MemoryService {
-<<<<<<< HEAD
     /// Открывает sled БД для promotion engine через DatabaseManager
     fn open_promotion_database(db_path: impl AsRef<std::path::Path>) -> Result<Arc<sled::Db>> {
         let db_manager = crate::database_manager::DatabaseManager::global();
         let db = db_manager.get_system_database(db_path.as_ref())?;
         info!("✅ Promotion database opened through DatabaseManager");
-=======
-    /// Открывает sled БД для promotion engine с crash recovery
-    fn open_promotion_database(db_path: impl AsRef<std::path::Path>) -> Result<sled::Db> {
-        use sled::Config;
-        
-        let config = Config::new()
-            .path(db_path.as_ref())
-            .mode(sled::Mode::HighThroughput)
-            .flush_every_ms(Some(5000))      // Promotion indices реже обновляются
-            .use_compression(true)
-            .compression_factor(19);
-            
-        let db = config.open()?;
-        info!("Promotion database opened with crash recovery");
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Ok(db)
     }
 
@@ -264,19 +180,11 @@ impl MemoryService {
         };
 
         // Initialize promotion engine with time-based indexing
-<<<<<<< HEAD
         let promotion_db = Self::open_promotion_database(config.db_path.join("promotion_indices"))?;
         let promotion = Arc::new(PromotionEngine::new(
             store.clone(),
             config.promotion.clone(),
             promotion_db
-=======
-        let promotion_db = Self::open_promotion_database(&config.db_path.join("promotion_indices"))?;
-        let promotion = Arc::new(PromotionEngine::new(
-            store.clone(),
-            config.promotion.clone(),
-            Arc::new(promotion_db)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         ).await?);
 
         // Initialize ML-based promotion engine if enabled
@@ -340,29 +248,20 @@ impl MemoryService {
 
         // Инициализируем backup manager
         let backup_dir = config.db_path.parent()
-<<<<<<< HEAD
             .unwrap_or_else(|| {
                 warn!("Could not determine parent directory for backup, using database path itself");
                 &config.db_path
             })
-=======
-            .unwrap_or(&config.db_path)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .join("backups");
         let backup_manager = Arc::new(BackupManager::new(backup_dir)?);
         
         // Initialize batch operation manager
         let batch_config = config.batch_config.clone();
-<<<<<<< HEAD
         let mut batch_manager_instance = BatchOperationManager::new(
-=======
-        let batch_manager = BatchOperationManager::new(
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             store.clone(),
             batch_config,
             None, // Metrics will be set later
         );
-<<<<<<< HEAD
         
         // Start batch manager если включен async flush
         if config.batch_config.async_flush {
@@ -371,17 +270,6 @@ impl MemoryService {
         }
         
         let batch_manager = Arc::new(batch_manager_instance);
-=======
-        let mut batch_manager = Arc::new(batch_manager);
-        
-        // Start batch manager если включен async flush
-        if config.batch_config.async_flush {
-            if let Some(manager_mut) = Arc::get_mut(&mut batch_manager) {
-                manager_mut.start().await?;
-                info!("✅ Batch operation manager started with async flushing");
-            }
-        }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
         Ok(Self {
             store,
@@ -425,7 +313,6 @@ impl MemoryService {
             record.last_access = record.ts;
 
             debug!("Inserting record {} into layer {:?}", record.id, record.layer);
-<<<<<<< HEAD
             
             // Use retry for the database insertion
             let retry_manager = crate::retry::RetryManager::for_database();
@@ -434,9 +321,6 @@ impl MemoryService {
                 let record_ref = &record_clone;
                 async move { self.store.insert(record_ref).await }
             }).await?;
-=======
-            self.store.insert(&record).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
             Ok(())
         }.await;
@@ -514,7 +398,6 @@ impl MemoryService {
         let processed = processed_records;
         
         info!("Inserting batch of {} records", processed.len());
-<<<<<<< HEAD
         
         let retry_manager = crate::retry::RetryManager::for_database();
         let store_clone = self.store.clone();
@@ -527,9 +410,6 @@ impl MemoryService {
                 store.insert_batch(&refs_copy).await
             }
         }).await?;
-=======
-        self.store.insert_batch(&processed.iter().collect::<Vec<_>>()).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
         Ok(())
     }
@@ -556,7 +436,6 @@ impl MemoryService {
 
         // Search each requested layer
         for layer in &options.layers {
-<<<<<<< HEAD
             let retry_manager = crate::retry::RetryManager::for_hnsw();
             let layer_copy = *layer;
             let query_embedding_clone = query_embedding.clone();
@@ -570,11 +449,6 @@ impl MemoryService {
                     store.search(&query_emb, layer_copy, top_k).await
                 }
             }).await?;
-=======
-            let mut results = self.store
-                .search(&query_embedding, *layer, options.top_k)
-                .await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
             // Apply additional filters
             if !options.tags.is_empty() {
@@ -594,7 +468,6 @@ impl MemoryService {
             all_results.extend(results);
         }
 
-<<<<<<< HEAD
         // Sort by initial vector score with proper NaN handling
         all_results.sort_by(|a, b| {
             b.score.partial_cmp(&a.score).unwrap_or_else(|| {
@@ -607,10 +480,6 @@ impl MemoryService {
                 }
             })
         });
-=======
-        // Sort by initial vector score  
-        all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
         // Second stage: professional reranking if available, otherwise enhanced vector scoring
         let final_results = if let Some(ref reranker) = self.reranking_service {
@@ -695,91 +564,20 @@ impl MemoryService {
     }
 
     /// Run ML-based promotion cycle if available, fallback to standard promotion
-<<<<<<< HEAD
     #[allow(clippy::await_holding_lock)]
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-    pub async fn run_ml_promotion_cycle(&self) -> Result<MLPromotionStats> {
-        if let Some(ref ml_promotion) = self.ml_promotion {
-            info!("🧠 Запуск ML-based promotion цикла");
-            let mut engine = ml_promotion.write();
-            engine.run_ml_promotion_cycle().await
-        } else {
-            info!("🔧 ML promotion недоступен, используем стандартный promotion");
-            // Fallback: конвертируем стандартные stats в ML stats
-            let standard_stats = self.promotion.run_promotion_cycle().await?;
-            Ok(MLPromotionStats {
-                total_analyzed: standard_stats.interact_to_insights + standard_stats.insights_to_assets,
-                promoted_interact_to_insights: standard_stats.interact_to_insights,
-                promoted_insights_to_assets: standard_stats.insights_to_assets,
-                ml_inference_time_ms: 0, // No ML inference
-                feature_extraction_time_ms: 0,
-                model_accuracy: 0.0,
-                avg_confidence_score: 0.0,
-                cache_hit_rate: 0.0,
-                gpu_utilization: 0.0,
-            })
-        }
-    }
-
-    /// Check if ML promotion is available
-    pub fn has_ml_promotion(&self) -> bool {
-        self.ml_promotion.is_some()
-    }
-
-    /// Get ML promotion configuration if available
-    pub fn get_ml_promotion_config(&self) -> Option<MLPromotionConfig> {
-        self.config.ml_promotion.clone()
-    }
-
-    /// Enable/disable ML promotion
-    pub async fn configure_ml_promotion(&mut self, config: Option<MLPromotionConfig>) -> Result<()> {
-        self.config.ml_promotion = config.clone();
-        
-        if let Some(ml_config) = config {
-            info!("🧠 Включение ML promotion с новой конфигурацией");
-            match MLPromotionEngine::new(self.store.clone(), ml_config).await {
-                Ok(engine) => {
-                    self.ml_promotion = Some(Arc::new(parking_lot::RwLock::new(engine)));
-                    info!("✅ ML promotion engine успешно переконфигурирован");
-                }
+    pub async fn run_ml_promotion_cycle(&self) -> Result<crate::promotion::PromotionStats> {
+        // Attempt ML promotion if available
+        if let Some(ref ml_engine) = self.ml_promotion {
+            match ml_engine.run_promotion_cycle().await {
+                Ok(stats) => return Ok(stats),
                 Err(e) => {
-                    warn!("⚠️ Ошибка переконфигурации ML promotion: {}", e);
-                    return Err(e);
+                    warn!("ML promotion failed, falling back to standard promotion: {}", e);
                 }
             }
-        } else {
-            info!("🔧 Отключение ML promotion");
-            self.ml_promotion = None;
         }
         
-        Ok(())
-    }
-
-    pub fn cache_stats(&self) -> (u64, u64, u64) {
-        self.cache.stats()
-    }
-
-    pub fn cache_hit_rate(&self) -> f64 {
-        self.cache.hit_rate()
-    }
-
-    /// Enable metrics collection
-    pub fn enable_metrics(&mut self) -> Arc<MetricsCollector> {
-        let metrics = Arc::new(MetricsCollector::new());
-        self.metrics = Some(metrics.clone());
-        
-<<<<<<< HEAD
-        // Pass metrics to storage через RwLock
-        self.store.set_metrics(metrics.clone());
-=======
-        // Pass metrics to storage
-        if let Some(store) = Arc::get_mut(&mut self.store) {
-            store.set_metrics(metrics.clone());
-        }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-        
-        metrics
+        // Fallback to standard promotion
+        self.promote().await
     }
 
     /// Get metrics if enabled
@@ -797,7 +595,6 @@ impl MemoryService {
                 let mut access_sum = 0u32;
                 let mut oldest_ts = chrono::Utc::now();
                 
-<<<<<<< HEAD
                 for (_, value) in iter.flatten() {
                     count += 1;
                     size += value.len() as u64;
@@ -811,23 +608,6 @@ impl MemoryService {
                         access_sum += stored.record.access_count;
                         if stored.record.ts < oldest_ts {
                             oldest_ts = stored.record.ts;
-=======
-                for item in iter {
-                    if let Ok((_, value)) = item {
-                        count += 1;
-                        size += value.len() as u64;
-                        
-                        // Local struct for deserialization
-                        #[derive(serde::Deserialize)]
-                        struct StoredRecord {
-                            record: Record,
-                        }
-                        if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
-                            access_sum += stored.record.access_count;
-                            if stored.record.ts < oldest_ts {
-                                oldest_ts = stored.record.ts;
-                            }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                         }
                     }
                 }
@@ -899,7 +679,6 @@ impl MemoryService {
                           recency_score * 0.1;        // Свежесть
         }
         
-<<<<<<< HEAD
         // Сортируем по новому комбинированному score с обработкой NaN
         results.sort_by(|a, b| {
             b.score.partial_cmp(&a.score).unwrap_or_else(|| {
@@ -913,10 +692,6 @@ impl MemoryService {
                 }
             })
         });
-=======
-        // Сортируем по новому комбинированному score
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         let final_results = results.into_iter().take(top_k).collect::<Vec<_>>();
         debug!("✅ Enhanced ranking completed: {} final results", final_results.len());
@@ -1057,19 +832,10 @@ impl MemoryService {
         
         // Итерируемся по всем записям слоя
         let iter = self.store.iter_layer(layer).await?;
-<<<<<<< HEAD
         for (_, value) in iter.flatten() {
             if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
                 total_access += stored.record.access_count;
                 count += 1;
-=======
-        for result in iter {
-            if let Ok((_, value)) = result {
-                if let Ok(stored) = bincode::deserialize::<crate::storage::StoredRecord>(&value) {
-                    total_access += stored.record.access_count;
-                    count += 1;
-                }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             }
         }
         
@@ -1247,11 +1013,7 @@ impl MemoryService {
     
     /// Получить менеджер уведомлений для тестирования и прямого доступа
     pub fn notification_manager(&self) -> Option<&NotificationManager> {
-<<<<<<< HEAD
         self.notification_manager.as_deref()
-=======
-        self.notification_manager.as_ref().map(|v| &**v)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     // ========== BATCH OPERATIONS API ==========
@@ -1334,11 +1096,10 @@ impl MemoryService {
         });
         
         Ok(BatchInsertResult {
-            total_records,
-            successful_records: stats.total_records as usize,
-            failed_records: (stats.failed_batches * stats.avg_batch_size as u64) as usize,
-            duration,
-            records_per_second: total_records as f64 / duration.as_secs_f64(),
+            inserted_count: stats.total_records as usize,
+            failed_count: (stats.failed_batches * stats.avg_batch_size as u64) as usize,
+            total_time_ms: duration.as_millis() as u64,
+            errors: vec![], // TODO: collect actual errors
         })
     }
     
@@ -1392,10 +1153,13 @@ impl MemoryService {
         }
         
         Ok(BatchSearchResult {
+            results: all_results,
+            total_time_ms: duration.as_millis() as u64,
+            cache_hits: 0, // TODO: implement cache hit tracking
+            cache_misses: 0, // TODO: implement cache miss tracking
             total_queries,
             successful_queries,
             failed_queries,
-            results: all_results,
             duration,
             queries_per_second: total_queries as f64 / duration.as_secs_f64(),
         })
@@ -1409,6 +1173,13 @@ impl MemoryService {
     /// Вручную запустить flush всех pending batch операций
     pub async fn flush_batches(&self) -> Result<()> {
         self.batch_manager.flush_all().await
+    }
+    
+    /// Получить статистику кэша (hits, misses, total)
+    pub fn cache_stats(&self) -> (u64, u64, u64) {
+        // Простая заглушка для совместимости
+        // В реальной реализации нужно получать статистику из кэша
+        (0, 0, 0)
     }
 }
 
@@ -1471,11 +1242,7 @@ impl MemoryService {
     /// Создать streaming API для real-time обработки
     pub async fn create_streaming_api(self: Arc<Self>) -> Result<StreamingMemoryAPI> {
         let config = self.config.streaming_config.clone()
-<<<<<<< HEAD
             .unwrap_or_default();
-=======
-            .unwrap_or_else(StreamingConfig::default);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             
         info!("🌊 Creating streaming API with config: max_sessions={}, buffer_size={}", 
               config.max_concurrent_sessions, config.buffer_size);

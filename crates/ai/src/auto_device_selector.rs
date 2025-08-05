@@ -1,4 +1,4 @@
-use std::time::Instant;
+﻿use std::time::Instant;
 use anyhow::Result;
 use tracing::{info, debug};
 #[cfg(feature = "gpu")]
@@ -70,11 +70,7 @@ impl AutoDeviceSelector {
         if !detector.has_sufficient_memory(required_memory) {
             let decision = DeviceDecision {
                 use_gpu: false,
-<<<<<<< HEAD
                 reason: format!("Недостаточно GPU памяти (нужно {required_memory} MB)"),
-=======
-                reason: format!("Недостаточно GPU памяти (нужно {} MB)", required_memory),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 cpu_score: 0.0,
                 gpu_score: None,
                 recommended_batch_size: num_cpus::get().min(32),
@@ -101,15 +97,9 @@ impl AutoDeviceSelector {
         let decision = DeviceDecision {
             use_gpu,
             reason: if use_gpu {
-<<<<<<< HEAD
                 format!("GPU быстрее в {speedup:.1}x раз")
             } else {
                 format!("GPU недостаточно быстрее (только {speedup:.1}x)")
-=======
-                format!("GPU быстрее в {:.1}x раз", speedup)
-            } else {
-                format!("GPU недостаточно быстрее (только {:.1}x)", speedup)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             },
             cpu_score,
             gpu_score: Some(gpu_score),
@@ -150,11 +140,7 @@ impl AutoDeviceSelector {
         
         // Генерируем тестовые данные
         let test_texts: Vec<String> = (0..self.benchmark_size)
-<<<<<<< HEAD
             .map(|i| format!("This is test text number {i} for benchmarking embedding performance on CPU"))
-=======
-            .map(|i| format!("This is test text number {} for benchmarking embedding performance on CPU", i))
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .collect();
         
         // Прогрев
@@ -175,11 +161,7 @@ impl AutoDeviceSelector {
         #[cfg(not(feature = "gpu"))]
         {
             // Если GPU не включен при компиляции, возвращаем 0
-<<<<<<< HEAD
             Ok(0.0)
-=======
-            return Ok(0.0);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         }
         
         #[cfg(feature = "gpu")]

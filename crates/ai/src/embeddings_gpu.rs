@@ -1,4 +1,4 @@
-use crate::{EmbeddingConfig, GpuConfig};
+﻿use crate::{EmbeddingConfig, GpuConfig};
 use crate::gpu_detector::GpuDetector;
 use crate::gpu_memory_pool::GPU_MEMORY_POOL;
 use crate::model_downloader::ensure_model;
@@ -166,11 +166,7 @@ impl GpuEmbeddingService {
             tracing::warn!("Expected 3 inputs for model {} (input_ids, attention_mask, token_type_ids), got {}", model_name, inputs);
         }
         
-<<<<<<< HEAD
         let hidden_size = config.embedding_dim.unwrap_or(1024);
-=======
-        let hidden_size = config.embedding_dim.unwrap_or(768);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let max_length = config.max_length;
         
         Ok(Self {
@@ -284,11 +280,7 @@ impl GpuEmbeddingService {
         let tensor_size = batch_size * self.max_length * std::mem::size_of::<i64>();
         
         // Используем memory pool для эффективного управления памятью
-<<<<<<< HEAD
         let result = GPU_MEMORY_POOL.with_buffer_async(tensor_size * 3, |buffer| async move {
-=======
-        let result = GPU_MEMORY_POOL.with_buffer_async(tensor_size * 3, |mut buffer| async move {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             // Используем batch tokenization для эффективности
             let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
             let mut batch_tokenized = self.tokenizer.encode_batch(&text_refs)

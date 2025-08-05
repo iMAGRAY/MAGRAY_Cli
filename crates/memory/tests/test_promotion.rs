@@ -2,17 +2,11 @@
 use chrono::{Duration, Utc};
 use tempfile::TempDir;
 use uuid::Uuid;
-<<<<<<< HEAD
 use std::sync::Arc;
 
 use memory::{
     MemoryService, MemoryConfig, Layer, Record, PromotionConfig,
     promotion::PromotionEngine, storage::VectorStore,
-=======
-
-use memory::{
-    MemoryService, MemoryConfig, Layer, Record, PromotionConfig,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 };
 use ai::AiConfig;
 
@@ -204,7 +198,6 @@ async fn test_layer_ttl_expiration() -> Result<()> {
     println!("✅ TTL expiration test passed!");
     
     Ok(())
-<<<<<<< HEAD
 }
 
 #[tokio::test]
@@ -317,6 +310,4 @@ async fn test_time_based_indices_performance() -> Result<()> {
     println!("\n✅ Все тесты time-based индексов пройдены!");
     
     Ok(())
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }

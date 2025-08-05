@@ -1,4 +1,4 @@
-[package]
+﻿[package]
 name = "router"
 version.workspace = true
 edition.workspace = true
@@ -10,12 +10,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 llm = { path = "../llm" }
-<<<<<<< HEAD
 tools = { path = "../tools" }
 async-trait = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }
-=======
-tools = { path = "../tools" }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+﻿use anyhow::{anyhow, Result};
 use std::sync::Arc;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -44,15 +44,6 @@ pub enum RollbackAction {
     RestoreUpdated { record: Record },
 }
 
-<<<<<<< HEAD
-impl Default for Transaction {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl Transaction {
     pub fn new() -> Self {
         Self {
@@ -62,110 +53,32 @@ impl Transaction {
             rollback_actions: Vec::new(),
         }
     }
-
-    /// Добавить операцию вставки
-    pub fn insert(&mut self, record: Record) -> Result<()> {
-        if self.status != TransactionStatus::Active {
-            return Err(anyhow!("Transaction is not active"));
-        }
-        
-        self.operations.push(TransactionOp::Insert { record: record.clone() });
-        self.rollback_actions.push(RollbackAction::DeleteInserted {
-            layer: record.layer,
-            id: record.id,
-        });
-        
-        Ok(())
+    
+    pub fn add_operation(&mut self, op: TransactionOp) {
+        self.operations.push(op);
     }
-
-    /// Добавить операцию обновления
-    pub fn update(&mut self, layer: Layer, id: Uuid, new_record: Record) -> Result<()> {
-        if self.status != TransactionStatus::Active {
-            return Err(anyhow!("Transaction is not active"));
-        }
-        
-        self.operations.push(TransactionOp::Update { 
-            layer, 
-            id, 
-            record: new_record 
-        });
-        
-        Ok(())
+    
+    pub fn take_operations(&mut self) -> Vec<TransactionOp> {
+        std::mem::take(&mut self.operations)
     }
-
-    /// Добавить операцию удаления
-    pub fn delete(&mut self, layer: Layer, id: Uuid) -> Result<()> {
-        if self.status != TransactionStatus::Active {
-            return Err(anyhow!("Transaction is not active"));
-        }
-        
-        self.operations.push(TransactionOp::Delete { layer, id });
-        
-        Ok(())
-    }
-
-    /// Добавить пакетную вставку
-    pub fn batch_insert(&mut self, records: Vec<Record>) -> Result<()> {
-        if self.status != TransactionStatus::Active {
-            return Err(anyhow!("Transaction is not active"));
-        }
-        
-        for record in &records {
-            self.rollback_actions.push(RollbackAction::DeleteInserted {
-                layer: record.layer,
-                id: record.id,
-            });
-        }
-        
-        self.operations.push(TransactionOp::BatchInsert { records });
-        
-        Ok(())
-    }
-
-    /// Получить операции для выполнения и зафиксировать транзакцию
-    pub fn take_operations(&mut self) -> Result<Vec<TransactionOp>> {
-        if self.status != TransactionStatus::Active {
-            return Err(anyhow!("Transaction is not active"));
-        }
-        
-        self.status = TransactionStatus::Committed;
-        Ok(std::mem::take(&mut self.operations))
-    }
-
-    /// Отметить транзакцию как прерванную
+    
     pub fn abort(&mut self) {
         self.status = TransactionStatus::Aborted;
-        self.operations.clear();
-        self.rollback_actions.clear();
     }
+    
+    pub fn commit(&mut self) {
+        self.status = TransactionStatus::Committed;
+    }
+    
+    pub fn status(&self) -> &TransactionStatus {
+        &self.status
+    }
+}
 
-    /// Получить действия для отката
-    pub fn rollback_actions(&self) -> &[RollbackAction] {
-        &self.rollback_actions
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::new()
     }
-
-    /// Добавить действие для отката
-    pub fn add_rollback_action(&mut self, action: RollbackAction) {
-        self.rollback_actions.push(action);
-    }
-<<<<<<< HEAD
-    
-    /// Получить статус транзакции
-    pub fn status(&self) -> TransactionStatus {
-        self.status.clone()
-    }
-    
-    /// Получить количество операций
-    pub fn operations_count(&self) -> usize {
-        self.operations.len()
-    }
-    
-    /// Получить количество rollback actions
-    pub fn rollback_actions_count(&self) -> usize {
-        self.rollback_actions.len()
-    }
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 }
 
 /// Менеджер транзакций
@@ -173,15 +86,12 @@ pub struct TransactionManager {
     active_transactions: Arc<Mutex<HashMap<Uuid, Transaction>>>,
 }
 
-<<<<<<< HEAD
 impl Default for TransactionManager {
     fn default() -> Self {
         Self::new()
     }
 }
 
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 impl TransactionManager {
     pub fn new() -> Self {
         Self {
@@ -219,7 +129,7 @@ impl TransactionManager {
         let mut transaction = transactions.remove(&tx_id)
             .ok_or_else(|| anyhow!("Transaction {} not found", tx_id))?;
         
-        transaction.take_operations()
+        Ok(transaction.take_operations())
     }
 
     /// Откатить транзакцию

@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use tokenizers::{Tokenizer, TruncationParams, PaddingParams, PaddingStrategy, PaddingDirection};
 use std::path::Path;
 use std::sync::Arc;
@@ -366,19 +366,10 @@ impl OptimizedTokenizer {
         tokenizer.with_pre_tokenizer(Some(Whitespace));
         
         // Добавляем базовые токены
-<<<<<<< HEAD
         let _vocab = [("<pad>".to_string(), 0),
             ("<unk>".to_string(), 1),
             ("<s>".to_string(), 2),
             ("</s>".to_string(), 3)];
-=======
-        let _vocab = vec![
-            ("<pad>".to_string(), 0),
-            ("<unk>".to_string(), 1),
-            ("<s>".to_string(), 2),
-            ("</s>".to_string(), 3),
-        ];
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         // Это временное решение для тестирования
         // В реальной системе нужно использовать правильный токенизатор Qwen3

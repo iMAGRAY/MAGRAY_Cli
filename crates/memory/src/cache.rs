@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-use anyhow::Result;
-=======
-use anyhow::{Context, Result};
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
+﻿use anyhow::Result;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use sled::Db;
@@ -15,6 +11,21 @@ struct CachedEmbedding {
     embedding: Vec<f32>,
     model: String,
     created_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct CacheConfig {
+    pub max_entries: usize,
+    pub ttl_seconds: Option<u64>,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            max_entries: 10000,
+            ttl_seconds: Some(3600 * 24), // 24 hours
+        }
+    }
 }
 
 // @component: {"k":"C","id":"embedding_cache","t":"Embedding cache with sled","m":{"cur":85,"tgt":95,"u":"%"},"f":["cache","persistence"]}
@@ -31,27 +42,11 @@ struct CacheStats {
 }
 
 impl EmbeddingCache {
-<<<<<<< HEAD
     /// Открывает sled БД для кэша через DatabaseManager
     fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Arc<Db>> {
         let db_manager = crate::database_manager::DatabaseManager::global();
         let db = db_manager.get_cache_database(cache_path.as_ref())?;
         info!("✅ Cache database opened through DatabaseManager");
-=======
-    /// Открывает sled БД для кэша с crash recovery
-    fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Db> {
-        use sled::Config;
-        
-        let config = Config::new()
-            .path(cache_path.as_ref())
-            .mode(sled::Mode::HighThroughput)
-            .flush_every_ms(Some(2000))      // Кэш может быть менее частым
-            .use_compression(true)
-            .compression_factor(19);
-            
-        let db = config.open().context("Failed to open cache database")?;
-        info!("Cache database opened with crash recovery");
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Ok(db)
     }
 
@@ -67,11 +62,7 @@ impl EmbeddingCache {
         let db = Self::open_cache_database(cache_path)?;
 
         Ok(Self {
-<<<<<<< HEAD
             db,
-=======
-            db: Arc::new(db),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             stats: Arc::new(RwLock::new(CacheStats::default())),
         })
     }
@@ -177,11 +168,7 @@ impl EmbeddingCache {
 
     fn make_key(&self, text: &str, model: &str) -> Vec<u8> {
         let text_hash = self.hash_text(text);
-<<<<<<< HEAD
         format!("{model}:{text_hash}").into_bytes()
-=======
-        format!("{}:{}", model, text_hash).into_bytes()
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
 
     fn hash_text(&self, text: &str) -> u64 {

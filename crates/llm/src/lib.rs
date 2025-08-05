@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+﻿use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::env;
 use tracing::{info, debug, error};
@@ -16,7 +16,6 @@ pub enum LlmProvider {
     Local { url: String, model: String },
 }
 
-<<<<<<< HEAD
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
@@ -80,56 +79,6 @@ impl CompletionRequest {
     }
 }
 
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-#[derive(Debug, Serialize)]
-struct OpenAIChatRequest {
-    model: String,
-    messages: Vec<OpenAIMessage>,
-    max_tokens: Option<u32>,
-    temperature: Option<f32>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct OpenAIMessage {
-    role: String,
-    content: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenAIChatResponse {
-    choices: Vec<OpenAIChoice>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenAIChoice {
-    message: OpenAIMessage,
-}
-
-#[derive(Debug, Serialize)]
-struct AnthropicRequest {
-    model: String,
-    max_tokens: u32,
-    messages: Vec<AnthropicMessage>,
-    temperature: Option<f32>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct AnthropicMessage {
-    role: String,
-    content: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct AnthropicResponse {
-    content: Vec<AnthropicContent>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AnthropicContent {
-    text: String,
-}
-
 #[derive(Clone)]
 pub struct LlmClient {
     provider: LlmProvider,
@@ -138,42 +87,66 @@ pub struct LlmClient {
     temperature: f32,
 }
 
+// OpenAI API types
+#[derive(Debug, Serialize, Deserialize)]
+struct OpenAIMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct OpenAIChatRequest {
+    model: String,
+    messages: Vec<OpenAIMessage>,
+    max_tokens: Option<u32>,
+    temperature: Option<f32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct OpenAIChatResponse {
+    choices: Vec<OpenAIChatChoice>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct OpenAIChatChoice {
+    message: OpenAIMessage,
+}
+
+// Anthropic API types
+#[derive(Debug, Serialize, Deserialize)]
+struct AnthropicMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AnthropicRequest {
+    model: String,
+    messages: Vec<AnthropicMessage>,
+    max_tokens: u32,
+    temperature: Option<f32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AnthropicResponse {
+    content: Vec<AnthropicContent>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AnthropicContent {
+    text: String,
+}
+
 impl LlmClient {
-<<<<<<< HEAD
-    pub fn new(provider: LlmProvider) -> Self {
+    pub fn new(provider: LlmProvider, max_tokens: u32, temperature: f32) -> Self {
         Self {
             provider,
             client: reqwest::Client::new(),
-            max_tokens: 1000,
-            temperature: 0.7,
+            max_tokens,
+            temperature,
         }
     }
-    
-    #[cfg(test)]
-    pub fn new_with_base_url(provider: LlmProvider, base_url: &str) -> Self {
-        // Для тестов - заменяем URL в провайдере
-        let test_provider = match provider {
-            LlmProvider::OpenAI { api_key, model } => {
-                LlmProvider::Local { url: base_url.to_string(), model }
-            }
-            LlmProvider::Anthropic { api_key, model } => {
-                LlmProvider::Local { url: base_url.to_string(), model }
-            }
-            LlmProvider::Local { url: _, model } => {
-                LlmProvider::Local { url: base_url.to_string(), model }
-            }
-        };
-        
-        Self {
-            provider: test_provider,
-            client: reqwest::Client::new(),
-            max_tokens: 1000,
-            temperature: 0.7,
-        }
-    }
-    
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
+
     pub fn from_env() -> Result<Self> {
         dotenv::dotenv().ok(); // Загружаем .env если есть
         
@@ -216,7 +189,6 @@ impl LlmClient {
         })
     }
 
-<<<<<<< HEAD
     pub async fn complete(&self, request: CompletionRequest) -> Result<String> {
         let message = if let Some(system) = &request.system_prompt {
             format!("{}\n\n{}", system, request.prompt)
@@ -258,9 +230,6 @@ impl LlmClient {
     }
     
     async fn chat_internal(&self, message: &str) -> Result<String> {
-=======
-    pub async fn chat(&self, message: &str) -> Result<String> {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         match &self.provider {
             LlmProvider::OpenAI { api_key, model } => {
                 self.openai_chat(api_key, model, message).await
@@ -291,11 +260,7 @@ impl LlmClient {
         let response = self
             .client
             .post("https://api.openai.com/v1/chat/completions")
-<<<<<<< HEAD
             .header("Authorization", format!("Bearer {api_key}"))
-=======
-            .header("Authorization", format!("Bearer {}", api_key))
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -334,11 +299,7 @@ impl LlmClient {
         let response = self
             .client
             .post("https://api.anthropic.com/v1/messages")
-<<<<<<< HEAD
             .header("Authorization", format!("Bearer {api_key}"))
-=======
-            .header("Authorization", format!("Bearer {}", api_key))
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .header("Content-Type", "application/json")
             .header("anthropic-version", "2023-06-01")
             .json(&request)

@@ -23,12 +23,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
+                "file": "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "_Features Hub - Центр возможностей системы"
+              "title": "MAGRAY CLI - Главная страница проекта"
             },
             "group": "02159962f55d5146"
           }
@@ -45,7 +45,7 @@
             "state": {
               "type": "localgraph",
               "state": {
-                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
+                "file": "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md",
                 "options": {
                   "collapse-filter": true,
                   "search": "",
@@ -68,12 +68,12 @@
                   "repelStrength": 10,
                   "linkStrength": 1,
                   "linkDistance": 250,
-                  "scale": 0.7132754626224439,
+                  "scale": 0.7132754626224442,
                   "close": true
                 }
               },
               "icon": "lucide-git-fork",
-              "title": "Граф _Features Hub - Центр возможностей системы"
+              "title": "Граф MAGRAY CLI - Главная страница проекта"
             },
             "group": "02159962f55d5146"
           }
@@ -150,7 +150,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
+                "file": "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -160,7 +160,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Обратные ссылки для _Features Hub - Центр возможностей системы"
+              "title": "Обратные ссылки для MAGRAY CLI - Главная страница проекта"
             }
           },
           {
@@ -169,12 +169,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
+                "file": "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Исходящие ссылки из _Features Hub - Центр возможностей системы"
+              "title": "Исходящие ссылки из MAGRAY CLI - Главная страница проекта"
             }
           },
           {
@@ -198,13 +198,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
+                "file": "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Структура _Features Hub - Центр возможностей системы"
+              "title": "Структура MAGRAY CLI - Главная страница проекта"
             }
           }
         ]
@@ -228,6 +228,23 @@
   },
   "active": "94b790b6061f528c",
   "lastOpenFiles": [
+    "obsidian-comprehensive/README.md",
+    "obsidian-comprehensive/README.md.tmp.48412.1754357940490",
+    "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
+    "obsidian-comprehensive/Roadmap развития проекта.md",
+    "obsidian-comprehensive/Roadmap развития проекта.md.tmp.48412.1754357847473",
+    "obsidian-comprehensive/Руководство по установке и использованию.md",
+    "obsidian-comprehensive/Руководство по установке и использованию.md.tmp.48412.1754357733007",
+    "obsidian-comprehensive/Состояние готовности компонентов.md",
+    "obsidian-comprehensive/Состояние готовности компонентов.md.tmp.48412.1754357622079",
+    "obsidian-comprehensive/AI Crate - Embedding и модели.md",
+    "obsidian-comprehensive/Memory Crate - Трёхслойная система памяти.md",
+    "obsidian-comprehensive/Memory Crate - Трёхслойная система памяти.md.tmp.48412.1754357451406",
+    "obsidian-comprehensive/Архитектура системы - Детальный обзор.md",
+    "obsidian-comprehensive/Архитектура системы - Детальный обзор.md.tmp.48412.1754357328598",
+    "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md",
+    "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md.tmp.48412.1754357218007",
+    "obsidian-comprehensive",
     "MIGRATION_GUIDE.md",
     "MEMORY_SYSTEM_ARCHITECTURE.md",
     "MEMORY_COMPONENT_STATUS.md",
@@ -243,27 +260,10 @@
     "obsidian-v2/00_Home/Home.md",
     "obsidian-v2/README.md",
     "obsidian-v2/03_Features/GPU Acceleration - Ускорение на GPU с автоматическим fallback.md",
-    "obsidian-v2/02_Components/AI Mind Map - Визуальная карта AI crate.md.tmp.31392.1754348131986",
-    "obsidian-v2/01_Architecture/Core Concepts - Ключевые концепции проекта.md.tmp.31392.1754348113899",
-    "obsidian-v2/01_Architecture/Core Concepts - Ключевые концепции проекта.md.tmp.31392.1754348104546",
-    "obsidian-v2/01_Architecture/Core Concepts - Ключевые концепции проекта.md.tmp.31392.1754348098388",
-    "obsidian-v2/01_Architecture/Core Concepts - Ключевые концепции проекта.md.tmp.31392.1754348090919",
-    "obsidian-v2/01_Architecture/Memory Layers - Трёхслойная архитектура памяти.md.tmp.31392.1754348079525",
-    "obsidian-v2/03_Features/Vector Search - Семантический поиск по векторам.md.tmp.31392.1754348067156",
-    "obsidian-v2/03_Features/Vector Search - Семантический поиск по векторам.md.tmp.31392.1754348057731",
-    "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
     "obsidian-v2/00_Home/Knowledge Graph - Граф связей проекта.md",
     "Без названия/BUILD_DEPLOYMENT.md",
     "Без названия/ARCHITECTURE_NEW.md",
     "Без названия/{{RelatedFeature}}.md",
-    "Без названия/2025-08-05.md",
-    "Без названия/Без названия.canvas",
-    "Без названия/GPU_ACCELERATION.md",
-    "Без названия/ARCHITECTURE.md",
-    "obsidian-v2/01_Architecture/_Architecture Hub - Центр архитектурной информации.md",
-    "obsidian-v2/STRUCTURE_VERIFICATION.md",
-    "obsidian-v2/FINAL_DANDELION_STRUCTURE.md",
-    "obsidian-v2/99_Meta/STRUCTURE_VERIFICATION.md",
-    "obsidian-v2/99_Meta/CLEAN_DANDELION_STRUCTURE.md"
+    "Без названия/Без названия.canvas"
   ]
 }

@@ -1,4 +1,4 @@
-use notify::{Watcher, RecursiveMode, Result as NotifyResult, RecommendedWatcher, Event};
+﻿use notify::{Watcher, RecursiveMode, Result as NotifyResult, RecommendedWatcher, Event};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

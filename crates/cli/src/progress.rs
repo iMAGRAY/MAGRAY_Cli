@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-=======
-use indicatif::{ProgressBar, ProgressStyle};
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
+﻿use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 use colored::Colorize;
 
@@ -78,19 +75,11 @@ impl ProgressType {
     /// Создать оптимизированный прогресс-бар
     pub fn create_spinner(self, message: &str) -> AdaptiveSpinner {
         let config = self.config();
-<<<<<<< HEAD
         let spinner = indicatif::ProgressBar::new_spinner();
         
         let template = match self {
             ProgressType::Backup | ProgressType::Search | ProgressType::Memory => {
                 "{spinner} {msg}".to_string()
-=======
-        let spinner = ProgressBar::new_spinner();
-        
-        let template = match self {
-            ProgressType::Backup | ProgressType::Search | ProgressType::Memory => {
-                format!("{{spinner}} {{msg}}")
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             },
             _ => {
                 format!("{{spinner:.{}}} {{msg}}", config.color)
@@ -98,11 +87,7 @@ impl ProgressType {
         };
         
         spinner.set_style(
-<<<<<<< HEAD
             indicatif::ProgressStyle::default_spinner()
-=======
-            ProgressStyle::default_spinner()
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 .tick_chars(config.spinner_chars)
                 .template(&template)
                 .unwrap()
@@ -121,11 +106,7 @@ impl ProgressType {
 
 /// Умный спиннер с адаптивным поведением
 pub struct AdaptiveSpinner {
-<<<<<<< HEAD
     spinner: indicatif::ProgressBar,
-=======
-    spinner: ProgressBar,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     #[allow(dead_code)]
     progress_type: ProgressType,
     #[allow(dead_code)]
@@ -161,14 +142,9 @@ impl AdaptiveSpinner {
     /// Завершить с ошибкой
     #[allow(dead_code)]
     pub fn finish_error(&self, message: &str) {
-<<<<<<< HEAD
         let error_msg = format!("✗ {message}");
         let error_msg_str = error_msg.red().to_string();
         self.spinner.finish_with_message(error_msg_str);
-=======
-        let error_msg = format!("✗ {}", message);
-        self.spinner.finish_with_message(error_msg.red().to_string());
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     /// Завершить и очистить
@@ -182,11 +158,7 @@ impl AdaptiveSpinner {
     pub fn set_progress(&self, current: u64, total: u64) {
         if total > 0 {
             let percentage = (current * 100) / total;
-<<<<<<< HEAD
             let progress_msg = format!("{percentage}% ({current}/{total})");
-=======
-            let progress_msg = format!("{}% ({}/{})", percentage, current, total);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             self.set_message(&progress_msg);
         }
     }
@@ -290,9 +262,5 @@ impl ProgressBuilder {
     }
 }
 
-<<<<<<< HEAD
 // @component: {"k":"C","id":"adaptive_progress","t":"Adaptive progress indicators","m":{"cur":95,"tgt":100,"u":"%"},"f":["ui","progress","adaptive"]}
 
-=======
-// @component: {"k":"C","id":"adaptive_progress","t":"Adaptive progress indicators","m":{"cur":95,"tgt":100,"u":"%"},"f":["ui","progress","adaptive"]}
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c

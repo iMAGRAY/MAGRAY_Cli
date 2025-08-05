@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use chrono::{DateTime, Utc, Duration};
 use serde::{Serialize, Deserialize};
 use std::collections::{HashMap, VecDeque};
@@ -75,7 +75,6 @@ pub struct SystemHealthStatus {
     pub uptime_seconds: u64,
 }
 
-<<<<<<< HEAD
 impl Default for SystemHealthStatus {
     fn default() -> Self {
         Self {
@@ -89,10 +88,8 @@ impl Default for SystemHealthStatus {
     }
 }
 
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-/// Performance статистика компонента
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Статистика производительности компонента
+#[derive(Debug, Clone)]
 pub struct ComponentPerformanceStats {
     pub avg_response_time_ms: f64,
     pub success_rate: f64,
@@ -102,114 +99,48 @@ pub struct ComponentPerformanceStats {
     pub last_error_time: Option<DateTime<Utc>>,
 }
 
-/// Health Monitor - основной класс для мониторинга системы
-// @component: {"k":"C","id":"health_monitor","t":"System health monitoring","m":{"cur":80,"tgt":95,"u":"%"},"f":["monitoring","alerts"]}
+/// Конфигурация health monitor
+#[derive(Debug, Clone)]
+pub struct HealthMonitorConfig {
+    pub enable_alerts: bool,
+    pub metrics_retention_days: u32,
+    pub alert_thresholds: HashMap<ComponentType, f64>,
+}
+
+impl Default for HealthMonitorConfig {
+    fn default() -> Self {
+        Self {
+            enable_alerts: true,
+            metrics_retention_days: 7,
+            alert_thresholds: HashMap::new(),
+        }
+    }
+}
+
+/// @component: {"k":"C","id":"health_monitor","t":"Health monitoring system","m":{"cur":85,"tgt":95,"u":"%"},"f":["monitoring","production"]}
 pub struct HealthMonitor {
     component_stats: Arc<RwLock<HashMap<ComponentType, ComponentPerformanceStats>>>,
     metrics_history: Arc<RwLock<HashMap<String, VecDeque<HealthMetric>>>>,
     active_alerts: Arc<RwLock<HashMap<String, HealthAlert>>>,
     alert_sender: Option<mpsc::UnboundedSender<HealthAlert>>,
     start_time: Instant,
-    config: HealthConfig,
-}
-
-/// Конфигурация health monitoring
-#[derive(Debug, Clone)]
-pub struct HealthConfig {
-    pub metrics_retention_minutes: u32,
-    pub max_metrics_per_type: usize,
-    pub alert_cooldown_minutes: u32,
-    pub enable_alerts: bool,
-    pub enable_real_time_metrics: bool,
-}
-
-impl Default for HealthConfig {
-    fn default() -> Self {
-        Self {
-            metrics_retention_minutes: 60,
-            max_metrics_per_type: 1000,
-            alert_cooldown_minutes: 5,
-            enable_alerts: true,
-            enable_real_time_metrics: true,
-        }
-    }
+    config: HealthMonitorConfig,
 }
 
 impl HealthMonitor {
-    /// Создает новый health monitor
-    pub fn new(config: HealthConfig) -> Self {
-        let (sender, receiver) = mpsc::unbounded_channel();
-        
-        let monitor = Self {
+    pub fn new(config: HealthMonitorConfig) -> Self {
+        Self {
             component_stats: Arc::new(RwLock::new(HashMap::new())),
             metrics_history: Arc::new(RwLock::new(HashMap::new())),
             active_alerts: Arc::new(RwLock::new(HashMap::new())),
-            alert_sender: Some(sender),
+            alert_sender: None,
             start_time: Instant::now(),
             config,
-        };
-        
-        // Запускаем обработчик alerts в фоне
-        if monitor.config.enable_alerts {
-            tokio::spawn(monitor.clone().alert_processor(receiver));
         }
-        
-        monitor
-    }
-    
-    /// Записывает метрику компонента
-    pub fn record_metric(&self, metric: HealthMetric) -> Result<()> {
-        if !self.config.enable_real_time_metrics {
-            return Ok(());
-        }
-        
-        let metric_key = format!("{:?}_{}", metric.component, metric.metric_name);
-        
-<<<<<<< HEAD
-        // Добавляем метрику в историю с обработкой lock poisoning
-        {
-            let mut history = match self.metrics_history.write() {
-                Ok(guard) => guard,
-                Err(poisoned) => {
-                    error!("Metrics history lock poisoned, recovering data");
-                    poisoned.into_inner()
-                }
-            };
-            let metrics = history.entry(metric_key.clone()).or_default();
-=======
-        // Добавляем метрику в историю
-        {
-            let mut history = self.metrics_history.write().unwrap();
-            let metrics = history.entry(metric_key.clone()).or_insert_with(VecDeque::new);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-            
-            metrics.push_back(metric.clone());
-            
-            // Ограничиваем размер истории
-            while metrics.len() > self.config.max_metrics_per_type {
-                metrics.pop_front();
-            }
-            
-            // Удаляем старые метрики
-            let cutoff_time = Utc::now() - Duration::minutes(self.config.metrics_retention_minutes as i64);
-            while let Some(front) = metrics.front() {
-                if front.timestamp < cutoff_time {
-                    metrics.pop_front();
-                } else {
-                    break;
-                }
-            }
-        }
-        
-        // Проверяем пороги и генерируем alerts
-        self.check_thresholds(&metric)?;
-        
-        Ok(())
     }
     
     /// Записывает операционную статистику компонента
     pub fn record_operation(&self, component: ComponentType, success: bool, response_time_ms: f64, error: Option<String>) {
-<<<<<<< HEAD
         let mut stats = match self.component_stats.write() {
             Ok(guard) => guard,
             Err(poisoned) => {
@@ -217,9 +148,6 @@ impl HealthMonitor {
                 poisoned.into_inner()
             }
         };
-=======
-        let mut stats = self.component_stats.write().unwrap();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let component_stats = stats.entry(component).or_insert_with(|| ComponentPerformanceStats {
             avg_response_time_ms: 0.0,
             success_rate: 1.0,
@@ -266,7 +194,6 @@ impl HealthMonitor {
     
     /// Получает метрики для компонента
     pub fn get_component_metrics(&self, component: ComponentType, metric_name: &str, limit: Option<usize>) -> Vec<HealthMetric> {
-<<<<<<< HEAD
         let metric_key = format!("{component:?}_{metric_name}");
         let history = match self.metrics_history.read() {
             Ok(guard) => guard,
@@ -275,10 +202,6 @@ impl HealthMonitor {
                 poisoned.into_inner()
             }
         };
-=======
-        let metric_key = format!("{:?}_{}", component, metric_name);
-        let history = self.metrics_history.read().unwrap();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         if let Some(metrics) = history.get(&metric_key) {
             let mut result: Vec<_> = metrics.iter().cloned().collect();
@@ -296,7 +219,6 @@ impl HealthMonitor {
     
     /// Получает статистику производительности компонента
     pub fn get_component_performance(&self, component: ComponentType) -> Option<ComponentPerformanceStats> {
-<<<<<<< HEAD
         let stats = match self.component_stats.read() {
             Ok(guard) => guard,
             Err(poisoned) => {
@@ -304,9 +226,6 @@ impl HealthMonitor {
                 poisoned.into_inner()
             }
         };
-=======
-        let stats = self.component_stats.read().unwrap();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         stats.get(&component).cloned()
     }
     
@@ -336,7 +255,6 @@ impl HealthMonitor {
         }
         
         // Сохраняем alert
-<<<<<<< HEAD
         let mut alerts = match self.active_alerts.write() {
             Ok(guard) => guard,
             Err(poisoned) => {
@@ -344,15 +262,11 @@ impl HealthMonitor {
                 poisoned.into_inner()
             }
         };
-=======
-        let mut alerts = self.active_alerts.write().unwrap();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         alerts.insert(alert.id.clone(), alert);
     }
     
     /// Разрешает alert
     pub fn resolve_alert(&self, alert_id: &str) {
-<<<<<<< HEAD
         let mut alerts = match self.active_alerts.write() {
             Ok(guard) => guard,
             Err(poisoned) => {
@@ -360,9 +274,6 @@ impl HealthMonitor {
                 poisoned.into_inner()
             }
         };
-=======
-        let mut alerts = self.active_alerts.write().unwrap();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         if let Some(alert) = alerts.get_mut(alert_id) {
             alert.resolved = true;
             alert.resolved_at = Some(Utc::now());
@@ -370,7 +281,6 @@ impl HealthMonitor {
         }
     }
     
-<<<<<<< HEAD
     /// Алиас для get_system_health для координатора
     pub async fn overall_health(&self) -> Result<SystemHealthStatus> {
         Ok(self.get_system_health())
@@ -384,43 +294,9 @@ impl HealthMonitor {
         Ok(())
     }
     
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-    /// Проверяет пороги метрики и генерирует alerts
-    fn check_thresholds(&self, metric: &HealthMetric) -> Result<()> {
-        // Проверяем critical threshold
-        if let Some(critical_threshold) = metric.threshold_critical {
-            if metric.value >= critical_threshold {
-                self.create_alert(
-                    metric.component.clone(),
-                    AlertSeverity::Critical,
-                    format!("Critical: {} exceeded threshold", metric.metric_name),
-                    format!("Metric {} has value {:.2} {} which exceeds critical threshold {:.2}", 
-                           metric.metric_name, metric.value, metric.unit, critical_threshold)
-                );
-            }
-        }
-        
-        // Проверяем warning threshold
-        else if let Some(warning_threshold) = metric.threshold_warning {
-            if metric.value >= warning_threshold {
-                self.create_alert(
-                    metric.component.clone(),
-                    AlertSeverity::Warning,
-                    format!("Warning: {} approaching threshold", metric.metric_name),
-                    format!("Metric {} has value {:.2} {} which exceeds warning threshold {:.2}", 
-                           metric.metric_name, metric.value, metric.unit, warning_threshold)
-                );
-            }
-        }
-        
-        Ok(())
-    }
-    
-    /// Вычисляет статусы компонентов
+    /// Вычисляет статусы компонентов на основе производительности
     fn calculate_component_statuses(&self) -> HashMap<ComponentType, HealthStatus> {
         let mut statuses = HashMap::new();
-<<<<<<< HEAD
         let stats = match self.component_stats.read() {
             Ok(guard) => guard,
             Err(poisoned) => {
@@ -428,9 +304,6 @@ impl HealthMonitor {
                 poisoned.into_inner()
             }
         };
-=======
-        let stats = self.component_stats.read().unwrap();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         for (component, perf_stats) in stats.iter() {
             let status = match perf_stats.success_rate {
@@ -478,7 +351,6 @@ impl HealthMonitor {
     
     /// Получает активные alerts
     fn get_active_alerts(&self) -> Vec<HealthAlert> {
-<<<<<<< HEAD
         let alerts = match self.active_alerts.read() {
             Ok(guard) => guard,
             Err(poisoned) => {
@@ -486,9 +358,6 @@ impl HealthMonitor {
                 poisoned.into_inner()
             }
         };
-=======
-        let alerts = self.active_alerts.read().unwrap();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         alerts.values()
             .filter(|alert| !alert.resolved)
             .cloned()
@@ -498,7 +367,6 @@ impl HealthMonitor {
     /// Получает сводку метрик
     fn get_metrics_summary(&self) -> HashMap<String, f64> {
         let mut summary = HashMap::new();
-<<<<<<< HEAD
         let history = match self.metrics_history.read() {
             Ok(guard) => guard,
             Err(poisoned) => {
@@ -506,9 +374,6 @@ impl HealthMonitor {
                 poisoned.into_inner()
             }
         };
-=======
-        let history = self.metrics_history.read().unwrap();
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         for (metric_key, metrics) in history.iter() {
             if let Some(latest) = metrics.back() {
@@ -556,11 +421,7 @@ impl Clone for HealthMonitor {
 #[macro_export]
 macro_rules! health_metric {
     ($component:expr, $name:expr, $value:expr, $unit:expr) => {
-<<<<<<< HEAD
         $crate::health::HealthMetric {
-=======
-        crate::health::HealthMetric {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             component: $component,
             metric_name: $name.to_string(),
             value: $value,
@@ -571,11 +432,7 @@ macro_rules! health_metric {
         }
     };
     ($component:expr, $name:expr, $value:expr, $unit:expr, $warn:expr, $crit:expr) => {
-<<<<<<< HEAD
         $crate::health::HealthMetric {
-=======
-        crate::health::HealthMetric {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             component: $component,
             metric_name: $name.to_string(),
             value: $value,

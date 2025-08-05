@@ -1,4 +1,4 @@
-[package]
+﻿[package]
 name = "llm"
 version.workspace = true
 edition.workspace = true
@@ -11,9 +11,5 @@ serde_json = { workspace = true }
 reqwest = { workspace = true }
 tracing = { workspace = true }
 dotenv = { workspace = true }
-<<<<<<< HEAD
-
 [dev-dependencies]
 mockito = "1.5"
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c

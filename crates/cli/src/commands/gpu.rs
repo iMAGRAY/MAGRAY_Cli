@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use clap::{Args, Subcommand};
 use ai::{
     gpu_detector::GpuDetector,
@@ -117,11 +117,7 @@ impl GpuCommand {
         
         // Генерируем тестовые данные
         let test_texts: Vec<String> = (0..batch_size)
-<<<<<<< HEAD
             .map(|i| format!("This is test text number {i} for benchmarking embedding performance on our optimized service with GPU acceleration."))
-=======
-            .map(|i| format!("This is test text number {} for benchmarking embedding performance on our optimized service with GPU acceleration.", i))
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             .collect();
         
         // Конфигурация
@@ -224,11 +220,7 @@ impl GpuCommand {
         
         // Загружаем модель если необходимо
         info!("📥 Проверка наличия модели...");
-<<<<<<< HEAD
         let model_path = MODEL_DOWNLOADER.ensure_model(model_name).await?;
-=======
-        let model_path = MODEL_DOWNLOADER.ensure_model(&model_name).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         info!("✅ Модель загружена: {:?}", model_path);
         
         // Создаём оптимизированный сервис

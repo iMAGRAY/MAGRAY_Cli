@@ -1,8 +1,8 @@
-use crate::EmbeddingConfig;
+﻿use crate::EmbeddingConfig;
 #[cfg(feature = "gpu")]
 use crate::{GpuConfig, GpuInfo};
 use crate::tokenization::{OptimizedTokenizer, TokenizedInput as OptTokenizedInput, BatchTokenized};
-use crate::memory_pool::{GLOBAL_MEMORY_POOL, PoolStats};
+use crate::memory_pool::GLOBAL_MEMORY_POOL;
 use anyhow::Result as AnyhowResult;
 use ort::{session::Session, value::Tensor, inputs};
 use std::path::PathBuf;
@@ -282,9 +282,9 @@ impl CpuEmbeddingService {
         token_type_buf.extend_from_slice(&tokenized.token_type_ids);
         
         // Create tensors from pooled buffers
-        let input_ids_tensor = Tensor::from_array(([1, seq_len], input_ids_buf.clone()))?;
-        let attention_mask_tensor = Tensor::from_array(([1, seq_len], attention_mask_buf.clone()))?;
-        let token_type_ids_tensor = Tensor::from_array(([1, seq_len], token_type_buf.clone()))?;
+        let input_ids_tensor = Tensor::from_array(([1, seq_len], input_ids_buf.to_vec()))?;
+        let attention_mask_tensor = Tensor::from_array(([1, seq_len], attention_mask_buf.to_vec()))?;
+        let token_type_ids_tensor = Tensor::from_array(([1, seq_len], token_type_buf.to_vec()))?;
         
         // Run inference
         let mut session = self.session.lock().map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
@@ -305,10 +305,7 @@ impl CpuEmbeddingService {
             ])?
         };
         
-        // Return buffers to pool
-        GLOBAL_MEMORY_POOL.return_input_buffer(input_ids_buf);
-        GLOBAL_MEMORY_POOL.return_attention_buffer(attention_mask_buf);
-        GLOBAL_MEMORY_POOL.return_token_type_buffer(token_type_buf);
+        // Buffers are automatically returned to pool via Drop trait
         
         // Extract and process embeddings
         self.extract_and_pool_embedding(&outputs, seq_len)
@@ -339,9 +336,9 @@ impl CpuEmbeddingService {
         }
         
         // Create batch tensors [batch_size, seq_len]
-        let input_ids_tensor = Tensor::from_array(([batch_size, seq_len], flat_input_ids.clone()))?;
-        let attention_mask_tensor = Tensor::from_array(([batch_size, seq_len], flat_attention_masks.clone()))?;
-        let token_type_ids_tensor = Tensor::from_array(([batch_size, seq_len], flat_token_type_ids.clone()))?;
+        let input_ids_tensor = Tensor::from_array(([batch_size, seq_len], flat_input_ids.to_vec()))?;
+        let attention_mask_tensor = Tensor::from_array(([batch_size, seq_len], flat_attention_masks.to_vec()))?;
+        let token_type_ids_tensor = Tensor::from_array(([batch_size, seq_len], flat_token_type_ids.to_vec()))?;
         
         // Single ONNX call for entire batch
         let mut session = self.session.lock().map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
@@ -362,10 +359,7 @@ impl CpuEmbeddingService {
             ])?
         };
         
-        // Return large buffers to pool
-        GLOBAL_MEMORY_POOL.return_input_buffer(flat_input_ids);
-        GLOBAL_MEMORY_POOL.return_attention_buffer(flat_attention_masks);
-        GLOBAL_MEMORY_POOL.return_token_type_buffer(flat_token_type_ids);
+        // Buffers are automatically returned to pool via Drop trait
         
         // Extract batch embeddings
         self.extract_batch_embeddings(&outputs, batch)
@@ -450,10 +444,7 @@ impl CpuEmbeddingService {
         // Vectorized pooling
         for seq_idx in 0..seq_len {
             let seq_start = seq_idx * hidden_size;
-<<<<<<< HEAD
             #[allow(clippy::needless_range_loop)]
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             for hidden_idx in 0..hidden_size {
                 let data_idx = seq_start + hidden_idx;
                 if data_idx < data.len() {
@@ -464,14 +455,12 @@ impl CpuEmbeddingService {
         
         // Average (in-place to avoid allocation)
         let seq_len_f32 = seq_len as f32;
-        for val in &mut pooled {
+        for val in pooled.iter_mut() {
             *val /= seq_len_f32;
         }
         
-        // Clone result and return buffer to pool
-        let result = pooled.clone();
-        GLOBAL_MEMORY_POOL.return_output_buffer(pooled);
-        result
+        // Take ownership and return as Vec<f32>
+        pooled.take()
     }
     
     /// Optimized L2 normalization
@@ -513,7 +502,7 @@ impl CpuEmbeddingService {
     }
     
     /// Get memory pool statistics
-    pub fn get_pool_stats(&self) -> PoolStats {
+    pub fn get_pool_stats(&self) -> crate::memory_pool::PoolStats {
         GLOBAL_MEMORY_POOL.get_stats()
     }
 }

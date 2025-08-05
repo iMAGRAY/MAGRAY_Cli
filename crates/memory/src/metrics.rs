@@ -1,4 +1,4 @@
-use parking_lot::RwLock;
+﻿use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -12,137 +12,65 @@ pub struct MetricsCollector {
     start_time: Instant,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-<<<<<<< HEAD
-#[derive(Default)]
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-pub struct MemoryMetrics {
-    // Vector operations
-    pub vector_searches: u64,
-    pub vector_inserts: u64,
-    pub vector_deletes: u64,
-    pub vector_search_latency_ms: LatencyMetric,
-    pub vector_insert_latency_ms: LatencyMetric,
-    
-    // Cache metrics
-    pub cache_hits: u64,
-    pub cache_misses: u64,
-    pub cache_evictions: u64,
-    pub cache_size_bytes: u64,
-    pub cache_entries: u64,
-    
-    // Promotion metrics
-    pub promotions_interact_to_insights: u64,
-    pub promotions_insights_to_assets: u64,
-    pub records_expired: u64,
-    pub promotion_cycle_duration_ms: LatencyMetric,
-    
-    // Layer metrics
-    pub layer_sizes: HashMap<String, LayerMetrics>,
-    
-    // System metrics
-    pub uptime_seconds: u64,
-    pub total_operations: u64,
-    pub error_count: u64,
-    pub last_error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LayerMetrics {
-    pub record_count: u64,
-    pub total_size_bytes: u64,
-    pub avg_embedding_size: f32,
-    pub avg_access_count: f32,
-    pub oldest_record_age_hours: f32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LatencyMetric {
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LatencyMetrics {
     pub count: u64,
     pub sum_ms: f64,
-    pub min_ms: f64,
-    pub max_ms: f64,
-    pub avg_ms: f64,
     pub p50_ms: f64,
     pub p90_ms: f64,
     pub p99_ms: f64,
-    samples: Vec<f64>,
 }
 
-impl Default for LatencyMetric {
-    fn default() -> Self {
-        Self {
-            count: 0,
-            sum_ms: 0.0,
-            min_ms: f64::MAX,
-            max_ms: 0.0,
-            avg_ms: 0.0,
-            p50_ms: 0.0,
-            p90_ms: 0.0,
-            p99_ms: 0.0,
-            samples: Vec::with_capacity(1000),
-        }
-    }
-}
-
-impl LatencyMetric {
-    fn record(&mut self, duration_ms: f64) {
+impl LatencyMetrics {
+    pub fn record(&mut self, ms: f64) {
         self.count += 1;
-        self.sum_ms += duration_ms;
-        self.min_ms = self.min_ms.min(duration_ms);
-        self.max_ms = self.max_ms.max(duration_ms);
-        self.avg_ms = self.sum_ms / self.count as f64;
-        
-        // Keep last 1000 samples for percentiles
-        if self.samples.len() >= 1000 {
-            self.samples.remove(0);
-        }
-        self.samples.push(duration_ms);
-        
-        // Calculate percentiles
-        if !self.samples.is_empty() {
-            let mut sorted = self.samples.clone();
-            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            
-            self.p50_ms = sorted[sorted.len() / 2];
-            self.p90_ms = sorted[(sorted.len() as f64 * 0.9) as usize];
-            self.p99_ms = sorted[(sorted.len() as f64 * 0.99) as usize];
+        self.sum_ms += ms;
+        // Simplified percentiles - in production would use a proper histogram
+        self.p50_ms = ms;
+        self.p90_ms = ms;
+        self.p99_ms = ms;
+    }
+    
+    pub fn avg_ms(&self) -> f64 {
+        if self.count == 0 {
+            0.0
+        } else {
+            self.sum_ms / self.count as f64
         }
     }
 }
 
-<<<<<<< HEAD
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LayerMetrics {
+    pub record_count: u64,
+    pub total_size_bytes: u64,
+}
 
-impl Default for MetricsCollector {
-    fn default() -> Self {
-        Self::new()
-=======
-impl Default for MemoryMetrics {
-    fn default() -> Self {
-        Self {
-            vector_searches: 0,
-            vector_inserts: 0,
-            vector_deletes: 0,
-            vector_search_latency_ms: Default::default(),
-            vector_insert_latency_ms: Default::default(),
-            cache_hits: 0,
-            cache_misses: 0,
-            cache_evictions: 0,
-            cache_size_bytes: 0,
-            cache_entries: 0,
-            promotions_interact_to_insights: 0,
-            promotions_insights_to_assets: 0,
-            records_expired: 0,
-            promotion_cycle_duration_ms: Default::default(),
-            layer_sizes: HashMap::new(),
-            uptime_seconds: 0,
-            total_operations: 0,
-            error_count: 0,
-            last_error: None,
-        }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-    }
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MemoryMetrics {
+    pub cache_hits: u64,
+    pub cache_misses: u64,
+    pub cache_entries: u64,
+    pub cache_size_bytes: u64,
+    pub cache_evictions: u64,
+    pub total_embeddings: u64,
+    pub vector_searches: u64,
+    pub vector_inserts: u64,
+    pub vector_deletes: u64,
+    pub total_operations: u64,
+    pub vector_search_latency_ms: LatencyMetrics,
+    pub vector_insert_latency_ms: LatencyMetrics,
+    pub promotions_completed: u64,
+    pub promotions_interact_to_insights: u64,
+    pub promotions_insights_to_assets: u64,
+    pub records_expired: u64,
+    pub promotion_cycle_duration_ms: LatencyMetrics,
+    pub layer_sizes: HashMap<String, LayerMetrics>,
+    pub memory_usage_bytes: u64,
+    pub avg_response_time_ms: f64,
+    pub error_count: u64,
+    pub last_error: Option<String>,
+    pub uptime_seconds: u64,
 }
 
 impl MetricsCollector {
@@ -276,21 +204,12 @@ impl MetricsCollector {
         let mut output = String::new();
         
         // Vector metrics
-<<<<<<< HEAD
         output.push_str("# HELP memory_vector_searches_total Total number of vector searches\n");
         output.push_str("# TYPE memory_vector_searches_total counter\n");
         output.push_str(&format!("memory_vector_searches_total {}\n", metrics.vector_searches));
         
         output.push_str("# HELP memory_vector_search_latency_ms Vector search latency in milliseconds\n");
         output.push_str("# TYPE memory_vector_search_latency_ms histogram\n");
-=======
-        output.push_str(&format!("# HELP memory_vector_searches_total Total number of vector searches\n"));
-        output.push_str(&format!("# TYPE memory_vector_searches_total counter\n"));
-        output.push_str(&format!("memory_vector_searches_total {}\n", metrics.vector_searches));
-        
-        output.push_str(&format!("# HELP memory_vector_search_latency_ms Vector search latency in milliseconds\n"));
-        output.push_str(&format!("# TYPE memory_vector_search_latency_ms histogram\n"));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         output.push_str(&format!("memory_vector_search_latency_ms_sum {}\n", metrics.vector_search_latency_ms.sum_ms));
         output.push_str(&format!("memory_vector_search_latency_ms_count {}\n", metrics.vector_search_latency_ms.count));
         output.push_str(&format!("memory_vector_search_latency_ms{{quantile=\"0.5\"}} {}\n", metrics.vector_search_latency_ms.p50_ms));
@@ -298,62 +217,35 @@ impl MetricsCollector {
         output.push_str(&format!("memory_vector_search_latency_ms{{quantile=\"0.99\"}} {}\n", metrics.vector_search_latency_ms.p99_ms));
         
         // Cache metrics
-<<<<<<< HEAD
         output.push_str("# HELP memory_cache_hits_total Total number of cache hits\n");
         output.push_str("# TYPE memory_cache_hits_total counter\n");
         output.push_str(&format!("memory_cache_hits_total {}\n", metrics.cache_hits));
         
         output.push_str("# HELP memory_cache_hit_rate Cache hit rate\n");
         output.push_str("# TYPE memory_cache_hit_rate gauge\n");
-=======
-        output.push_str(&format!("# HELP memory_cache_hits_total Total number of cache hits\n"));
-        output.push_str(&format!("# TYPE memory_cache_hits_total counter\n"));
-        output.push_str(&format!("memory_cache_hits_total {}\n", metrics.cache_hits));
-        
-        output.push_str(&format!("# HELP memory_cache_hit_rate Cache hit rate\n"));
-        output.push_str(&format!("# TYPE memory_cache_hit_rate gauge\n"));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let hit_rate = if metrics.cache_hits + metrics.cache_misses > 0 {
             metrics.cache_hits as f64 / (metrics.cache_hits + metrics.cache_misses) as f64
         } else {
             0.0
         };
-<<<<<<< HEAD
         output.push_str(&format!("memory_cache_hit_rate {hit_rate}\n"));
         
         // Layer metrics
         for (layer, layer_metrics) in &metrics.layer_sizes {
             output.push_str("# HELP memory_layer_record_count Number of records in layer\n");
             output.push_str("# TYPE memory_layer_record_count gauge\n");
-=======
-        output.push_str(&format!("memory_cache_hit_rate {}\n", hit_rate));
-        
-        // Layer metrics
-        for (layer, layer_metrics) in &metrics.layer_sizes {
-            output.push_str(&format!("# HELP memory_layer_record_count Number of records in layer\n"));
-            output.push_str(&format!("# TYPE memory_layer_record_count gauge\n"));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             output.push_str(&format!("memory_layer_record_count{{layer=\"{}\"}} {}\n", layer, layer_metrics.record_count));
             
             output.push_str(&format!("memory_layer_size_bytes{{layer=\"{}\"}} {}\n", layer, layer_metrics.total_size_bytes));
         }
         
         // System metrics
-<<<<<<< HEAD
         output.push_str("# HELP memory_uptime_seconds Uptime in seconds\n");
         output.push_str("# TYPE memory_uptime_seconds gauge\n");
         output.push_str(&format!("memory_uptime_seconds {}\n", metrics.uptime_seconds));
         
         output.push_str("# HELP memory_errors_total Total number of errors\n");
         output.push_str("# TYPE memory_errors_total counter\n");
-=======
-        output.push_str(&format!("# HELP memory_uptime_seconds Uptime in seconds\n"));
-        output.push_str(&format!("# TYPE memory_uptime_seconds gauge\n"));
-        output.push_str(&format!("memory_uptime_seconds {}\n", metrics.uptime_seconds));
-        
-        output.push_str(&format!("# HELP memory_errors_total Total number of errors\n"));
-        output.push_str(&format!("# TYPE memory_errors_total counter\n"));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         output.push_str(&format!("memory_errors_total {}\n", metrics.error_count));
         
         output
@@ -370,12 +262,12 @@ impl MetricsCollector {
         info!("Vector operations:");
         info!("  Searches: {} (avg: {:.2}ms, p99: {:.2}ms)", 
             metrics.vector_searches, 
-            metrics.vector_search_latency_ms.avg_ms,
+            metrics.vector_search_latency_ms.avg_ms(),
             metrics.vector_search_latency_ms.p99_ms
         );
         info!("  Inserts: {} (avg: {:.2}ms)", 
             metrics.vector_inserts, 
-            metrics.vector_insert_latency_ms.avg_ms
+            metrics.vector_insert_latency_ms.avg_ms()
         );
         
         let cache_total = metrics.cache_hits + metrics.cache_misses;

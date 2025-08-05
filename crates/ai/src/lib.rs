@@ -1,4 +1,4 @@
-pub mod config;
+﻿pub mod config;
 pub mod embeddings_bge_m3;
 pub mod embeddings_cpu;
 pub mod embeddings_gpu;
@@ -26,11 +26,7 @@ pub use model_registry::{ModelRegistry, ModelInfo, ModelType, MODEL_REGISTRY};
 pub use embeddings_bge_m3::BgeM3EmbeddingService;
 pub use embeddings_cpu::{CpuEmbeddingService, OptimizedEmbeddingResult, ServiceStats};
 pub use embeddings_gpu::GpuEmbeddingService;
-<<<<<<< HEAD
 pub use memory_pool::{MemoryPool, PoolStats, PooledBuffer, GLOBAL_MEMORY_POOL, get_input_buffer, return_input_buffer, get_pool_stats};
-=======
-pub use memory_pool::{MemoryPool, PoolStats, GLOBAL_MEMORY_POOL};
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 pub use errors::AiError;
 pub use models::ModelLoader;
 pub use reranking::{RerankingService, RerankResult};

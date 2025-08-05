@@ -1,10 +1,7 @@
-use anyhow::{anyhow, Result};
+﻿use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-<<<<<<< HEAD
-=======
 use tokio;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 use llm::{LlmClient, ActionPlannerAgent, ToolSelectorAgent, ParameterExtractorAgent};
 use tools::{ToolRegistry, ToolInput, ToolOutput};
@@ -197,11 +194,7 @@ impl SmartRouter {
     }
     
     /// Извлекает требуемые параметры из JSON схемы инструмента
-<<<<<<< HEAD
     pub fn extract_required_params(&self, schema: &str) -> Vec<String> {
-=======
-    fn extract_required_params(&self, schema: &str) -> Vec<String> {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         // Простой парсинг JSON схемы для извлечения имен параметров
         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(schema) {
             if let Some(obj) = parsed.as_object() {
@@ -214,11 +207,7 @@ impl SmartRouter {
              "message".to_string(), "query".to_string()]
     }
     
-<<<<<<< HEAD
     pub fn format_results(&self, plan: &ActionPlan, results: &[ToolOutput]) -> Result<String> {
-=======
-    fn format_results(&self, plan: &ActionPlan, results: &[ToolOutput]) -> Result<String> {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         let mut output = String::new();
         
         output.push_str(&format!("[✓] План выполнен: {}\n", plan.reasoning));

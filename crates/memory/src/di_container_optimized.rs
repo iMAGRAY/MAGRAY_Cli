@@ -186,17 +186,15 @@ impl OptimizedDIContainer {
         // Slow path: Выполняем factory function
         let type_name = std::any::type_name::<T>();
         
-        let (factory_ptr, lifetime) = {
+        let (instance, lifetime) = {
             let registry = self.registry.read();
             let entry = registry.get(&type_id)
                 .ok_or_else(|| anyhow::anyhow!("Type {} not registered", type_name))?;
             
-            (entry.factory.as_ref() as *const OptimizedFactory, entry.lifetime)
+            let factory = entry.factory.as_ref();
+            let instance = factory(self)?;
+            (instance, entry.lifetime)
         };
-
-        // Safe to deref: registry entry exists while container is alive
-        let factory = unsafe { &*factory_ptr };
-        let instance = factory(self)?;
 
         // Update factory execution metrics
         {

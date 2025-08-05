@@ -1,21 +1,19 @@
 use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
 use anyhow::Result;
 use std::collections::HashMap;
+use std::process::Command;
 
 pub struct GitStatus;
 
-<<<<<<< HEAD
-impl Default for GitStatus {
-    fn default() -> Self {
-        Self::new()
+impl GitStatus {
+    pub fn new() -> Self {
+        GitStatus
     }
 }
 
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-impl GitStatus {
-    pub fn new() -> Self {
-        Self
+impl Default for GitStatus {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -24,43 +22,31 @@ impl Tool for GitStatus {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: "git_status".to_string(),
-            description: "Показывает статус Git репозитория".to_string(),
+            description: "Показывает статус git репозитория".to_string(),
             usage: "git_status".to_string(),
-            examples: vec!["git status".to_string()],
+            examples: vec!["git_status".to_string()],
             input_schema: r#"{}"#.to_string(),
         }
     }
-    
-    async fn execute(&self, _input: ToolInput) -> Result<ToolOutput> {
-        use tokio::process::Command;
 
-        // Выполняем `git status --short --branch` для компактного вывода
+    async fn execute(&self, _input: ToolInput) -> Result<ToolOutput> {
         let output = Command::new("git")
-            .args(["status", "--short", "--branch"])
-            .output()
-            .await?;
+            .args(&["status", "--porcelain"])
+            .output()?;
 
         if output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stdout = String::from_utf8_lossy(&output.stdout);
             Ok(ToolOutput {
                 success: true,
-                result: stdout.clone(),
-<<<<<<< HEAD
-                formatted_output: Some(format!("\n📂 Текущий статус репозитория:\n{stdout}")),
-=======
-                formatted_output: Some(format!("\n📂 Текущий статус репозитория:\n{}", stdout)),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
+                result: stdout.to_string(),
+                formatted_output: Some(format!("Git status:\n{}", stdout)),
                 metadata: HashMap::new(),
             })
         } else {
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr);
             Ok(ToolOutput {
                 success: false,
-<<<<<<< HEAD
-                result: format!("Ошибка выполнения git status: {stderr}"),
-=======
-                result: format!("Ошибка выполнения git status: {}", stderr),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
+                result: format!("Git error: {}", stderr),
                 formatted_output: None,
                 metadata: HashMap::new(),
             })
@@ -78,18 +64,15 @@ impl Tool for GitStatus {
 
 pub struct GitCommit;
 
-<<<<<<< HEAD
-impl Default for GitCommit {
-    fn default() -> Self {
-        Self::new()
+impl GitCommit {
+    pub fn new() -> Self {
+        GitCommit
     }
 }
 
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-impl GitCommit {
-    pub fn new() -> Self {
-        Self
+impl Default for GitCommit {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -98,65 +81,148 @@ impl Tool for GitCommit {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: "git_commit".to_string(),
-            description: "Создает Git коммит".to_string(),
+            description: "Создаёт коммит с указанным сообщением".to_string(),
             usage: "git_commit <сообщение>".to_string(),
-            examples: vec!["git commit -m 'fix: исправлена ошибка'".to_string()],
+            examples: vec![
+                "git_commit \"Добавил новую функцию\"".to_string(),
+                "создать коммит с сообщением \"исправил баг\"".to_string(),
+            ],
             input_schema: r#"{"message": "string"}"#.to_string(),
         }
     }
-    
-    async fn execute(&self, _input: ToolInput) -> Result<ToolOutput> {
-        use tokio::process::Command;
 
-        let message = _input.args.get("message").cloned().unwrap_or_else(|| "commit via MAGRAY CLI".to_string());
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
+        let message = input.args.get("message")
+            .ok_or_else(|| anyhow::anyhow!("Отсутствует параметр 'message'"))?;
 
-        // Добавляем изменения
-        let add_status = Command::new("git")
-            .args(["add", "-A"])
-            .output()
-            .await?;
+        // Сначала проверяем, есть ли что коммитить
+        let status = Command::new("git")
+            .args(&["status", "--porcelain"])
+            .output()?;
 
-        if !add_status.status.success() {
-            let err = String::from_utf8_lossy(&add_status.stderr).to_string();
+        if status.status.success() && status.stdout.is_empty() {
+            return Ok(ToolOutput {
+                success: true,
+                result: "Нет изменений для коммита".to_string(),
+                formatted_output: None,
+                metadata: HashMap::new(),
+            });
+        }
+
+        // Добавляем все изменения
+        let add = Command::new("git")
+            .args(&["add", "."])
+            .output()?;
+
+        if !add.status.success() {
+            let stderr = String::from_utf8_lossy(&add.stderr);
             return Ok(ToolOutput {
                 success: false,
-<<<<<<< HEAD
-                result: format!("Ошибка git add: {err}"),
-=======
-                result: format!("Ошибка git add: {}", err),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
+                result: format!("Ошибка git add: {}", stderr),
                 formatted_output: None,
                 metadata: HashMap::new(),
             });
         }
 
         // Создаем коммит
-        let commit_status = Command::new("git")
-            .args(["commit", "-m", &message])
-            .output()
-            .await?;
+        let commit = Command::new("git")
+            .args(&["commit", "-m", message])
+            .output()?;
 
-        if commit_status.status.success() {
-            let stdout = String::from_utf8_lossy(&commit_status.stdout).to_string();
+        if commit.status.success() {
+            let stdout = String::from_utf8_lossy(&commit.stdout);
             Ok(ToolOutput {
                 success: true,
-                result: stdout.clone(),
-<<<<<<< HEAD
-                formatted_output: Some(format!("\n✓ Создан коммит:\n{stdout}")),
-=======
-                formatted_output: Some(format!("\n✓ Создан коммит:\n{}", stdout)),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-                metadata: HashMap::from([("message".to_string(), message)]),
+                result: stdout.to_string(),
+                formatted_output: Some(format!("✅ Создан коммит:\n{}", stdout)),
+                metadata: HashMap::new(),
             })
         } else {
-            let stderr = String::from_utf8_lossy(&commit_status.stderr).to_string();
+            let stderr = String::from_utf8_lossy(&commit.stderr);
             Ok(ToolOutput {
                 success: false,
-<<<<<<< HEAD
-                result: format!("Ошибка git commit: {stderr}"),
-=======
-                result: format!("Ошибка git commit: {}", stderr),
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
+                result: format!("Ошибка коммита: {}", stderr),
+                formatted_output: None,
+                metadata: HashMap::new(),
+            })
+        }
+    }
+    
+    async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
+        let mut args = HashMap::new();
+        
+        // Извлекаем сообщение коммита
+        if let Some(start) = query.find('"') {
+            if let Some(end) = query[start+1..].find('"') {
+                let message = query[start+1..start+1+end].to_string();
+                args.insert("message".to_string(), message);
+            }
+        } else {
+            // Пытаемся использовать весь текст после ключевых слов
+            let lower = query.to_lowercase();
+            if let Some(pos) = lower.find("сообщением") {
+                args.insert("message".to_string(), query[pos+11..].trim().to_string());
+            } else {
+                args.insert("message".to_string(), query.to_string());
+            }
+        }
+        
+        Ok(ToolInput {
+            command: "git_commit".to_string(),
+            args,
+            context: Some(query.to_string()),
+        })
+    }
+}
+
+pub struct GitDiff;
+
+impl GitDiff {
+    pub fn new() -> Self {
+        GitDiff
+    }
+}
+
+impl Default for GitDiff {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait::async_trait]
+impl Tool for GitDiff {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec {
+            name: "git_diff".to_string(),
+            description: "Показывает изменения в файлах".to_string(),
+            usage: "git_diff".to_string(),
+            examples: vec!["git_diff".to_string()],
+            input_schema: r#"{}"#.to_string(),
+        }
+    }
+
+    async fn execute(&self, _input: ToolInput) -> Result<ToolOutput> {
+        let output = Command::new("git")
+            .args(&["diff"])
+            .output()?;
+
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            Ok(ToolOutput {
+                success: true,
+                result: stdout.to_string(),
+                formatted_output: Some(if stdout.is_empty() {
+                    "Нет незакоммиченных изменений".to_string()
+                } else {
+                    format!("Git diff:\n{}", stdout)
+                }),
+                metadata: HashMap::new(),
+            })
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Ok(ToolOutput {
+                success: false,
+                result: format!("Git error: {}", stderr),
                 formatted_output: None,
                 metadata: HashMap::new(),
             })
@@ -165,7 +231,7 @@ impl Tool for GitCommit {
     
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         Ok(ToolInput {
-            command: "git_commit".to_string(),
+            command: "git_diff".to_string(),
             args: HashMap::new(),
             context: Some(query.to_string()),
         })

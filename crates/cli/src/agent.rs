@@ -1,11 +1,8 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use llm::{LlmClient, IntentAnalyzerAgent};
 use router::SmartRouter;
 use common::OperationTimer;
-<<<<<<< HEAD
-=======
 // Удален неиспользуемый импорт serde
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
 // @component: {"k":"C","id":"unified_agent","t":"Main agent orchestrator","m":{"cur":60,"tgt":90,"u":"%"},"d":["llm_client","smart_router"]}
 
@@ -33,18 +30,11 @@ pub enum AgentResponse {
 }
 
 impl UnifiedAgent {
-<<<<<<< HEAD
     pub async fn new() -> Result<Self> {
         let llm_client = LlmClient::from_env()?;
         let smart_router = SmartRouter::new(llm_client.clone());
         let intent_analyzer = IntentAnalyzerAgent::new(llm_client.clone());
         Ok(Self { llm_client, smart_router, intent_analyzer })
-=======
-    pub fn new(llm_client: LlmClient) -> Self {
-        let smart_router = SmartRouter::new(llm_client.clone());
-        let intent_analyzer = IntentAnalyzerAgent::new(llm_client.clone());
-        Self { llm_client, smart_router, intent_analyzer }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     pub async fn process_message(&self, message: &str) -> Result<AgentResponse> {
@@ -62,11 +52,7 @@ impl UnifiedAgent {
         let response = match decision.action_type.as_str() {
             "chat" => {
                 let chat_timer = OperationTimer::new("llm_chat");
-<<<<<<< HEAD
                 let response = self.llm_client.chat_simple(message).await?;
-=======
-                let response = self.llm_client.chat(message).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 chat_timer.finish();
                 Ok(AgentResponse::Chat(response))
             }
@@ -85,11 +71,7 @@ impl UnifiedAgent {
                     Ok(AgentResponse::ToolExecution(result))
                 } else {
                     let chat_timer = OperationTimer::new("llm_chat_fallback");
-<<<<<<< HEAD
                     let response = self.llm_client.chat_simple(message).await?;
-=======
-                    let response = self.llm_client.chat(message).await?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                     chat_timer.finish();
                     Ok(AgentResponse::Chat(response))
                 }
@@ -114,10 +96,6 @@ impl UnifiedAgent {
         
         tool_indicators.iter().any(|&indicator| message_lower.contains(indicator))
     }
-<<<<<<< HEAD
 }
 
-=======
-}// Test comment
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 

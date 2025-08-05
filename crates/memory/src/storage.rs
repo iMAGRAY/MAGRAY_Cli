@@ -1,15 +1,11 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sled::Db;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
-<<<<<<< HEAD
 use tracing::{debug, info, error, warn};
-=======
-use tracing::{debug, info, error};
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 use parking_lot::RwLock;
 
 use crate::metrics::{MetricsCollector, TimedOperation};
@@ -40,18 +36,13 @@ pub struct StoredRecord {
 pub struct VectorStore {
     db: Arc<Db>,
     indices: HashMap<Layer, Arc<VectorIndexHnswRs>>,
-<<<<<<< HEAD
     metrics: Arc<RwLock<Option<Arc<MetricsCollector>>>>,
-=======
-    metrics: Option<Arc<MetricsCollector>>,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     health_monitor: Option<Arc<HealthMonitor>>,
     transaction_manager: Arc<TransactionManager>,
     // RwLock для координации batch операций и предотвращения race conditions
     batch_lock: Arc<RwLock<()>>,
     // Отслеживание изменений для инкрементальных обновлений
     change_tracker: Arc<RwLock<HashMap<Layer, ChangeTracker>>>,
-<<<<<<< HEAD
     // Глобальный счетчик версий для отслеживания изменений
     version_counter: Arc<std::sync::atomic::AtomicU64>,
     // Журнал изменений для инкрементальных индексов
@@ -67,10 +58,6 @@ struct ChangeLogEntry {
 }
 
 
-=======
-}
-
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 /// Отслеживает изменения в слое для умной синхронизации
 #[derive(Debug)]
 struct ChangeTracker {
@@ -118,25 +105,10 @@ impl ChangeTracker {
 }
 
 impl VectorStore {
-<<<<<<< HEAD
     /// Открывает sled БД через DatabaseManager для предотвращения concurrent access issues
     fn open_database_with_recovery(db_path: impl AsRef<Path>, _flush_config: &FlushConfig) -> Result<Arc<Db>> {
         let db_manager = crate::database_manager::DatabaseManager::global();
         let db = db_manager.get_database(db_path.as_ref())?;
-=======
-    /// Открывает sled БД с настройками для crash recovery
-    fn open_database_with_recovery(db_path: impl AsRef<Path>, flush_config: &FlushConfig) -> Result<Db> {
-        use sled::Config;
-        
-        let config = Config::new()
-            .path(db_path.as_ref())
-            .mode(sled::Mode::HighThroughput) // Лучше для CLI нагрузок
-            .flush_every_ms(Some(flush_config.get_vector_storage_ms()))
-            .use_compression(flush_config.enable_compression)
-            .compression_factor(flush_config.get_compression_factor());
-            
-        let db = config.open()?;
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         // Проверяем целостность после открытия
         if let Err(e) = db.checksum() {
@@ -148,13 +120,7 @@ impl VectorStore {
             return Err(anyhow::anyhow!("Database corruption detected. Please restart the application for automatic recovery."));
         }
         
-<<<<<<< HEAD
         info!("✅ Vector database opened through DatabaseManager");
-=======
-        info!("Vector database opened with flush interval: {}ms, compression: {}", 
-              flush_config.get_vector_storage_ms(),
-              if flush_config.enable_compression { "enabled" } else { "disabled" });
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         Ok(db)
     }
 
@@ -186,35 +152,16 @@ impl VectorStore {
         }
 
         Ok(Self {
-<<<<<<< HEAD
             db,
             indices,
             metrics: Arc::new(RwLock::new(None)),
-=======
-            db: Arc::new(db),
-            indices,
-            metrics: None,
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             health_monitor: None,
             transaction_manager: Arc::new(TransactionManager::new()),
             batch_lock: Arc::new(RwLock::new(())),
             change_tracker: Arc::new(RwLock::new(change_trackers)),
-<<<<<<< HEAD
             version_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             change_log: Arc::new(RwLock::new(Vec::new())),
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         })
-    }
-
-    /// Set the metrics collector
-<<<<<<< HEAD
-    pub fn set_metrics(&self, metrics: Arc<MetricsCollector>) {
-        *self.metrics.write() = Some(metrics);
-=======
-    pub fn set_metrics(&mut self, metrics: Arc<MetricsCollector>) {
-        self.metrics = Some(metrics);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
     
     /// Set the health monitor
@@ -345,12 +292,8 @@ impl VectorStore {
         self.check_insert_limits(1)?;
         
         // Start timing
-<<<<<<< HEAD
         let metrics = self.metrics.read().clone();
         let _timer = metrics.as_ref().map(|m| TimedOperation::new(m, "vector_insert"));
-=======
-        let _timer = self.metrics.as_ref().map(|m| TimedOperation::new(m, "vector_insert"));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         let tree = self.get_tree(record.layer).await?;
 
@@ -370,104 +313,10 @@ impl VectorStore {
         // Отслеживаем изменение для умной синхронизации
         self.record_layer_change(record.layer);
         
-<<<<<<< HEAD
         // Логируем изменение для версионирования
         self.log_change(record.layer, record);
         
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-        let duration = start.elapsed();
-        
-        // Record health metrics
-        if let Some(ref health) = self.health_monitor {
-            health.record_operation(ComponentType::VectorStore, true, duration.as_secs_f64() * 1000.0, None);
-            
-            // Record insert latency metric
-            let insert_latency_metric = health_metric!(
-                ComponentType::VectorStore,
-                "insert_latency_ms",
-                duration.as_secs_f64() * 1000.0,
-                "ms",
-                50.0,   // Warning: > 50ms
-                200.0   // Critical: > 200ms
-            );
-            let _ = health.record_metric(insert_latency_metric);
-        }
-        
-        debug!("Inserted record {} into layer {:?} in {:.2}ms", 
-               record.id, record.layer, duration.as_secs_f64() * 1000.0);
-        Ok(())
-    }
-
-    pub async fn insert_batch(&self, records: &[&Record]) -> Result<()> {
-        if records.is_empty() {
-            return Ok(());
-        }
-
-        // Проверяем лимиты перед вставкой
-        self.check_insert_limits(records.len())?;
-
-        // Start timing
-        let start = Instant::now();
-
-        // Group by layer
-        let mut by_layer: HashMap<Layer, Vec<&Record>> = HashMap::new();
-        for record in records {
-            by_layer.entry(record.layer).or_default().push(*record);
-        }
-
-        // Insert each layer's batch
-        for (layer, layer_records) in by_layer {
-            let tree = self.get_tree(layer).await?;
-            let mut batch = sled::Batch::default();
-            
-            let mut embeddings = Vec::new();
-            
-            for record in &layer_records {
-                let stored = StoredRecord {
-                    record: (*record).clone(),
-                };
-                
-                let key = record.id.as_bytes();
-                let value = bincode::serialize(&stored)?;
-                batch.insert(key, value);
-                
-                // Collect embeddings for index update
-                embeddings.push((record.id.to_string(), record.embedding.clone()));
-            }
-            
-            tree.apply_batch(batch)?;
-            
-            if let Some(index) = self.indices.get(&layer) {
-                index.add_batch(embeddings)?;
-            }
-            
-            // Отслеживаем массовые изменения
-<<<<<<< HEAD
-            for record in &layer_records {
-                self.record_layer_change(layer);
-                // Логируем каждое изменение
-                self.log_change(layer, record);
-=======
-            for _ in &layer_records {
-                self.record_layer_change(layer);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-            }
-        }
-
         self.db.flush()?;
-        
-        // Record batch insert metrics
-<<<<<<< HEAD
-        if let Some(metrics) = &*self.metrics.read() {
-=======
-        if let Some(metrics) = &self.metrics {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-            let duration = start.elapsed();
-            for _ in records {
-                metrics.record_vector_insert(duration / records.len() as u32);
-            }
-        }
         
         Ok(())
     }
@@ -481,12 +330,8 @@ impl VectorStore {
         let start = Instant::now();
         
         // Start timing
-<<<<<<< HEAD
         let metrics = self.metrics.read().clone();
         let _timer = metrics.as_ref().map(|m| TimedOperation::new(m, "vector_search"));
-=======
-        let _timer = self.metrics.as_ref().map(|m| TimedOperation::new(m, "vector_search"));
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         
         // Use the new vector index which handles linear vs HNSW automatically
         if let Some(index) = self.indices.get(&layer) {
@@ -505,7 +350,6 @@ impl VectorStore {
                             record.score = score;
                             records.push(record);
                         } else {
-<<<<<<< HEAD
                             debug!("Failed to deserialize record: {}", &id_str);
                         }
                     } else {
@@ -513,15 +357,6 @@ impl VectorStore {
                     }
                 } else {
                     debug!("Failed to parse UUID from string: {}", &id_str);
-=======
-                            debug!("Failed to deserialize record: {}", id_str);
-                        }
-                    } else {
-                        debug!("Record not found in tree: {} (looked up UUID: {})", id_str, uuid);
-                    }
-                } else {
-                    debug!("Failed to parse UUID from string: {}", id_str);
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 }
             }
             
@@ -612,11 +447,7 @@ impl VectorStore {
         
         // Record expired deletions
         if count > 0 {
-<<<<<<< HEAD
             if let Some(metrics) = &*self.metrics.read() {
-=======
-            if let Some(metrics) = &self.metrics {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 metrics.record_expired(count as u64);
             }
         }
@@ -650,11 +481,7 @@ impl VectorStore {
             }
             
             // Record delete metric
-<<<<<<< HEAD
             if let Some(metrics) = &*self.metrics.read() {
-=======
-            if let Some(metrics) = &self.metrics {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 metrics.record_vector_delete();
             }
         }
@@ -663,39 +490,20 @@ impl VectorStore {
     }
     
     /// Get records for promotion (high score, accessed frequently)
-<<<<<<< HEAD
     /// DEPRECATED: Use PromotionEngine.find_candidates_by_time() for O(log n) performance
     #[deprecated(note = "This method uses O(n) scanning. Use PromotionEngine for better performance")]
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     pub async fn get_promotion_candidates(
         &self,
         layer: Layer,
         before: chrono::DateTime<chrono::Utc>,
         min_score: f32,
         min_access_count: u32,
+        limit: Option<usize>,
     ) -> Result<Vec<Record>> {
-<<<<<<< HEAD
-        // Этот метод оставлен для обратной совместимости
-        // В production используйте PromotionEngine с time-based индексами
-        let tree = self.get_tree(layer).await?;
-        let mut candidates = Vec::new();
-        
-        // Ограничиваем количество сканируемых записей для безопасности
-        const MAX_SCAN: usize = 10000;
-        
-        for (scanned, result) in tree.iter().enumerate() {
-            if scanned >= MAX_SCAN {
-                tracing::warn!("get_promotion_candidates: достигнут лимит сканирования {} записей", MAX_SCAN);
-                break;
-            }
-            
-=======
         let tree = self.get_tree(layer).await?;
         let mut candidates = Vec::new();
         
         for result in tree.iter() {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             let (_, value) = result?;
             if let Ok(stored) = bincode::deserialize::<StoredRecord>(&value) {
                 let record = &stored.record;
@@ -710,7 +518,6 @@ impl VectorStore {
             }
         }
         
-<<<<<<< HEAD
         // Sort by promotion score (highest first) with proper NaN handling
         candidates.sort_by(|a, b| {
             let score_a = calculate_promotion_priority(a);
@@ -725,14 +532,12 @@ impl VectorStore {
                     std::cmp::Ordering::Greater
                 }
             })
-=======
-        // Sort by promotion score (highest first)
-        candidates.sort_by(|a, b| {
-            let score_a = calculate_promotion_priority(a);
-            let score_b = calculate_promotion_priority(b);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
         });
+        
+        // Apply limit if specified
+        if let Some(limit) = limit {
+            candidates.truncate(limit);
+        }
         
         debug!("Found {} promotion candidates in layer {:?}", candidates.len(), layer);
         Ok(candidates)
@@ -744,112 +549,7 @@ impl VectorStore {
     }
 
     /// Выполнить операции транзакции
-<<<<<<< HEAD
     #[allow(clippy::await_holding_lock)]
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
-    pub async fn execute_transaction(&self, operations: Vec<TransactionOp>) -> Result<()> {
-        // Захватываем batch lock для атомарности
-        let _batch_guard = self.batch_lock.write();
-        
-        let mut rollback_records = Vec::new();
-        
-        for op in operations {
-            match op {
-                TransactionOp::Insert { record } => {
-                    // Сохраняем для возможного отката
-                    rollback_records.push((record.layer, record.id));
-                    
-                    if let Err(e) = self.insert(&record).await {
-                        error!("Transaction insert failed: {}", e);
-                        // Откатываем уже выполненные операции
-                        self.rollback_inserts(&rollback_records).await;
-                        return Err(e);
-                    }
-                }
-                TransactionOp::Update { layer, id, record } => {
-                    // Сохраняем старую версию для отката
-                    let old_record = self.get_by_id(&id, layer).await?;
-                    
-                    if let Err(e) = self.update_record(layer, id, record).await {
-                        error!("Transaction update failed: {}", e);
-                        // Откатываем
-                        if let Some(old) = old_record {
-                            let _ = self.update_record(layer, id, old).await;
-                        }
-                        self.rollback_inserts(&rollback_records).await;
-                        return Err(e);
-                    }
-                }
-                TransactionOp::Delete { layer, id } => {
-                    if let Err(e) = self.delete_by_id(&id, layer).await {
-                        error!("Transaction delete failed: {}", e);
-                        // Откатываем предыдущие операции
-                        self.rollback_inserts(&rollback_records).await;
-                        return Err(e);
-                    }
-                }
-                TransactionOp::BatchInsert { records } => {
-                    // Добавляем в rollback список
-                    for r in &records {
-                        rollback_records.push((r.layer, r.id));
-                    }
-                    
-                    let refs: Vec<&Record> = records.iter().collect();
-                    if let Err(e) = self.insert_batch(&refs).await {
-                        error!("Transaction batch insert failed: {}", e);
-                        // Откатываем
-                        self.rollback_inserts(&rollback_records).await;
-                        return Err(e);
-                    }
-                }
-            }
-        }
-        
-        // Flush для гарантии записи на диск
-        self.db.flush()?;
-        
-        Ok(())
-    }
-
-    /// Откатить вставленные записи
-    async fn rollback_inserts(&self, records: &[(Layer, uuid::Uuid)]) {
-        for (layer, id) in records {
-            let _ = self.delete_by_id(id, *layer).await;
-        }
-    }
-
-    /// Обновить существующую запись
-    async fn update_record(&self, layer: Layer, id: uuid::Uuid, new_record: Record) -> Result<()> {
-        let tree = self.get_tree(layer).await?;
-        
-        // Удаляем старую запись из индекса
-        if let Some(index) = self.indices.get(&layer) {
-            let _ = index.remove(&id.to_string());
-        }
-        
-        // Вставляем новую версию
-        let stored = StoredRecord {
-            record: new_record.clone(),
-        };
-        
-        let key = id.as_bytes();
-        let value = bincode::serialize(&stored)?;
-        tree.insert(key, value)?;
-        
-        // Обновляем индекс
-        if let Some(index) = self.indices.get(&layer) {
-            index.add(id.to_string(), new_record.embedding)?;
-        }
-        
-        Ok(())
-    }
-
-    /// Атомарная batch операция с защитой от race conditions
-<<<<<<< HEAD
-    #[allow(clippy::await_holding_lock)]
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     pub async fn insert_batch_atomic(&self, records: &[&Record]) -> Result<()> {
         // Используем batch lock для предотвращения race conditions
         let _guard = self.batch_lock.write();
@@ -878,11 +578,7 @@ impl VectorStore {
             let new_index = VectorIndexHnswRs::new(new_config)?;
             
             // Переносим существующие данные если они есть
-<<<<<<< HEAD
             if !old_index.is_empty() {
-=======
-            if old_index.len() > 0 {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 info!("Migrating {} vectors from layer {:?} to new index", old_index.len(), layer);
                 
                 // Собираем все векторы из дерева
@@ -1028,7 +724,6 @@ impl VectorStore {
         }
     }
     
-<<<<<<< HEAD
     /// Получить текущую версию данных
     pub fn get_version(&self) -> u64 {
         self.version_counter.load(std::sync::atomic::Ordering::Relaxed)
@@ -1096,8 +791,6 @@ impl VectorStore {
         }
     }
     
-=======
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     /// Умная синхронизация только при необходимости
     pub async fn smart_sync_if_needed(&self, layer: Layer) -> Result<()> {
         let needs_sync = {

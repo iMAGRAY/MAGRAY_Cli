@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+﻿use anyhow::{anyhow, Result};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -54,11 +54,7 @@ impl Default for DimensionConfig {
                 384,   // sentence-transformers/all-MiniLM-L6-v2
                 512,   // OpenAI text-embedding-ada-002
                 768,   // BERT, RoBERTa
-<<<<<<< HEAD
                 1024,  // Qwen3, BGE-M3 (текущий дефолт)
-=======
-                1024,  // BGE-M3 (текущий дефолт)
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 1536,  // OpenAI text-embedding-3-small
                 3072,  // OpenAI text-embedding-3-large
             ],
@@ -141,11 +137,7 @@ impl DynamicDimensionManager {
         dimension_group.last_used = std::time::Instant::now();
 
         // Создаём индекс для слоя если не существует
-<<<<<<< HEAD
         if let std::collections::hash_map::Entry::Vacant(e) = dimension_group.indices.entry(layer) {
-=======
-        if !dimension_group.indices.contains_key(&layer) {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
             let index_config = HnswRsConfig {
                 dimension,
                 max_connections: 24,
@@ -157,11 +149,7 @@ impl DynamicDimensionManager {
             };
 
             let index = Arc::new(VectorIndexHnswRs::new(index_config)?);
-<<<<<<< HEAD
             e.insert(index.clone());
-=======
-            dimension_group.indices.insert(layer, index.clone());
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
             info!("🔧 Created new index: dimension={}, layer={:?}", dimension, layer);
         }
@@ -359,11 +347,7 @@ impl DynamicDimensionManager {
         // Проверяем лимит активных размерностей
         if indices.len() >= self.config.max_active_dimensions {
             // Находим наименее используемую группу для удаления
-<<<<<<< HEAD
             if let Some(least_used_dim) = self.find_least_used_dimension(indices) {
-=======
-            if let Some(least_used_dim) = self.find_least_used_dimension(&indices) {
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
                 indices.remove(&least_used_dim);
                 warn!("📉 Evicted dimension {} to make room for {}", least_used_dim, dimension);
             }
@@ -394,13 +378,7 @@ impl DynamicDimensionManager {
     fn update_dimension_stats(&self, dimension: usize) {
         let mut stats = self.stats.write();
         
-<<<<<<< HEAD
         stats.active_dimensions.entry(dimension).or_default();
-=======
-        if !stats.active_dimensions.contains_key(&dimension) {
-            stats.active_dimensions.insert(dimension, DimensionUsageStats::default());
-        }
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
     }
 }
 

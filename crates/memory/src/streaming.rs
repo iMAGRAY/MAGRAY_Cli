@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -700,10 +700,7 @@ pub struct GlobalStreamingStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-<<<<<<< HEAD
-=======
     use crate::{default_config, MemoryService};
->>>>>>> cdac5c55f689e319aa18d538b93d7c8f8759a52c
 
     #[tokio::test]
     async fn test_streaming_config() {
