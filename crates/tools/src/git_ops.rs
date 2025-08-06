@@ -237,3 +237,119 @@ impl Tool for GitDiff {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_git_status_creation() {
+        let git_status = GitStatus::new();
+        let spec = git_status.spec();
+        
+        assert_eq!(spec.name, "git_status");
+        assert!(spec.description.contains("статус git"));
+        assert_eq!(spec.usage, "git_status");
+        assert!(!spec.examples.is_empty());
+    }
+
+    #[test]
+    fn test_git_status_default() {
+        let git_status1 = GitStatus::default();
+        let git_status2 = GitStatus::new();
+        
+        assert_eq!(git_status1.spec().name, git_status2.spec().name);
+    }
+
+    #[tokio::test]
+    async fn test_git_status_natural_language_parsing() -> Result<()> {
+        let git_status = GitStatus::new();
+        
+        let input = git_status.parse_natural_language("показать статус git").await?;
+        assert_eq!(input.command, "git_status");
+        assert!(input.args.is_empty());
+        assert_eq!(input.context, Some("показать статус git".to_string()));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_git_commit_creation() {
+        let git_commit = GitCommit::new();
+        let spec = git_commit.spec();
+        
+        assert_eq!(spec.name, "git_commit");
+        assert!(spec.description.contains("Создаёт коммит"));
+        assert!(!spec.examples.is_empty());
+    }
+
+    #[test]
+    fn test_git_commit_default() {
+        let git_commit1 = GitCommit::default();
+        let git_commit2 = GitCommit::new();
+        
+        assert_eq!(git_commit1.spec().name, git_commit2.spec().name);
+    }
+
+    #[tokio::test]
+    async fn test_git_commit_missing_message() {
+        let git_commit = GitCommit::new();
+        let input_args = HashMap::new(); // Missing message
+        
+        let input = ToolInput {
+            command: "git_commit".to_string(),
+            args: input_args,
+            context: None,
+        };
+        
+        let result = git_commit.execute(input).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_git_commit_natural_language_parsing() -> Result<()> {
+        let git_commit = GitCommit::new();
+        
+        // Test valid format with quotes
+        let input = git_commit.parse_natural_language("закоммитить changes with message \"Fix bug\"").await?;
+        assert_eq!(input.command, "git_commit");
+        assert_eq!(input.args.get("message").unwrap(), "Fix bug");
+        
+        // Test format without quotes (should use entire text)
+        let input = git_commit.parse_natural_language("просто commit").await?;
+        assert_eq!(input.command, "git_commit");
+        assert_eq!(input.args.get("message").unwrap(), "просто commit");
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_git_diff_creation() {
+        let git_diff = GitDiff::new();
+        let spec = git_diff.spec();
+        
+        assert_eq!(spec.name, "git_diff");
+        assert!(spec.description.contains("Показывает изменения"));
+        assert!(!spec.examples.is_empty());
+    }
+
+    #[test]
+    fn test_git_diff_default() {
+        let git_diff1 = GitDiff::default();
+        let git_diff2 = GitDiff::new();
+        
+        assert_eq!(git_diff1.spec().name, git_diff2.spec().name);
+    }
+
+    #[tokio::test]
+    async fn test_git_diff_natural_language_parsing() -> Result<()> {
+        let git_diff = GitDiff::new();
+        
+        let input = git_diff.parse_natural_language("показать различия в git").await?;
+        assert_eq!(input.command, "git_diff");
+        assert!(input.args.is_empty());
+        assert_eq!(input.context, Some("показать различия в git".to_string()));
+        
+        Ok(())
+    }
+}

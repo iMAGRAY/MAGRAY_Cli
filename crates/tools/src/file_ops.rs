@@ -405,3 +405,200 @@ fn extract_path_from_query(query: &str) -> Option<String> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs;
+
+    #[tokio::test]
+    async fn test_file_reader_creation() {
+        let reader = FileReader::new();
+        let spec = reader.spec();
+        
+        assert_eq!(spec.name, "file_read");
+        assert!(spec.description.contains("Читает содержимое файлов"));
+        assert!(!spec.examples.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_file_reader_default() {
+        let reader1 = FileReader::default();
+        let reader2 = FileReader::new();
+        
+        assert_eq!(reader1.spec().name, reader2.spec().name);
+    }
+
+    #[tokio::test]
+    async fn test_file_reader_nonexistent_file() {
+        let reader = FileReader::new();
+        let mut input_args = HashMap::new();
+        input_args.insert("path".to_string(), "/definitely/nonexistent/file.txt".to_string());
+        
+        let input = ToolInput {
+            command: "file_read".to_string(),
+            args: input_args,
+            context: None,
+        };
+        
+        let result = reader.execute(input).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_file_reader_existing_file() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let test_content = "Hello, World!";
+        
+        fs::write(&file_path, test_content).unwrap();
+        
+        let reader = FileReader::new();
+        let mut input_args = HashMap::new();
+        input_args.insert("path".to_string(), file_path.to_string_lossy().to_string());
+        
+        let input = ToolInput {
+            command: "file_read".to_string(),
+            args: input_args,
+            context: None,
+        };
+        
+        let result = reader.execute(input).await?;
+        assert!(result.success);
+        assert_eq!(result.result, test_content);
+        assert!(result.formatted_output.is_some());
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_file_reader_natural_language() -> Result<()> {
+        let reader = FileReader::new();
+        
+        // Test with path in query
+        let input = reader.parse_natural_language("показать содержимое src/main.rs").await?;
+        assert_eq!(input.command, "file_read");
+        assert_eq!(input.args.get("path").unwrap(), "src/main.rs");
+        
+        // Test without recognizable path
+        let input = reader.parse_natural_language("показать файл").await?;
+        assert_eq!(input.args.get("path").unwrap(), "показать файл");
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_file_writer_creation() {
+        let writer = FileWriter::new();
+        let spec = writer.spec();
+        
+        assert_eq!(spec.name, "file_write");
+        assert!(spec.description.contains("Создаёт или перезаписывает файл"));
+        assert!(!spec.examples.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_file_writer_default() {
+        let writer1 = FileWriter::default();
+        let writer2 = FileWriter::new();
+        
+        assert_eq!(writer1.spec().name, writer2.spec().name);
+    }
+
+    #[tokio::test]
+    async fn test_file_writer_write_file() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test_output.txt");
+        let test_content = "Test content";
+        
+        let writer = FileWriter::new();
+        let mut input_args = HashMap::new();
+        input_args.insert("path".to_string(), file_path.to_string_lossy().to_string());
+        input_args.insert("content".to_string(), test_content.to_string());
+        
+        let input = ToolInput {
+            command: "file_write".to_string(),
+            args: input_args,
+            context: None,
+        };
+        
+        let result = writer.execute(input).await?;
+        assert!(result.success);
+        assert!(result.result.contains("успешно создан"));
+        
+        // Verify file was actually created
+        let written_content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(written_content, test_content);
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_file_writer_missing_path() {
+        let writer = FileWriter::new();
+        let input_args = HashMap::new(); // Missing path
+        
+        let input = ToolInput {
+            command: "file_write".to_string(),
+            args: input_args,
+            context: None,
+        };
+        
+        let result = writer.execute(input).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_file_writer_natural_language() -> Result<()> {
+        let writer = FileWriter::new();
+        
+        let input = writer.parse_natural_language("создать файл test.txt с содержимым Hello World").await?;
+        assert_eq!(input.command, "file_write");
+        assert_eq!(input.args.get("path").unwrap(), "создать файл test.txt");
+        assert_eq!(input.args.get("content").unwrap(), "Hello World");
+        
+        // Test invalid format
+        let result = writer.parse_natural_language("создать файл test.txt").await;
+        assert!(result.is_err());
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_extract_path_from_query() {
+        // Test with .rs file
+        let path = extract_path_from_query("показать содержимое src/main.rs");
+        assert_eq!(path, Some("src/main.rs".to_string()));
+        
+        // Test with .md file
+        let path = extract_path_from_query("прочитать README.md");
+        assert_eq!(path, Some("README.md".to_string()));
+        
+        // Test with path containing slash
+        let path = extract_path_from_query("открыть file/path.txt");
+        assert_eq!(path, Some("file/path.txt".to_string()));
+        
+        // Test with backslash (Windows style)
+        let path = extract_path_from_query("показать file\\path.txt");
+        assert_eq!(path, Some("file\\path.txt".to_string()));
+        
+        // Test with .toml file
+        let path = extract_path_from_query("config.toml file");
+        assert_eq!(path, Some("config.toml".to_string()));
+        
+        // Test with no recognizable path
+        let path = extract_path_from_query("показать файл");
+        assert_eq!(path, None);
+    }
+
+    #[test]
+    fn test_format_size() {
+        assert_eq!(format_size(100), "100 B");
+        assert_eq!(format_size(1024), "1.0 KB");
+        assert_eq!(format_size(1536), "1.5 KB");
+        assert_eq!(format_size(1024 * 1024), "1.0 MB");
+        assert_eq!(format_size(1024 * 1024 * 1024), "1.0 GB");
+        assert_eq!(format_size(2048 * 1024 * 1024), "2.0 GB");
+    }
+}
