@@ -3,10 +3,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 
+// New secure registry system
+pub mod registry;
+
+// Tool implementations  
 pub mod file_ops;
 pub mod git_ops;
 pub mod web_ops;
 pub mod shell_ops;
+
+// Advanced features
 pub mod intelligent_selector;
 pub mod execution_pipeline;
 pub mod performance_monitor;

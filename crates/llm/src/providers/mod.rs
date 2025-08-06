@@ -34,7 +34,6 @@ impl LlmRequest {
             max_tokens: None,
             temperature: None,
             stream: false,
-            context: None,
         }
     }
     

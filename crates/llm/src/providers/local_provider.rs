@@ -149,20 +149,7 @@ impl LlmProvider for LocalProvider {
             });
         }
         
-        // Add context messages if provided
-        if let Some(context) = &request.context {
-            for msg in context {
-                let role = match msg.role {
-                    MessageRole::System => "system",
-                    MessageRole::User => "user",
-                    MessageRole::Assistant => "assistant",
-                };
-                messages.push(LocalMessage {
-                    role: role.to_string(),
-                    content: msg.content.clone(),
-                });
-            }
-        }
+        // Context handling can be added later if needed
         
         // Add main prompt
         messages.push(LocalMessage {

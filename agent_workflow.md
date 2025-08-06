@@ -12,10 +12,16 @@
   - Task: Property-based + async тесты с 80% покрытием
 
 - **agent_202508061702_ml9x** (ai-architecture-maestro): Multi-Provider LLM orchestration система
-  - Status: IMPLEMENTING - завершен архитектурный анализ, начинается реализация улучшений
-  - Files: crates/llm/src/*.rs, crates/llm/src/providers/*.rs
-  - Progress: ✅ Анализ архитектуры, ✅ Выявлено 13 warnings, ✅ Определены improvement areas
+  - Status: IMPLEMENTING - завершена Provider abstraction, переход к Smart Orchestration
+  - Files: crates/llm/src/providers/*.rs (5 новых файлов), multi_provider.rs
+  - Progress: ✅ Анализ архитектуры, ✅ Provider abstraction (trait + enum wrapper), ✅ 5 providers реализованы
   - Task: Полная реализация production-ready multi-provider LLM системы
+
+- **agent_202508061640_c0c2** (rust-architect-supreme): Tool System - полноценная архитектура и реализация
+  - Status: IMPLEMENTING - завершен анализ, выявлены критические проблемы, начинается рефакторинг registry
+  - Files: crates/tools/src/*.rs, crates/cli/src/handlers/, crates/router/src/
+  - Progress: ✅ Архитектурный анализ завершен, ✅ Выявлены 8 критических проблем
+  - Task: Registry system refactor, security implementation, execution pipeline fix
 
 
 
@@ -32,6 +38,9 @@
 - crates/llm/src/multi_provider_llm.rs: LOCKED by agent_202508061702_ml9x (multi-provider system)
 - crates/llm/src/providers/: LOCKED by agent_202508061702_ml9x (provider architecture)
 - crates/llm/src/config.rs: LOCKED by agent_202508061702_ml9x (configuration system)
+- crates/tools/src/: LOCKED by agent_202508061640_c0c2 (tool system architecture analysis)
+- crates/cli/src/handlers/tool_handler.rs: LOCKED by agent_202508061640_c0c2 (tool handler integration)
+- crates/router/src/tool_router.rs: LOCKED by agent_202508061640_c0c2 (tool routing mechanisms)
 
 ## WORK QUEUE
 1. **P0-CRITICAL**: Анализ DIMemoryService (1466 строк) - декомпозиция
