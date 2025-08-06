@@ -21,3 +21,5 @@ async-trait = { workspace = true }
 reqwest = { workspace = true }
 urlencoding = "2.1"
 rand = "0.8"
+thiserror = { workspace = true }
+num_cpus = "1.15"

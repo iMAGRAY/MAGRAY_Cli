@@ -6,13 +6,19 @@ use std::collections::HashMap;
 // New secure registry system
 pub mod registry;
 
+// New execution system with security and resource management
+pub mod execution;
+
+// Plugin system with WASM and external process support
+pub mod plugins;
+
 // Tool implementations  
 pub mod file_ops;
 pub mod git_ops;
 pub mod web_ops;
 pub mod shell_ops;
 
-// Advanced features
+// Advanced features (legacy - being replaced by execution module)
 pub mod intelligent_selector;
 pub mod execution_pipeline;
 pub mod performance_monitor;

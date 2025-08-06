@@ -83,14 +83,23 @@ struct AdaptiveBatchConfig {
 /// Performance метрики
 #[derive(Debug, Default, Clone)]
 pub struct PerformanceMetrics {
+    #[allow(dead_code)] // Метрики для мониторинга производительности
     total_requests: u64,
+    #[allow(dead_code)]
     successful_requests: u64,
+    #[allow(dead_code)]
     failed_requests: u64,
+    #[allow(dead_code)]
     cache_hits: u64,
+    #[allow(dead_code)]
     cache_misses: u64,
+    #[allow(dead_code)]
     avg_latency_ms: f64,
+    #[allow(dead_code)]
     gpu_utilization: f64,
+    #[allow(dead_code)]
     batch_efficiency: f64,
+    #[allow(dead_code)]
     circuit_breaker_trips: u64,
 }
 

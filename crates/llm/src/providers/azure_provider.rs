@@ -15,6 +15,7 @@ pub struct AzureProvider {
     api_key: String,
     model: String,
     client: Client,
+    #[allow(dead_code)] // Будет использоваться для конфигурации HTTP timeout
     timeout: Duration,
 }
 

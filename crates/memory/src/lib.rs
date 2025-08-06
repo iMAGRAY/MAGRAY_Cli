@@ -15,7 +15,12 @@ pub mod simd_optimized; // SIMD оптимизации для векторных
 pub mod simd_fixed; // Исправленная SIMD реализация для debugging
 pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance
 pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
-pub mod service_di; // DI-based service (единственная реализация) - DEPRECATED
+pub mod service_di; // REFACTORED модули в service_di/
+pub mod service_di_facade; // FACADE для обратной совместимости
+pub mod service_di_refactored; // Рефакторированная архитектура
+
+// Re-export для обратной совместимости
+pub use service_di_facade::{DIMemoryService, DIMemoryServiceBuilder};
 pub mod storage;
 pub mod types;
 mod vector_index_hnswlib; // Critical for vector storage
@@ -29,10 +34,14 @@ pub mod gpu_accelerated;
 pub mod resource_manager;
 mod retry;
 mod database_manager;
-// Dependency Injection система
-mod di_container;
+// Refactored Dependency Injection система (SOLID compliant)
+pub mod di; // Новая модульная архитектура
+mod di_container; // Legacy facade для обратной совместимости
 pub mod di_memory_config;
-pub use di_container::{DIContainer, DIPerformanceMetrics, DIContainerStats, Lifetime};
+// Re-export главного API (из нового di модуля)
+pub use di::{DIContainer, DIContainerBuilder, create_default_container};
+// Legacy compatibility
+pub use di_container::{DIPerformanceMetrics, DIContainerStats, Lifetime};
 // Оркестрация системы памяти
 pub mod orchestration;
 // Специализированные сервисы (SOLID refactoring)
@@ -46,7 +55,8 @@ pub type CacheConfigType = LruCacheConfig;
 pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 // Legacy MemoryService удален - используем DIMemoryService (DEPRECATED)
-pub use service_di::{DIMemoryService, DIMemoryService as MemoryService, MemoryServiceConfig, MemoryConfig, default_config, BatchInsertResult, BatchSearchResult};
+pub use service_di_refactored::{DIMemoryService as MemoryService, MemoryServiceConfig, MemoryConfig, default_config};
+pub use service_di::{BatchInsertResult, BatchSearchResult};
 
 // NEW: Refactored services based on SOLID principles
 pub use services::{

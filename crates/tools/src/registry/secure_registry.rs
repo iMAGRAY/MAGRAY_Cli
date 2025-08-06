@@ -5,10 +5,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{RwLock, Mutex};
-use tracing::{debug, info, warn, error};
+use tracing::{info, warn, error};
 
 use super::tool_metadata::{
-    ToolMetadata, SecurityLevel, SemanticVersion, ToolCategory, ToolPermissions
+    ToolMetadata, SecurityLevel, ToolPermissions
 };
 use crate::{Tool, ToolInput, ToolOutput};
 
@@ -202,7 +202,7 @@ impl InputValidator {
         Ok(command.to_string())
     }
     
-    fn perform_security_checks(input: &ToolInput, metadata: &ToolMetadata) -> Result<()> {
+    fn perform_security_checks(input: &ToolInput, _metadata: &ToolMetadata) -> Result<()> {
         // Check for SQL injection patterns
         for (_, value) in &input.args {
             if Self::contains_sql_injection(value) {
@@ -281,15 +281,20 @@ impl Default for SecurityConfig {
 
 #[derive(Debug)]
 struct ExecutionTracking {
+    #[allow(dead_code)] // Метрики для отслеживания выполнения инструментов
     tool_id: String,
+    #[allow(dead_code)]
     start_time: SystemTime,
     session_id: String,
+    #[allow(dead_code)]
     resource_usage: CurrentResourceUsage,
 }
 
 #[derive(Debug, Default)]
 struct CurrentResourceUsage {
+    #[allow(dead_code)] // Метрики ресурсов для мониторинга
     memory_mb: u64,
+    #[allow(dead_code)]
     cpu_percent: f32,
 }
 

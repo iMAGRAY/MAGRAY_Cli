@@ -27,6 +27,7 @@ struct OperationMetrics {
     id: String,
     name: String,
     start_time: Instant,
+    #[allow(dead_code)] // Метка времени для метрик
     start_timestamp: SystemTime,
 }
 
@@ -251,7 +252,7 @@ impl PerformanceMonitoringTrait for PerformanceMonitor {
         }
     }
     
-    async fn get_metrics(&self, period_minutes: u32) -> Result<HashMap<String, f64>> {
+    async fn get_metrics(&self, _period_minutes: u32) -> Result<HashMap<String, f64>> {
         if !self.initialized {
             return Err(anyhow::anyhow!("PerformanceMonitor не инициализирован"));
         }

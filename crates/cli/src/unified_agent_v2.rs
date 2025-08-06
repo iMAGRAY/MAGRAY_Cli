@@ -419,7 +419,7 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
         ).await;
         
         // Анализируем результат интегрированной оркестрации
-        let (execution_strategy, orchestration_response) = match orchestration_result {
+        let (execution_strategy, _orchestration_response) = match orchestration_result {
             Ok(result) => {
                 info!("🎯 Integrated orchestrator завершил обработку: handler={}, optimization={}", 
                       result.orchestration_result.handler_used, result.optimization_applied);

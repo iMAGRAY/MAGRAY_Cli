@@ -40,3 +40,11 @@ syntect = "5.2"
 ureq = { version = "2.9", features = ["json"] }
 ignore = "0.4"
 tempfile = "3.8"
+
+# Testing dependencies
+proptest = "1.4"
+mockall = "0.12"
+mockito = "1.2"
+criterion = { version = "0.5", features = ["html_reports"] }
+fake = { version = "2.9", features = ["derive", "chrono", "uuid"] }
+serial_test = "3.0"

@@ -80,6 +80,7 @@ impl ResourceUsage {
 pub struct ResourceMonitor {
     allocations: Arc<RwLock<HashMap<String, ResourceAllocation>>>,
     usage_history: Arc<Mutex<Vec<(SystemTime, ResourceUsage)>>>,
+    #[allow(dead_code)] // Лимиты ресурсов для мониторинга
     limits: ResourceLimits,
 }
 
@@ -185,13 +186,16 @@ impl ResourceManager {
               requested_memory, requested_cores, tool_id);
         
         // Acquire semaphores (this will block if resources aren't available)
-        let _concurrent_permit = self.semaphores.concurrent_executions.acquire().await
+        let _concurrent_permit = Arc::clone(&self.semaphores.concurrent_executions)
+            .acquire_owned().await
             .map_err(|_| anyhow!("Failed to acquire concurrent execution permit"))?;
             
-        let _memory_permits = self.semaphores.memory_semaphore.acquire_many(requested_memory as u32).await
+        let _memory_permits = Arc::clone(&self.semaphores.memory_semaphore)
+            .acquire_many_owned(requested_memory as u32).await
             .map_err(|_| anyhow!("Failed to acquire memory permits"))?;
             
-        let _cpu_permits = self.semaphores.cpu_semaphore.acquire_many(requested_cores).await
+        let _cpu_permits = Arc::clone(&self.semaphores.cpu_semaphore)
+            .acquire_many_owned(requested_cores).await
             .map_err(|_| anyhow!("Failed to acquire CPU permits"))?;
         
         let allocation_id = format!("{}_{}", tool_id, Self::current_timestamp());
@@ -227,9 +231,9 @@ impl ResourceManager {
                 },
                 monitor: self.monitor.allocations.clone(),
             }),
-            _concurrent_permit: _concurrent_permit,
-            _memory_permits: _memory_permits,
-            _cpu_permits: _cpu_permits,
+            _concurrent_permit: Box::new(_concurrent_permit),
+            _memory_permits: Box::new(_memory_permits),
+            _cpu_permits: Box::new(_cpu_permits),
             memory_mb: requested_memory,
             cpu_cores: requested_cores,
         })
@@ -244,7 +248,7 @@ impl ResourceManager {
             total_allocations: allocations.len(),
             total_memory_allocated: allocations.values().map(|a| a.memory_mb).sum(),
             total_cpu_cores_allocated: allocations.values().map(|a| a.cpu_cores).sum(),
-            current_usage,
+            current_usage: current_usage.clone(),
             available_memory: self.limits.max_memory_mb.saturating_sub(current_usage.memory_mb),
             available_cpu_cores: self.limits.max_cpu_cores.saturating_sub(
                 allocations.values().map(|a| a.cpu_cores).sum()
@@ -280,7 +284,7 @@ impl ResourceManager {
     pub async fn force_release(&self, allocation_id: &str) -> Result<()> {
         let mut allocations = self.allocations.write().await;
         
-        if let Some(allocation) = allocations.remove(allocation_id) {
+        if let Some(_allocation) = allocations.remove(allocation_id) {
             info!("🔓 Force released resources for allocation: {}", allocation_id);
             Ok(())
         } else {
@@ -325,9 +329,10 @@ impl ResourceStats {
 pub struct ResourceGuard {
     allocation_id: String,
     resource_manager: Arc<ResourceManagerRef>,
-    _concurrent_permit: tokio::sync::SemaphorePermit<'static>,
-    _memory_permits: tokio::sync::SemaphorePermit<'static>,
-    _cpu_permits: tokio::sync::SemaphorePermit<'static>,
+    // Box permits to work around lifetime issues
+    _concurrent_permit: Box<tokio::sync::OwnedSemaphorePermit>,
+    _memory_permits: Box<tokio::sync::OwnedSemaphorePermit>,
+    _cpu_permits: Box<tokio::sync::OwnedSemaphorePermit>,
     memory_mb: u64,
     cpu_cores: u32,
 }
@@ -335,7 +340,9 @@ pub struct ResourceGuard {
 /// Reference to resource manager components for cleanup
 struct ResourceManagerRef {
     allocations: Arc<RwLock<HashMap<String, ResourceAllocation>>>,
+    #[allow(dead_code)] // Семафоры для контроля ресурсов
     semaphores: ResourceSemaphores,
+    #[allow(dead_code)] // Монитор для отслеживания состояния
     monitor: Arc<RwLock<HashMap<String, ResourceAllocation>>>,
 }
 

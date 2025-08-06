@@ -1,0 +1,522 @@
+﻿cargo : warning: unused import: `MessageRole`
+строка:1 знак:1
++ cargo check --workspace 2>&1 | Out-File -FilePath check_output.txt -E ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: unused import: `MessageRole`:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ --> crates\llm\src\providers\openai_provider.rs:3:31
+  |
+3 |     TokenUsage, LatencyClass, MessageRole,
+  |                               ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `MessageRole`
+ --> crates\llm\src\providers\anthropic_provider.rs:3:31
+  |
+3 |     TokenUsage, LatencyClass, MessageRole,
+  |                               ^^^^^^^^^^^
+
+warning: unused import: `MessageRole`
+ --> crates\llm\src\providers\local_provider.rs:3:31
+  |
+3 |     TokenUsage, LatencyClass, MessageRole,
+  |                               ^^^^^^^^^^^
+
+warning: field `content_type` is never read
+   --> crates\llm\src\providers\anthropic_provider.rs:367:5
+    |
+364 | struct AnthropicContentBlock {
+    |        --------------------- field in this struct
+...
+367 |     content_type: String,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `AnthropicContentBlock` has a derived impl for the trait `Debug`, but this is intentionally ignored during 
+dead code analysis
+    = note: `#[warn(dead_code)]` on by default
+
+warning: field `timeout` is never read
+  --> crates\llm\src\providers\azure_provider.rs:18:5
+   |
+13 | pub struct AzureProvider {
+   |            ------------- field in this struct
+...
+18 |     timeout: Duration,
+   |     ^^^^^^^
+   |
+   = note: `AzureProvider` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored du
+ring dead code analysis
+
+warning: field `timeout` is never read
+  --> crates\llm\src\providers\groq_provider.rs:17:5
+   |
+13 | pub struct GroqProvider {
+   |            ------------ field in this struct
+...
+17 |     timeout: Duration,
+   |     ^^^^^^^
+   |
+   = note: `GroqProvider` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored dur
+ing dead code analysis
+
+warning: `llm` (lib) generated 6 warnings (run `cargo fix --lib -p llm` to apply 3 suggestions)
+    Checking tools v0.1.0 (C:\Users\1\Documents\GitHub\MAGRAY_Cli\crates\tools)
+warning: multiple fields are never read
+  --> crates\memory\src\orchestration\embedding_coordinator.rs:86:5
+   |
+85 | pub struct PerformanceMetrics {
+   |            ------------------ fields in this struct
+86 |     total_requests: u64,
+   |     ^^^^^^^^^^^^^^
+87 |     successful_requests: u64,
+   |     ^^^^^^^^^^^^^^^^^^^
+88 |     failed_requests: u64,
+   |     ^^^^^^^^^^^^^^^
+...
+91 |     avg_latency_ms: f64,
+   |     ^^^^^^^^^^^^^^
+92 |     gpu_utilization: f64,
+   |     ^^^^^^^^^^^^^^^
+93 |     batch_efficiency: f64,
+   |     ^^^^^^^^^^^^^^^^
+94 |     circuit_breaker_trips: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `PerformanceMetrics` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignor
+ed during dead code analysis
+   = note: `#[warn(dead_code)]` on by default
+
+warning: field `performance_timer` is never read
+  --> crates\memory\src\services\refactored_di_memory_service.rs:41:5
+   |
+30 | pub struct RefactoredDIMemoryService {
+   |            ------------------------- field in this struct
+...
+41 |     performance_timer: Arc<std::sync::Mutex<Instant>>,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: `memory` (lib) generated 2 warnings
+warning: unused import: `debug`
+ --> crates\tools\src\registry\secure_registry.rs:8:15
+  |
+8 | use tracing::{debug, info, warn, error};
+  |               ^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `SemanticVersion` and `ToolCategory`
+  --> crates\tools\src\registry\secure_registry.rs:11:34
+   |
+11 |     ToolMetadata, SecurityLevel, SemanticVersion, ToolCategory, ToolPermissions
+   |                                  ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused imports: `Command` and `Stdio`
+ --> crates\tools\src\execution\security_enforcer.rs:6:20
+  |
+6 | use std::process::{Command, Stdio};
+  |                    ^^^^^^^  ^^^^^
+
+warning: unused import: `error`
+ --> crates\tools\src\execution\security_enforcer.rs:9:34
+  |
+9 | use tracing::{debug, info, warn, error};
+  |                                  ^^^^^
+
+warning: unused import: `SecurityLevel`
+  --> crates\tools\src\execution\security_enforcer.rs:11:23
+   |
+11 | use crate::registry::{SecurityLevel, ToolPermissions, FileSystemPermissions, NetworkPermissions, SystemPermissions
+};
+   |                       ^^^^^^^^^^^^^
+
+warning: unused import: `Path`
+ --> crates\tools\src\plugins\external_process.rs:6:17
+  |
+6 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused import: `Command`
+ --> crates\tools\src\plugins\external_process.rs:7:20
+  |
+7 | use std::process::{Command, Stdio};
+  |                    ^^^^^^^
+
+warning: unused import: `error`
+  --> crates\tools\src\plugins\external_process.rs:13:34
+   |
+13 | use tracing::{debug, info, warn, error};
+   |                                  ^^^^^
+
+warning: unused import: `Mutex`
+ --> crates\tools\src\plugins\plugin_manager.rs:9:19
+  |
+9 | use tokio::sync::{Mutex, RwLock};
+  |                   ^^^^^
+
+warning: unused imports: `error` and `warn`
+  --> crates\tools\src\plugins\plugin_manager.rs:10:28
+   |
+10 | use tracing::{debug, info, warn, error};
+   |                            ^^^^  ^^^^^
+
+warning: unused imports: `SemanticVersion` and `ToolMetadata`
+  --> crates\tools\src\plugins\plugin_manager.rs:12:23
+   |
+12 | use crate::registry::{ToolMetadata, SemanticVersion, SecurityLevel, ToolPermissions};
+   |                       ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+
+warning: unused imports: `ToolInput`, `ToolOutput`, `ToolSpec`, and `Tool`
+  --> crates\tools\src\plugins\plugin_manager.rs:13:13
+   |
+13 | use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
+   |             ^^^^  ^^^^^^^^^  ^^^^^^^^^^  ^^^^^^^^
+
+warning: unused variable: `allocation`
+   --> crates\tools\src\execution\resource_manager.rs:286:21
+    |
+286 |         if let Some(allocation) = allocations.remove(allocation_id) {
+    |                     ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_allocation`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `host_func`
+   --> crates\tools\src\plugins\wasm_plugin.rs:354:21
+    |
+354 |         if let Some(host_func) = self.host_functions.get(name) {
+    |                     ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_host_func`
+
+warning: variable does not need to be mutable
+   --> crates\tools\src\plugins\external_process.rs:149:13
+    |
+149 |         let mut command = self.create_command(&execution_env).await?;
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: unused variable: `stats`
+   --> crates\tools\src\plugins\external_process.rs:368:13
+    |
+368 |         let stats = Arc::clone(&self.stats);
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_stats`
+
+warning: unused variable: `plugin`
+   --> crates\tools\src\plugins\plugin_manager.rs:438:13
+    |
+438 |         let plugin = plugins.get(&config.plugin_id)
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_plugin`
+
+warning: unused variable: `instance`
+   --> crates\tools\src\plugins\plugin_manager.rs:693:13
+    |
+693 |         let instance = {
+    |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_instance`
+
+warning: unused variable: `loader`
+   --> crates\tools\src\plugins\plugin_manager.rs:708:21
+    |
+708 |         if let Some(loader) = loaders.get(&metadata.plugin_type) {
+    |                     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_loader`
+
+warning: unused variable: `runtime`
+   --> crates\tools\src\plugins\wasm_plugin.rs:437:9
+    |
+437 |         runtime: &mut WasmRuntime, 
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_runtime`
+
+warning: unused variable: `output`
+   --> crates\tools\src\plugins\wasm_plugin.rs:445:17
+    |
+445 |             let output = output_result?;
+    |                 ^^^^^^ help: if this is intentional, prefix it with an underscore: `_output`
+
+warning: type `ExecutionStats` is more private than the item `WasmSandbox::get_stats`
+   --> crates\tools\src\plugins\wasm_plugin.rs:223:5
+    |
+223 |     pub async fn get_stats(&self) -> ExecutionStats {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method `WasmSandbox::get_stats` is reachable at visibility `p
+ub`
+    |
+note: but type `ExecutionStats` is only usable at visibility `pub(self)`
+   --> crates\tools\src\plugins\wasm_plugin.rs:102:1
+    |
+102 | struct ExecutionStats {
+    | ^^^^^^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_interfaces)]` on by default
+
+warning: fields `tool_id`, `start_time`, and `resource_usage` are never read
+   --> crates\tools\src\registry\secure_registry.rs:284:5
+    |
+283 | struct ExecutionTracking {
+    |        ----------------- fields in this struct
+284 |     tool_id: String,
+    |     ^^^^^^^
+285 |     start_time: SystemTime,
+    |     ^^^^^^^^^^
+286 |     session_id: String,
+287 |     resource_usage: CurrentResourceUsage,
+    |     ^^^^^^^^^^^^^^
+    |
+    = note: `ExecutionTracking` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead
+ code analysis
+    = note: `#[warn(dead_code)]` on by default
+
+warning: fields `memory_mb` and `cpu_percent` are never read
+   --> crates\tools\src\registry\secure_registry.rs:292:5
+    |
+291 | struct CurrentResourceUsage {
+    |        -------------------- fields in this struct
+292 |     memory_mb: u64,
+    |     ^^^^^^^^^
+293 |     cpu_percent: f32,
+    |     ^^^^^^^^^^^
+    |
+    = note: `CurrentResourceUsage` has a derived impl for the trait `Debug`, but this is intentionally ignored during d
+ead code analysis
+
+warning: field `limits` is never read
+  --> crates\tools\src\execution\resource_manager.rs:83:5
+   |
+80 | pub struct ResourceMonitor {
+   |            --------------- field in this struct
+...
+83 |     limits: ResourceLimits,
+   |     ^^^^^^
+   |
+   = note: `ResourceMonitor` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead co
+de analysis
+
+warning: fields `semaphores` and `monitor` are never read
+   --> crates\tools\src\execution\resource_manager.rs:342:5
+    |
+340 | struct ResourceManagerRef {
+    |        ------------------ fields in this struct
+341 |     allocations: Arc<RwLock<HashMap<String, ResourceAllocation>>>,
+342 |     semaphores: ResourceSemaphores,
+    |     ^^^^^^^^^^
+343 |     monitor: Arc<RwLock<HashMap<String, ResourceAllocation>>>,
+    |     ^^^^^^^
+
+warning: fields `id`, `tool_id`, `created_at`, and `resource_usage` are never read
+   --> crates\tools\src\execution\security_enforcer.rs:137:5
+    |
+136 | struct SandboxInstance {
+    |        --------------- fields in this struct
+137 |     id: String,
+    |     ^^
+138 |     tool_id: String,
+    |     ^^^^^^^
+139 |     created_at: SystemTime,
+    |     ^^^^^^^^^^
+140 |     isolation_level: ProcessIsolation,
+141 |     resource_usage: SandboxResourceUsage,
+    |     ^^^^^^^^^^^^^^
+    |
+    = note: `SandboxInstance` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead c
+ode analysis
+
+warning: fields `memory_mb`, `cpu_percent`, `disk_read_mb`, `disk_write_mb`, and `network_connections` are never read
+   --> crates\tools\src\execution\security_enforcer.rs:146:5
+    |
+145 | struct SandboxResourceUsage {
+    |        -------------------- fields in this struct
+146 |     memory_mb: u64,
+    |     ^^^^^^^^^
+147 |     cpu_percent: f32,
+    |     ^^^^^^^^^^^
+148 |     disk_read_mb: u64,
+    |     ^^^^^^^^^^^^
+149 |     disk_write_mb: u64,
+    |     ^^^^^^^^^^^^^
+150 |     network_connections: u32,
+    |     ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `SandboxResourceUsage` has a derived impl for the trait `Debug`, but this is intentionally ignored during d
+ead code analysis
+
+warning: fields `config` and `resource_limits` are never read
+   --> crates\tools\src\plugins\wasm_plugin.rs:238:5
+    |
+237 | pub struct WasmRuntime {
+    |            ----------- fields in this struct
+238 |     config: WasmConfig,
+    |     ^^^^^^
+239 |     resource_limits: WasmResourceLimits,
+    |     ^^^^^^^^^^^^^^^
+
+warning: method `call` is never used
+   --> crates\tools\src\plugins\wasm_plugin.rs:385:8
+    |
+384 | trait HostFunction: Send + Sync {
+    |       ------------ method in this trait
+385 |     fn call(
+    |        ^^^^
+
+warning: field `config` is never read
+   --> crates\tools\src\plugins\wasm_plugin.rs:456:5
+    |
+454 | pub struct WasmPlugin {
+    |            ---------- field in this struct
+455 |     metadata: PluginMetadata,
+456 |     config: PluginConfiguration,
+    |     ^^^^^^
+
+warning: field `temp_directory` is never read
+   --> crates\tools\src\plugins\external_process.rs:115:5
+    |
+110 | pub struct ProcessSandbox {
+    |            -------------- field in this struct
+...
+115 |     temp_directory: Option<PathBuf>,
+    |     ^^^^^^^^^^^^^^
+
+warning: field `process_id` is never read
+   --> crates\tools\src\plugins\external_process.rs:514:5
+    |
+510 | struct ExecutionEnvironment {
+    |        -------------------- field in this struct
+...
+514 |     process_id: Option<u32>,
+    |     ^^^^^^^^^^
+    |
+    = note: `ExecutionEnvironment` has a derived impl for the trait `Debug`, but this is intentionally ignored during d
+ead code analysis
+
+warning: field `config` is never read
+   --> crates\tools\src\plugins\external_process.rs:520:5
+    |
+518 | pub struct ExternalProcessPlugin {
+    |            --------------------- field in this struct
+519 |     metadata: PluginMetadata,
+520 |     config: PluginConfiguration,
+    |     ^^^^^^
+
+warning: field `event_sender` is never read
+  --> crates\tools\src\plugins\hot_reload.rs:32:5
+   |
+30 | pub struct FileWatcher {
+   |            ----------- field in this struct
+31 |     watched_paths: Arc<RwLock<HashMap<PathBuf, String>>>, // path -> plugin_id
+32 |     event_sender: mpsc::UnboundedSender<ReloadEvent>,
+   |     ^^^^^^^^^^^^
+
+warning: method `handle_reload_event` is never used
+   --> crates\tools\src\plugins\hot_reload.rs:268:14
+    |
+146 | impl HotReloadManager {
+    | --------------------- method in this implementation
+...
+268 |     async fn handle_reload_event(&self, event: ReloadEvent) -> Result<()> {
+    |              ^^^^^^^^^^^^^^^^^^^
+
+warning: `tools` (lib) generated 36 warnings (run `cargo fix --lib -p tools` to apply 13 suggestions)
+    Checking router v0.1.0 (C:\Users\1\Documents\GitHub\MAGRAY_Cli\crates\router)
+    Checking cli v0.1.0 (C:\Users\1\Documents\GitHub\MAGRAY_Cli\crates\cli)
+warning: unused import: `crate::agent_traits`
+  --> crates\cli\src\orchestrator\adaptive_orchestrator.rs:12:5
+   |
+12 | use crate::agent_traits::*;
+   |     ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused variable: `period_minutes`
+   --> crates\cli\src\handlers\performance_monitor.rs:254:33
+    |
+254 |     async fn get_metrics(&self, period_minutes: u32) -> Result<HashMap<String, f64>> {
+    |                                 ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_peri
+od_minutes`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `context`
+   --> crates\cli\src\strategies\fallback_strategies.rs:268:37
+    |
+268 |     async fn handle_fallback(&self, context: &RequestContext, error: &anyhow::Error) -> Result<AgentResponse> {
+    |                                     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_context
+`
+
+warning: unused variable: `adapted_threshold`
+   --> crates\cli\src\strategies\circuit_breaker.rs:325:13
+    |
+325 |         let adapted_threshold = self.adapt_threshold();
+    |             ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_adapted_threshold`
+
+warning: unused variable: `orchestration_response`
+   --> crates\cli\src\unified_agent_v2.rs:422:34
+    |
+422 |         let (execution_strategy, orchestration_response) = match orchestration_result {
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscor
+e: `_orchestration_response`
+
+warning: field `start_timestamp` is never read
+  --> crates\cli\src\handlers\performance_monitor.rs:30:5
+   |
+26 | struct OperationMetrics {
+   |        ---------------- field in this struct
+...
+30 |     start_timestamp: SystemTime,
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `OperationMetrics` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored
+ during dead code analysis
+   = note: `#[warn(dead_code)]` on by default
+
+warning: field `retry_count` is never read
+   --> crates\cli\src\strategies\fallback_strategies.rs:104:5
+    |
+99  | pub struct SmartFallbackStrategy<L>
+    |            --------------------- field in this struct
+...
+104 |     retry_count: u32,
+    |     ^^^^^^^^^^^
+
+warning: field `failure_threshold` is never read
+   --> crates\cli\src\strategies\fallback_strategies.rs:253:5
+    |
+252 | pub struct CircuitBreakerFallbackStrategy {
+    |            ------------------------------ field in this struct
+253 |     failure_threshold: u32,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: fields `performance_cache` and `orchestration_metrics` are never read
+   --> crates\cli\src\orchestrator\adaptive_orchestrator.rs:146:5
+    |
+129 | pub struct AdaptiveTaskOrchestrator {
+    |            ------------------------ fields in this struct
+...
+146 |     performance_cache: Arc<Mutex<HashMap<String, Duration>>>, // task_hash -> avg_execution_time
+    |     ^^^^^^^^^^^^^^^^^
+...
+155 |     orchestration_metrics: Arc<Mutex<OrchestrationMetrics>>,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `round_robin_index` is never read
+   --> crates\cli\src\orchestrator\adaptive_orchestrator.rs:162:5
+    |
+160 | struct LoadBalancer {
+    |        ------------ field in this struct
+161 |     handler_loads: HashMap<String, f32>,
+162 |     round_robin_index: usize,
+    |     ^^^^^^^^^^^^^^^^^
+    |
+    = note: `LoadBalancer` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code
+ analysis
+
+warning: field `allocated_at` is never read
+  --> crates\cli\src\orchestrator\resource_manager.rs:65:5
+   |
+62 | struct ResourceReservation {
+   |        ------------------- field in this struct
+...
+65 |     allocated_at: Instant,
+   |     ^^^^^^^^^^^^
+   |
+   = note: `ResourceReservation` has derived impls for the traits `Clone` and `Debug`, but these are intentionally igno
+red during dead code analysis
+
+warning: `cli` (lib) generated 11 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.67s

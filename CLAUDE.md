@@ -29,26 +29,26 @@
 
 ## ⚠️ РЕАЛЬНОЕ СОСТОЯНИЕ ПРОЕКТА (ALPHA)
 
-**Автоматический анализ от 2025-08-06 15:58:32 UTC:**
+**Автоматический анализ от 2025-08-06 17:01:02 UTC:**
 
 ### 🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:
-- **Критических issues**: 118
-- **High priority issues**: 230  
+- **Критических issues**: 138
+- **High priority issues**: 254  
 - **Циклических зависимостей**: 0
-- **Технический долг**: 4074 часов
-- **Файлов с высокой сложностью**: 107
+- **Технический долг**: 4609 часов
+- **Файлов с высокой сложностью**: 124
 
 ### ❌ ЧТО НЕ РАБОТАЕТ:
-- **God Objects остаются**: 49 обнаружено
-- **Дублирование кода**: 49 случаев
+- **God Objects остаются**: 56 обнаружено
+- **Дублирование кода**: 59 случаев
 - **Неиспользуемый код**: dead code warnings в большинстве модулей
 - **Покрытие тестами**: недостаточное (tests: 0, mocks: 46)
 
 ### 📊 СТАТИСТИКА ПРОЕКТА:
 - **Crates**: 8
-- **Файлов**: 319
-- **Структур**: 435
-- **Функций**: 1055
+- **Файлов**: 342
+- **Структур**: 503
+- **Функций**: 1135
 - **Тестов**: 0
 - **Моков**: 46
 
@@ -109,10 +109,13 @@
 
 ## 💸 Технический долг
 
-**Общий долг**: 4074.0 часов (509.2 дней)
-**Критических проблем**: 118
-**Высокий приоритет**: 230
+**Общий долг**: 4608.8 часов (576.1 дней)
+**Критических проблем**: 138
+**Высокий приоритет**: 254
 
+- [CRITICAL] Цикломатическая сложность 41 (должна быть < 10)
+  - Файл: `ai/src/auto_device_selector.rs`
+  - Оценка: 10.5 часов
 - [CRITICAL] Цикломатическая сложность 31 (должна быть < 10)
   - Файл: `ai/src/embeddings_bge_m3.rs`
   - Оценка: 5.5 часов
@@ -125,9 +128,6 @@
 - [CRITICAL] Цикломатическая сложность 50 (должна быть < 10)
   - Файл: `ai/src/embeddings_gpu.rs`
   - Оценка: 15.0 часов
-- [CRITICAL] God Object вероятность 90%
-  - Файл: `ai/src/gpu_fallback.rs`
-  - Оценка: 16.0 часов
 
 ## 📊 Метрики сложности
 
@@ -162,6 +162,9 @@
 - **impl CacheService** встречается 2 раз:
   - `memory/src/services/cache_service.rs` (CacheService)
   - `memory/src/services/cache_service.rs` (CacheService)
+- **impl ChatMessage** встречается 2 раз:
+  - `llm/src/lib.rs` (ChatMessage)
+  - `llm/src/providers/mod.rs` (ChatMessage)
 - **impl CircuitBreaker** встречается 2 раз:
   - `ai/src/gpu_fallback.rs` (CircuitBreaker)
   - `llm/src/circuit_breaker.rs` (CircuitBreaker)
@@ -185,9 +188,6 @@
 - **impl Default for CacheConfig** встречается 2 раз:
   - `memory/src/cache_lru.rs` (CacheConfig)
   - `memory/src/layers/mod.rs` (CacheConfig)
-- **impl Default for CircuitBreakerMetrics** встречается 2 раз:
-  - `cli/src/strategies/circuit_breaker.rs` (CircuitBreakerMetrics)
-  - `tools/src/execution_pipeline.rs` (CircuitBreakerMetrics)
 
 ## 🎭 Реестр моков и заглушек
 
@@ -223,7 +223,7 @@
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-06 15:58:32 UTC*
+*Last updated: 2025-08-06 17:01:02 UTC*
 *Status: ALPHA - не готов к production использованию*
 
 ## Компактная архитектура MAGRAY CLI
@@ -246,7 +246,7 @@ graph TB
         AI_embeddings_cpu[embeddings_cpu<br/>S:CpuEmbeddingService,OptimizedEmbeddingResult<br/>fn:new,embed<br/>m:CpuEmbeddingService::new,CpuEmbeddingService::embed]
         AI_embeddings_gpu[embeddings_gpu<br/>S:GpuEmbeddingService,PerformanceMetrics<br/>fn:tokens_per_second,cache_hit_rate<br/>m:PerformanceMetrics::tokens_per_second,PerformanceMetrics::cache_hit_rate]
         AI_errors[errors<br/>E:AiError<br/>fn:fmt,from<br/>m:AiError::fmt,AiError::from]
-        AI_gpu_config[gpu_config<br/>S:GpuConfig,GpuInfo<br/>fn:default,auto_optimized<br/>m:Default::default,GpuConfig::auto_optimized]
+        AI_gpu_config[gpu_config<br/>S:GpuConfig,GpuInfo<br/>E:GpuProviderType<br/>fn:default,auto_optimized<br/>...+1]
         AI_gpu_detector[gpu_detector<br/>S:GpuDetector,GpuDevice<br/>fn:detect,detect_nvidia_gpus<br/>m:GpuDetector::detect,GpuDetector::detect_nvidia_gpus]
         AI_test_ai_config[test_ai_config<br/>TEST<br/>fn:test_ai_config_default,test_embedding_config_default]:::testFile
         AI_test_auto_device_selector[test_auto_device_selector<br/>TEST<br/>fn:test_device_decision_creation,test_device_decision_clone]:::testFile
@@ -333,6 +333,15 @@ graph TB
         LLM_mod[mod]
         LLM_parameter_extractor[parameter_extractor<br/>S:ParameterExtraction,ParameterExtractorAgent<br/>fn:new,extract_parameters<br/>m:ParameterExtractorAgent::new,ParameterExtractorAgent::extract_parameters]
         LLM_tool_selector[tool_selector<br/>S:ToolSelection,ToolSelectorAgent<br/>fn:new,select_tool<br/>m:ToolSelectorAgent::new,ToolSelectorAgent::select_tool]
+        LLM_health_monitor[health_monitor<br/>S:HealthMonitor,ProviderHealthStatus<br/>fn:default,new<br/>m:Default::default,HealthMonitor::new]
+        LLM_mod[mod<br/>S:SmartOrchestrationEngine,OrchestrationConfig<br/>fn:default,default<br/>m:Default::default,Default::default]
+        LLM_request_analyzer[request_analyzer<br/>S:RequestAnalyzer,AnalysisReport<br/>E:RequestComplexity,TaskPriority<br/>fn:new,analyze_complexity<br/>...+1]
+        LLM_anthropic_provider[anthropic_provider<br/>S:AnthropicProvider,AnthropicRequest<br/>fn:new,with_timeout<br/>m:AnthropicProvider::new,AnthropicProvider::with_timeout]
+        LLM_azure_provider[azure_provider<br/>S:AzureProvider,AzureRequest<br/>fn:new,get_model_capabilities<br/>m:AzureProvider::new,AzureProvider::get_model_capabilities]
+        LLM_groq_provider[groq_provider<br/>S:GroqProvider,GroqRequest<br/>fn:new,get_model_capabilities<br/>m:GroqProvider::new,GroqProvider::get_model_capabilities]
+        LLM_local_provider[local_provider<br/>S:LocalProvider,LocalRequest<br/>fn:new,with_timeout<br/>m:LocalProvider::new,LocalProvider::with_timeout]
+        LLM_mod[mod<br/>S:LlmRequest,LlmResponse<br/>T:LlmProvider<br/>E:MessageRole,LatencyClass<br/>...+2]
+        LLM_openai_provider[openai_provider<br/>MOCK<br/>S:OpenAIProvider,OpenAIRequest<br/>fn:new,with_timeout<br/>...+2]:::mockFile
     end
 
     subgraph MEMORY[3-Layer HNSW Memory]
@@ -436,15 +445,27 @@ graph TB
         TOOLS_test_shell_ops[test_shell_ops<br/>TEST<br/>fn:test_shell_exec_spec,test_shell_exec_natural_language_parsing]:::testFile
         TOOLS_test_tool_types[test_tool_types<br/>TEST<br/>fn:test_tool_input_creation,test_tool_input_clone]:::testFile
         TOOLS_test_web_ops[test_web_ops<br/>TEST<br/>fn:test_web_search_spec,test_web_search_natural_language_parsing]:::testFile
+        TOOLS_mod[mod]
+        TOOLS_pipeline[pipeline<br/>S:ExecutionContext,ExecutionResult<br/>E:SecurityEventType,SecuritySeverity<br/>fn:default,default<br/>...+1]
+        TOOLS_resource_manager[resource_manager<br/>S:ResourceAllocation,ResourceLimits<br/>fn:default,is_within_limits<br/>m:Default::default,ResourceUsage::is_within_limits]
+        TOOLS_security_enforcer[security_enforcer<br/>S:SecurityConfig,ExecutionPermission<br/>E:SecurityRestriction,FileSystemMode<br/>fn:default,new<br/>...+1]
+        TOOLS_external_process[external_process<br/>S:ProcessConfig,ProcessResourceLimits<br/>E:StdinMode,StdoutMode<br/>fn:default,new<br/>...+1]
+        TOOLS_hot_reload[hot_reload<br/>S:FileWatcher,HotReloadManager<br/>T:ReloadHandler<br/>E:ReloadEvent,ReloadPolicy<br/>...+2]
+        TOOLS_mod[mod]
+        TOOLS_plugin_manager[plugin_manager<br/>S:PluginMetadata,PluginVersion<br/>T:PluginInstance,PluginLoader<br/>E:PluginType,PluginState<br/>...+2]
+        TOOLS_wasm_plugin[wasm_plugin<br/>S:WasmConfig,WasmResourceLimits<br/>T:HostFunction<br/>E:WasmPluginError<br/>...+2]
+        TOOLS_mod[mod]
+        TOOLS_secure_registry[secure_registry<br/>S:SecurityContext,UserPermissions<br/>E:UserTrustLevel,AuditEventType<br/>fn:default,validate_and_sanitize<br/>...+1]
+        TOOLS_tool_metadata[tool_metadata<br/>S:ToolMetadata,SemanticVersion<br/>E:ToolCategory,FileSystemPermissions<br/>fn:new,is_compatible<br/>...+1]
     end
 
     %% Зависимости между крейтами
-    CLI -.->|uses| MEMORY
-    CLI -.->|uses| TOOLS
-    CLI -.->|uses| ROUTER
     CLI -.->|uses| COMMON
-    CLI -.->|uses| AI
     CLI -.->|uses| LLM
+    CLI -.->|uses| TOOLS
+    CLI -.->|uses| AI
+    CLI -.->|uses| ROUTER
+    CLI -.->|uses| MEMORY
     MEMORY -.->|uses| COMMON
     MEMORY -.->|uses| AI
     ROUTER -.->|uses| TOOLS

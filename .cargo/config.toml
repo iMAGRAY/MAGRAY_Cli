@@ -56,6 +56,16 @@ rustflags = [
     "-C", "target-feature=-crt-static", # Dynamic CRT for ONNX Runtime compatibility
 ]
 
+# Coverage instrumentation settings - commented out to avoid conflicts
+# Use RUSTFLAGS environment variable instead for coverage
+# [target.x86_64-pc-windows-msvc.coverage]
+# rustflags = [
+#     "-C", "instrument-coverage",       # Enable LLVM coverage instrumentation  
+#     "-C", "codegen-units=1",          # Single unit for better coverage tracking
+#     "-C", "target-cpu=native",
+#     "-C", "target-feature=-crt-static",
+# ]
+
 # Linux-specific settings
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
@@ -101,6 +111,9 @@ ORT_USE_CUDA = "0"                  # Default to CPU-only
 # Rust compilation settings
 CARGO_INCREMENTAL = "false"         # Disable incremental compilation in CI
 CARGO_NET_RETRY = "10"              # Retry network operations
+# LLVM coverage environment variables
+LLVM_PROFILE_FILE = "target/coverage/magray-%p-%m.profraw"
+RUSTFLAGS_COVERAGE = "-C instrument-coverage"
 
 # =========================================
 # DEPENDENCY BUILD OPTIMIZATIONS
@@ -147,3 +160,25 @@ codegen-units = 1                 # Single codegen unit
 panic = "abort"                   # No panic unwinding
 strip = "symbols"                 # Strip all symbols
 debug = false                     # No debug info
+
+# =========================================
+# CARGO ALIASES FOR COVERAGE
+# =========================================
+
+[alias]
+# Coverage commands - требуют установки cargo-llvm-cov
+coverage = "llvm-cov --html --output-dir target/coverage"
+cov-test = "llvm-cov test --html --output-dir target/coverage"
+cov-report = "llvm-cov report --lcov --output-path target/coverage/lcov.info"
+cov-json = "llvm-cov report --json --output-path target/coverage/coverage.json"
+cov-summary = "llvm-cov report --summary-only"
+
+# Specialized coverage commands
+cov-core = "llvm-cov test --html --package memory --package ai --output-dir target/coverage/core"
+cov-llm = "llvm-cov test --html --package llm --output-dir target/coverage/llm" 
+cov-tools = "llvm-cov test --html --package tools --package cli --output-dir target/coverage/tools"
+
+# Test commands with coverage
+test-cov = "llvm-cov test"
+test-unit = "test --lib"
+test-integration = "test --test '*'"

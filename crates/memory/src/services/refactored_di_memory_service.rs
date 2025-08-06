@@ -38,6 +38,7 @@ pub struct RefactoredDIMemoryService {
     ready: Arc<std::sync::atomic::AtomicBool>,
     
     /// Performance timer
+    #[allow(dead_code)] // Будет использоваться для измерения времени выполнения
     performance_timer: Arc<std::sync::Mutex<Instant>>,
     
     /// Lifecycle manager для graceful shutdown

@@ -1,6 +1,6 @@
 use super::{
     LlmProvider, LlmRequest, LlmResponse, ProviderCapabilities, ProviderHealth, ProviderId, 
-    TokenUsage, LatencyClass, MessageRole,
+    TokenUsage, LatencyClass,
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
@@ -364,6 +364,7 @@ struct AnthropicResponse {
 struct AnthropicContentBlock {
     text: String,
     #[serde(rename = "type")]
+    #[allow(dead_code)] // Может использоваться для отладки или валидации
     content_type: String,
 }
 

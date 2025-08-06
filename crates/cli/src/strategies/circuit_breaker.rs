@@ -322,7 +322,7 @@ impl CircuitBreakerTrait for AdaptiveCircuitBreaker {
         T: Send,
     {
         // Адаптируем порог перед выполнением
-        let adapted_threshold = self.adapt_threshold();
+        let _adapted_threshold = self.adapt_threshold();
         
         // Обновляем порог в базовом circuit breaker
         // (Для простоты, в production версии лучше создать внутренний механизм)

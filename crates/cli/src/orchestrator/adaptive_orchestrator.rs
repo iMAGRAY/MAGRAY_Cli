@@ -9,7 +9,7 @@ use tokio::sync::{Mutex, RwLock};
 use tracing::{info, debug, warn, error};
 use uuid::Uuid;
 
-use crate::agent_traits::*;
+// use crate::agent_traits::*; // Не используется пока
 use super::{TaskAnalyzer, ResourceManager, StrategySelector};
 
 /// Priority levels for task orchestration
@@ -143,6 +143,7 @@ pub struct AdaptiveTaskOrchestrator {
     task_history: Arc<Mutex<Vec<OrchestrationResult>>>,
     
     // Performance optimization
+    #[allow(dead_code)] // Кеш производительности для оптимизации
     performance_cache: Arc<Mutex<HashMap<String, Duration>>>, // task_hash -> avg_execution_time
     load_balancer: Arc<Mutex<LoadBalancer>>,
     
@@ -152,6 +153,7 @@ pub struct AdaptiveTaskOrchestrator {
     // Metrics and monitoring
     total_tasks_processed: Arc<Mutex<u64>>,
     avg_response_time: Arc<Mutex<Duration>>,
+    #[allow(dead_code)] // Метрики оркестрации
     orchestration_metrics: Arc<Mutex<OrchestrationMetrics>>,
 }
 
@@ -159,6 +161,7 @@ pub struct AdaptiveTaskOrchestrator {
 #[derive(Debug)]
 struct LoadBalancer {
     handler_loads: HashMap<String, f32>,
+    #[allow(dead_code)] // Индекс для round-robin балансировки
     round_robin_index: usize,
     adaptive_weights: HashMap<String, f32>,
 }

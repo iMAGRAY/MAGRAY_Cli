@@ -1,0 +1,58 @@
+# Tarpaulin configuration для MAGRAY CLI
+[tarpaulin]
+# Output formats
+out = ["Html", "Lcov", "Json"]
+output-dir = "target/tarpaulin"
+
+# Coverage settings  
+timeout = 120
+exclude-files = [
+    "*/target/*",
+    "*/.git/*",
+    "*/.github/*",
+    "*/examples/*",
+    "*/benches/*",
+    "*/tests/common/*",
+    "**/test_*.rs",
+]
+
+# Don't count test code in coverage
+run-types = ["Tests"]
+count = true
+all-features = false
+fail-under = 30.0  # Minimum coverage threshold
+
+# Specific packages to include
+packages = [
+    "cli", 
+    "memory", 
+    "ai", 
+    "llm", 
+    "tools", 
+    "common", 
+    "router", 
+    "todo"
+]
+
+[tool.coverage]
+# Skip packages with critical errors for now
+skip-clean = true
+ignore-panics = true
+line = true
+branch = true
+
+# Core packages get priority coverage
+[[tool.coverage.report]]
+name = "core"
+include = ["crates/memory/src/*", "crates/ai/src/*"]
+fail-under = 40.0
+
+[[tool.coverage.report]]
+name = "llm"
+include = ["crates/llm/src/*"]
+fail-under = 35.0
+
+[[tool.coverage.report]]
+name = "tools"
+include = ["crates/tools/src/*", "crates/cli/src/*"]
+fail-under = 25.0

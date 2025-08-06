@@ -101,6 +101,7 @@ where
     L: LlmServiceTrait,
 {
     llm_service: Option<L>,
+    #[allow(dead_code)] // Количество повторов для fallback стратегии
     retry_count: u32,
 }
 
@@ -250,6 +251,7 @@ where
 
 /// Circuit Breaker fallback стратегия
 pub struct CircuitBreakerFallbackStrategy {
+    #[allow(dead_code)] // Порог сбоев для circuit breaker
     failure_threshold: u32,
     recovery_timeout_seconds: u64,
 }
@@ -265,7 +267,7 @@ impl CircuitBreakerFallbackStrategy {
 
 #[async_trait]
 impl FallbackStrategy for CircuitBreakerFallbackStrategy {
-    async fn handle_fallback(&self, context: &RequestContext, error: &anyhow::Error) -> Result<AgentResponse> {
+    async fn handle_fallback(&self, _context: &RequestContext, error: &anyhow::Error) -> Result<AgentResponse> {
         warn!("CircuitBreakerFallbackStrategy: обнаружен паттерн частых сбоев");
         debug!("Ошибка: {}", error);
         

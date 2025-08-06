@@ -62,6 +62,7 @@ impl Default for ResourceLimits {
 struct ResourceReservation {
     task_id: String,
     requirements: ResourceRequirements,
+    #[allow(dead_code)] // Метка времени выделения ресурсов
     allocated_at: Instant,
     expires_at: Option<Instant>,
 }
