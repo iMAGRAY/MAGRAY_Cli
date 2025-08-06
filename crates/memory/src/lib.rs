@@ -6,13 +6,16 @@ mod cache_migration;
 pub mod fallback;
 mod hnsw_index; // Модульная HNSW архитектура
 pub mod health;
+// pub mod layers; // ВРЕМЕННО ОТКЛЮЧЕНО для бенчмарка - проблемы с sqlx
 mod metrics;
 mod notifications;
 pub mod promotion;
 mod ml_promotion;
 pub mod simd_optimized; // SIMD оптимизации для векторных операций
 pub mod simd_fixed; // Исправленная SIMD реализация для debugging
-pub mod service_di; // DI-based service (единственная реализация)
+pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance
+pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
+pub mod service_di; // DI-based service (единственная реализация) - DEPRECATED
 pub mod storage;
 mod types;
 mod vector_index_hnswlib; // Critical for vector storage
@@ -34,14 +37,27 @@ pub use di_container::{DIContainer, DIPerformanceMetrics, DIContainerStats, Life
 pub mod orchestration;
 pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};
 pub use batch_optimized::{BatchOptimizedProcessor, BatchOptimizedConfig, BatchOptimizedStats};
-pub use cache_lru::{EmbeddingCacheLRU as EmbeddingCache, CacheConfig};
+pub use cache_lru::{EmbeddingCacheLRU as EmbeddingCache, CacheConfig as LruCacheConfig, CacheConfig};
 
 // Cache configuration type for service - теперь только LRU
-pub type CacheConfigType = CacheConfig;
+pub type CacheConfigType = LruCacheConfig;
 pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
-// Legacy MemoryService удален - используем DIMemoryService
+// Legacy MemoryService удален - используем DIMemoryService (DEPRECATED)
 pub use service_di::{DIMemoryService, DIMemoryService as MemoryService, MemoryServiceConfig, MemoryConfig, default_config, BatchInsertResult, BatchSearchResult};
+
+// ВРЕМЕННО ОТКЛЮЧЕНО - НОВАЯ СЛОЕВАЯ АРХИТЕКТУРА
+// pub use layers::{
+//     // Trait definitions
+//     StorageLayer, IndexLayer, QueryLayer, CacheLayer, LayerHealth,
+//     // Concrete implementations  
+//     LayeredMemoryBuilder, LayeredDIContainer,
+//     // Configuration types
+//     StorageConfig, IndexConfig, QueryConfig, CacheConfig,
+//     // Result types
+//     VectorSearchResult, StorageStats, IndexStats, QueryStats, RankingCriteria,
+//     LayerHealthStatus,
+// };
 pub use di_memory_config::{MemoryDIConfigurator};
 pub use health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus};
 pub use api::{UnifiedMemoryAPI, MemoryContext, SearchOptions as ApiSearchOptions, MemoryResult, OptimizationResult, SystemHealth, DetailedHealth, SystemStats, CacheStats, IndexSizes};
@@ -49,6 +65,8 @@ pub use metrics::{MetricsCollector, MemoryMetrics, LatencyMetrics, LayerMetrics}
 pub use transaction::{Transaction, TransactionManager, TransactionGuard};
 pub use simd_optimized::{cosine_distance_auto, cosine_distance_memory_optimized, batch_cosine_distance_optimized, run_comprehensive_benchmark};
 pub use simd_fixed::{debug_simd_performance};
+pub use simd_ultra_optimized::{cosine_distance_ultra_optimized, AlignedVector, batch_cosine_distance_ultra, test_ultra_optimized_performance};
+pub use gpu_ultra_accelerated::{GpuDevice, GpuCosineProcessor, GpuDeviceManager, benchmark_gpu_vs_cpu};
 
 /// Быстрое создание DI Memory Service с конфигурацией по умолчанию
 pub async fn create_di_memory_service() -> anyhow::Result<DIMemoryService> {

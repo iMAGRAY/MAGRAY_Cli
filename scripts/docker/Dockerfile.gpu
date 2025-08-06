@@ -1,69 +1,144 @@
-# GPU-enabled Dockerfile for workstations
+# =============================================================================
+# MAGRAY CLI - GPU Accelerated Docker Image  
+# Production-ready CUDA-enabled build для GPU вычислений
+# Target размер: ~800MB (CUDA runtime включен)
+# =============================================================================
+
+# ================================
+# Stage 1: Build Environment
+# ================================
 FROM nvidia/cuda:12.3-devel-ubuntu22.04 as builder
 
-# Install Rust
+# Установка Rust toolchain и build dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     pkg-config \
     libssl-dev \
+    ca-certificates \
     wget \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    unzip \
+    build-essential \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Setup ONNX Runtime with GPU support
-WORKDIR /onnx
-RUN wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-gpu-1.22.0.tgz
-RUN tar -xzf onnxruntime-linux-x64-gpu-1.22.0.tgz
-
-# Copy source code
+# Рабочая директория
 WORKDIR /app
-COPY . .
 
-# Setup environment for GPU build
-ENV ORT_DYLIB_PATH=/onnx/onnxruntime-linux-x64-gpu-1.22.0/lib/libonnxruntime.so
+# ONNX Runtime GPU setup с CUDA и TensorRT
+ENV ORT_VERSION=1.16.3
+RUN wget -q https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-gpu-${ORT_VERSION}.tgz \
+    && tar xzf onnxruntime-linux-x64-gpu-${ORT_VERSION}.tgz \
+    && mv onnxruntime-linux-x64-gpu-${ORT_VERSION} /opt/onnxruntime \
+    && rm onnxruntime-linux-x64-gpu-${ORT_VERSION}.tgz
+
+# CUDA environment setup
 ENV CUDA_ROOT=/usr/local/cuda
+ENV ORT_LIB_LOCATION=/opt/onnxruntime/lib
+ENV LD_LIBRARY_PATH=/opt/onnxruntime/lib:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-# Build with GPU features
-RUN cargo build --release --features=gpu
+# Копирование dependency metadata для optimized caching
+COPY Cargo.toml Cargo.lock ./
+COPY crates/*/Cargo.toml ./crates/*/
 
-# Runtime stage with GPU support
+# Создание stub files для dependency pre-build
+RUN find crates -name Cargo.toml -execdir mkdir -p src \; \
+    && find crates -name Cargo.toml -execdir touch src/lib.rs \; \
+    && echo "fn main() {}" > src/main.rs \
+    && mkdir -p crates/cli/src \
+    && echo "fn main() {}" > crates/cli/src/main.rs
+
+# Pre-compile dependencies с GPU features
+RUN cargo build --release --features gpu \
+    && rm -rf src crates/*/src target/release/deps/magray*
+
+# Копирование исходного кода
+COPY crates/ ./crates/
+COPY src/ ./src/ 2>/dev/null || true
+
+# GPU-optimized build configuration
+ENV CARGO_PROFILE_RELEASE_LTO=thin
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=4
+ENV CARGO_PROFILE_RELEASE_PANIC=abort
+
+# Build с GPU features и CUDA optimization
+RUN cargo build --release --features gpu --bin magray
+
+# GPU binary optimization
+RUN strip target/release/magray \
+    && ls -lah target/release/magray \
+    && size target/release/magray \
+    && echo "GPU build completed successfully"
+
+# ================================
+# Stage 2: GPU Runtime Environment
+# ================================
 FROM nvidia/cuda:12.3-runtime-ubuntu22.04
 
-# Install runtime dependencies
+# GPU runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r magray \
+    && useradd -r -g magray -s /bin/false magray
 
-# Copy ONNX Runtime with GPU
-COPY --from=builder /onnx/onnxruntime-linux-x64-gpu-1.22.0/lib/libonnxruntime.so* /usr/local/lib/
-COPY --from=builder /onnx/onnxruntime-linux-x64-gpu-1.22.0/lib/libonnxruntime_providers_* /usr/local/lib/
+# ONNX Runtime GPU libraries с CUDA providers
+COPY --from=builder /opt/onnxruntime/lib/*.so* /usr/local/lib/
+RUN ldconfig
 
-# Copy binary
+# Application binary
 COPY --from=builder /app/target/release/magray /usr/local/bin/magray
 
-# Setup environment
+# GPU configuration и permissions
+RUN chmod +x /usr/local/bin/magray \
+    && mkdir -p /app/data /app/models /app/config /app/gpu-cache \
+    && chown -R magray:magray /app
+
+# GPU-specific environment
+ENV RUST_LOG=info
+ENV MAGRAY_DATA_DIR=/app/data
+ENV MAGRAY_MODELS_DIR=/app/models
+ENV MAGRAY_CONFIG_DIR=/app/config
+ENV MAGRAY_GPU_CACHE_DIR=/app/gpu-cache
+ENV MAGRAY_VARIANT=gpu
+ENV MAGRAY_GPU_ENABLED=true
+ENV MAGRAY_CUDA_VISIBLE_DEVICES=all
+
+# CUDA и ONNX Runtime environment
 ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/cuda/lib64
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
-ENV RUST_LOG=info
+ENV CUDA_CACHE_DISABLE=0
+ENV CUDA_LAUNCH_BLOCKING=0
 
-# Create non-root user
-RUN useradd -m -u 1000 magray
+# Switch на non-root user
 USER magray
-WORKDIR /home/magray
+WORKDIR /app
 
-# Health check with GPU awareness
-HEALTHCHECK --interval=30s --timeout=15s --start-period=10s --retries=3 \
-  CMD magray status | grep -q "GPU" || exit 1
+# Volumes для persistent data и GPU cache
+VOLUME ["/app/data", "/app/models", "/app/config", "/app/gpu-cache"]
 
-ENTRYPOINT ["magray"]
-CMD ["--help"]
+# GPU-aware health check
+HEALTHCHECK --interval=45s --timeout=15s --start-period=30s --retries=3 \
+  CMD ["/usr/local/bin/magray", "status", "--check-gpu"] || exit 1
 
-# Metadata
-LABEL org.opencontainers.image.title="MAGRAY CLI - GPU Enabled"
-LABEL org.opencontainers.image.description="AI-accelerated Rust CLI agent with GPU support"
-LABEL org.opencontainers.image.vendor="MAGRAY Team"
-LABEL org.opencontainers.image.licenses="MIT"
+# Default command with GPU initialization
+CMD ["/usr/local/bin/magray", "--gpu-init"]
+
+# Comprehensive labels для GPU variant
+LABEL maintainer="MAGRAY Team"
+LABEL version="0.1.0"
+LABEL description="MAGRAY CLI - GPU Accelerated AI Assistant"
+LABEL variant="gpu"
+LABEL cuda.version="12.3"
+LABEL cuda.architectures="sm_70,sm_75,sm_80,sm_86,sm_89,sm_90"
+LABEL onnxruntime.version="1.16.3"
+LABEL onnxruntime.providers="CUDA,TensorRT"
+LABEL org.opencontainers.image.source="https://github.com/yourusername/magray_cli"
+LABEL org.opencontainers.image.documentation="https://github.com/yourusername/magray_cli/blob/main/docs/gpu-docker.md"
 LABEL org.nvidia.requirements.cuda=">=12.0"
+LABEL org.nvidia.requirements.driver=">=525"

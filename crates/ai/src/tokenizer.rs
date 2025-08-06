@@ -2,6 +2,7 @@ use crate::{AiError, Result};
 use tokenizers::Tokenizer;
 use std::path::Path;
 use tracing::{info, debug};
+use anyhow::anyhow;
 
 /// Tokenizer wrapper for ONNX models
 pub struct TokenizerService {
@@ -58,12 +59,12 @@ impl TokenizerService {
         
         let post_processor = TemplateProcessing::builder()
             .try_single("[CLS] $A [SEP]")
-            .unwrap()
+            .map_err(|e| anyhow!("Ошибка создания single template: {}", e))?
             .try_pair("[CLS] $A [SEP] $B:1 [SEP]:1")
-            .unwrap()
+            .map_err(|e| anyhow!("Ошибка создания pair template: {}", e))?
             .special_tokens(special_tokens)
             .build()
-            .unwrap();
+            .map_err(|e| anyhow!("Ошибка создания post processor: {}", e))?;
             
         tokenizer.with_post_processor(Some(post_processor));
         

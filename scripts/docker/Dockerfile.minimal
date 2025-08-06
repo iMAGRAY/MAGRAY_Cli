@@ -1,51 +1,117 @@
-# Minimal Dockerfile for edge/container deployment
+# =============================================================================
+# MAGRAY CLI - Ultra-Minimal Docker Image
+# Edge-optimized static build для resource-constrained environments
+# Target размер: < 20MB compressed
+# =============================================================================
+
+# ================================
+# Stage 1: Minimal Build Environment
+# ================================
 FROM rust:1.75-alpine as builder
 
-# Install dependencies for Alpine
+# Минимальные Alpine dependencies для static linking
 RUN apk add --no-cache \
     musl-dev \
     pkgconfig \
     openssl-dev \
     openssl-libs-static \
-    wget
+    wget \
+    upx
 
-# Setup ONNX Runtime
-WORKDIR /onnx
-RUN wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz
-RUN tar -xzf onnxruntime-linux-x64-1.22.0.tgz
-
-# Copy source code
+# Рабочая директория
 WORKDIR /app
-COPY . .
 
-# Setup environment for static linking
-ENV RUSTFLAGS="-C target-feature=+crt-static"
-ENV ORT_DYLIB_PATH=/onnx/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so
+# Статический ONNX Runtime (minimal build)
+ENV ORT_VERSION=1.16.3
+RUN wget -q https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz \
+    && tar xzf onnxruntime-linux-x64-${ORT_VERSION}.tgz \
+    && mv onnxruntime-linux-x64-${ORT_VERSION} /opt/onnxruntime \
+    && rm onnxruntime-linux-x64-${ORT_VERSION}.tgz
 
-# Build minimal static binary
-RUN cargo build --release --features=minimal --target=x86_64-unknown-linux-musl
+# Static linking environment
+ENV RUSTFLAGS="-C target-feature=+crt-static -C link-arg=-s"
+ENV ORT_LIB_LOCATION=/opt/onnxruntime/lib
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=x86_64-linux-musl-gcc
 
-# Ultra-minimal runtime
+# Add musl target
+RUN rustup target add x86_64-unknown-linux-musl
+
+# Копирование dependency metadata
+COPY Cargo.toml Cargo.lock ./
+COPY crates/*/Cargo.toml ./crates/*/
+
+# Minimal dependency pre-build
+RUN find crates -name Cargo.toml -execdir mkdir -p src \; \
+    && find crates -name Cargo.toml -execdir touch src/lib.rs \; \
+    && echo "fn main() {}" > src/main.rs \
+    && mkdir -p crates/cli/src \
+    && echo "fn main() {}" > crates/cli/src/main.rs
+
+# Pre-compile с minimal features
+RUN cargo build --release --features minimal --target x86_64-unknown-linux-musl \
+    && rm -rf src crates/*/src target/x86_64-unknown-linux-musl/release/deps/magray*
+
+# Копирование source code
+COPY crates/ ./crates/
+COPY src/ ./src/ 2>/dev/null || true
+
+# Ultra-aggressive optimization для size
+ENV CARGO_PROFILE_RELEASE_LTO=fat
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_PANIC=abort
+ENV CARGO_PROFILE_RELEASE_STRIP=symbols
+ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=z
+
+# Build static binary с minimal features
+RUN cargo build --release \
+    --features minimal \
+    --target x86_64-unknown-linux-musl \
+    --bin magray
+
+# Binary compression для ultra-minimal size
+RUN upx --best --lzma target/x86_64-unknown-linux-musl/release/magray \
+    && ls -lah target/x86_64-unknown-linux-musl/release/magray \
+    && size target/x86_64-unknown-linux-musl/release/magray
+
+# ================================
+# Stage 2: Scratch Runtime
+# ================================
 FROM scratch
 
-# Copy CA certificates for HTTPS
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# CA certificates для HTTPS
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
-# Copy ONNX Runtime
-COPY --from=builder /onnx/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so /lib/
+# Minimal ONNX Runtime (only essential libraries)
+COPY --from=builder /opt/onnxruntime/lib/libonnxruntime.so /lib/libonnxruntime.so
 
-# Copy static binary
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/magray /magray
+# Static compressed binary
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/magray /usr/bin/magray
 
-# Setup environment
+# Ultra-minimal environment
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-ENV RUST_LOG=warn
+ENV RUST_LOG=error
+ENV MAGRAY_VARIANT=minimal
+ENV MAGRAY_MINIMAL_MODE=true
+ENV LD_LIBRARY_PATH=/lib
 
-ENTRYPOINT ["/magray"]
+# Health check для minimal binary
+HEALTHCHECK --interval=60s --timeout=5s --start-period=5s --retries=2 \
+  CMD ["/usr/bin/magray", "--version"]
+
+# Entry point
+ENTRYPOINT ["/usr/bin/magray"]
 CMD ["--help"]
 
-# Metadata
-LABEL org.opencontainers.image.title="MAGRAY CLI - Minimal"
-LABEL org.opencontainers.image.description="Ultra-minimal Rust CLI agent for containers"
+# Ultra-minimal metadata
+LABEL maintainer="MAGRAY Team"
+LABEL version="0.1.0"
+LABEL description="MAGRAY CLI - Ultra-Minimal Edge Build"
+LABEL variant="minimal"
+LABEL size="<20MB"
+LABEL features="basic-cli,minimal-memory,static-linking"
+LABEL deployment="edge,container,kubernetes"
+LABEL org.opencontainers.image.source="https://github.com/yourusername/magray_cli"
+LABEL org.opencontainers.image.title="MAGRAY CLI Minimal"
+LABEL org.opencontainers.image.description="Ultra-minimal static AI CLI for edge deployment"
 LABEL org.opencontainers.image.vendor="MAGRAY Team"
 LABEL org.opencontainers.image.licenses="MIT"

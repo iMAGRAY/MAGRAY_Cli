@@ -1,0 +1,500 @@
+name: 🚀 Release Automation
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger на tags типа v1.0.0, v2.1.0-beta.1, etc.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: 'Create as draft release'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # =========================================
+  # VERSION VALIDATION & PREPARATION
+  # =========================================
+  prepare-release:
+    name: 📋 Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      is-prerelease: ${{ steps.version.outputs.is-prerelease }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Нужен для changelog generation
+
+      - name: 🔍 Extract Version Info
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            TAG="v$VERSION"
+            IS_PRERELEASE="${{ github.event.inputs.prerelease }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#v}"
+            IS_PRERELEASE="false"
+            if [[ "$VERSION" == *"-"* ]]; then
+              IS_PRERELEASE="true"
+            fi
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT  
+          echo "is-prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          
+          echo "Release Version: $VERSION"
+          echo "Release Tag: $TAG"
+          echo "Pre-release: $IS_PRERELEASE"
+
+      - name: ✅ Validate Version Format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected format: X.Y.Z or X.Y.Z-prerelease"
+            exit 1
+          fi
+          echo "✅ Version format valid: $VERSION"
+
+      - name: 📝 Generate Changelog
+        id: changelog
+        run: |
+          # Находим предыдущий tag для changelog
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          echo "## 🚀 Release ${{ steps.version.outputs.version }}" > RELEASE_CHANGELOG.md
+          echo "" >> RELEASE_CHANGELOG.md
+          echo "**Release Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> RELEASE_CHANGELOG.md
+          echo "" >> RELEASE_CHANGELOG.md
+          
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            echo "### 🔄 Changes since $PREVIOUS_TAG" >> RELEASE_CHANGELOG.md
+            echo "" >> RELEASE_CHANGELOG.md
+            
+            # Категоризация коммитов
+            echo "#### ✨ Features" >> RELEASE_CHANGELOG.md
+            git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" \
+              "$PREVIOUS_TAG..HEAD" --grep="feat\|feature" --grep="add" >> RELEASE_CHANGELOG.md
+            echo "" >> RELEASE_CHANGELOG.md
+            
+            echo "#### 🐛 Bug Fixes" >> RELEASE_CHANGELOG.md
+            git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" \
+              "$PREVIOUS_TAG..HEAD" --grep="fix\|bug" >> RELEASE_CHANGELOG.md
+            echo "" >> RELEASE_CHANGELOG.md
+            
+            echo "#### 🔧 Improvements" >> RELEASE_CHANGELOG.md
+            git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" \
+              "$PREVIOUS_TAG..HEAD" --grep="improve\|enhance\|optimize" >> RELEASE_CHANGELOG.md
+            echo "" >> RELEASE_CHANGELOG.md
+            
+            echo "#### 📚 Documentation" >> RELEASE_CHANGELOG.md  
+            git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" \
+              "$PREVIOUS_TAG..HEAD" --grep="doc\|readme" >> RELEASE_CHANGELOG.md
+            echo "" >> RELEASE_CHANGELOG.md
+            
+            echo "#### 🧪 Tests & CI" >> RELEASE_CHANGELOG.md
+            git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" \
+              "$PREVIOUS_TAG..HEAD" --grep="test\|ci\|cd" >> RELEASE_CHANGELOG.md
+            echo "" >> RELEASE_CHANGELOG.md
+            
+            echo "#### 📦 Dependencies" >> RELEASE_CHANGELOG.md
+            git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" \
+              "$PREVIOUS_TAG..HEAD" --grep="bump\|update\|upgrade" >> RELEASE_CHANGELOG.md
+            echo "" >> RELEASE_CHANGELOG.md
+            
+            # Статистика коммитов
+            COMMIT_COUNT=$(git rev-list --count "$PREVIOUS_TAG..HEAD")
+            CONTRIBUTOR_COUNT=$(git shortlog -sn "$PREVIOUS_TAG..HEAD" | wc -l)
+            echo "### 📊 Release Statistics" >> RELEASE_CHANGELOG.md
+            echo "- **Commits**: $COMMIT_COUNT" >> RELEASE_CHANGELOG.md
+            echo "- **Contributors**: $CONTRIBUTOR_COUNT" >> RELEASE_CHANGELOG.md
+            echo "- **Files Changed**: $(git diff --name-only "$PREVIOUS_TAG..HEAD" | wc -l)" >> RELEASE_CHANGELOG.md
+            echo "" >> RELEASE_CHANGELOG.md
+          else
+            echo "### 🎉 Initial Release" >> RELEASE_CHANGELOG.md
+            echo "This is the first release of MAGRAY CLI!" >> RELEASE_CHANGELOG.md
+            echo "" >> RELEASE_CHANGELOG.md
+          fi
+          
+          # Download инструкции
+          echo "### 📥 Installation" >> RELEASE_CHANGELOG.md
+          echo "" >> RELEASE_CHANGELOG.md
+          echo "#### Binary Downloads" >> RELEASE_CHANGELOG.md
+          echo "- **Windows**: \`magray-x86_64-pc-windows-msvc.exe\`" >> RELEASE_CHANGELOG.md
+          echo "- **Linux x86_64**: \`magray-x86_64-unknown-linux-gnu\`" >> RELEASE_CHANGELOG.md  
+          echo "- **Linux ARM64**: \`magray-aarch64-unknown-linux-gnu\`" >> RELEASE_CHANGELOG.md
+          echo "- **macOS Intel**: \`magray-x86_64-apple-darwin\`" >> RELEASE_CHANGELOG.md
+          echo "- **macOS Apple Silicon**: \`magray-aarch64-apple-darwin\`" >> RELEASE_CHANGELOG.md
+          echo "" >> RELEASE_CHANGELOG.md
+          
+          echo "#### Docker Images" >> RELEASE_CHANGELOG.md
+          echo "- **CPU-only**: \`docker pull magray/magray-cli:cpu-${{ steps.version.outputs.version }}\`" >> RELEASE_CHANGELOG.md
+          echo "- **GPU-enabled**: \`docker pull magray/magray-cli:gpu-${{ steps.version.outputs.version }}\`" >> RELEASE_CHANGELOG.md  
+          echo "- **Minimal**: \`docker pull magray/magray-cli:minimal-${{ steps.version.outputs.version }}\`" >> RELEASE_CHANGELOG.md
+          echo "" >> RELEASE_CHANGELOG.md
+          
+          # Checksum information
+          echo "### 🔐 Verification" >> RELEASE_CHANGELOG.md
+          echo "SHA256 checksums are provided for all binary downloads." >> RELEASE_CHANGELOG.md
+          echo "Verify your download: \`sha256sum -c magray-${{ steps.version.outputs.version }}-checksums.txt\`" >> RELEASE_CHANGELOG.md
+          echo "" >> RELEASE_CHANGELOG.md
+          
+          # Set output для использования в других jobs
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          cat RELEASE_CHANGELOG.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 📤 Upload Changelog Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-changelog
+          path: RELEASE_CHANGELOG.md
+
+  # =========================================
+  # BUILD ALL RELEASE BINARIES
+  # =========================================
+  build-release-binaries:
+    name: 🏗️ Build Release Binaries
+    needs: prepare-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            features: "cpu"
+            binary-suffix: ".exe"
+            archive-format: "zip"
+          
+          # Linux
+          - os: ubuntu-latest  
+            target: x86_64-unknown-linux-gnu
+            features: "cpu,gpu"
+            binary-suffix: ""
+            archive-format: "tar.gz"
+          
+          # Linux ARM64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            features: "cpu"
+            binary-suffix: ""
+            archive-format: "tar.gz"
+            cross: true
+          
+          # macOS Intel
+          - os: macos-latest
+            target: x86_64-apple-darwin  
+            features: "cpu"
+            binary-suffix: ""
+            archive-format: "tar.gz"
+          
+          # macOS Apple Silicon
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            features: "cpu"
+            binary-suffix: ""
+            archive-format: "tar.gz"
+            cross: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: 📦 Cache Dependencies  
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: release-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 🔄 Install Cross (ARM64)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      # ONNX Runtime setup (повторяется из основного workflow)
+      - name: 📥 Setup ONNX Runtime (Linux)
+        if: matrix.os == 'ubuntu-latest' && !matrix.cross
+        run: |
+          sudo mkdir -p /opt/onnxruntime
+          if [[ "${{ matrix.features }}" == *"gpu"* ]]; then
+            wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-x64-gpu-1.16.3.tgz
+            tar xzf onnxruntime-linux-x64-gpu-1.16.3.tgz
+            sudo cp -r onnxruntime-linux-x64-gpu-1.16.3/* /opt/onnxruntime/
+          else
+            wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-x64-1.16.3.tgz
+            tar xzf onnxruntime-linux-x64-1.16.3.tgz  
+            sudo cp -r onnxruntime-linux-x64-1.16.3/* /opt/onnxruntime/
+          fi
+          echo "ORT_LIB_LOCATION=/opt/onnxruntime/lib" >> $GITHUB_ENV
+
+      - name: 📥 Setup ONNX Runtime (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p /usr/local/onnxruntime
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-osx-x86_64-1.16.3.tgz
+          tar xzf onnxruntime-osx-x86_64-1.16.3.tgz
+          cp -r onnxruntime-osx-x86_64-1.16.3/* /usr/local/onnxruntime/
+          echo "ORT_LIB_LOCATION=/usr/local/onnxruntime/lib" >> $GITHUB_ENV
+
+      - name: 📥 Setup ONNX Runtime (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-win-x64-1.16.3.zip"
+          Invoke-WebRequest -Uri $url -OutFile "onnxruntime.zip"
+          Expand-Archive -Path "onnxruntime.zip" -DestinationPath "C:\onnxruntime"
+          Move-Item "C:\onnxruntime\onnxruntime-win-x64-1.16.3\*" "C:\onnxruntime\"
+          echo "ORT_LIB_LOCATION=C:\onnxruntime\lib" >> $env:GITHUB_ENV
+          echo "PATH=$env:PATH;C:\onnxruntime\lib" >> $env:GITHUB_ENV
+
+      - name: 🏗️ Build Release Binary
+        run: |
+          if [[ "${{ matrix.cross }}" == "true" ]]; then
+            cross build --release --target ${{ matrix.target }} --features ${{ matrix.features }} --bin magray
+          else
+            cargo build --release --target ${{ matrix.target }} --features ${{ matrix.features }} --bin magray
+          fi
+
+      - name: ✂️ Strip Binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          binary_path="target/${{ matrix.target }}/release/magray${{ matrix.binary-suffix }}"
+          if [[ -f "$binary_path" ]]; then
+            if [[ "${{ matrix.cross }}" == "true" && "${{ matrix.target }}" == *"linux"* ]]; then
+              aarch64-linux-gnu-strip "$binary_path" || true
+            else
+              strip "$binary_path" || true
+            fi
+            ls -lah "$binary_path"
+          fi
+
+      - name: 📦 Package Binary
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          BINARY_NAME="magray-${{ matrix.target }}"
+          ARCHIVE_NAME="magray-$VERSION-${{ matrix.target }}"
+          
+          mkdir -p release-assets
+          
+          if [[ "${{ matrix.archive-format }}" == "zip" ]]; then
+            # Windows ZIP archive
+            cp "target/${{ matrix.target }}/release/magray${{ matrix.binary-suffix }}" "$BINARY_NAME${{ matrix.binary-suffix }}"
+            zip "$ARCHIVE_NAME.zip" "$BINARY_NAME${{ matrix.binary-suffix }}"
+            mv "$ARCHIVE_NAME.zip" release-assets/
+          else
+            # Unix tar.gz archive
+            cp "target/${{ matrix.target }}/release/magray${{ matrix.binary-suffix }}" "$BINARY_NAME${{ matrix.binary-suffix }}"
+            tar -czf "$ARCHIVE_NAME.tar.gz" "$BINARY_NAME${{ matrix.binary-suffix }}"
+            mv "$ARCHIVE_NAME.tar.gz" release-assets/
+            
+            # Также создаем standalone binary
+            cp "$BINARY_NAME${{ matrix.binary-suffix }}" "release-assets/"
+          fi
+
+      - name: 🔐 Generate Checksums
+        run: |
+          cd release-assets
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            Get-FileHash -Algorithm SHA256 * | ForEach-Object { "$($_.Hash.ToLower()) *$($_.Path | Split-Path -Leaf)" } > checksums.txt
+          else
+            sha256sum * > checksums.txt
+          fi
+          cat checksums.txt
+
+      - name: 📤 Upload Release Assets
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-assets-${{ matrix.target }}
+          path: release-assets/*
+
+  # =========================================
+  # CREATE GITHUB RELEASE
+  # =========================================
+  create-github-release:
+    name: 📋 Create GitHub Release
+    needs: [prepare-release, build-release-binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 📥 Download All Release Assets
+        uses: actions/download-artifact@v3
+        with:
+          pattern: 'release-assets-*'
+          path: all-release-assets/
+
+      - name: 📥 Download Changelog
+        uses: actions/download-artifact@v3
+        with:
+          name: release-changelog
+
+      - name: 📦 Organize Release Assets
+        run: |
+          mkdir -p final-release-assets
+          
+          # Объединяем все assets
+          find all-release-assets -type f -name "*" -exec cp {} final-release-assets/ \;
+          
+          # Создаем общий checksum файл
+          cd final-release-assets
+          sha256sum magray-* > magray-${{ needs.prepare-release.outputs.version }}-checksums.txt
+          
+          ls -lah
+          echo "=== CHECKSUMS ==="
+          cat magray-${{ needs.prepare-release.outputs.version }}-checksums.txt
+
+      - name: 🚀 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag }}
+          name: MAGRAY CLI ${{ needs.prepare-release.outputs.version }}
+          body_path: RELEASE_CHANGELOG.md
+          files: final-release-assets/*
+          draft: ${{ github.event.inputs.draft == 'true' }}
+          prerelease: ${{ needs.prepare-release.outputs.is-prerelease == 'true' }}
+          generate_release_notes: false  # Используем свой changelog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =========================================
+  # DOCKER RELEASE IMAGES
+  # =========================================  
+  docker-release:
+    name: 🐳 Docker Release Images
+    needs: [prepare-release, build-release-binaries]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.draft != 'true'
+    strategy:
+      matrix:
+        variant: [cpu, gpu, minimal]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: 🔑 Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 📥 Download Release Binaries
+        uses: actions/download-artifact@v3
+        with:
+          pattern: 'release-assets-*linux*'
+          path: release-binaries/
+
+      - name: 📦 Prepare Docker Context
+        run: |
+          mkdir -p docker-context/binaries/x86_64 docker-context/binaries/aarch64
+          
+          # Копируем Linux binaries для multi-arch build
+          find release-binaries -name "*x86_64-unknown-linux-gnu*" -type f -exec cp {} docker-context/binaries/x86_64/ \;
+          find release-binaries -name "*aarch64-unknown-linux-gnu*" -type f -exec cp {} docker-context/binaries/aarch64/ \;
+          
+          ls -la docker-context/binaries/
+
+      - name: 🏗️ Build and Push Docker Images
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./scripts/docker/Dockerfile.${{ matrix.variant }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            magray/magray-cli:${{ matrix.variant }}-${{ needs.prepare-release.outputs.version }}
+            magray/magray-cli:${{ matrix.variant }}-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.title=MAGRAY CLI (${{ matrix.variant }})
+            org.opencontainers.image.description=AI-powered Rust CLI assistant
+            org.opencontainers.image.version=${{ needs.prepare-release.outputs.version }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  # =========================================
+  # POST-RELEASE NOTIFICATIONS
+  # =========================================
+  notify-release:
+    name: 📢 Release Notifications  
+    needs: [prepare-release, create-github-release, docker-release]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: 📊 Release Status Summary
+        run: |
+          echo "## 🚀 MAGRAY CLI Release Summary" > release-summary.md
+          echo "" >> release-summary.md
+          echo "**Version**: ${{ needs.prepare-release.outputs.version }}" >> release-summary.md
+          echo "**Tag**: ${{ needs.prepare-release.outputs.tag }}" >> release-summary.md
+          echo "**Pre-release**: ${{ needs.prepare-release.outputs.is-prerelease }}" >> release-summary.md
+          echo "" >> release-summary.md
+          echo "### Release Status:" >> release-summary.md
+          echo "- **GitHub Release**: ${{ needs.create-github-release.result }}" >> release-summary.md  
+          echo "- **Docker Images**: ${{ needs.docker-release.result }}" >> release-summary.md
+          echo "" >> release-summary.md
+          
+          if [[ "${{ needs.create-github-release.result }}" == "success" ]]; then
+            echo "✅ **SUCCESS**: Release ${{ needs.prepare-release.outputs.version }} published successfully!" >> release-summary.md
+            echo "" >> release-summary.md
+            echo "🔗 **Release URL**: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare-release.outputs.tag }}" >> release-summary.md
+          else
+            echo "❌ **FAILED**: Release process encountered issues" >> release-summary.md
+          fi
+
+      # В production здесь были бы:
+      # - Slack notifications to #releases channel
+      # - Email notifications to stakeholders
+      # - Discord webhook to community
+      # - Twitter announcement (для major releases)
+      # - Documentation site update trigger
+      - name: 🔔 Mock Release Notification
+        run: |
+          echo "=== RELEASE NOTIFICATION ==="
+          cat release-summary.md
+          echo "=========================="
+          
+          if [[ "${{ needs.create-github-release.result }}" == "success" ]]; then
+            echo "🎉 Would send success notification:"
+            echo "- Slack #releases channel"
+            echo "- Email to stakeholders"  
+            echo "- Community Discord announcement"
+            echo "- Update documentation site"
+          else
+            echo "❌ Would send failure alert:"
+            echo "- PagerDuty alert to release team"
+            echo "- Slack #alerts channel"
+          fi

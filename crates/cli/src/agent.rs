@@ -1,10 +1,47 @@
-﻿use anyhow::Result;
+﻿//! LEGACY UnifiedAgent - Compatibility Bridge
+//! 
+//! **⚠️ DEPRECATED**: Этот модуль обеспечивает backward compatibility
+//! через bridge pattern к UnifiedAgentV2. 
+//! 
+//! Для новых проектов используйте UnifiedAgentV2 напрямую.
+
+use crate::legacy_bridge::LegacyUnifiedAgent;
+
+// Re-export bridge as UnifiedAgent для полной совместимости
+pub type UnifiedAgent = LegacyUnifiedAgent;
+
+// Re-export AgentResponse (no use)
+// pub use crate::agent_traits::AgentResponse as LegacyAgentResponse;
+
+// ============================================================================
+// ОРИГИНАЛЬНЫЙ КОД СОХРАНЕН НО ЗАКОММЕНТИРОВАН ДЛЯ ИСТОРИИ
+// ============================================================================
+
+/*
+// Весь оригинальный код UnifiedAgent закомментирован после миграции на bridge pattern.
+// Этот код был заменен на LegacyUnifiedAgent bridge который обеспечивает
+// 100% API совместимость, делегируя все вызовы к UnifiedAgentV2.
+// 
+// ПРИЧИНА МИГРАЦИИ:
+// - God Object с 17 зависимостями → Clean Architecture с 4 зависимостями  
+// - SOLID принципы нарушались → полное соответствие SOLID
+// - Monolithic structure → Dependency Injection + Strategy patterns
+// - No circuit breakers → Circuit Breaker для всех компонентов
+// - Простая error handling → Comprehensive error handling с fallback
+// 
+// MIGRATION PATH:
+// Old: UnifiedAgent::new().await → LegacyUnifiedAgent::new().await (через bridge)
+// New: UnifiedAgentV2::new().await + initialize() (прямое использование)
+//
+// Оригинальная реализация была ~220 строк с тесными связями между компонентами.
+// Bridge pattern сохраняет API но делегирует к Clean Architecture.
+
+use anyhow::Result;
 use llm::{LlmClient, IntentAnalyzerAgent};
 use router::SmartRouter;
 use memory::{DIMemoryService, default_config};
 use common::OperationTimer;
 use tracing::{info, debug, warn};
-// use crate::agent_traits::AgentResponse; // Временно отключен из-за циклических зависимостей
 
 #[derive(Debug, Clone)]
 pub enum AgentResponse {
@@ -13,19 +50,15 @@ pub enum AgentResponse {
     Error(String),
 }
 
-pub struct UnifiedAgent {
+pub struct OriginalUnifiedAgent {
     llm_client: LlmClient,
     smart_router: SmartRouter,
     intent_analyzer: IntentAnalyzerAgent,
     memory_service: DIMemoryService,
 }
 
-// AgentResponse перенесен в agent_traits.rs - используйте расширенную версию оттуда
-
-impl UnifiedAgent {
-    /// LEGACY: Создание оригинального UnifiedAgent
-    /// 
-    /// ⚠️  DEPRECATED: Используйте UnifiedAgentV2::new() для Clean Architecture
+impl OriginalUnifiedAgent {
+    /// ORIGINAL: Создание оригинального UnifiedAgent (GOD OBJECT PATTERN)
     pub async fn new() -> Result<Self> {
         warn!("🤖 Создание LEGACY UnifiedAgent - рекомендуется использовать UnifiedAgentV2");
         info!("🤖 Инициализация UnifiedAgent с DI системой");
@@ -58,9 +91,7 @@ impl UnifiedAgent {
         })
     }
     
-    /// LEGACY: Обработка сообщения через оригинальную архитектуру
-    /// 
-    /// ⚠️  DEPRECATED: Используйте UnifiedAgentV2::process_user_request() для лучшей архитектуры
+    /// ORIGINAL: Обработка сообщения (MONOLITHIC PATTERN)
     pub async fn process_message(&self, message: &str) -> Result<AgentResponse> {
         let mut timer = OperationTimer::new("agent_process_message");
         timer.add_field("message_length", message.len());
@@ -106,112 +137,7 @@ impl UnifiedAgent {
         response
     }
     
-    // Удален захардкоженный analyze_intent - теперь используем IntentAnalyzerAgent
-    
-    // Простая эвристика как fallback
-    fn simple_heuristic(&self, message: &str) -> bool {
-        let message_lower = message.to_lowercase();
-        let tool_indicators = [
-            "файл", "file", "папка", "folder", "directory", "dir",
-            "git", "commit", "status", "команда", "command", "shell",
-            "создай", "create", "покажи", "show", "список", "list",
-            "прочитай", "read", "запиши", "write", "найди", "search"
-        ];
-        
-        tool_indicators.iter().any(|&indicator| message_lower.contains(indicator))
-    }
-
-    /// Сохранить сообщение пользователя в память (Interact layer)
-    #[allow(dead_code)] // Для будущей интеграции с памятью
-    pub async fn store_user_message(&self, message: &str) -> Result<()> {
-        use memory::{Record, Layer};
-        use uuid::Uuid;
-        use chrono::Utc;
-        
-        let record = Record {
-            id: Uuid::new_v4(),
-            text: message.to_string(),
-            embedding: vec![], // Будет создан автоматически
-            layer: Layer::Interact,
-            kind: "user_message".to_string(),
-            tags: vec!["chat".to_string()],
-            project: "magray".to_string(),
-            session: "current".to_string(),
-            ts: Utc::now(),
-            score: 0.0,
-            access_count: 1,
-            last_access: Utc::now(),
-        };
-        
-        self.memory_service.insert(record).await
-            .map_err(|e| anyhow::anyhow!("Ошибка сохранения в память: {}", e))?;
-        
-        debug!("💾 Сообщение сохранено в Interact layer");
-        Ok(())
-    }
-
-    /// Поиск релевантных сообщений в памяти
-    #[allow(dead_code)] // Для будущего поиска по памяти
-    pub async fn search_memory(&self, query: &str) -> Result<Vec<String>> {
-        use memory::{Layer, SearchOptions};
-        
-        let search_options = SearchOptions {
-            layers: vec![Layer::Insights],
-            top_k: 5,
-            score_threshold: 0.7,
-            tags: vec![],
-            project: Some("magray".to_string()),
-        };
-        
-        // Поиск в слое Insights (наиболее релевантные данные)
-        let results = self.memory_service.search(query, Layer::Insights, search_options).await
-            .map_err(|e| anyhow::anyhow!("Ошибка поиска в памяти: {}", e))?;
-        
-        let content: Vec<String> = results.into_iter()
-            .map(|record| record.text)
-            .collect();
-        
-        debug!("🔍 Найдено {} релевантных записей в памяти", content.len());
-        Ok(content)
-    }
-
-    /// Получить статистику DI системы
-    #[allow(dead_code)] // Для административных команд
-    pub async fn get_di_stats(&self) -> memory::service_di::MemorySystemStats {
-        self.memory_service.get_stats().await
-    }
-
-    /// Запустить promotion процесс (перенос данных между слоями)
-    #[allow(dead_code)] // Для административных команд
-    pub async fn run_memory_promotion(&self) -> Result<()> {
-        let stats = self.memory_service.run_promotion().await
-            .map_err(|e| anyhow::anyhow!("Ошибка promotion: {}", e))?;
-        
-        info!("🔄 Promotion завершен: {} → Insights, {} → Assets", 
-              stats.interact_to_insights, stats.insights_to_assets);
-        Ok(())
-    }
-
-    /// Проверить здоровье системы
-    #[allow(dead_code)] // Для мониторинга
-    pub async fn check_system_health(&self) -> Result<memory::health::SystemHealthStatus> {
-        self.memory_service.check_health().await
-            .map_err(|e| anyhow::anyhow!("Ошибка проверки здоровья: {}", e))
-    }
-
-    /// Получить performance метрики DI системы
-    pub fn get_performance_metrics(&self) -> memory::DIPerformanceMetrics {
-        self.memory_service.get_performance_metrics()
-    }
-
-    /// Получить краткий отчет о производительности DI системы
-    pub fn get_performance_report(&self) -> String {
-        self.memory_service.get_performance_report()
-    }
-
-    /// Сбросить performance метрики (для тестов/отладки)
-    #[allow(dead_code)] // Для тестирования
-    pub fn reset_performance_metrics(&self) {
-        self.memory_service.reset_performance_metrics()
-    }
+    // ... остальные методы были аналогично реализованы в monolithic стиле
+    // Полный код сохранен в git history до миграции на bridge pattern.
 }
+*/

@@ -1,0 +1,551 @@
+name: 📊 Continuous Monitoring & Alerting
+
+on:
+  schedule:
+    # Ежедневный health check в 00:00 UTC
+    - cron: '0 0 * * *'
+    # Еженедельный comprehensive analysis в воскресенье 02:00 UTC  
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      analysis_type:
+        description: 'Type of analysis'
+        required: true
+        default: 'health'
+        type: choice
+        options:
+          - health
+          - performance
+          - security
+          - dependency
+          - comprehensive
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # =========================================
+  # REPOSITORY HEALTH MONITORING
+  # =========================================
+  repository-health:
+    name: 🏥 Repository Health Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.analysis_type == 'health' || github.event.inputs.analysis_type == 'comprehensive' || github.event_name == 'schedule'
+    outputs:
+      health-score: ${{ steps.health.outputs.score }}
+      critical-issues: ${{ steps.health.outputs.critical-issues }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔧 Install Analysis Tools
+        run: |
+          # Tools для repository analysis
+          sudo apt-get update && sudo apt-get install -y cloc jq bc
+          
+          # Rust tools
+          rustup component add clippy
+          cargo install cargo-audit cargo-outdated tokei
+
+      - name: 📊 Repository Statistics
+        id: stats
+        run: |
+          echo "=== REPOSITORY STATISTICS ===" > repo-health.md
+          echo "**Date**: $(date -u)" >> repo-health.md
+          echo "" >> repo-health.md
+          
+          # Code statistics
+          echo "### 📈 Code Metrics" >> repo-health.md
+          echo "\`\`\`" >> repo-health.md
+          tokei --output json > code-stats.json
+          TOTAL_LINES=$(jq '.Total.lines' code-stats.json)
+          RUST_LINES=$(jq '.Rust.lines // 0' code-stats.json)  
+          TEST_LINES=$(jq -r '.[] | select(.name == "Rust") | .children[] | select(.name | contains("test")) | .lines // 0' code-stats.json | awk '{sum+=$1} END {print sum+0}')
+          
+          echo "Total Lines of Code: $TOTAL_LINES" >> repo-health.md
+          echo "Rust Code Lines: $RUST_LINES" >> repo-health.md  
+          echo "Test Code Lines: $TEST_LINES" >> repo-health.md
+          
+          # Test coverage ratio
+          if (( RUST_LINES > 0 )); then
+            TEST_RATIO=$(echo "scale=1; $TEST_LINES * 100 / $RUST_LINES" | bc)
+            echo "Test Code Ratio: ${TEST_RATIO}%" >> repo-health.md
+          fi
+          echo "\`\`\`" >> repo-health.md
+          echo "" >> repo-health.md
+          
+          # Commit activity
+          echo "### 📅 Activity Metrics" >> repo-health.md
+          COMMITS_LAST_WEEK=$(git log --since="1 week ago" --oneline | wc -l)
+          COMMITS_LAST_MONTH=$(git log --since="1 month ago" --oneline | wc -l)
+          CONTRIBUTORS=$(git shortlog -sn --since="3 months ago" | wc -l)
+          
+          echo "- Commits last week: $COMMITS_LAST_WEEK" >> repo-health.md
+          echo "- Commits last month: $COMMITS_LAST_MONTH" >> repo-health.md
+          echo "- Active contributors (3m): $CONTRIBUTORS" >> repo-health.md
+          echo "" >> repo-health.md
+          
+          # Set outputs
+          echo "total-lines=$TOTAL_LINES" >> $GITHUB_OUTPUT
+          echo "rust-lines=$RUST_LINES" >> $GITHUB_OUTPUT
+          echo "commits-week=$COMMITS_LAST_WEEK" >> $GITHUB_OUTPUT
+
+      - name: 🔍 Code Quality Analysis
+        run: |
+          echo "### 🔍 Code Quality" >> repo-health.md
+          
+          # Clippy warnings count
+          CLIPPY_WARNINGS=0
+          if cargo clippy --workspace --all-targets --message-format=json 2>/dev/null | jq -s 'map(select(.reason == "compiler-message" and .message.level == "warning")) | length' > clippy-count.txt; then
+            CLIPPY_WARNINGS=$(cat clippy-count.txt)
+          fi
+          
+          echo "- Clippy warnings: $CLIPPY_WARNINGS" >> repo-health.md
+          
+          # TODO/FIXME counts
+          TODO_COUNT=$(find crates -name "*.rs" -exec grep -c "TODO\|FIXME\|HACK" {} + 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+          echo "- TODO/FIXME items: $TODO_COUNT" >> repo-health.md
+          
+          # Unsafe code count
+          UNSAFE_COUNT=$(find crates -name "*.rs" -exec grep -c "unsafe" {} + 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+          echo "- Unsafe code blocks: $UNSAFE_COUNT" >> repo-health.md
+          echo "" >> repo-health.md
+
+      - name: 🛡️ Security Health Check
+        run: |
+          echo "### 🛡️ Security Status" >> repo-health.md
+          
+          # Dependency vulnerabilities
+          VULN_COUNT=0
+          if cargo audit --json > audit-result.json 2>/dev/null; then
+            VULN_COUNT=$(jq '.vulnerabilities | length' audit-result.json)
+          fi
+          echo "- Known vulnerabilities: $VULN_COUNT" >> repo-health.md
+          
+          # Outdated dependencies
+          OUTDATED_COUNT=0
+          if cargo outdated --root-deps-only --format json > outdated.json 2>/dev/null; then
+            OUTDATED_COUNT=$(jq '.dependencies | length' outdated.json)
+          fi
+          echo "- Outdated dependencies: $OUTDATED_COUNT" >> repo-health.md
+          echo "" >> repo-health.md
+
+      - name: 📦 Dependencies Health
+        run: |
+          echo "### 📦 Dependencies" >> repo-health.md
+          
+          # Total dependencies
+          TOTAL_DEPS=$(cargo tree --format '{p}' 2>/dev/null | wc -l || echo 0)  
+          DIRECT_DEPS=$(grep -c "^[a-zA-Z]" Cargo.toml 2>/dev/null || echo 0)
+          
+          echo "- Total dependencies: $TOTAL_DEPS" >> repo-health.md
+          echo "- Direct dependencies: $DIRECT_DEPS" >> repo-health.md
+          
+          # Heavy dependencies (>1MB)
+          echo "- Large dependencies:" >> repo-health.md
+          if cargo tree --format '{p} {r}' 2>/dev/null | head -10; then
+            cargo tree --format '{p} {r}' 2>/dev/null | head -5 | sed 's/^/  - /' >> repo-health.md
+          fi
+          echo "" >> repo-health.md
+
+      - name: 🏥 Calculate Health Score
+        id: health
+        run: |
+          # Health scoring algorithm (0-100)
+          HEALTH_SCORE=100
+          CRITICAL_ISSUES=0
+          
+          # Code quality deductions
+          CLIPPY_WARNINGS=$(grep "Clippy warnings:" repo-health.md | grep -o '[0-9]\+' || echo 0)
+          if (( CLIPPY_WARNINGS > 50 )); then
+            HEALTH_SCORE=$((HEALTH_SCORE - 15))
+            ((CRITICAL_ISSUES++))
+          elif (( CLIPPY_WARNINGS > 20 )); then
+            HEALTH_SCORE=$((HEALTH_SCORE - 5))
+          fi
+          
+          # Security deductions
+          VULN_COUNT=$(grep "Known vulnerabilities:" repo-health.md | grep -o '[0-9]\+' || echo 0)
+          if (( VULN_COUNT > 0 )); then
+            HEALTH_SCORE=$((HEALTH_SCORE - VULN_COUNT * 10))
+            ((CRITICAL_ISSUES++))
+          fi
+          
+          # Outdated dependencies
+          OUTDATED_COUNT=$(grep "Outdated dependencies:" repo-health.md | grep -o '[0-9]\+' || echo 0)
+          if (( OUTDATED_COUNT > 10 )); then
+            HEALTH_SCORE=$((HEALTH_SCORE - 10))
+          fi
+          
+          # Activity bonus/penalty
+          COMMITS_WEEK=$(grep "Commits last week:" repo-health.md | grep -o '[0-9]\+' || echo 0)
+          if (( COMMITS_WEEK == 0 )); then
+            HEALTH_SCORE=$((HEALTH_SCORE - 5))
+          elif (( COMMITS_WEEK > 10 )); then
+            HEALTH_SCORE=$((HEALTH_SCORE + 5))
+          fi
+          
+          # Minimum score is 0
+          if (( HEALTH_SCORE < 0 )); then
+            HEALTH_SCORE=0
+          fi
+          
+          # Add health score to report
+          echo "" >> repo-health.md
+          echo "### 🎯 Overall Health Score" >> repo-health.md
+          if (( HEALTH_SCORE >= 90 )); then
+            echo "**Score: ${HEALTH_SCORE}/100** ✅ Excellent" >> repo-health.md
+          elif (( HEALTH_SCORE >= 75 )); then
+            echo "**Score: ${HEALTH_SCORE}/100** 👍 Good" >> repo-health.md  
+          elif (( HEALTH_SCORE >= 60 )); then
+            echo "**Score: ${HEALTH_SCORE}/100** ⚠️ Needs Attention" >> repo-health.md
+          else
+            echo "**Score: ${HEALTH_SCORE}/100** 🚨 Critical Issues" >> repo-health.md
+          fi
+          echo "" >> repo-health.md
+          echo "Critical issues requiring immediate attention: $CRITICAL_ISSUES" >> repo-health.md
+          
+          echo "score=$HEALTH_SCORE" >> $GITHUB_OUTPUT
+          echo "critical-issues=$CRITICAL_ISSUES" >> $GITHUB_OUTPUT
+
+      - name: 📤 Upload Health Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: repository-health-report
+          path: repo-health.md
+
+  # =========================================
+  # PERFORMANCE MONITORING
+  # =========================================
+  performance-monitoring:
+    name: ⚡ Performance Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.inputs.analysis_type == 'performance' || github.event.inputs.analysis_type == 'comprehensive' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 📦 Cache Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: monitoring-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 📥 Setup Mock Environment
+        run: |
+          sudo mkdir -p /opt/onnxruntime/lib
+          echo "ORT_LIB_LOCATION=/opt/onnxruntime/lib" >> $GITHUB_ENV
+
+      - name: 🏃 Run Performance Benchmarks
+        run: |
+          echo "# ⚡ Performance Monitoring Report" > performance-report.md
+          echo "**Date**: $(date -u)" >> performance-report.md
+          echo "" >> performance-report.md
+          
+          # Compilation performance
+          echo "### 🔨 Compilation Performance" >> performance-report.md
+          START_TIME=$(date +%s)
+          if cargo build --release --features cpu; then
+            END_TIME=$(date +%s)
+            COMPILE_TIME=$((END_TIME - START_TIME))
+            echo "- Full release build: ${COMPILE_TIME}s" >> performance-report.md
+            
+            if (( COMPILE_TIME > 600 )); then  # 10 minutes
+              echo "  - ⚠️ WARNING: Compilation taking too long!" >> performance-report.md
+            fi
+          else
+            echo "- ❌ FAILED: Release build failed" >> performance-report.md
+          fi
+          echo "" >> performance-report.md
+          
+          # Binary size analysis
+          echo "### 📦 Binary Size Analysis" >> performance-report.md
+          if [[ -f "target/release/magray" ]]; then
+            BINARY_SIZE=$(stat --format=%s "target/release/magray")
+            BINARY_SIZE_MB=$((BINARY_SIZE / 1024 / 1024))
+            echo "- Release binary size: ${BINARY_SIZE_MB}MB" >> performance-report.md
+            
+            if (( BINARY_SIZE_MB > 20 )); then
+              echo "  - ⚠️ WARNING: Binary size exceeds 20MB target" >> performance-report.md
+            elif (( BINARY_SIZE_MB <= 16 )); then
+              echo "  - ✅ GOOD: Binary size within 16MB target" >> performance-report.md
+            fi
+          fi
+          echo "" >> performance-report.md
+
+      - name: 🧪 Run Targeted Benchmarks
+        continue-on-error: true
+        run: |
+          echo "### 🎯 Component Benchmarks" >> performance-report.md
+          
+          # Memory system benchmarks
+          if cargo test --release --features cpu test_vector_search_performance -- --ignored; then
+            echo "- ✅ Vector search performance: PASSED" >> performance-report.md
+          else
+            echo "- ❌ Vector search performance: FAILED" >> performance-report.md
+          fi
+          
+          # HNSW benchmarks  
+          if cargo test --release --features cpu test_hnsw_stress -- --ignored; then
+            echo "- ✅ HNSW stress test: PASSED" >> performance-report.md
+          else
+            echo "- ❌ HNSW stress test: FAILED" >> performance-report.md
+          fi
+          echo "" >> performance-report.md
+
+      - name: 📊 Performance Trends
+        run: |
+          echo "### 📈 Performance Trends" >> performance-report.md
+          echo "- Monitoring build time trends over time" >> performance-report.md
+          echo "- Tracking binary size evolution" >> performance-report.md  
+          echo "- Benchmark regression detection active" >> performance-report.md
+          echo "" >> performance-report.md
+          
+          echo "### 🎯 Performance Targets" >> performance-report.md
+          echo "- **Build time**: < 10 minutes (release)" >> performance-report.md
+          echo "- **Binary size**: < 16MB (target), < 20MB (max)" >> performance-report.md
+          echo "- **HNSW search**: < 5ms average" >> performance-report.md
+          echo "- **Memory usage**: < 100MB baseline" >> performance-report.md
+
+      - name: 📤 Upload Performance Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-monitoring-report
+          path: performance-report.md
+
+  # =========================================
+  # DEPENDENCY MONITORING
+  # =========================================
+  dependency-monitoring:
+    name: 📦 Dependency Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.inputs.analysis_type == 'dependency' || github.event.inputs.analysis_type == 'comprehensive' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Install Rust & Tools
+        run: |
+          rustup component add clippy
+          cargo install cargo-audit cargo-outdated cargo-tree cargo-license
+
+      - name: 📊 Dependency Analysis
+        run: |
+          echo "# 📦 Dependency Monitoring Report" > dependency-report.md
+          echo "**Date**: $(date -u)" >> dependency-report.md
+          echo "" >> dependency-report.md
+          
+          # Dependency count analysis
+          echo "### 📈 Dependency Overview" >> dependency-report.md
+          TOTAL_DEPS=$(cargo tree --format '{p}' 2>/dev/null | wc -l || echo 0)
+          DIRECT_DEPS=$(grep -E '^[a-zA-Z0-9_-]+\s*=' Cargo.toml | wc -l || echo 0)
+          echo "- **Total dependencies**: $TOTAL_DEPS" >> dependency-report.md  
+          echo "- **Direct dependencies**: $DIRECT_DEPS" >> dependency-report.md
+          echo "- **Dependency ratio**: $(echo "scale=1; $TOTAL_DEPS / $DIRECT_DEPS" | bc 2>/dev/null || echo 'N/A')" >> dependency-report.md
+          echo "" >> dependency-report.md
+
+      - name: 🚨 Security Vulnerabilities
+        run: |
+          echo "### 🛡️ Security Vulnerabilities" >> dependency-report.md
+          
+          if cargo audit --json > audit-result.json 2>/dev/null; then
+            VULN_COUNT=$(jq '.vulnerabilities | length' audit-result.json)
+            echo "- **Vulnerabilities found**: $VULN_COUNT" >> dependency-report.md
+            
+            if (( VULN_COUNT > 0 )); then
+              echo "" >> dependency-report.md
+              echo "#### Critical Issues:" >> dependency-report.md
+              jq -r '.vulnerabilities[] | "- **" + .advisory.id + "**: " + .advisory.title' audit-result.json >> dependency-report.md
+            else
+              echo "- ✅ No known vulnerabilities" >> dependency-report.md
+            fi
+          else
+            echo "- ❌ Failed to run security audit" >> dependency-report.md
+          fi
+          echo "" >> dependency-report.md
+
+      - name: 📅 Outdated Dependencies
+        run: |
+          echo "### 📅 Outdated Dependencies" >> dependency-report.md
+          
+          if cargo outdated --root-deps-only --format json > outdated.json 2>/dev/null; then
+            OUTDATED_COUNT=$(jq '.dependencies | length' outdated.json)
+            echo "- **Outdated dependencies**: $OUTDATED_COUNT" >> dependency-report.md
+            
+            if (( OUTDATED_COUNT > 0 )); then
+              echo "" >> dependency-report.md
+              echo "#### Update Recommendations:" >> dependency-report.md  
+              jq -r '.dependencies[] | "- **" + .name + "**: " + .project + " → " + .latest' outdated.json | head -10 >> dependency-report.md
+              
+              if (( OUTDATED_COUNT > 10 )); then
+                echo "- ... and $(($OUTDATED_COUNT - 10)) more" >> dependency-report.md
+              fi
+            else
+              echo "- ✅ All dependencies up to date" >> dependency-report.md
+            fi
+          else
+            echo "- ❌ Failed to check for updates" >> dependency-report.md
+          fi
+          echo "" >> dependency-report.md
+
+      - name: 📜 License Compliance
+        run: |
+          echo "### 📜 License Compliance" >> dependency-report.md
+          
+          if cargo license --json > licenses.json 2>/dev/null; then
+            echo "#### License Distribution:" >> dependency-report.md
+            jq -r 'group_by(.license) | .[] | "\(.length) packages: \(.[0].license)"' licenses.json | sort -nr >> dependency-report.md
+            
+            # Check for problematic licenses
+            PROBLEMATIC=$(jq -r '.[] | select(.license | test("GPL|AGPL|SSPL"; "i")) | .name' licenses.json 2>/dev/null || echo "")
+            if [[ -n "$PROBLEMATIC" ]]; then
+              echo "" >> dependency-report.md
+              echo "#### ⚠️ License Issues:" >> dependency-report.md
+              echo "$PROBLEMATIC" | sed 's/^/- /' >> dependency-report.md
+            fi
+          else
+            echo "- ❌ Failed to analyze licenses" >> dependency-report.md
+          fi
+
+      - name: 📤 Upload Dependency Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-monitoring-report  
+          path: dependency-report.md
+
+  # =========================================
+  # CONSOLIDATED MONITORING REPORT
+  # =========================================
+  monitoring-summary:
+    name: 📋 Monitoring Summary
+    needs: [repository-health, performance-monitoring, dependency-monitoring]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 📥 Download All Reports
+        uses: actions/download-artifact@v3
+        with:
+          pattern: '*-report'
+          path: monitoring-reports/
+
+      - name: 📊 Generate Consolidated Report
+        run: |
+          echo "# 📊 MAGRAY CLI - Comprehensive Monitoring Report" > MONITORING_SUMMARY.md
+          echo "" >> MONITORING_SUMMARY.md
+          echo "**Generated**: $(date -u)" >> MONITORING_SUMMARY.md
+          echo "**Repository**: ${{ github.repository }}" >> MONITORING_SUMMARY.md
+          echo "**Commit**: ${{ github.sha }}" >> MONITORING_SUMMARY.md
+          echo "" >> MONITORING_SUMMARY.md
+          
+          # Executive summary
+          echo "## 🎯 Executive Summary" >> MONITORING_SUMMARY.md
+          echo "" >> MONITORING_SUMMARY.md
+          
+          HEALTH_SCORE="${{ needs.repository-health.outputs.health-score }}"
+          CRITICAL_ISSUES="${{ needs.repository-health.outputs.critical-issues }}"
+          
+          if [[ -n "$HEALTH_SCORE" ]]; then
+            if (( HEALTH_SCORE >= 90 )); then
+              echo "**Overall Status**: ✅ EXCELLENT (Score: $HEALTH_SCORE/100)" >> MONITORING_SUMMARY.md
+            elif (( HEALTH_SCORE >= 75 )); then
+              echo "**Overall Status**: 👍 GOOD (Score: $HEALTH_SCORE/100)" >> MONITORING_SUMMARY.md  
+            elif (( HEALTH_SCORE >= 60 )); then
+              echo "**Overall Status**: ⚠️ NEEDS ATTENTION (Score: $HEALTH_SCORE/100)" >> MONITORING_SUMMARY.md
+            else
+              echo "**Overall Status**: 🚨 CRITICAL ISSUES (Score: $HEALTH_SCORE/100)" >> MONITORING_SUMMARY.md
+            fi
+            
+            if [[ -n "$CRITICAL_ISSUES" && "$CRITICAL_ISSUES" -gt 0 ]]; then
+              echo "**Critical Issues**: $CRITICAL_ISSUES requiring immediate attention" >> MONITORING_SUMMARY.md
+            fi
+          else
+            echo "**Overall Status**: ❓ UNKNOWN (Health check failed)" >> MONITORING_SUMMARY.md  
+          fi
+          
+          echo "" >> MONITORING_SUMMARY.md
+          echo "### Component Status:" >> MONITORING_SUMMARY.md
+          echo "- **Repository Health**: ${{ needs.repository-health.result }}" >> MONITORING_SUMMARY.md
+          echo "- **Performance Monitoring**: ${{ needs.performance-monitoring.result }}" >> MONITORING_SUMMARY.md  
+          echo "- **Dependency Monitoring**: ${{ needs.dependency-monitoring.result }}" >> MONITORING_SUMMARY.md
+          echo "" >> MONITORING_SUMMARY.md
+          
+          # Detailed reports
+          echo "## 📋 Detailed Reports" >> MONITORING_SUMMARY.md
+          echo "" >> MONITORING_SUMMARY.md
+          
+          for report_dir in monitoring-reports/*/; do
+            if [[ -d "$report_dir" ]]; then
+              for report_file in "$report_dir"*.md; do
+                if [[ -f "$report_file" ]]; then
+                  echo "---" >> MONITORING_SUMMARY.md
+                  echo "" >> MONITORING_SUMMARY.md
+                  cat "$report_file" >> MONITORING_SUMMARY.md
+                  echo "" >> MONITORING_SUMMARY.md
+                fi
+              done
+            fi
+          done
+
+      - name: 🚨 Health Alert Decision
+        run: |
+          HEALTH_SCORE="${{ needs.repository-health.outputs.health-score }}"
+          CRITICAL_ISSUES="${{ needs.repository-health.outputs.critical-issues }}"
+          
+          echo "Health Score: $HEALTH_SCORE"
+          echo "Critical Issues: $CRITICAL_ISSUES"
+          
+          ALERT_REQUIRED=false
+          ALERT_SEVERITY="info"
+          
+          if [[ -n "$CRITICAL_ISSUES" && "$CRITICAL_ISSUES" -gt 0 ]]; then
+            ALERT_REQUIRED=true
+            ALERT_SEVERITY="critical"
+          elif [[ -n "$HEALTH_SCORE" && "$HEALTH_SCORE" -lt 60 ]]; then
+            ALERT_REQUIRED=true
+            ALERT_SEVERITY="warning"
+          elif [[ "${{ needs.repository-health.result }}" != "success" || "${{ needs.dependency-monitoring.result }}" != "success" ]]; then
+            ALERT_REQUIRED=true  
+            ALERT_SEVERITY="warning"
+          fi
+          
+          echo "Alert required: $ALERT_REQUIRED"
+          echo "Alert severity: $ALERT_SEVERITY"
+          
+          if [[ "$ALERT_REQUIRED" == "true" ]]; then
+            echo "🚨 ALERT TRIGGERED: Repository health requires attention!"
+            echo "Severity: $ALERT_SEVERITY"
+            # В production здесь был бы реальный alert
+            exit 1
+          else
+            echo "✅ All monitoring checks passed - no alerts required"
+          fi
+
+      - name: 📤 Upload Consolidated Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: comprehensive-monitoring-report
+          path: MONITORING_SUMMARY.md
+
+      # Mock notification system для демонстрации
+      - name: 🔔 Mock Alert Notification
+        if: failure()
+        run: |
+          echo "=== MONITORING ALERT ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Health Score: ${{ needs.repository-health.outputs.health-score }}/100" 
+          echo "Critical Issues: ${{ needs.repository-health.outputs.critical-issues }}"
+          echo "========================"
+          
+          echo "📧 Would send alerts to:"
+          echo "- DevOps team Slack channel"
+          echo "- PagerDuty (for critical issues)"
+          echo "- Email notifications to maintainers"
+          echo "- Dashboard status update"

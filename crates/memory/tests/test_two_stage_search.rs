@@ -1,18 +1,27 @@
 use anyhow::Result;
-use memory::{Layer, MemoryConfig, MemoryService, Record};
+use memory::{Layer, DIMemoryService, MemoryServiceConfig, Record, SearchOptions};
 use tempfile::TempDir;
 use uuid::Uuid;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-fn create_test_config() -> Result<(TempDir, MemoryConfig)> {
+fn create_test_config() -> Result<(TempDir, MemoryServiceConfig)> {
     let test_id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
     let temp_dir = TempDir::new()?;
-    let config = MemoryConfig {
+    let config = MemoryServiceConfig {
         db_path: temp_dir.path().join(format!("lancedb_{}", test_id)),
         cache_path: temp_dir.path().join(format!("cache_{}", test_id)),
-        ..Default::default()
+        promotion: memory::types::PromotionConfig::default(),
+        ml_promotion: None,
+        streaming_config: None,
+        ai_config: ai::AiConfig::default(),
+        cache_config: memory::CacheConfigType::default(),
+        health_enabled: false,
+        health_config: memory::health::HealthMonitorConfig::default(),
+        resource_config: memory::resource_manager::ResourceConfig::default(),
+        notification_config: memory::notifications::NotificationConfig::default(),
+        batch_config: memory::batch_manager::BatchConfig::default(),
     };
     Ok((temp_dir, config))
 }
@@ -21,7 +30,7 @@ fn create_test_config() -> Result<(TempDir, MemoryConfig)> {
 async fn test_two_stage_search_with_reranking() -> Result<()> {
     let (_temp_dir, config) = create_test_config()?;
 
-    let service = MemoryService::new(config).await?;
+    let service = DIMemoryService::new_minimal(config).await?;
 
     // Insert test documents with varying relevance to query
     let records = vec![
@@ -76,12 +85,21 @@ async fn test_two_stage_search_with_reranking() -> Result<()> {
 
     // Test search with reranking
     let query = "OAuth authentication tokens";
-    let results = service
-        .search(query)
-        .with_layers(&[Layer::Interact, Layer::Insights, Layer::Assets])
-        .top_k(3)
-        .execute()
-        .await?;
+    let options = SearchOptions {
+        limit: 3,
+        ..Default::default()
+    };
+    
+    // Search across all layers and combine results
+    let mut all_results = Vec::new();
+    for layer in &[Layer::Interact, Layer::Insights, Layer::Assets] {
+        let layer_results = service.search(query, *layer, options.clone()).await?;
+        all_results.extend(layer_results);
+    }
+    
+    // Sort by score and take top 3
+    all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+    let results: Vec<_> = all_results.into_iter().take(3).collect();
 
     println!("=== Two-Stage Search Results ===");
     println!("Query: '{}'", query);
@@ -124,7 +142,7 @@ async fn test_two_stage_search_with_reranking() -> Result<()> {
 async fn test_embedding_consistency() -> Result<()> {
     let (_temp_dir, config) = create_test_config()?;
 
-    let service = MemoryService::new(config).await?;
+    let service = DIMemoryService::new_minimal(config).await?;
 
     // Insert the same text twice to test embedding consistency
     let text = "Consistent embedding test document";
@@ -145,12 +163,16 @@ async fn test_embedding_consistency() -> Result<()> {
     service.insert(record2).await?;
 
     // Search for the text - both records should be found with identical scores
-    let results = service
-        .search(text)
-        .with_layers(&[Layer::Interact, Layer::Insights])
-        .top_k(10)
-        .execute()
-        .await?;
+    let options = SearchOptions {
+        limit: 10,
+        ..Default::default()
+    };
+    
+    let mut results = Vec::new();
+    for layer in &[Layer::Interact, Layer::Insights] {
+        let layer_results = service.search(text, *layer, options.clone()).await?;
+        results.extend(layer_results);
+    }
 
     assert_eq!(results.len(), 2, "Should find both identical records");
     
@@ -170,7 +192,7 @@ async fn test_embedding_consistency() -> Result<()> {
 async fn test_reranking_vs_embedding_scores() -> Result<()> {
     let (_temp_dir, config) = create_test_config()?;
 
-    let service = MemoryService::new(config).await?;
+    let service = DIMemoryService::new_minimal(config).await?;
 
     // Insert documents with different embedding vs reranking relevance
     let records = vec![
@@ -197,12 +219,11 @@ async fn test_reranking_vs_embedding_scores() -> Result<()> {
     service.insert_batch(records).await?;
 
     let query = "oauth authentication token";
-    let results = service
-        .search(query)
-        .with_layer(Layer::Interact)
-        .top_k(3)
-        .execute()
-        .await?;
+    let options = SearchOptions {
+        limit: 3,
+        ..Default::default()
+    };
+    let results = service.search(query, Layer::Interact, options).await?;
 
     println!("=== Reranking vs Embedding Score Test ===");
     println!("Query: '{}'", query);

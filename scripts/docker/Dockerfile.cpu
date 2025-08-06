@@ -1,61 +1,119 @@
-# CPU-only Dockerfile for production deployment
+# =============================================================================
+# MAGRAY CLI - CPU Optimized Docker Image
+# Production-ready multi-stage build для CPU-only вычислений
+# Target размер: ~50MB compressed
+# =============================================================================
+
+# ================================
+# Stage 1: Build Environment
+# ================================
 FROM rust:1.75-slim as builder
 
-# Install dependencies
+# Установка необходимых системных зависимостей
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    ca-certificates \
     wget \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Setup ONNX Runtime
-WORKDIR /onnx
-RUN wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz
-RUN tar -xzf onnxruntime-linux-x64-1.22.0.tgz
-
-# Copy source code
+# Рабочая директория
 WORKDIR /app
-COPY . .
 
-# Setup environment
-ENV ORT_DYLIB_PATH=/onnx/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so
+# ONNX Runtime CPU-only setup
+ENV ORT_VERSION=1.16.3
+RUN wget -q https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz \
+    && tar xzf onnxruntime-linux-x64-${ORT_VERSION}.tgz \
+    && mv onnxruntime-linux-x64-${ORT_VERSION} /opt/onnxruntime \
+    && rm onnxruntime-linux-x64-${ORT_VERSION}.tgz
 
-# Build with CPU features only
-RUN cargo build --release --features=cpu
+ENV ORT_LIB_LOCATION=/opt/onnxruntime/lib
+ENV LD_LIBRARY_PATH=/opt/onnxruntime/lib:$LD_LIBRARY_PATH
 
-# Runtime stage
+# Копирование dependency metadata для layer caching
+COPY Cargo.toml Cargo.lock ./
+COPY crates/*/Cargo.toml ./crates/*/
+
+# Создание stub files для dependency pre-build
+RUN find crates -name Cargo.toml -execdir mkdir -p src \; \
+    && find crates -name Cargo.toml -execdir touch src/lib.rs \; \
+    && echo "fn main() {}" > src/main.rs \
+    && mkdir -p crates/cli/src \
+    && echo "fn main() {}" > crates/cli/src/main.rs
+
+# Pre-compile dependencies (cache layer)
+RUN cargo build --release --features cpu \
+    && rm -rf src crates/*/src target/release/deps/magray*
+
+# Копирование исходного кода
+COPY crates/ ./crates/
+COPY src/ ./src/ 2>/dev/null || true
+
+# Оптимизированная сборка с размером binary
+ENV CARGO_PROFILE_RELEASE_LTO=true
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_PANIC=abort
+ENV CARGO_PROFILE_RELEASE_STRIP=true
+
+# Build финального binary
+RUN cargo build --release --features cpu --bin magray
+
+# Проверка размера и strip
+RUN strip target/release/magray \
+    && ls -lah target/release/magray \
+    && size target/release/magray
+
+# ================================
+# Stage 2: Runtime Environment
+# ================================
 FROM debian:bookworm-slim
 
-# Install runtime dependencies
+# Runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r magray \
+    && useradd -r -g magray -s /bin/false magray
 
-# Copy ONNX Runtime
-COPY --from=builder /onnx/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so* /usr/local/lib/
+# ONNX Runtime libraries
+COPY --from=builder /opt/onnxruntime/lib/*.so* /usr/local/lib/
+RUN ldconfig
 
-# Copy binary
+# Application binary
 COPY --from=builder /app/target/release/magray /usr/local/bin/magray
 
-# Setup environment
-ENV LD_LIBRARY_PATH=/usr/local/lib
-ENV RUST_LOG=info
+# Configuration и работа с правами пользователя
+RUN chmod +x /usr/local/bin/magray \
+    && mkdir -p /app/data /app/models /app/config \
+    && chown -R magray:magray /app
 
-# Create non-root user
-RUN useradd -m -u 1000 magray
+# Environment для production
+ENV RUST_LOG=info
+ENV MAGRAY_DATA_DIR=/app/data
+ENV MAGRAY_MODELS_DIR=/app/models
+ENV MAGRAY_CONFIG_DIR=/app/config
+ENV MAGRAY_VARIANT=cpu
+
+# Switch на non-root user
 USER magray
-WORKDIR /home/magray
+WORKDIR /app
+
+# Volumes для persistent data
+VOLUME ["/app/data", "/app/models", "/app/config"]
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD magray --version || exit 1
+  CMD ["/usr/local/bin/magray", "--version"]
 
-ENTRYPOINT ["magray"]
-CMD ["--help"]
+# Default command
+CMD ["/usr/local/bin/magray"]
 
-# Metadata
-LABEL org.opencontainers.image.title="MAGRAY CLI - CPU Only"
-LABEL org.opencontainers.image.description="Intelligent Rust CLI agent with CPU-only processing"
-LABEL org.opencontainers.image.vendor="MAGRAY Team"
-LABEL org.opencontainers.image.licenses="MIT"
+# Labels для metadata
+LABEL maintainer="MAGRAY Team"
+LABEL version="0.1.0"
+LABEL description="MAGRAY CLI - CPU Optimized AI Assistant"
+LABEL variant="cpu"
+LABEL org.opencontainers.image.source="https://github.com/yourusername/magray_cli"
+LABEL org.opencontainers.image.documentation="https://github.com/yourusername/magray_cli/blob/main/docs/docker.md"

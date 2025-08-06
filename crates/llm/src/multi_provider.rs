@@ -93,7 +93,8 @@ impl MultiProviderLlmOrchestrator {
         
         // Select optimal provider based on cost and complexity
         let selected_provider = {
-            let optimizer = self.cost_optimizer.lock().unwrap();
+            let optimizer = self.cost_optimizer.lock()
+                .map_err(|_| anyhow!("Не удалось заблокировать cost optimizer"))?;
             optimizer.select_optimal_provider(&available_providers, &task_complexity)
                 .ok_or_else(|| anyhow!("No suitable provider found for task"))?
         };
@@ -106,7 +107,13 @@ impl MultiProviderLlmOrchestrator {
     
     /// Get providers that are available (circuit breaker not open)
     async fn get_available_providers(&self) -> Vec<LlmProvider> {
-        let circuit_breakers = self.circuit_breakers.lock().unwrap();
+        let circuit_breakers = match self.circuit_breakers.lock() {
+            Ok(cb) => cb,
+            Err(_) => {
+                warn!("Не удалось заблокировать circuit_breakers, возвращаем все провайдеры");
+                return self.providers.clone();
+            }
+        };
         let mut available = Vec::new();
         
         for provider in &self.providers {
@@ -605,10 +612,22 @@ impl MultiProviderLlmOrchestrator {
     
     /// Get comprehensive status report
     pub async fn get_status_report(&self) -> String {
-        let stats = self.provider_stats.lock().unwrap();
-        let circuit_breakers = self.circuit_breakers.lock().unwrap();
-        let optimizer = self.cost_optimizer.lock().unwrap();
-        let monitor = self.performance_monitor.lock().unwrap();
+        let stats = match self.provider_stats.lock() {
+            Ok(s) => s,
+            Err(_) => return "❌ Ошибка: не удалось заблокировать provider_stats".to_string(),
+        };
+        let circuit_breakers = match self.circuit_breakers.lock() {
+            Ok(cb) => cb,
+            Err(_) => return "❌ Ошибка: не удалось заблокировать circuit_breakers".to_string(),
+        };
+        let optimizer = match self.cost_optimizer.lock() {
+            Ok(opt) => opt,
+            Err(_) => return "❌ Ошибка: не удалось заблокировать cost_optimizer".to_string(),
+        };
+        let monitor = match self.performance_monitor.lock() {
+            Ok(mon) => mon,
+            Err(_) => return "❌ Ошибка: не удалось заблокировать performance_monitor".to_string(),
+        };
         
         let mut report = String::new();
         report.push_str("🏗️ Multi-Provider LLM Orchestrator Status\n");

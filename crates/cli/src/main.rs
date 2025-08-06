@@ -9,7 +9,6 @@ use std::time::Duration;
 use tokio::time::sleep;
 use common::init_structured_logging;
 
-mod agent;
 mod commands;
 mod health_checks;
 mod progress;
@@ -17,7 +16,7 @@ mod progress;
 #[cfg(test)]
 mod status_tests;
 
-use agent::UnifiedAgent;
+use cli::UnifiedAgent;
 use cli::agent_traits::AgentResponse;
 use cli::unified_agent_v2::UnifiedAgentV2;
 use cli::agent_traits::{RequestProcessorTrait, RequestContext};

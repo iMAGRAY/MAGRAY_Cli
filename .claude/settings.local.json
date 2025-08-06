@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "mcp__archlens__get_project_structure"
+      "Bash(cargo check:*)"
     ],
     "deny": []
   },

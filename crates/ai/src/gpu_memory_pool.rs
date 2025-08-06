@@ -89,11 +89,13 @@ impl GpuMemoryPool {
                 
                 // Создаём новый буфер если пул пустой
                 stats.misses += 1;
-                let current = *self.current_size.lock().unwrap();
+                let current = *self.current_size.lock()
+                    .map_err(|_| anyhow::anyhow!("Ошибка блокировки размера пула"))?;
                 
                 if current + pool.size <= self.max_pool_size {
                     let buffer = vec![0u8; pool.size];
-                    *self.current_size.lock().unwrap() += pool.size;
+                    *self.current_size.lock()
+                        .map_err(|_| anyhow::anyhow!("Ошибка блокировки размера пула"))? += pool.size;
                     stats.current_buffers += 1;
                     
                     if current + pool.size > stats.peak_memory_usage {

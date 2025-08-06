@@ -1,0 +1,479 @@
+name: 🔒 Advanced Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Ежедневная проверка безопасности в 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of security scan'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - dependency
+          - sast
+          - secrets
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # =========================================
+  # DEPENDENCY VULNERABILITY SCANNING
+  # =========================================
+  dependency-scan:
+    name: 🔍 Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    if: github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'dependency' || github.event_name != 'workflow_dispatch'
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 🛡️ Cargo Audit - Critical Vulnerabilities
+        run: |
+          cargo install cargo-audit
+          echo "## Cargo Audit Report" > security-report.md
+          echo "Date: $(date)" >> security-report.md
+          echo "" >> security-report.md
+          
+          if ! cargo audit --json > audit-results.json 2>&1; then
+            echo "❌ CRITICAL: Security vulnerabilities found!"
+            echo "### Critical Vulnerabilities Found:" >> security-report.md
+            cat audit-results.json | jq -r '.vulnerabilities[] | "- **" + .advisory.id + "**: " + .advisory.title' >> security-report.md
+            
+            # Fail на критических уязвимостях
+            CRITICAL_COUNT=$(cat audit-results.json | jq '.vulnerabilities | length')
+            if (( CRITICAL_COUNT > 0 )); then
+              echo "Found $CRITICAL_COUNT critical vulnerabilities - blocking merge!"
+              exit 1
+            fi
+          else
+            echo "✅ No critical vulnerabilities found"
+            echo "### ✅ No Critical Vulnerabilities Detected" >> security-report.md
+          fi
+
+      - name: 🔍 Advanced Dependency Analysis
+        run: |
+          # Проверка dependency tree на suspicious packages
+          cargo tree --format "{p} {f}" > dependency-tree.txt
+          
+          echo "" >> security-report.md
+          echo "### Dependency Analysis" >> security-report.md
+          echo "Total dependencies: $(cargo tree --format '{p}' | wc -l)" >> security-report.md
+          
+          # Поиск потенциально проблематичных dependencies
+          if grep -i -E "(crypto|network|unsafe|sys|ffi)" dependency-tree.txt; then
+            echo "⚠️ Found potentially sensitive dependencies"
+            echo "### ⚠️ Sensitive Dependencies Detected:" >> security-report.md
+            grep -i -E "(crypto|network|unsafe|sys|ffi)" dependency-tree.txt >> security-report.md
+          fi
+
+      - name: 📊 Supply Chain Risk Assessment
+        run: |
+          echo "" >> security-report.md
+          echo "### Supply Chain Risk Assessment" >> security-report.md
+          
+          # Анализ непрямых dependencies
+          TOTAL_DEPS=$(cargo tree --format '{p}' | sort -u | wc -l)
+          DIRECT_DEPS=$(grep -c "^[a-zA-Z]" Cargo.toml || echo 0)
+          INDIRECT_DEPS=$((TOTAL_DEPS - DIRECT_DEPS))
+          
+          echo "- Direct dependencies: $DIRECT_DEPS" >> security-report.md
+          echo "- Indirect dependencies: $INDIRECT_DEPS" >> security-report.md
+          echo "- Risk ratio: $(echo "scale=2; $INDIRECT_DEPS / $DIRECT_DEPS" | bc)" >> security-report.md
+          
+          if (( INDIRECT_DEPS > 100 )); then
+            echo "⚠️ HIGH RISK: Too many indirect dependencies ($INDIRECT_DEPS)"
+            echo "- **HIGH RISK**: Excessive indirect dependencies detected" >> security-report.md
+          fi
+
+      - name: 📤 Upload Security Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-security-report
+          path: security-report.md
+
+  # =========================================
+  # STATIC APPLICATION SECURITY TESTING (SAST)
+  # =========================================
+  sast-analysis:
+    name: 🕵️ SAST Analysis
+    runs-on: ubuntu-latest
+    if: github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'sast' || github.event_name != 'workflow_dispatch'
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Install Rust Security Tools
+        run: |
+          # Clippy с security lints
+          rustup component add clippy
+          
+          # cargo-geiger для unsafe code detection
+          cargo install cargo-geiger
+          
+          # cargo-pants для license compliance
+          cargo install cargo-pants
+
+      - name: 🔒 Enhanced Clippy Security Analysis
+        run: |
+          echo "## SAST Security Analysis" > sast-report.md
+          echo "Date: $(date)" >> sast-report.md
+          echo "" >> sast-report.md
+          
+          # Clippy с максимально строгими security правилами
+          cargo clippy --workspace --all-targets --all-features -- \
+            -D warnings \
+            -D clippy::all \
+            -D clippy::pedantic \
+            -D clippy::nursery \
+            -D clippy::cargo \
+            -D clippy::suspicious \
+            -D clippy::perf \
+            -W clippy::unwrap_used \
+            -W clippy::expect_used \
+            -W clippy::panic \
+            -W clippy::unimplemented \
+            -W clippy::todo \
+            -W clippy::unreachable \
+            -A clippy::too_many_arguments \
+            -A clippy::module_name_repetitions \
+            -A clippy::missing_errors_doc \
+            2>&1 | tee clippy-security.log
+          
+          if grep -q "error\|warning" clippy-security.log; then
+            echo "### ⚠️ Security Issues Found:" >> sast-report.md
+            grep "error\|warning" clippy-security.log | head -20 >> sast-report.md
+          else
+            echo "### ✅ No Security Issues Detected" >> sast-report.md
+          fi
+
+      - name: ☢️ Unsafe Code Analysis
+        run: |
+          echo "" >> sast-report.md
+          echo "### Unsafe Code Analysis" >> sast-report.md
+          
+          # Подсчет unsafe блоков
+          if cargo geiger --format json > geiger-report.json 2>/dev/null; then
+            UNSAFE_COUNT=$(cat geiger-report.json | jq '.crates[] | select(.crate_name | startswith("magray")) | .metrics.counters.functions.unsafe_')
+            echo "- Unsafe functions found: $UNSAFE_COUNT" >> sast-report.md
+            
+            if (( UNSAFE_COUNT > 10 )); then
+              echo "⚠️ HIGH RISK: Too many unsafe functions ($UNSAFE_COUNT)"
+              echo "- **HIGH RISK**: Excessive unsafe code detected" >> sast-report.md
+            elif (( UNSAFE_COUNT > 0 )); then
+              echo "⚠️ MEDIUM RISK: Some unsafe code present ($UNSAFE_COUNT)"
+              echo "- **MEDIUM RISK**: Unsafe code requires review" >> sast-report.md
+            else
+              echo "✅ No unsafe code detected"
+              echo "- **LOW RISK**: No unsafe code detected" >> sast-report.md
+            fi
+          else
+            echo "- Could not analyze unsafe code usage" >> sast-report.md
+          fi
+
+      - name: 📜 License Compliance Check
+        run: |
+          echo "" >> sast-report.md
+          echo "### License Compliance" >> sast-report.md
+          
+          # Проверка лицензий dependencies
+          if cargo pants 2>&1 | tee license-report.txt; then
+            echo "#### License Summary:" >> sast-report.md
+            grep -E "(MIT|Apache|BSD|GPL)" license-report.txt | sort | uniq -c >> sast-report.md
+            
+            # Проверка на проблематичные лицензии
+            if grep -i -E "(GPL-3|AGPL|SSPL|Commons Clause)" license-report.txt; then
+              echo "❌ CRITICAL: Restrictive licenses found!"
+              echo "- **CRITICAL**: Restrictive licenses detected" >> sast-report.md
+              exit 1
+            fi
+          fi
+
+      - name: 🔍 Code Pattern Security Analysis
+        run: |
+          echo "" >> sast-report.md
+          echo "### Security Pattern Analysis" >> sast-report.md
+          
+          # Поиск потенциально опасных паттернов в коде
+          DANGEROUS_PATTERNS=0
+          
+          # SQL injection потенциал
+          if find crates -name "*.rs" -exec grep -l "format!\|write!\|sql\|query" {} \; | head -5; then
+            echo "⚠️ Found potential SQL injection vectors"
+            echo "- **MEDIUM RISK**: SQL query construction patterns found" >> sast-report.md
+            ((DANGEROUS_PATTERNS++))
+          fi
+          
+          # Command injection потенциал  
+          if find crates -name "*.rs" -exec grep -l "Command\|spawn\|exec" {} \; | head -5; then
+            echo "⚠️ Found potential command injection vectors"
+            echo "- **MEDIUM RISK**: Command execution patterns found" >> sast-report.md
+            ((DANGEROUS_PATTERNS++))
+          fi
+          
+          # Hardcoded secrets (basic check)
+          if find crates -name "*.rs" -exec grep -i -E "(password|secret|token|key).*=.*\"" {} \; | head -5; then
+            echo "⚠️ Potential hardcoded secrets found"
+            echo "- **HIGH RISK**: Potential hardcoded secrets detected" >> sast-report.md
+            ((DANGEROUS_PATTERNS++))
+          fi
+          
+          echo "- Total security patterns found: $DANGEROUS_PATTERNS" >> sast-report.md
+
+      - name: 📤 Upload SAST Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: sast-security-report
+          path: sast-report.md
+
+  # =========================================
+  # SECRET SCANNING & CREDENTIAL DETECTION
+  # =========================================
+  secret-scanning:
+    name: 🔐 Secret & Credential Scanning
+    runs-on: ubuntu-latest
+    if: github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'secrets' || github.event_name != 'workflow_dispatch'
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history для comprehensive scanning
+
+      - name: 🕵️ TruffleHog Secret Scanning
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified --json --output=trufflehog-results.json
+
+      - name: 📊 Process TruffleHog Results
+        run: |
+          echo "## Secret Scanning Report" > secrets-report.md
+          echo "Date: $(date)" >> secrets-report.md
+          echo "" >> secrets-report.md
+          
+          if [[ -f "trufflehog-results.json" && -s "trufflehog-results.json" ]]; then
+            SECRET_COUNT=$(jq '. | length' trufflehog-results.json)
+            echo "### 🚨 CRITICAL: $SECRET_COUNT Secrets Found!" >> secrets-report.md
+            echo "" >> secrets-report.md
+            
+            # Детальный анализ найденных секретов
+            jq -r '.[] | "- **" + .detector_name + "**: " + .raw' trufflehog-results.json | head -10 >> secrets-report.md
+            
+            if (( SECRET_COUNT > 0 )); then
+              echo "❌ CRITICAL: Secrets found in repository!"
+              echo "This blocks the build until secrets are removed."
+              exit 1
+            fi
+          else
+            echo "### ✅ No Secrets Detected" >> secrets-report.md
+          fi
+
+      - name: 🔍 Custom Secret Pattern Detection
+        run: |
+          echo "" >> secrets-report.md
+          echo "### Custom Pattern Analysis" >> secrets-report.md
+          
+          # Дополнительные паттерны specific для AI/ML проектов
+          PATTERNS_FOUND=0
+          
+          # API keys patterns
+          if find . -type f -name "*.rs" -o -name "*.toml" -o -name "*.yaml" -o -name "*.json" | \
+             xargs grep -i -E "(api[_-]?key|auth[_-]?token|access[_-]?token)" | grep -v test; then
+            echo "⚠️ Potential API key patterns found"
+            echo "- **HIGH RISK**: API key patterns detected" >> secrets-report.md
+            ((PATTERNS_FOUND++))
+          fi
+          
+          # OpenAI/Anthropic API patterns
+          if find . -type f -name "*.rs" -o -name "*.toml" | \
+             xargs grep -i -E "(openai|anthropic|claude).*key" | grep -v test; then
+            echo "⚠️ LLM API key patterns found"
+            echo "- **CRITICAL**: LLM API key patterns detected" >> secrets-report.md
+            ((PATTERNS_FOUND++))
+          fi
+          
+          # Database connection strings
+          if find . -type f -name "*.rs" -o -name "*.toml" | \
+             xargs grep -i -E "(database_url|db_url|connection_string)" | grep -v test | grep -v example; then
+            echo "⚠️ Database connection patterns found"
+            echo "- **MEDIUM RISK**: Database connection patterns detected" >> secrets-report.md
+            ((PATTERNS_FOUND++))
+          fi
+          
+          if (( PATTERNS_FOUND == 0 )); then
+            echo "- **LOW RISK**: No suspicious patterns detected" >> secrets-report.md
+          fi
+          
+          echo "- Custom patterns analyzed: $PATTERNS_FOUND" >> secrets-report.md
+
+      - name: 📝 Git History Secret Analysis
+        run: |
+          echo "" >> secrets-report.md
+          echo "### Git History Analysis" >> secrets-report.md
+          
+          # Проверка на случайно закоммиченные секреты в истории
+          SUSPICIOUS_COMMITS=$(git log --all --full-history --grep="password\|secret\|key\|token" --oneline | wc -l)
+          echo "- Suspicious commits in history: $SUSPICIOUS_COMMITS" >> secrets-report.md
+          
+          if (( SUSPICIOUS_COMMITS > 0 )); then
+            echo "⚠️ Suspicious commits found in git history"
+            echo "- **MEDIUM RISK**: Suspicious commits in git history" >> secrets-report.md
+            git log --all --full-history --grep="password\|secret\|key\|token" --oneline | head -5 >> secrets-report.md
+          fi
+          
+          # Большие файлы (могут содержать модели/секреты)
+          LARGE_FILES=$(find . -type f -size +10M | grep -v target | grep -v .git | wc -l)
+          echo "- Large files (>10MB): $LARGE_FILES" >> secrets-report.md
+          
+          if (( LARGE_FILES > 5 )); then
+            echo "⚠️ Many large files detected"
+            echo "- **LOW RISK**: Many large files (potential secret storage)" >> secrets-report.md
+          fi
+
+      - name: 📤 Upload Secrets Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: secrets-security-report
+          path: secrets-report.md
+
+  # =========================================
+  # COMPREHENSIVE SECURITY SUMMARY
+  # =========================================
+  security-summary:
+    name: 📋 Security Summary Report
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, sast-analysis, secret-scanning]
+    if: always()
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 📥 Download All Security Reports
+        uses: actions/download-artifact@v3
+        with:
+          pattern: '*security-report'
+          path: security-reports/
+
+      - name: 📊 Generate Comprehensive Security Report
+        run: |
+          echo "# 🔒 MAGRAY CLI Security Assessment Report" > SECURITY_ASSESSMENT.md
+          echo "**Date**: $(date)" >> SECURITY_ASSESSMENT.md
+          echo "**Commit**: ${{ github.sha }}" >> SECURITY_ASSESSMENT.md
+          echo "" >> SECURITY_ASSESSMENT.md
+          
+          # Сводка результатов
+          echo "## Executive Summary" >> SECURITY_ASSESSMENT.md
+          echo "" >> SECURITY_ASSESSMENT.md
+          
+          # Статус каждого сканирования
+          echo "### Scan Results:" >> SECURITY_ASSESSMENT.md
+          echo "- **Dependency Scan**: ${{ needs.dependency-scan.result }}" >> SECURITY_ASSESSMENT.md
+          echo "- **SAST Analysis**: ${{ needs.sast-analysis.result }}" >> SECURITY_ASSESSMENT.md
+          echo "- **Secret Scanning**: ${{ needs.secret-scanning.result }}" >> SECURITY_ASSESSMENT.md
+          echo "" >> SECURITY_ASSESSMENT.md
+          
+          # Общий статус безопасности
+          FAILED_SCANS=0
+          [[ "${{ needs.dependency-scan.result }}" != "success" ]] && ((FAILED_SCANS++))
+          [[ "${{ needs.sast-analysis.result }}" != "success" ]] && ((FAILED_SCANS++))
+          [[ "${{ needs.secret-scanning.result }}" != "success" ]] && ((FAILED_SCANS++))
+          
+          if (( FAILED_SCANS == 0 )); then
+            echo "## ✅ SECURITY STATUS: PASSED" >> SECURITY_ASSESSMENT.md
+            echo "All security scans passed successfully." >> SECURITY_ASSESSMENT.md
+          elif (( FAILED_SCANS == 1 )); then
+            echo "## ⚠️ SECURITY STATUS: WARNING" >> SECURITY_ASSESSMENT.md
+            echo "One security scan failed - review required." >> SECURITY_ASSESSMENT.md
+          else
+            echo "## ❌ SECURITY STATUS: CRITICAL" >> SECURITY_ASSESSMENT.md
+            echo "Multiple security scans failed - immediate action required." >> SECURITY_ASSESSMENT.md
+          fi
+          
+          echo "" >> SECURITY_ASSESSMENT.md
+          
+          # Объединение всех отчетов
+          echo "## Detailed Reports" >> SECURITY_ASSESSMENT.md
+          echo "" >> SECURITY_ASSESSMENT.md
+          
+          for report_dir in security-reports/*/; do
+            if [[ -d "$report_dir" ]]; then
+              for report_file in "$report_dir"*.md; do
+                if [[ -f "$report_file" ]]; then
+                  echo "### $(basename "$report_dir" | sed 's/-security-report//')" >> SECURITY_ASSESSMENT.md
+                  echo "" >> SECURITY_ASSESSMENT.md
+                  cat "$report_file" >> SECURITY_ASSESSMENT.md
+                  echo "" >> SECURITY_ASSESSMENT.md
+                  echo "---" >> SECURITY_ASSESSMENT.md
+                  echo "" >> SECURITY_ASSESSMENT.md
+                fi
+              done
+            fi
+          done
+
+      - name: 🚨 Security Quality Gate
+        run: |
+          FAILED_SCANS=0
+          [[ "${{ needs.dependency-scan.result }}" != "success" ]] && ((FAILED_SCANS++))
+          [[ "${{ needs.sast-analysis.result }}" != "success" ]] && ((FAILED_SCANS++))
+          [[ "${{ needs.secret-scanning.result }}" != "success" ]] && ((FAILED_SCANS++))
+          
+          echo "Security Assessment Summary:"
+          echo "- Failed scans: $FAILED_SCANS/3"
+          echo "- Overall status: ${{ needs.dependency-scan.result }}, ${{ needs.sast-analysis.result }}, ${{ needs.secret-scanning.result }}"
+          
+          # На main branch критичные ошибки блокируют merge
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]] && (( FAILED_SCANS > 0 )); then
+            echo "❌ SECURITY GATE FAILED: Cannot merge to main with security issues!"
+            echo "Please fix security issues before merging."
+            exit 1
+          elif (( FAILED_SCANS > 1 )); then
+            echo "❌ SECURITY GATE FAILED: Multiple critical security issues found!"
+            exit 1
+          else
+            echo "✅ SECURITY GATE PASSED: All security checks completed successfully!"
+          fi
+
+      - name: 📤 Upload Comprehensive Security Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: comprehensive-security-assessment
+          path: SECURITY_ASSESSMENT.md
+
+      # В production здесь были бы уведомления security team
+      - name: 🔔 Security Notification (Mock)
+        if: failure()
+        run: |
+          echo "=== SECURITY ALERT ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Failed scans: $FAILED_SCANS"
+          echo "Requires immediate security team attention!"
+          echo "========================"
+          
+          # Mock notification - в production интеграция с:
+          # - Security team Slack channel
+          # - PagerDuty for critical issues
+          # - JIRA ticket creation
+          # - Email notifications to security team

@@ -9,10 +9,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Instant;
-use tracing::{info, debug};
+use tracing::{info, debug, warn};
 use crate::tokenization::OptimizedTokenizer;
-#[cfg(feature = "gpu")]
-use tracing::warn;
+use anyhow::anyhow;
 
 pub struct GpuEmbeddingService {
     session: Arc<Mutex<Session>>,
@@ -182,7 +181,13 @@ impl GpuEmbeddingService {
     
     /// Динамически оптимизировать размер батча на основе метрик
     pub fn optimize_batch_size(&mut self) {
-        let metrics = self.metrics.lock().unwrap();
+        let metrics = match self.metrics.lock() {
+            Ok(m) => m,
+            Err(_) => {
+                warn!("Не удалось заблокировать метрики для оптимизации batch size");
+                return;
+            }
+        };
         let current_tps = metrics.tokens_per_second();
         drop(metrics);
         
@@ -253,7 +258,13 @@ impl GpuEmbeddingService {
             })
             .sum();
         
-        let mut metrics = self.metrics.lock().unwrap();
+        let mut metrics = match self.metrics.lock() {
+            Ok(m) => m,
+            Err(_) => {
+                warn!("Не удалось заблокировать метрики для обновления");
+                return Ok(vec![]);
+            }
+        };
         metrics.total_requests += num_texts as u64;
         metrics.total_tokens += total_tokens as u64;
         metrics.total_time_ms += elapsed;
@@ -306,7 +317,12 @@ impl GpuEmbeddingService {
             let token_type_ids_array = Array2::from_shape_vec((batch_size, self.max_length), all_token_type_ids)?;
             
             // Run inference
-            let mut session = self.session.lock().unwrap();
+            let mut session = match self.session.lock() {
+                Ok(s) => s,
+                Err(_) => {
+                    return Err(anyhow!("Не удалось заблокировать ONNX сессию"));
+                }
+            };
             
             // Convert arrays to tensors using ort 2.0 API
             let input_ids_shape = input_ids_array.shape().to_vec();
@@ -408,7 +424,10 @@ impl GpuEmbeddingService {
     }
     
     pub fn get_metrics(&self) -> PerformanceMetrics {
-        let metrics = self.metrics.lock().unwrap();
+        let metrics = match self.metrics.lock() {
+            Ok(m) => m,
+            Err(_) => return PerformanceMetrics::default(),
+        };
         metrics.clone()
     }
     

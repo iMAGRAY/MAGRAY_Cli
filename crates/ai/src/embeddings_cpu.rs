@@ -8,9 +8,7 @@ use ort::{session::Session, value::Tensor, inputs};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
-use tracing::{info, debug};
-#[cfg(feature = "gpu")]
-use tracing::warn;
+use tracing::{info, debug, warn};
 
 /// CPU-based Embedding Service with real tokenization and batching (supports BGE-M3 and Qwen3)
 pub struct CpuEmbeddingService {
@@ -85,7 +83,9 @@ impl CpuEmbeddingService {
         #[cfg(target_os = "windows")]
         {
             let mut possible_paths = vec![
-                std::env::current_dir().unwrap().join("scripts/onnxruntime/lib/onnxruntime.dll"),
+                std::env::current_dir()
+                    .unwrap_or_else(|_| PathBuf::from("."))
+                    .join("scripts/onnxruntime/lib/onnxruntime.dll"),
                 PathBuf::from("./scripts/onnxruntime/lib/onnxruntime.dll"),
                 PathBuf::from("../scripts/onnxruntime/lib/onnxruntime.dll"),
                 PathBuf::from("../../scripts/onnxruntime/lib/onnxruntime.dll"),
@@ -109,8 +109,12 @@ impl CpuEmbeddingService {
             for dll_path in possible_paths {
                 if dll_path.exists() {
                     info!("Found ORT library at: {}", dll_path.display());
-                    std::env::set_var("ORT_DYLIB_PATH", dll_path.to_str().unwrap());
-                    break;
+                    if let Some(path_str) = dll_path.to_str() {
+                        std::env::set_var("ORT_DYLIB_PATH", path_str);
+                        break;
+                    } else {
+                        warn!("Не удалось конвертировать путь к DLL в строку: {}", dll_path.display());
+                    }
                 }
             }
         }
@@ -459,7 +463,7 @@ impl CpuEmbeddingService {
         }
         
         // Take ownership and return as Vec<f32>
-        pooled.take()
+        pooled.take().unwrap_or_default()
     }
     
     /// Optimized L2 normalization

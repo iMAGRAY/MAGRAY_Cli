@@ -58,6 +58,12 @@ impl From<ort::Error> for AiError {
     }
 }
 
+impl From<anyhow::Error> for AiError {
+    fn from(e: anyhow::Error) -> Self {
+        AiError::ModelError(e.to_string())
+    }
+}
+
 impl From<ndarray::ShapeError> for AiError {
     fn from(e: ndarray::ShapeError) -> Self {
         AiError::ValidationError(format!("Array shape error: {e}"))

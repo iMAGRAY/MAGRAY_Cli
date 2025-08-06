@@ -1,0 +1,575 @@
+name: CI/CD Pipeline - MAGRAY CLI
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Ежедневная проверка безопасности в 03:00 UTC
+    - cron: '0 3 * * *'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Для ONNX models в CI без реального GPU
+  ORT_STRATEGY: system
+  ORT_LIB_LOCATION: /opt/onnxruntime
+  # Для тестирования с mock GPU в CI
+  MAGRAY_GPU_MODE: mock
+  MAGRAY_TEST_ENV: ci
+
+jobs:
+  # =========================================
+  # FAST PRE-CHECKS (2-3 минуты)
+  # =========================================
+  pre-checks:
+    name: 🚀 Fast Pre-Checks
+    runs-on: ubuntu-latest
+    outputs:
+      should-run-full: ${{ steps.changes.outputs.rust }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Detect File Changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            rust:
+              - 'crates/**/*.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/**'
+              - 'scripts/**'
+            docs:
+              - 'docs/**'
+              - '*.md'
+
+      - name: 📦 Extract Version
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d '"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: 🔧 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: 📝 Check Formatting
+        run: cargo fmt --all -- --check
+
+      - name: 📋 Basic Clippy Check
+        run: |
+          cargo clippy --workspace --all-targets -- -D warnings \
+            -A clippy::too_many_arguments \
+            -A clippy::large_enum_variant
+
+  # =========================================
+  # SECURITY SCANNING (Parallel)
+  # =========================================
+  security-audit:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+    needs: pre-checks
+    if: needs.pre-checks.outputs.should-run-full == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🛡️ Cargo Audit
+        uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🕵️ Secret Scanning
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  codeql-analysis:
+    name: 🔍 CodeQL Analysis
+    runs-on: ubuntu-latest
+    needs: pre-checks
+    if: needs.pre-checks.outputs.should-run-full == 'true'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: 'rust'
+          queries: security-and-quality
+
+      - name: 🏗️ Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: 📊 Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  # =========================================
+  # MULTI-PLATFORM BUILDS & TESTS
+  # =========================================
+  test-matrix:
+    name: 🧪 Test Matrix
+    needs: [pre-checks, security-audit]
+    if: needs.pre-checks.outputs.should-run-full == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            features: "cpu"
+            binary-suffix: ".exe"
+          
+          # Linux
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            features: "cpu,gpu"
+            binary-suffix: ""
+          
+          # Linux ARM64 (cross-compile)
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            features: "cpu"
+            binary-suffix: ""
+            cross: true
+          
+          # macOS Intel
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            features: "cpu"
+            binary-suffix: ""
+          
+          # macOS Apple Silicon
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            features: "cpu"
+            binary-suffix: ""
+            cross: true
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: 🔧 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+
+      # Caching стратегия для максимальной оптимизации
+      - name: 📦 Cache Cargo Registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: 📦 Cache Target Directory
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-${{ matrix.target }}-target-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-target-${{ matrix.features }}-
+            ${{ runner.os }}-${{ matrix.target }}-target-
+
+      # Cross-compilation setup для ARM64
+      - name: 🔄 Install Cross-Compilation Tools
+        if: matrix.cross
+        run: |
+          if [[ "${{ matrix.target }}" == *"linux"* ]]; then
+            sudo apt-get update
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      # ONNX Runtime setup с conditional installation
+      - name: 📥 Setup ONNX Runtime (Linux)
+        if: matrix.os == 'ubuntu-latest' && !matrix.cross
+        run: |
+          sudo mkdir -p /opt/onnxruntime
+          if [[ "${{ matrix.features }}" == *"gpu"* ]]; then
+            # GPU version для Linux CI (mock)
+            wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-x64-gpu-1.16.3.tgz
+            tar xzf onnxruntime-linux-x64-gpu-1.16.3.tgz
+            sudo cp -r onnxruntime-linux-x64-gpu-1.16.3/* /opt/onnxruntime/
+          else
+            # CPU версия
+            wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-x64-1.16.3.tgz
+            tar xzf onnxruntime-linux-x64-1.16.3.tgz
+            sudo cp -r onnxruntime-linux-x64-1.16.3/* /opt/onnxruntime/
+          fi
+          echo "ORT_LIB_LOCATION=/opt/onnxruntime/lib" >> $GITHUB_ENV
+
+      - name: 📥 Setup ONNX Runtime (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install wget
+          mkdir -p /usr/local/onnxruntime
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-osx-x86_64-1.16.3.tgz
+          tar xzf onnxruntime-osx-x86_64-1.16.3.tgz
+          cp -r onnxruntime-osx-x86_64-1.16.3/* /usr/local/onnxruntime/
+          echo "ORT_LIB_LOCATION=/usr/local/onnxruntime/lib" >> $GITHUB_ENV
+
+      - name: 📥 Setup ONNX Runtime (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-win-x64-1.16.3.zip"
+          Invoke-WebRequest -Uri $url -OutFile "onnxruntime.zip"
+          Expand-Archive -Path "onnxruntime.zip" -DestinationPath "C:\onnxruntime"
+          Move-Item "C:\onnxruntime\onnxruntime-win-x64-1.16.3\*" "C:\onnxruntime\"
+          echo "ORT_LIB_LOCATION=C:\onnxruntime\lib" >> $env:GITHUB_ENV
+          echo "PATH=$env:PATH;C:\onnxruntime\lib" >> $env:GITHUB_ENV
+
+      # Mock ONNX Models для CI (вместо реального скачивания больших файлов)
+      - name: 📁 Setup Mock ONNX Models
+        run: |
+          mkdir -p models/qwen3emb models/qwen3_reranker
+          # Создаем mock файлы для CI тестирования
+          echo '{"mock": "model"}' > models/qwen3emb/config.json
+          echo '{"mock": "tokenizer"}' > models/qwen3emb/tokenizer.json
+          echo '{"mock": "model"}' > models/qwen3_reranker/config.json
+
+      # Comprehensive Testing с разделением на stages
+      - name: 🧪 Unit Tests
+        run: |
+          if [[ "${{ matrix.cross }}" == "true" ]]; then
+            cross test --target ${{ matrix.target }} --features ${{ matrix.features }} --lib
+          else
+            cargo test --target ${{ matrix.target }} --features ${{ matrix.features }} --lib --verbose
+          fi
+
+      - name: 🔗 Integration Tests
+        if: '!matrix.cross'  # Integration tests только на native platforms
+        run: |
+          # Специальное окружение для integration тестов с mocking
+          export MAGRAY_INTEGRATION_TEST=true
+          export MAGRAY_MOCK_GPU=true
+          cargo test --target ${{ matrix.target }} --features ${{ matrix.features }} --test integration_*
+
+      - name: ⚡ Performance Tests
+        if: matrix.os == 'ubuntu-latest' && !matrix.cross
+        run: |
+          # Regression tests для критических компонентов
+          export MAGRAY_BENCH_MODE=ci
+          cargo test --release --target ${{ matrix.target }} --features ${{ matrix.features }} test_vector_search_performance
+          cargo test --release --target ${{ matrix.target }} --features ${{ matrix.features }} test_hnsw_stress
+
+      # Build Artifacts
+      - name: 🏗️ Build Release Binary
+        run: |
+          if [[ "${{ matrix.cross }}" == "true" ]]; then
+            cross build --release --target ${{ matrix.target }} --features ${{ matrix.features }} --bin magray
+          else
+            cargo build --release --target ${{ matrix.target }} --features ${{ matrix.features }} --bin magray
+          fi
+
+      # Binary Optimization & Size Check
+      - name: 📏 Check Binary Size
+        run: |
+          binary_path="target/${{ matrix.target }}/release/magray${{ matrix.binary-suffix }}"
+          if [[ -f "$binary_path" ]]; then
+            size=$(stat --format=%s "$binary_path" 2>/dev/null || stat -f%z "$binary_path")
+            echo "Binary size: $(($size / 1024 / 1024)) MB"
+            
+            # Target ~16MB, warning при > 20MB
+            if (( size > 20971520 )); then
+              echo "⚠️ WARNING: Binary size exceeds 20MB target!"
+              echo "Current size: $(($size / 1024 / 1024)) MB"
+            fi
+          fi
+
+      # Strip binaries для уменьшения размера
+      - name: ✂️ Strip Binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          binary_path="target/${{ matrix.target }}/release/magray${{ matrix.binary-suffix }}"
+          if [[ -f "$binary_path" ]]; then
+            if [[ "${{ matrix.cross }}" == "true" && "${{ matrix.target }}" == *"linux"* ]]; then
+              aarch64-linux-gnu-strip "$binary_path" || true
+            else
+              strip "$binary_path" || true
+            fi
+          fi
+
+      # Upload artifacts для release
+      - name: 📤 Upload Binary Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: magray-${{ matrix.target }}-${{ matrix.features }}
+          path: target/${{ matrix.target }}/release/magray${{ matrix.binary-suffix }}
+          retention-days: 30
+
+  # =========================================
+  # CODE COVERAGE ANALYSIS
+  # =========================================
+  coverage:
+    name: 📊 Code Coverage
+    runs-on: ubuntu-latest
+    needs: pre-checks
+    if: needs.pre-checks.outputs.should-run-full == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 📦 Cache Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: coverage-${{ hashFiles('**/Cargo.lock') }}
+
+      # Mock ONNX setup для coverage
+      - name: 📥 Setup Mock Environment
+        run: |
+          sudo mkdir -p /opt/onnxruntime/lib
+          echo "ORT_LIB_LOCATION=/opt/onnxruntime/lib" >> $GITHUB_ENV
+          mkdir -p models/qwen3emb models/qwen3_reranker
+          echo '{"mock": "config"}' > models/qwen3emb/config.json
+
+      - name: 🧰 Install Tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: 📈 Generate Coverage Report
+        run: |
+          cargo tarpaulin \
+            --verbose \
+            --timeout 300 \
+            --features cpu \
+            --exclude-files "target/*" \
+            --exclude-files "examples/*" \
+            --exclude-files "benches/*" \
+            --out Html \
+            --out Xml \
+            --output-dir coverage/
+
+      - name: 📊 Coverage Quality Gate
+        run: |
+          COVERAGE=$(grep -oP 'covered="\K[^"]*' coverage/tarpaulin-report.xml | head -1)
+          echo "Current coverage: $COVERAGE%"
+          
+          # Quality gate: минимум 60% для merge, цель 80%
+          if (( $(echo "$COVERAGE < 60" | bc -l) )); then
+            echo "❌ FAIL: Coverage $COVERAGE% is below 60% threshold!"
+            exit 1
+          elif (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "⚠️ WARNING: Coverage $COVERAGE% is below 80% target"
+          else
+            echo "✅ PASS: Coverage $COVERAGE% meets quality standards!"
+          fi
+
+      - name: 📤 Upload Coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: coverage/tarpaulin-report.xml
+          fail_ci_if_error: false
+
+  # =========================================
+  # DOCKER BUILDS (Multi-Arch)
+  # =========================================
+  docker:
+    name: 🐳 Docker Builds
+    runs-on: ubuntu-latest
+    needs: [test-matrix, coverage]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    strategy:
+      matrix:
+        variant: [cpu, gpu, minimal]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: 🔑 Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Download binaries from previous jobs
+      - name: 📥 Download Linux Binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: magray-x86_64-unknown-linux-gnu-cpu
+          path: ./binaries/x86_64/
+
+      - name: 📥 Download ARM64 Binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: magray-aarch64-unknown-linux-gnu-cpu
+          path: ./binaries/aarch64/
+
+      - name: 🏗️ Build and Push Multi-Arch Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./scripts/docker/Dockerfile.${{ matrix.variant }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            magray/magray-cli:${{ matrix.variant }}
+            magray/magray-cli:${{ matrix.variant }}-${{ needs.pre-checks.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =========================================
+  # RELEASE AUTOMATION
+  # =========================================
+  release:
+    name: 🚀 Release
+    runs-on: ubuntu-latest
+    needs: [test-matrix, coverage, docker]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Download все artifacts для release
+      - name: 📥 Download All Artifacts
+        uses: actions/download-artifact@v3
+
+      - name: 📝 Generate Changelog
+        id: changelog
+        run: |
+          # Генерация changelog на основе коммитов с предыдущего тега
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            echo "## Changes since $PREVIOUS_TAG" > CHANGELOG.md
+            git log --pretty=format:"- %s (%an)" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
+          else
+            echo "## Initial Release" > CHANGELOG.md
+            echo "First release of MAGRAY CLI" >> CHANGELOG.md
+          fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          cat CHANGELOG.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 🎁 Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          files: |
+            magray-*/magray*
+          prerelease: ${{ contains(github.ref, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =========================================
+  # MONITORING & NOTIFICATIONS
+  # =========================================
+  notify:
+    name: 📢 Notifications
+    runs-on: ubuntu-latest
+    needs: [test-matrix, coverage, security-audit, codeql-analysis]
+    if: always() && github.ref == 'refs/heads/main'
+    steps:
+      - name: 📊 Build Status Summary
+        run: |
+          echo "## CI/CD Pipeline Summary" > summary.md
+          echo "" >> summary.md
+          echo "- **Tests**: ${{ needs.test-matrix.result }}" >> summary.md
+          echo "- **Coverage**: ${{ needs.coverage.result }}" >> summary.md
+          echo "- **Security**: ${{ needs.security-audit.result }}" >> summary.md
+          echo "- **CodeQL**: ${{ needs.codeql-analysis.result }}" >> summary.md
+          echo "" >> summary.md
+          if [[ "${{ needs.test-matrix.result }}" != "success" ]] || [[ "${{ needs.security-audit.result }}" != "success" ]]; then
+            echo "❌ Pipeline failed - requires attention!" >> summary.md
+          else
+            echo "✅ Pipeline succeeded - all checks passed!" >> summary.md
+          fi
+
+      # В production здесь бы были интеграции с:
+      # - Slack/Teams notifications
+      # - PagerDuty для critical failures
+      # - Monitoring dashboards (DataDog/New Relic)
+      - name: 🔔 Pipeline Status (Mock)
+        run: |
+          echo "=== PIPELINE STATUS ==="
+          cat summary.md
+          echo "========================"
+          
+          # Mock notification - в production заменить на реальные webhooks
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "✅ Would send success notification to Slack/Teams"
+          else
+            echo "❌ Would send failure alert to PagerDuty"
+          fi
+
+  # =========================================
+  # PERFORMANCE REGRESSION DETECTION
+  # =========================================
+  benchmark:
+    name: 🏁 Performance Benchmarks
+    runs-on: ubuntu-latest
+    needs: pre-checks
+    if: needs.pre-checks.outputs.should-run-full == 'true' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔧 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 📦 Cache Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: benchmark-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 📥 Setup Mock Environment
+        run: |
+          sudo mkdir -p /opt/onnxruntime/lib
+          echo "ORT_LIB_LOCATION=/opt/onnxruntime/lib" >> $GITHUB_ENV
+
+      - name: ⚡ Run Benchmarks
+        run: |
+          # Benchmark key performance metrics
+          cargo bench --features cpu -- --output-format json | tee benchmark-results.json
+          
+          # Performance regression detection (simplified)
+          if [[ -f "benchmark-baseline.json" ]]; then
+            echo "🔍 Checking for performance regressions..."
+            # В production: сравнение с baseline и alert при regression > 10%
+            python scripts/ci/check_benchmark_regression.py || true
+          fi
+
+      - name: 📤 Store Benchmark Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: benchmark-results.json

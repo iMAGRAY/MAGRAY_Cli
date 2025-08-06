@@ -1,6 +1,149 @@
+# =============================================================================
+# MAGRAY CLI - Cargo Configuration
+# Production-optimized build settings для различных deployment scenarios
+# =============================================================================
+
+# =========================================
+# BUILD OPTIMIZATION PROFILES
+# =========================================
+
+# Production release profile - Maximum performance
+[profile.release]
+# Link-time optimization для максимального performance
+lto = "fat"              # Full LTO across all dependencies
+# Single codegen unit для better optimization
+codegen-units = 1        # Better optimization at cost of compile time
+# Panic behavior - smaller binary, faster execution
+panic = "abort"          # No unwinding, smaller binary size
+# Optimization level
+opt-level = 3            # Maximum optimization
+# Strip debug symbols
+strip = "symbols"        # Remove debug symbols from binary
+# Debug info level
+debug = false           # No debug info in release builds
+
+# Development profile optimizations
+[profile.dev]
+# Faster compilation for development
+opt-level = 0           # No optimization for faster compilation
+debug = true            # Include debug info
+overflow-checks = true   # Runtime integer overflow checks
+lto = false             # No LTO for faster compilation
+panic = "unwind"        # Standard panic behavior
+incremental = true       # Incremental compilation
+
+# Test profile optimizations
+[profile.test]
+opt-level = 1           # Some optimization for test performance
+debug = true            # Keep debug info for better test debugging
+overflow-checks = true   # Catch overflow in tests
+
+# Bench profile for performance testing
+[profile.bench]
+opt-level = 3           # Maximum optimization for benchmarks
+debug = false           # No debug info
+lto = "thin"            # Some LTO without excessive compile time
+codegen-units = 1       # Single unit for better optimization
+
+# =========================================
+# TARGET-SPECIFIC OPTIMIZATIONS  
+# =========================================
+
+# Windows-specific settings
 [target.x86_64-pc-windows-msvc]
-# Используем динамическую CRT для совместимости с ONNX Runtime
-rustflags = ["-C", "target-feature=-crt-static"]
+rustflags = [
+    "-C", "target-cpu=native",         # Use host CPU features
+    "-C", "target-feature=-crt-static", # Dynamic CRT for ONNX Runtime compatibility
+]
+
+# Linux-specific settings
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "target-cpu=native",         # Use host CPU features
+    "-C", "link-arg=-fuse-ld=lld",     # Use LLD linker for faster linking
+]
+
+# Linux ARM64 cross-compilation
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+rustflags = [
+    "-C", "target-cpu=cortex-a72",     # ARM Cortex-A72 optimization
+]
+
+# macOS Intel settings
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "link-arg=-Wl,-dead_strip",  # Remove dead code
+]
+
+# macOS Apple Silicon settings  
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=apple-m1",       # Apple M1 optimization
+    "-C", "link-arg=-Wl,-dead_strip",
+]
+
+# Static linking для minimal builds
+[target.x86_64-unknown-linux-musl]
+rustflags = [
+    "-C", "target-feature=+crt-static", # Static CRT linking
+    "-C", "link-arg=-s",               # Strip symbols
+]
+
+# =========================================
+# ENVIRONMENT-SPECIFIC SETTINGS
+# =========================================
 
 [env]
-ORT_USE_CUDA = "0"
+# ONNX Runtime configuration
+ORT_USE_CUDA = "0"                  # Default to CPU-only
+# Rust compilation settings
+CARGO_INCREMENTAL = "false"         # Disable incremental compilation in CI
+CARGO_NET_RETRY = "10"              # Retry network operations
+
+# =========================================
+# DEPENDENCY BUILD OPTIMIZATIONS
+# =========================================
+
+# ONNX Runtime optimizations
+[profile.release.package.onnxruntime-sys]
+opt-level = 3
+debug = false
+
+# Tokio optimizations
+[profile.release.package.tokio]
+opt-level = 3
+debug = false
+
+# Serde optimizations
+[profile.release.package.serde]
+opt-level = 3
+debug = false
+
+# =========================================
+# REGISTRY AND SOURCE CONFIGURATION  
+# =========================================
+
+# Git fetch settings
+[net]
+retry = 3                          # Retry failed network operations
+git-fetch-with-cli = true         # Use git CLI for better auth support
+
+# =========================================
+# FEATURE-SPECIFIC CONFIGURATIONS
+# =========================================
+
+# CPU-only build optimizations - SIMD support
+[profile.release.build-override]
+opt-level = 3
+
+# Minimal build - extreme size optimization
+[profile.minimal]
+inherits = "release"
+opt-level = "z"                    # Optimize aggressively for size
+lto = "fat"                       # Maximum LTO
+codegen-units = 1                 # Single codegen unit
+panic = "abort"                   # No panic unwinding
+strip = "symbols"                 # Strip all symbols
+debug = false                     # No debug info

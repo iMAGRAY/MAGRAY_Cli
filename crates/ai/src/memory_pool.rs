@@ -16,19 +16,19 @@ impl<T> PooledBuffer<T> {
         }
     }
     
-    /// Get mutable reference to the buffer
-    pub fn get_mut(&mut self) -> &mut Vec<T> {
-        self.buffer.as_mut().unwrap()
+    /// Get mutable reference to the buffer - returns None if buffer was taken
+    pub fn get_mut(&mut self) -> Option<&mut Vec<T>> {
+        self.buffer.as_mut()
     }
     
-    /// Get immutable reference to the buffer
-    pub fn get_ref(&self) -> &Vec<T> {
-        self.buffer.as_ref().unwrap()
+    /// Get immutable reference to the buffer - returns None if buffer was taken
+    pub fn get_ref(&self) -> Option<&Vec<T>> {
+        self.buffer.as_ref()
     }
     
     /// Take ownership of the buffer (prevents automatic return)
-    pub fn take(mut self) -> Vec<T> {
-        self.buffer.take().unwrap()
+    pub fn take(mut self) -> Option<Vec<T>> {
+        self.buffer.take()
     }
 }
 
@@ -45,13 +45,13 @@ impl<T> Deref for PooledBuffer<T> {
     type Target = Vec<T>;
     
     fn deref(&self) -> &Self::Target {
-        self.buffer.as_ref().unwrap()
+        self.buffer.as_ref().expect("PooledBuffer должен содержать буфер")
     }
 }
 
 impl<T> DerefMut for PooledBuffer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.buffer.as_mut().unwrap()
+        self.buffer.as_mut().expect("PooledBuffer должен содержать буфер")
     }
 }
 
@@ -77,7 +77,10 @@ impl MemoryPool {
     /// Get or allocate a f32 buffer of at least the requested capacity
     pub fn get_f32_buffer(&self, capacity: usize) -> PooledBuffer<f32> {
         let pool_index = self.get_pool_index(capacity);
-        let mut pools = self.f32_pools.write().unwrap();
+        let mut pools = match self.f32_pools.write() {
+            Ok(pools) => pools,
+            Err(_) => return PooledBuffer::new(Vec::with_capacity(capacity), Box::new(|_| {})),
+        };
         
         let buffer = if let Some(mut buf) = pools[pool_index].pop_front() {
             buf.clear();
@@ -89,9 +92,10 @@ impl MemoryPool {
         
         let pools_clone = self.f32_pools.clone();
         let return_fn = Box::new(move |buf: Vec<f32>| {
-            let mut pools = pools_clone.write().unwrap();
-            if pools[pool_index].len() < 10 && buf.capacity() > 0 {
-                pools[pool_index].push_back(buf);
+            if let Ok(mut pools) = pools_clone.write() {
+                if pools[pool_index].len() < 10 && buf.capacity() > 0 {
+                    pools[pool_index].push_back(buf);
+                }
             }
         });
         
@@ -101,7 +105,10 @@ impl MemoryPool {
     /// Get or allocate an i64 buffer of at least the requested capacity
     pub fn get_i64_buffer(&self, capacity: usize) -> PooledBuffer<i64> {
         let pool_index = self.get_pool_index(capacity);
-        let mut pools = self.i64_pools.write().unwrap();
+        let mut pools = match self.i64_pools.write() {
+            Ok(pools) => pools,
+            Err(_) => return PooledBuffer::new(Vec::with_capacity(capacity), Box::new(|_| {})),
+        };
         
         let buffer = if let Some(mut buf) = pools[pool_index].pop_front() {
             buf.clear();
@@ -113,9 +120,10 @@ impl MemoryPool {
         
         let pools_clone = self.i64_pools.clone();
         let return_fn = Box::new(move |buf: Vec<i64>| {
-            let mut pools = pools_clone.write().unwrap();
-            if pools[pool_index].len() < 10 && buf.capacity() > 0 {
-                pools[pool_index].push_back(buf);
+            if let Ok(mut pools) = pools_clone.write() {
+                if pools[pool_index].len() < 10 && buf.capacity() > 0 {
+                    pools[pool_index].push_back(buf);
+                }
             }
         });
         
@@ -144,8 +152,12 @@ impl MemoryPool {
     
     /// Clear all pools, releasing memory
     pub fn clear(&self) {
-        self.f32_pools.write().unwrap().iter_mut().for_each(|p| p.clear());
-        self.i64_pools.write().unwrap().iter_mut().for_each(|p| p.clear());
+        if let Ok(mut pools) = self.f32_pools.write() {
+            pools.iter_mut().for_each(|p| p.clear());
+        }
+        if let Ok(mut pools) = self.i64_pools.write() {
+            pools.iter_mut().for_each(|p| p.clear());
+        }
     }
     
     /// Get input buffer (alias for i64 buffer)
@@ -206,6 +218,7 @@ pub struct PoolStats {
 /// Get input buffer helper function
 pub fn get_input_buffer() -> Vec<f32> {
     GLOBAL_MEMORY_POOL.get_f32_buffer(1024).take()
+        .unwrap_or_else(|| Vec::with_capacity(1024))
 }
 
 /// Return input buffer helper function
@@ -254,7 +267,7 @@ mod tests {
         let mut buf = pool.get_f32_buffer(10);
         buf.extend_from_slice(&[1.0, 2.0, 3.0]);
         
-        let vec = buf.take();
+        let vec = buf.take().expect("Buffer should exist");
         assert_eq!(vec.len(), 3);
         // Buffer won't be returned to pool since we took ownership
     }
