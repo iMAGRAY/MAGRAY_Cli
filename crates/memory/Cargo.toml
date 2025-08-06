@@ -74,6 +74,13 @@ rand = "0.8"
 fastrand = "2.0"
 futures = "0.3"
 
+# Additional test dependencies for comprehensive testing
+mockall = "0.12"
+proptest = "1.4"
+tokio-test = "0.4"
+once_cell = "1.19"
+test-log = "0.2"
+
 [[example]]
 name = "memory_demo"
 path = "examples/memory_demo.rs"

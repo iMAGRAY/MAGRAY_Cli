@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tracing::{debug, info, warn};
 
-use super::{TaskPriority, TaskComplexity, ResourceRequirements};
+use super::{TaskPriority, TaskComplexity};
 
 /// Execution strategy types
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -58,6 +58,7 @@ struct SlaMetrics {
 
 /// Алерт
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct Alert {
     id: String,
     component: String,
@@ -68,6 +69,7 @@ struct Alert {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 enum AlertLevel {
     Info,
     Warning,
@@ -88,6 +90,7 @@ struct ComponentHealth {
 
 /// Результат проверки здоровья
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct HealthCheckResult {
     timestamp: Instant,
     overall_healthy: bool,

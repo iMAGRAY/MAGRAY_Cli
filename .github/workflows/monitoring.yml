@@ -1,4 +1,4 @@
-name: 📊 Continuous Monitoring & Alerting
+name: 🔍 Production Monitoring & OpenTelemetry Integration
 
 on:
   schedule:

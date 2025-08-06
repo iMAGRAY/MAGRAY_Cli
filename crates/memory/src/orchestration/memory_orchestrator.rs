@@ -112,6 +112,7 @@ struct RetryHandlers {
 
 /// Orchestration metrics
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 struct OrchestrationMetrics {
     /// Общие метрики
     total_operations: u64,
@@ -138,6 +139,7 @@ struct OrchestrationMetrics {
 }
 
 #[derive(Debug, Default, Clone)]
+#[allow(dead_code)]
 struct CoordinatorMetrics {
     success_rate: f64,
     avg_response_time_ms: f64,

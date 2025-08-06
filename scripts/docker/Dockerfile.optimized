@@ -1,0 +1,251 @@
+# =============================================================================
+# MAGRAY CLI - Production-Optimized Multi-Stage Docker Build
+# Advanced optimization: dependency caching, multi-arch support, security hardening
+# Target размер: ~12MB (minimal), ~16MB (cpu), ~24MB (gpu)
+# =============================================================================
+
+# ================================
+# Global build arguments
+# ================================
+ARG RUST_VERSION=1.75
+ARG DEBIAN_VERSION=bookworm-slim
+ARG ONNX_VERSION=1.16.3
+ARG FEATURES=cpu
+ARG TARGET_ARCH=x86_64-unknown-linux-gnu
+
+# ================================
+# Stage 1: Dependencies Cache Layer
+# ================================  
+FROM rust:${RUST_VERSION}-${DEBIAN_VERSION} as deps-cache
+
+# Install system dependencies в одном слое для лучшего кэширования
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    wget \
+    unzip \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/apt/*
+
+# Создаем non-root пользователя для безопасности
+RUN groupadd -r magray && useradd -r -g magray -u 1000 magray
+
+WORKDIR /app
+RUN chown magray:magray /app
+USER magray
+
+# Копирование только Cargo metadata для dependency pre-build
+COPY --chown=magray:magray Cargo.toml Cargo.lock ./
+COPY --chown=magray:magray crates/*/Cargo.toml ./crates/*/
+
+# Создание stub source files для dependency build
+RUN find . -name Cargo.toml -not -path "./Cargo.toml" -execdir mkdir -p src \; \
+    && find . -name Cargo.toml -not -path "./Cargo.toml" -execdir touch src/lib.rs \; \
+    && mkdir -p src crates/cli/src \
+    && echo "fn main() {}" > src/main.rs \
+    && echo "fn main() {}" > crates/cli/src/main.rs
+
+# Pre-compile dependencies с feature-specific optimizations
+RUN --mount=type=cache,target=/usr/local/cargo/registry,uid=1000,gid=1000 \
+    --mount=type=cache,target=/app/target,uid=1000,gid=1000 \
+    cargo build --release --features ${FEATURES} \
+    && rm -rf src crates/*/src target/release/deps/magray*
+
+# ================================
+# Stage 2: ONNX Runtime Setup
+# ================================
+FROM deps-cache as onnx-setup
+
+USER root
+ARG ONNX_VERSION
+ARG FEATURES
+
+# Conditional ONNX Runtime installation based on features
+RUN if echo "${FEATURES}" | grep -q "gpu"; then \
+      echo "Installing GPU ONNX Runtime ${ONNX_VERSION}..." && \
+      wget -q https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-x64-gpu-${ONNX_VERSION}.tgz && \
+      tar xzf onnxruntime-linux-x64-gpu-${ONNX_VERSION}.tgz && \
+      mkdir -p /opt/onnxruntime && \
+      mv onnxruntime-linux-x64-gpu-${ONNX_VERSION}/* /opt/onnxruntime/ && \
+      rm -f onnxruntime-linux-x64-gpu-${ONNX_VERSION}.tgz && \
+      rm -rf onnxruntime-linux-x64-gpu-${ONNX_VERSION}; \
+    else \
+      echo "Installing CPU ONNX Runtime ${ONNX_VERSION}..." && \
+      wget -q https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-x64-${ONNX_VERSION}.tgz && \
+      tar xzf onnxruntime-linux-x64-${ONNX_VERSION}.tgz && \
+      mkdir -p /opt/onnxruntime && \
+      mv onnxruntime-linux-x64-${ONNX_VERSION}/* /opt/onnxruntime/ && \
+      rm -f onnxruntime-linux-x64-${ONNX_VERSION}.tgz && \
+      rm -rf onnxruntime-linux-x64-${ONNX_VERSION}; \
+    fi
+
+# Set ONNX Runtime environment
+ENV ORT_LIB_LOCATION=/opt/onnxruntime/lib
+ENV LD_LIBRARY_PATH=/opt/onnxruntime/lib:${LD_LIBRARY_PATH}
+
+USER magray
+
+# ================================
+# Stage 3: Source Code Build
+# ================================
+FROM onnx-setup as builder
+
+USER magray
+WORKDIR /app
+
+# Копирование исходного кода
+COPY --chown=magray:magray crates/ ./crates/
+COPY --chown=magray:magray src/ ./src/ 2>/dev/null || true
+COPY --chown=magray:magray benches/ ./benches/ 2>/dev/null || true
+
+# Production build configuration
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_LTO=fat
+ENV CARGO_PROFILE_RELEASE_PANIC=abort
+ENV CARGO_PROFILE_RELEASE_STRIP=symbols
+ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=z
+
+# Build application с максимальными оптимизациями
+RUN --mount=type=cache,target=/usr/local/cargo/registry,uid=1000,gid=1000 \
+    --mount=type=cache,target=/app/target,uid=1000,gid=1000 \
+    cargo build --release \
+    --features ${FEATURES} \
+    --target ${TARGET_ARCH} \
+    --bin magray
+
+# Additional binary optimization
+RUN --mount=type=cache,target=/app/target,uid=1000,gid=1000 \
+    cp target/${TARGET_ARCH}/release/magray /tmp/magray-binary && \
+    strip /tmp/magray-binary || true
+
+# Binary size validation
+RUN BINARY_SIZE=$(stat -c%s /tmp/magray-binary) && \
+    BINARY_SIZE_MB=$((BINARY_SIZE / 1024 / 1024)) && \
+    echo "Final binary size: ${BINARY_SIZE_MB}MB" && \
+    if [ "${BINARY_SIZE_MB}" -gt 30 ]; then \
+      echo "ERROR: Binary size ${BINARY_SIZE_MB}MB exceeds 30MB limit!" && exit 1; \
+    fi
+
+# ================================
+# Stage 4: Runtime Base (CPU)
+# ================================
+FROM debian:${DEBIAN_VERSION} as runtime-base
+
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
+    && groupadd -r magray && useradd -r -g magray -u 1000 -s /bin/false magray
+
+# Copy ONNX Runtime libraries
+COPY --from=onnx-setup /opt/onnxruntime/lib/*.so* /usr/local/lib/
+RUN ldconfig
+
+# Application directories
+RUN mkdir -p /app/{data,models,config,cache,logs} && \
+    chown -R magray:magray /app
+
+# ================================
+# Stage 5: GPU Runtime (conditional)  
+# ================================
+FROM nvidia/cuda:12.3-runtime-ubuntu22.04 as runtime-gpu
+
+# Install runtime dependencies for GPU variant
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
+    && groupadd -r magray && useradd -r -g magray -u 1000 -s /bin/false magray
+
+# Copy ONNX Runtime GPU libraries
+COPY --from=onnx-setup /opt/onnxruntime/lib/*.so* /usr/local/lib/
+RUN ldconfig
+
+# GPU-specific environment
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV CUDA_CACHE_DISABLE=0
+
+# Application directories
+RUN mkdir -p /app/{data,models,config,cache,logs,gpu-cache} && \
+    chown -R magray:magray /app
+
+# ================================
+# Stage 6: Final Runtime Selection
+# ================================
+FROM runtime-base as runtime-final
+
+# Copy application binary
+COPY --from=builder --chown=magray:magray /tmp/magray-binary /usr/local/bin/magray
+RUN chmod +x /usr/local/bin/magray
+
+# Switch to non-root user
+USER magray
+WORKDIR /app
+
+# Environment configuration
+ENV RUST_LOG=info
+ENV RUST_BACKTRACE=1
+ENV MAGRAY_DATA_DIR=/app/data
+ENV MAGRAY_MODELS_DIR=/app/models
+ENV MAGRAY_CONFIG_DIR=/app/config
+ENV MAGRAY_CACHE_DIR=/app/cache
+ENV MAGRAY_LOG_DIR=/app/logs
+
+# Volumes для persistent data
+VOLUME ["/app/data", "/app/models", "/app/config"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD ["/usr/local/bin/magray", "health"] || exit 1
+
+# Application port (если есть web interface)
+EXPOSE 8080
+
+# Default command
+CMD ["/usr/local/bin/magray"]
+
+# ================================
+# Multi-arch & Feature-specific Stages
+# ================================
+
+# GPU Runtime Selection
+FROM runtime-gpu as runtime-gpu-final
+COPY --from=builder --chown=magray:magray /tmp/magray-binary /usr/local/bin/magray
+RUN chmod +x /usr/local/bin/magray
+USER magray
+WORKDIR /app
+ENV RUST_LOG=info
+ENV MAGRAY_GPU_ENABLED=true
+ENV MAGRAY_DATA_DIR=/app/data
+ENV MAGRAY_GPU_CACHE_DIR=/app/gpu-cache
+VOLUME ["/app/data", "/app/models", "/app/config", "/app/gpu-cache"]
+HEALTHCHECK --interval=30s --timeout=15s --start-period=30s --retries=3 \
+  CMD ["/usr/local/bin/magray", "health", "--check-gpu"] || exit 1
+EXPOSE 8080
+CMD ["/usr/local/bin/magray", "--gpu-init"]
+
+# ================================
+# Comprehensive Labels & Metadata
+# ================================
+LABEL maintainer="MAGRAY Team"
+LABEL version="0.1.0"
+LABEL description="MAGRAY CLI - AI Assistant with Vector Memory"
+LABEL org.opencontainers.image.title="MAGRAY CLI"
+LABEL org.opencontainers.image.description="Production-ready AI assistant with vector memory system"
+LABEL org.opencontainers.image.version="0.1.0"
+LABEL org.opencontainers.image.created="${BUILD_DATE:-unknown}"
+LABEL org.opencontainers.image.source="https://github.com/magray/cli"
+LABEL org.opencontainers.image.documentation="https://github.com/magray/cli/blob/main/docs/"
+LABEL org.opencontainers.image.vendor="MAGRAY Team"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL features="${FEATURES:-cpu}"
+LABEL architecture="${TARGET_ARCH:-x86_64-unknown-linux-gnu}"
+LABEL rust.version="${RUST_VERSION}"
+LABEL onnxruntime.version="${ONNX_VERSION}"

@@ -1,7 +1,8 @@
 #!/bin/bash
 # =============================================================================
-# MAGRAY CLI - Docker Health Check Script
-# Production-ready health monitoring для Docker containers
+# MAGRAY CLI - Enhanced Docker Health Check Script
+# Comprehensive application health verification для container orchestration
+# Includes OpenTelemetry health monitoring integration
 # =============================================================================
 
 set -euo pipefail

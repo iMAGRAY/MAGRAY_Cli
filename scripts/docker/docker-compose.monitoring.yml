@@ -1,0 +1,294 @@
+# =============================================================================
+# MAGRAY CLI - Complete Monitoring Stack
+# Production-ready observability: Prometheus, Grafana, Jaeger, OTEL Collector
+# =============================================================================
+
+version: '3.8'
+
+networks:
+  monitoring:
+    driver: bridge
+  magray:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  jaeger_data:
+    driver: local
+  otel_data:
+    driver: local
+
+services:
+  # ================================
+  # OpenTelemetry Collector
+  # ================================
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.89.0
+    container_name: magray-otel-collector
+    restart: unless-stopped
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver  
+      - "8888:8888"   # Prometheus metrics
+      - "8889:8889"   # Prometheus export
+      - "13133:13133" # Health check
+      - "55679:55679" # zpages
+    volumes:
+      - ../.github/configs/otel-collector.yml:/etc/otelcol-contrib/otel-collector.yml:ro
+      - otel_data:/tmp
+    environment:
+      - MAGRAY_VERSION=${MAGRAY_VERSION:-dev}
+      - DEPLOYMENT_ENVIRONMENT=${DEPLOYMENT_ENVIRONMENT:-development}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://prometheus:9090}
+    command: ["--config=/etc/otelcol-contrib/otel-collector.yml"]
+    networks:
+      - monitoring
+      - magray
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:13133/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================
+  # Prometheus - Metrics Storage
+  # ================================
+  prometheus:
+    image: prom/prometheus:v2.47.2
+    container_name: magray-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../.github/configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../.github/configs/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    environment:
+      - REMOTE_WRITE_URL=${PROMETHEUS_REMOTE_WRITE_URL:-}
+      - REMOTE_WRITE_TOKEN=${PROMETHEUS_REMOTE_WRITE_TOKEN:-}
+      - REMOTE_READ_URL=${PROMETHEUS_REMOTE_READ_URL:-}
+      - REMOTE_READ_TOKEN=${PROMETHEUS_REMOTE_READ_TOKEN:-}
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--log.level=info'
+    networks:
+      - monitoring
+    depends_on:
+      - otel-collector
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================
+  # Grafana - Visualization
+  # ================================
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: magray-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-magray-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+      - jaeger
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================
+  # Jaeger - Distributed Tracing
+  # ================================
+  jaeger:
+    image: jaegertracing/all-in-one:1.50.0
+    container_name: magray-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14250:14250" # gRPC endpoint для collector
+      - "14268:14268" # HTTP endpoint для collector
+      - "6831:6831/udp" # UDP endpoint для agent
+      - "6832:6832/udp" # UDP endpoint для agent
+    volumes:
+      - jaeger_data:/badger
+    environment:
+      - SPAN_STORAGE_TYPE=badger
+      - BADGER_EPHEMERAL=false
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      - BADGER_DIRECTORY_KEY=/badger/key
+      - COLLECTOR_OTLP_ENABLED=true
+      - JAEGER_DISABLED=false
+      - LOG_LEVEL=info
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================
+  # AlertManager - Alert Routing
+  # ================================
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: magray-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    environment:
+      - SLACK_API_URL=${SLACK_API_URL:-}
+      - PAGERDUTY_INTEGRATION_KEY=${PAGERDUTY_INTEGRATION_KEY:-}
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--log.level=info'
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================
+  # Node Exporter - System Metrics
+  # ================================
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: magray-node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--log.level=info'
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================
+  # cAdvisor - Container Metrics
+  # ================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: magray-cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    privileged: true
+    command:
+      - '--housekeeping_interval=30s'
+      - '--docker_only=false'
+      - '--storage_duration=2m'
+      - '--log_level=1'
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================
+  # MAGRAY CLI Application
+  # ================================
+  magray-cli:
+    build:
+      context: ../..
+      dockerfile: scripts/docker/Dockerfile.optimized
+      args:
+        FEATURES: cpu,monitoring
+        TARGET_ARCH: x86_64-unknown-linux-gnu
+    container_name: magray-app
+    restart: unless-stopped
+    ports:
+      - "8081:8080"  # Application port
+    volumes:
+      - magray_data:/app/data
+      - magray_models:/app/models
+      - magray_config:/app/config
+    environment:
+      - RUST_LOG=info
+      - MAGRAY_TELEMETRY_ENABLED=true
+      - MAGRAY_METRICS_ENDPOINT=http://otel-collector:4317
+      - MAGRAY_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces
+      - OTEL_SERVICE_NAME=magray-cli
+      - OTEL_SERVICE_VERSION=${MAGRAY_VERSION:-dev}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+    networks:
+      - monitoring
+      - magray
+    depends_on:
+      - otel-collector
+      - prometheus
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/magray", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# ================================
+# Additional Volumes
+# ================================
+volumes:
+  magray_data:
+    driver: local
+  magray_models:
+    driver: local
+  magray_config:
+    driver: local

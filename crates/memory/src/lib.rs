@@ -17,7 +17,7 @@ pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance
 pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 pub mod service_di; // DI-based service (единственная реализация) - DEPRECATED
 pub mod storage;
-mod types;
+pub mod types;
 mod vector_index_hnswlib; // Critical for vector storage
 pub mod transaction;
 mod backup;
@@ -35,8 +35,10 @@ pub mod di_memory_config;
 pub use di_container::{DIContainer, DIPerformanceMetrics, DIContainerStats, Lifetime};
 // Оркестрация системы памяти
 pub mod orchestration;
+// Специализированные сервисы (SOLID refactoring)
+pub mod services;
 pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};
-pub use batch_optimized::{BatchOptimizedProcessor, BatchOptimizedConfig, BatchOptimizedStats};
+pub use batch_optimized::{BatchOptimizedProcessor, BatchOptimizedConfig, BatchOptimizedStats, AlignedBatchVectors};
 pub use cache_lru::{EmbeddingCacheLRU as EmbeddingCache, CacheConfig as LruCacheConfig, CacheConfig};
 
 // Cache configuration type for service - теперь только LRU
@@ -45,6 +47,21 @@ pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 // Legacy MemoryService удален - используем DIMemoryService (DEPRECATED)
 pub use service_di::{DIMemoryService, DIMemoryService as MemoryService, MemoryServiceConfig, MemoryConfig, default_config, BatchInsertResult, BatchSearchResult};
+
+// NEW: Refactored services based on SOLID principles
+pub use services::{
+    // Trait interfaces
+    CoreMemoryServiceTrait, CoordinatorServiceTrait, ResilienceServiceTrait, 
+    MonitoringServiceTrait, CacheServiceTrait,
+    // Service implementations
+    CoreMemoryService, CoordinatorService, ResilienceService, 
+    MonitoringService, CacheService,
+    // Service factory and collections
+    ServiceFactory, ServiceCollection, ServiceFactoryConfig,
+};
+
+// NEW: Refactored DIMemoryService using SOLID composition instead of God Object
+pub use services::{RefactoredDIMemoryService, RefactoredDIMemoryServiceBuilder};
 
 // ВРЕМЕННО ОТКЛЮЧЕНО - НОВАЯ СЛОЕВАЯ АРХИТЕКТУРА
 // pub use layers::{
@@ -61,6 +78,9 @@ pub use service_di::{DIMemoryService, DIMemoryService as MemoryService, MemorySe
 pub use di_memory_config::{MemoryDIConfigurator};
 pub use health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus};
 pub use api::{UnifiedMemoryAPI, MemoryContext, SearchOptions as ApiSearchOptions, MemoryResult, OptimizationResult, SystemHealth, DetailedHealth, SystemStats, CacheStats, IndexSizes};
+pub use resource_manager::{ResourceManager, ResourceConfig};
+pub use notifications::{NotificationManager, NotificationManager as NotificationSystem};
+pub use database_manager::DatabaseManager;
 pub use metrics::{MetricsCollector, MemoryMetrics, LatencyMetrics, LayerMetrics};
 pub use transaction::{Transaction, TransactionManager, TransactionGuard};
 pub use simd_optimized::{cosine_distance_auto, cosine_distance_memory_optimized, batch_cosine_distance_optimized, run_comprehensive_benchmark};

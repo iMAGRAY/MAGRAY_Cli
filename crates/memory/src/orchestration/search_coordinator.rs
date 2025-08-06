@@ -51,6 +51,7 @@ struct QueryCache {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct CachedSearchResult {
     results: Vec<Record>,
     created_at: Instant,
@@ -749,6 +750,7 @@ impl SearchCoordinator {
     }
     
     /// Адаптивная очистка cache на основе частоты обращений
+    #[allow(dead_code)]
     async fn adaptive_cache_cleanup(&self) {
         let mut cache = self.query_cache.write().await;
         

@@ -6,7 +6,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
-use tracing::{info, debug, error};
+use tracing::{info, debug};
 
 use crate::agent_traits::{
     IntelligentRoutingTrait, ComponentLifecycleTrait, CircuitBreakerTrait,

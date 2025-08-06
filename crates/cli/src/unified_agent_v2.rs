@@ -17,7 +17,7 @@ use crate::agent_traits::*;
 use crate::handlers::*;
 use crate::strategies::*;
 use crate::orchestrator::*;
-use tools::enhanced_tool_system::{EnhancedToolSystem, EnhancedToolSystemConfig};
+use tools::enhanced_tool_system::EnhancedToolSystemConfig;
 
 // ============================================================================
 // ADAPTER IMPLEMENTATIONS FOR EXISTING SERVICES

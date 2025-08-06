@@ -120,6 +120,7 @@ pub struct AlignedBatchVectors {
     /// Layer information
     layers: Vec<Layer>,
     /// Capacity для pre-allocation
+    #[allow(dead_code)]
     capacity: usize,
 }
 
@@ -175,6 +176,7 @@ impl AlignedBatchVectors {
         self.compute_norm_scalar(vector)
     }
     
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.vectors.len()
     }
@@ -183,6 +185,7 @@ impl AlignedBatchVectors {
         self.vectors.is_empty()
     }
     
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.vectors.clear();
         self.norms.clear();

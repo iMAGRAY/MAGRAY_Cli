@@ -438,11 +438,13 @@ async fn test_qwen3_stress() -> Result<()> {
     
     for i in 0..200 {
         for query in &queries {
+            let options = memory::SearchOptions {
+                limit: 10,
+                min_score: Some(0.5),
+                ..Default::default()
+            };
             let results = memory_service
-                .search(query)
-                .top_k(10)
-                .min_score(0.5)
-                .execute()
+                .search(query, memory::Layer::Interact, options)
                 .await?;
             total_results += results.len();
         }
@@ -458,11 +460,14 @@ async fn test_qwen3_stress() -> Result<()> {
     info!("Всего найдено результатов: {}", total_results);
 
     // Финальная статистика
+    use memory::api::MemoryServiceTrait;
     let (hits, misses, items) = memory_service.cache_stats();
     info!("\nФинальная статистика кэша:");
     info!("  - Попадания: {}", hits);
     info!("  - Промахи: {}", misses);
-    info!("  - Hit rate: {:.1}%", (hits as f64 / (hits + misses) as f64) * 100.0);
+    if hits + misses > 0 {
+        info!("  - Hit rate: {:.1}%", (hits as f64 / (hits + misses) as f64) * 100.0);
+    }
     info!("  - Элементов в кэше: {}", items);
 
     info!("\n✅ Стресс-тест завершён успешно!");

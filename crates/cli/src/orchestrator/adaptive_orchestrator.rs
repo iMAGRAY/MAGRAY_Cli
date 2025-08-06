@@ -10,7 +10,6 @@ use tracing::{info, debug, warn, error};
 use uuid::Uuid;
 
 use crate::agent_traits::*;
-use crate::handlers::*;
 use super::{TaskAnalyzer, ResourceManager, StrategySelector};
 
 /// Priority levels for task orchestration

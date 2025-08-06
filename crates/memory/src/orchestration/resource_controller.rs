@@ -59,6 +59,7 @@ struct ScalingConfig {
 
 /// Снимок состояния ресурсов
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ResourceSnapshot {
     timestamp: Instant,
     memory_usage_percent: f64,
@@ -78,6 +79,7 @@ struct LoadPredictor {
 
 /// Алерт по ресурсам
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ResourceAlert {
     id: String,
     alert_type: ResourceAlertType,
@@ -87,6 +89,7 @@ struct ResourceAlert {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 enum ResourceAlertType {
     MemoryPressure,
     VectorLimitApproached,

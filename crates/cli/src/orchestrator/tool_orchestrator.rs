@@ -4,13 +4,12 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
-use tracing::{info, debug, warn, error};
+use tracing::{info, debug};
 
 use tools::enhanced_tool_system::{EnhancedToolSystem, EnhancedToolSystemConfig, EnhancedToolResult};
 use tools::{Tool, ToolSpec};
 use crate::orchestrator::{
-    AdaptiveTaskOrchestrator, OrchestrationConfig, OrchestrationResult, TaskPriority, TaskComplexity
+    AdaptiveTaskOrchestrator, OrchestrationConfig, OrchestrationResult
 };
 
 /// Tool orchestrator configuration

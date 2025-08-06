@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 929e6badde5b165bdff8b77dfeb34a7b2c5a95bb61a9da9e1487df5f1ebbcdb4 # shrinks to batch_size = 1, layer = Interact
+cc 59e9abd4aece91889f48b5f06fb2bf97664b3f5121330e3d15ea92ef00442c31 # shrinks to top_k = 1, threshold = 0.0
+cc 6ab01978e3e4a6e2492212cb47e2c3e59115a4aa707b700c572cb3443612d18a # shrinks to content = "\u{bbe}🮔𞸡A0"

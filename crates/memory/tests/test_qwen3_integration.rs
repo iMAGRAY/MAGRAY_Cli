@@ -442,11 +442,13 @@ async fn test_qwen3_performance_at_scale() -> Result<()> {
     
     for query in &queries {
         let start = std::time::Instant::now();
+        let options = memory::SearchOptions {
+            limit: 10,
+            min_score: Some(0.5),
+            ..Default::default()
+        };
         let results = memory_service
-            .search(query)
-            .top_k(10)
-            .min_score(0.5)
-            .execute()
+            .search(query, memory::Layer::Interact, options)
             .await?;
         let search_time = start.elapsed();
         
@@ -461,11 +463,13 @@ async fn test_qwen3_performance_at_scale() -> Result<()> {
     info!("\nТест производительности с reranking:");
     
     let start = std::time::Instant::now();
+    let options = memory::SearchOptions {
+        limit: 20,
+        min_score: Some(0.3),
+        ..Default::default()
+    };
     let reranked = memory_service
-        .search("машинное обучение и нейронные сети")
-        .top_k(20)
-        .min_score(0.3)
-        .execute()
+        .search("машинное обучение и нейронные сети", memory::Layer::Interact, options)
         .await?;
     let rerank_time = start.elapsed();
     

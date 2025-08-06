@@ -6,7 +6,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info, warn};
 
 use crate::agent_traits::CircuitBreakerTrait;
 

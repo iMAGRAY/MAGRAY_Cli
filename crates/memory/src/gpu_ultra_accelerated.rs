@@ -62,8 +62,10 @@ impl GpuDevice {
 /// GPU memory buffer for zero-copy operations
 #[derive(Debug)]
 pub struct GpuMemoryBuffer {
+    #[allow(dead_code)]
     ptr: *mut f32,
     size: usize,
+    #[allow(dead_code)]
     device_id: u32,
 }
 

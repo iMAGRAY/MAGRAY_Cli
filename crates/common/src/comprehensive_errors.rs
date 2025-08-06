@@ -4,7 +4,6 @@
 //! to replace all critical .unwrap() calls throughout the codebase.
 
 use std::fmt;
-use std::error::Error as StdError;
 use std::sync::PoisonError;
 use thiserror::Error;
 

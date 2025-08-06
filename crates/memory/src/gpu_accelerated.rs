@@ -49,6 +49,7 @@ pub struct GpuBatchProcessor {
     processing_queue: Arc<Mutex<Vec<PendingEmbedding>>>,
     config: BatchProcessorConfig,
     /// Ultra-optimized batch processor для maximum QPS
+    #[allow(dead_code)]
     ultra_batch_processor: Option<Arc<BatchOptimizedProcessor>>,
 }
 

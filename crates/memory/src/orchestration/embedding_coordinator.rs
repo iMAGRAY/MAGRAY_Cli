@@ -49,6 +49,7 @@ pub struct EmbeddingCoordinator {
 
 /// Circuit breaker state для GPU операций
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct CircuitBreaker {
     state: CircuitState,
     failure_count: u32,
@@ -60,6 +61,7 @@ struct CircuitBreaker {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 enum CircuitState {
     Closed,     // Нормальное состояние
     Open,       // Отказ, блокировка запросов
@@ -68,6 +70,7 @@ enum CircuitState {
 
 /// Адаптивная конфигурация batch размера
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct AdaptiveBatchConfig {
     current_size: usize,
     min_size: usize,
@@ -79,7 +82,7 @@ struct AdaptiveBatchConfig {
 
 /// Performance метрики
 #[derive(Debug, Default, Clone)]
-struct PerformanceMetrics {
+pub struct PerformanceMetrics {
     total_requests: u64,
     successful_requests: u64,
     failed_requests: u64,
@@ -93,6 +96,7 @@ struct PerformanceMetrics {
 
 /// Batch request для queue
 #[derive(Debug)]
+#[allow(dead_code)]
 struct BatchRequest {
     texts: Vec<String>,
     response_sender: tokio::sync::oneshot::Sender<Result<Vec<Vec<f32>>>>,
@@ -459,6 +463,7 @@ impl EmbeddingCoordinator {
     }
     
     /// Адаптивная настройка batch размера
+    #[allow(dead_code)]
     async fn adjust_batch_size(&self, latency_ms: u64) {
         let mut config = self.adaptive_batch_size.write().await;
         

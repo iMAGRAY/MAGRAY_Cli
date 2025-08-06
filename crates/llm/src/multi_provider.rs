@@ -18,6 +18,7 @@ pub struct MultiProviderLlmOrchestrator {
     circuit_breakers: Arc<Mutex<HashMap<String, CircuitBreaker>>>,
     cost_optimizer: Arc<Mutex<CostOptimizer>>,
     client: Client,
+    #[allow(dead_code)]
     current_provider_index: Arc<Mutex<usize>>, // For round-robin load balancing
     retry_config: RetryConfig,
     performance_monitor: Arc<Mutex<PerformanceMonitor>>,

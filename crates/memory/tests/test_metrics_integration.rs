@@ -1,6 +1,6 @@
 ﻿use anyhow::Result;
 use memory::{
-    CacheConfig, EmbeddingCacheLRU, Layer, MemoryConfig, MemoryService, 
+    CacheConfig, EmbeddingCache, Layer, MemoryConfig, MemoryService, 
     MetricsCollector, PromotionConfig, Record, VectorStore
 };
 use tempfile::TempDir;
@@ -239,7 +239,7 @@ async fn test_cache_metrics() -> Result<()> {
         eviction_batch_size: 10,
     };
     
-    let cache = EmbeddingCacheLRU::new(temp_dir.path().join("cache"), cache_config)?;
+    let cache = EmbeddingCache::new(temp_dir.path().join("cache"), cache_config)?;
     let metrics = MetricsCollector::new();
     
     // Test cache operations

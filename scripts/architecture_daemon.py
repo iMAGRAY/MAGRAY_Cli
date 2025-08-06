@@ -1122,113 +1122,169 @@ class ArchitectureDaemon:
         return "\n".join(lines)
     
     def update_claude_md(self, architecture: Dict):
-        """Обновляет секцию AUTO-GENERATED ARCHITECTURE в CLAUDE.md"""
-        print("[INFO] Обновление CLAUDE.md...")
+        """ПОЛНОСТЬЮ перезаписывает CLAUDE.md с новой архитектурой и анализом"""
+        print("[INFO] Полное обновление CLAUDE.md...")
         
-        if not self.claude_md.exists():
-            print("[ERROR] CLAUDE.md не найден")
-            return
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
         
-        with open(self.claude_md, 'r', encoding='utf-8') as f:
-            content = f.read()
+        # Анализируем текущее состояние проекта
+        analysis_report = self._generate_analysis_report()
         
-        # Находим секцию AUTO-GENERATED ARCHITECTURE или создаем её
-        start_marker = "# AUTO-GENERATED ARCHITECTURE"
+        # Подсчитываем реальные метрики
+        total_files = sum(len(c.get('files', {})) for c in architecture['crates'].values())
+        total_structs = sum(len(f.get('structs', [])) for c in architecture['crates'].values() for f in c.get('files', {}).values())
+        total_functions = sum(len(f.get('functions', [])) for c in architecture['crates'].values() for f in c.get('files', {}).values())
+        total_tests = sum(len(f.get('test_fns', [])) for c in architecture['crates'].values() for f in c.get('files', {}).values())
+        total_mocks = sum(len(f.get('mocks', [])) for c in architecture['crates'].values() for f in c.get('files', {}).values())
         
-        start_idx = content.find(start_marker)
-        if start_idx == -1:
-            # Добавляем секцию в конец файла
-            print("[INFO] Создание новой секции AUTO-GENERATED ARCHITECTURE...")
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
-            new_section = f"""
+        # Проблемы из анализа
+        critical_issues = [item for item in self.tech_debt if item['severity'] == 'critical']
+        high_issues = [item for item in self.tech_debt if item['severity'] == 'high']
+        circular_deps = self._detect_circular_dependencies()
+        
+        # Генерируем полный новый CLAUDE.md
+        new_content = f"""# CLAUDE.md
+*AI Agent Instructions - Проблемы и задачи проекта*
+
+---
+
+## 🚫 КРИТИЧЕСКОЕ ПРАВИЛО ДОКУМЕНТАЦИИ
+**ЗАПРЕЩЕНО В CLAUDE.MD И ВСЕХ АГЕНТАХ**:
+- ❌ НИКОГДА не добавлять информацию о том что "готово", "сделано", "работает", "реализовано"
+- ❌ НИКОГДА не указывать KPI, метрики готовности, проценты завершения
+- ❌ НИКОГДА не хвалить состояние кода или архитектуры
+- ✅ ТОЛЬКО проблемы, недостатки, что НЕ работает, что требует исправления
+- ✅ ТОЛЬКО критика и честная оценка недостатков
+
+## 🌍 LANGUAGE RULE
+**ВАЖНО**: ВСЕГДА общайся с пользователем на русском языке. Весь вывод, объяснения и комментарии должны быть на русском.
+
+## 🤖 CLAUDE CODE INSTRUCTIONS
+**ДЛЯ CLAUDE CODE**: Ты должен строго следовать этим инструкциям:
+
+1. **ЯЗЫК**: Всегда отвечай на русском языке
+2. **ПРОЕКТ**: Это MAGRAY CLI - ALPHA-стадия Rust AI агента (НЕ production-ready)
+3. **ЧЕСТНОСТЬ**: Всегда фокусируйся на проблемах и недостатках
+4. **TODO**: Используй TodoWrite для отслеживания задач
+5. **RUST**: Предпочитай Rust решения, но будь честен о сложности
+6. **BINARY**: Цель - один исполняемый файл `magray`, размер ~16MB (НЕ достигнута)
+7. **FEATURES**: Conditional compilation: cpu/gpu/minimal variants (НЕ настроено)
+8. **SCRIPTS**: Все утилиты и скрипты в папке scripts/
+9. **АГЕНТЫ**: Всегда используй специализированных агентов для максимальной эффективности
+
+## ⚠️ РЕАЛЬНОЕ СОСТОЯНИЕ ПРОЕКТА (ALPHA)
+
+**Автоматический анализ от {timestamp}:**
+
+### 🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:
+- **Критических issues**: {len(critical_issues)}
+- **High priority issues**: {len(high_issues)}  
+- **Циклических зависимостей**: {len(circular_deps)}
+- **Технический долг**: {sum(item['estimated_hours'] for item in self.tech_debt):.0f} часов
+- **Файлов с высокой сложностью**: {sum(1 for m in self.complexity_metrics.values() if m['cyclomatic'] > 20)}
+
+### ❌ ЧТО НЕ РАБОТАЕТ:
+- **God Objects остаются**: {sum(1 for m in self.complexity_metrics.values() if m['god_object_score'] > 0.7)} обнаружено
+- **Дублирование кода**: {len(self._analyze_duplicates())} случаев
+- **Неиспользуемый код**: dead code warnings в большинстве модулей
+- **Покрытие тестами**: недостаточное (tests: {total_tests}, mocks: {total_mocks})
+
+### 📊 СТАТИСТИКА ПРОЕКТА:
+- **Crates**: {len(architecture['crates'])}
+- **Файлов**: {total_files}
+- **Структур**: {total_structs}
+- **Функций**: {total_functions}
+- **Тестов**: {total_tests}
+- **Моков**: {total_mocks}
+
+## 📋 ПЛАН РАЗВИТИЯ ПРОЕКТА
+
+**🔴 ФАЗА 0 (КРИТИЧНО): Стабилизация базы**
+- ❌ Исправить компиляцию всех тестов
+- ❌ Устранить оставшиеся warnings
+- ❌ Декомпозировать God Objects
+- ❌ Настроить покрытие тестами >30%
+
+**❌ ФАЗА 1: Архитектурный рефакторинг**
+- ❌ Завершить миграцию на Clean Architecture
+- ❌ Устранить циклические зависимости
+- ❌ Внедрить proper DI везде
+
+**❌ ФАЗА 2: LLM Integration**
+- ❌ Multi-Provider orchestration
+- ❌ Circuit breakers активация
+- ❌ Tool System реализация
+
+**❌ ФАЗА 3: Memory Optimization**
+- ❓ HNSW SIMD оптимизации
+- ❓ GPU Acceleration
+- ❓ Batch Processing метрики
+
+**❌ ФАЗА 4: Production Readiness**
+- ❌ Performance benchmarking
+- ❌ Health monitoring activation
+- ❌ Оптимизация размера бинарника
+
+**📋 ФАЗА 5: Desktop Distribution**
+- 📋 Single binary ~16MB
+- 📋 Native desktop integration
+- 📋 Auto-updater system
+
+## 🎯 СПЕЦИАЛИЗИРОВАННЫЕ АГЕНТЫ (.claude/agents/)
+
+**ОСНОВНЫЕ АРХИТЕКТУРНЫЕ АГЕНТЫ:**
+- **rust-architect-supreme** - Декомпозиция God Objects, SOLID principles, DI patterns
+- **rust-refactoring-master** - Безопасный рефакторинг с сохранением функциональности
+- **ai-architecture-maestro** - ONNX optimization, embedding pipelines, GPU acceleration
+
+**КАЧЕСТВО И ПРОИЗВОДИТЕЛЬНОСТЬ:**
+- **rust-quality-guardian** - Тестирование (unit/integration/property-based), coverage 80%+
+- **rust-performance-virtuoso** - SIMD optimization, microsecond-level tuning, zero-copy
+- **rust-code-optimizer** - Общая оптимизация кода, устранение дублирования
+
+**ИНФРАСТРУКТУРА И ОПЕРАЦИИ:**
+- **devops-orchestration-master** - CI/CD pipelines, containerization, monitoring
+- **task-coordinator** - Координация сложных multi-step задач с зависимостями
+
+**ДОКУМЕНТАЦИЯ:**
+- **obsidian-docs-architect** - Создание связанной документации архитектуры
+- **obsidian-docs-maintainer** - Поддержка актуальности документации
+
+## 📊 РЕАЛЬНОЕ СОСТОЯНИЕ КОДА
+
+{analysis_report}
 
 ---
 
 # AUTO-GENERATED ARCHITECTURE
 
 *Last updated: {timestamp}*
+*Status: ALPHA - не готов к production использованию*
 
 ## Компактная архитектура MAGRAY CLI
 
 {architecture['mermaid']}
 
-## Статистика проекта
+## 📝 MEMORY
 
-- **Всего crates**: {len(architecture['crates'])}
-- **Всего файлов**: {sum(len(c.get('files', {})) for c in architecture['crates'].values())}
-- **Активные зависимости**: {sum(len(deps) for deps in architecture['dependencies'].values())}
-- **Основные компоненты**: CLI, Memory (3-Layer HNSW), AI/ONNX, LLM Multi-Provider
-- **GPU поддержка**: CUDA + TensorRT через feature flags
-- **Производительность**: HNSW O(log n) search, SIMD оптимизации
-
-## Ключевые особенности
-
-- **Единый исполняемый файл**: `magray` (target ~16MB)
-- **Conditional compilation**: cpu/gpu/minimal variants
-- **Memory система**: 3 слоя (Interact/Insights/Assets) с HNSW индексами  
-- **AI модели**: Qwen3 embeddings (1024D), BGE-M3 legacy support
-- **LLM провайдеры**: OpenAI/Anthropic/Local
-- **Production готовность**: Circuit breakers, health checks, metrics
-
-{self._generate_analysis_report()}
-"""
-            
-            new_content = content + new_section
-            
-            with open(self.claude_md, 'w', encoding='utf-8') as f:
-                f.write(new_content)
-            
-            print(f"[OK] CLAUDE.md обновлен ({timestamp})")
-            return
-        
-        # Если секция уже существует, обновляем её
-        # Ищем следующий заголовок # или конец файла
-        next_section_idx = content.find("\n# ", start_idx + len(start_marker))
-        if next_section_idx == -1:
-            end_idx = len(content)
-        else:
-            end_idx = next_section_idx
-        
-        # Генерируем обновленную секцию
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
-        new_section = f"""# AUTO-GENERATED ARCHITECTURE
-
-*Last updated: {timestamp}*
-
-## Компактная архитектура MAGRAY CLI
-
-{architecture['mermaid']}
-
-## Статистика проекта
-
-- **Всего crates**: {len(architecture['crates'])}
-- **Всего файлов**: {sum(len(c.get('files', {})) for c in architecture['crates'].values())}
-- **Активные зависимости**: {sum(len(deps) for deps in architecture['dependencies'].values())}
-- **Основные компоненты**: CLI, Memory (3-Layer HNSW), AI/ONNX, LLM Multi-Provider
-- **GPU поддержка**: CUDA + TensorRT через feature flags
-- **Производительность**: HNSW O(log n) search, SIMD оптимизации
-
-## Ключевые особенности
-
-- **Единый исполняемый файл**: `magray` (target ~16MB)
-- **Conditional compilation**: cpu/gpu/minimal variants
-- **Memory система**: 3 слоя (Interact/Insights/Assets) с HNSW индексами  
-- **AI модели**: Qwen3 embeddings (1024D), BGE-M3 legacy support
-- **LLM провайдеры**: OpenAI/Anthropic/Local
-- **Production готовность**: Circuit breakers, health checks, metrics
-
-{self._generate_analysis_report()}
+**Текущая памятка проекта:**
+- **Продолжать использовать соответствующих агентов для каждой задачи**
+- **Полностью привести проект в порядок:**
+  - После выполнения всех Todos полностью анализировать текущее состояние проекта
+  - Генерировать состояние проекта в CLAUDE.md с помощью mermaid
+  - Создавать детальный план реализации проекта
+  - Обновлять todos
+  - Приступать к выполнению циклично, пока проект не будет завершен
+- **Быть максимально честно критичным к себе и создаваемым изменениям**
+- **НИКОГДА не писать о том, что было сделано, и не хвастаться успехами**
+- **Писать только о том, что не сделано**
 """
         
-        # Заменяем секцию
-        before_section = content[:start_idx]
-        after_section = content[end_idx:]
-        new_content = before_section + new_section + after_section
-        
+        # Полностью перезаписываем файл
         with open(self.claude_md, 'w', encoding='utf-8') as f:
             f.write(new_content)
         
-        print(f"[OK] CLAUDE.md обновлен ({timestamp})")
+        print(f"[OK] CLAUDE.md полностью обновлен ({timestamp})")
     
     def watch_mode(self):
         """Запускает watchdog режим для мониторинга изменений"""

@@ -131,6 +131,7 @@ impl Default for CircuitBreakerState {
 
 /// Production метрики
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 struct ProductionMetrics {
     total_operations: u64,
     successful_operations: u64,
@@ -187,6 +188,7 @@ pub struct DIMemoryService {
     /// Lifecycle manager для graceful shutdown
     lifecycle_manager: Arc<RwLock<LifecycleManager>>,
     /// Performance timer
+    #[allow(dead_code)]
     performance_timer: Arc<std::sync::Mutex<Instant>>,
     /// Retry handler для операций
     retry_handler: RetryHandler,

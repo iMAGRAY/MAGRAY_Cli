@@ -29,13 +29,13 @@ mod tests {
     async fn create_test_processor() -> BatchOptimizedProcessor {
         let config = BatchOptimizedConfig {
             max_batch_size: 128,
-            batch_timeout_ms: 50,
-            num_workers: 4,
+            batch_timeout_us: 50,
+            worker_threads: 4,
             queue_capacity: 1024,
-            enable_simd: true,
-            memory_pool_size: 16,
-            adaptive_batch_sizing: true,
-            target_latency_ms: 5.0,
+            use_prefetching: true,
+            use_aligned_memory: true,
+            adaptive_batching: true,
+            min_batch_size: 8,
         };
         
         BatchOptimizedProcessor::new(config).await
@@ -80,13 +80,13 @@ mod tests {
     async fn test_custom_configuration() {
         let config = BatchOptimizedConfig {
             max_batch_size: 256,
-            batch_timeout_ms: 100,
-            num_workers: 8,
+            batch_timeout_us: 100,
+            worker_threads: 8,
             queue_capacity: 2048,
-            enable_simd: true,
-            memory_pool_size: 32,
-            adaptive_batch_sizing: false,
-            target_latency_ms: 3.0,
+            use_prefetching: true,
+            use_aligned_memory: true,
+            adaptive_batching: false,
+            min_batch_size: 8,
         };
         
         let processor = BatchOptimizedProcessor::new(config).await;
@@ -150,13 +150,13 @@ mod tests {
     async fn test_simd_processing() {
         let config = BatchOptimizedConfig {
             max_batch_size: 128,
-            batch_timeout_ms: 50,
-            num_workers: 4,
+            batch_timeout_us: 50,
+            worker_threads: 4,
             queue_capacity: 1024,
-            enable_simd: true, // SIMD включен
-            memory_pool_size: 16,
-            adaptive_batch_sizing: false,
-            target_latency_ms: 5.0,
+            use_prefetching: true, // SIMD включен
+            use_aligned_memory: true,
+            adaptive_batching: false,
+            min_batch_size: 8,
         };
         
         let processor = BatchOptimizedProcessor::new(config).await;
@@ -243,13 +243,13 @@ mod tests {
     async fn test_worker_pool_scaling() {
         let config = BatchOptimizedConfig {
             max_batch_size: 128,
-            batch_timeout_ms: 50,
-            num_workers: 8, // 8 workers
+            batch_timeout_us: 50,
+            worker_threads: 8, // 8 workers
             queue_capacity: 2048,
-            enable_simd: true,
-            memory_pool_size: 16,
-            adaptive_batch_sizing: true,
-            target_latency_ms: 5.0,
+            use_prefetching: true,
+            use_aligned_memory: true,
+            adaptive_batching: true,
+            min_batch_size: 8,
         };
         
         let processor = Arc::new(BatchOptimizedProcessor::new(config).await);
@@ -278,13 +278,13 @@ mod tests {
     async fn test_adaptive_batch_sizing() {
         let config = BatchOptimizedConfig {
             max_batch_size: 256,
-            batch_timeout_ms: 50,
-            num_workers: 4,
+            batch_timeout_us: 50,
+            worker_threads: 4,
             queue_capacity: 1024,
-            enable_simd: true,
-            memory_pool_size: 16,
-            adaptive_batch_sizing: true, // Adaptive включен
-            target_latency_ms: 5.0,
+            use_prefetching: true,
+            use_aligned_memory: true,
+            adaptive_batching: true, // Adaptive включен
+            min_batch_size: 8,
         };
         
         let processor = BatchOptimizedProcessor::new(config).await;
@@ -314,13 +314,13 @@ mod tests {
     async fn test_memory_pool_reuse() {
         let config = BatchOptimizedConfig {
             max_batch_size: 128,
-            batch_timeout_ms: 50,
-            num_workers: 4,
+            batch_timeout_us: 50,
+            worker_threads: 4,
             queue_capacity: 1024,
-            enable_simd: true,
-            memory_pool_size: 8, // Маленький pool для теста
-            adaptive_batch_sizing: false,
-            target_latency_ms: 5.0,
+            use_prefetching: true,
+            use_aligned_memory: true, // Маленький pool для теста
+            adaptive_batching: false,
+            min_batch_size: 8,
         };
         
         let processor = BatchOptimizedProcessor::new(config).await;
@@ -422,13 +422,13 @@ mod tests {
     async fn test_queue_overflow_handling() {
         let config = BatchOptimizedConfig {
             max_batch_size: 128,
-            batch_timeout_ms: 50,
-            num_workers: 1, // Только 1 worker
+            batch_timeout_us: 50,
+            worker_threads: 1, // Только 1 worker
             queue_capacity: 10, // Маленькая очередь
-            enable_simd: true,
-            memory_pool_size: 4,
-            adaptive_batch_sizing: false,
-            target_latency_ms: 5.0,
+            use_prefetching: true,
+            use_aligned_memory: true,
+            adaptive_batching: false,
+            min_batch_size: 8,
         };
         
         let processor = Arc::new(BatchOptimizedProcessor::new(config).await);

@@ -1,0 +1,287 @@
+# =============================================================================
+# Prometheus Alerting Rules для MAGRAY CLI
+# Production-ready alerts для observability и incident response
+# =============================================================================
+
+groups:
+  # =========================================
+  # APPLICATION HEALTH ALERTS  
+  # =========================================
+  - name: magray_application_health
+    interval: 30s
+    rules:
+      # Service availability alert
+      - alert: MagrayCLIDown
+        expr: up{job="magray-cli"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: application
+        annotations:
+          summary: "MAGRAY CLI service is down"
+          description: "MAGRAY CLI has been down for more than 1 minute"
+          runbook_url: "https://github.com/magray/cli/wiki/runbooks#service-down"
+      
+      # High error rate alert
+      - alert: MagrayCLIHighErrorRate
+        expr: >
+          (
+            rate(magray_requests_total{status=~"5.."}[5m]) /
+            rate(magray_requests_total[5m])
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "High error rate detected in MAGRAY CLI"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+          
+      # Response time degradation
+      - alert: MagrayCLISlowResponses
+        expr: histogram_quantile(0.95, rate(magray_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "MAGRAY CLI response times are degraded"
+          description: "95th percentile response time is {{ $value }}s for the last 5 minutes"
+
+  # =========================================
+  # MEMORY SYSTEM ALERTS
+  # =========================================  
+  - name: magray_memory_system
+    interval: 30s
+    rules:
+      # Vector index size growth alert
+      - alert: MagrayVectorIndexTooLarge
+        expr: magray_vector_index_size_bytes > 1073741824  # 1GB
+        for: 5m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "MAGRAY vector index size is growing large"
+          description: "Vector index size is {{ $value | humanizeBytes }}"
+          
+      # HNSW search latency alert
+      - alert: MagrayHNSWSearchSlow
+        expr: histogram_quantile(0.90, rate(magray_hnsw_search_duration_seconds_bucket[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          component: search
+        annotations:
+          summary: "HNSW search performance degraded"
+          description: "90th percentile HNSW search time is {{ $value }}s"
+          
+      # Memory cache hit rate low
+      - alert: MagrayCacheHitRateLow
+        expr: (
+          rate(magray_cache_hits_total[5m]) /
+          (rate(magray_cache_hits_total[5m]) + rate(magray_cache_misses_total[5m]))
+        ) < 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "MAGRAY cache hit rate is low"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}"
+
+  # =========================================
+  # LLM PROVIDERS ALERTS
+  # =========================================
+  - name: magray_llm_providers
+    interval: 30s
+    rules:
+      # Circuit breaker open alert
+      - alert: MagrayLLMCircuitBreakerOpen
+        expr: magray_circuit_breaker_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          component: llm
+        annotations:
+          summary: "LLM provider circuit breaker is open"
+          description: "Circuit breaker for {{ $labels.provider }} is open, blocking requests"
+          
+      # High LLM response times
+      - alert: MagrayLLMHighLatency
+        expr: histogram_quantile(0.95, rate(magray_llm_request_duration_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "High LLM response latency detected"
+          description: "95th percentile LLM response time is {{ $value }}s for {{ $labels.provider }}"
+          
+      # LLM API quota exhaustion warning
+      - alert: MagrayLLMQuotaLow
+        expr: magray_llm_quota_remaining_ratio < 0.1
+        for: 1m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "LLM API quota running low"
+          description: "{{ $labels.provider }} quota is {{ $value | humanizePercentage }} remaining"
+
+  # =========================================
+  # SYSTEM RESOURCE ALERTS
+  # =========================================
+  - name: magray_system_resources
+    interval: 30s
+    rules:
+      # High memory usage
+      - alert: MagrayHighMemoryUsage
+        expr: >
+          (
+            process_resident_memory_bytes{job="magray-cli"} / 
+            (1024 * 1024 * 1024)
+          ) > 2  # 2GB
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "MAGRAY CLI high memory usage"
+          description: "Memory usage is {{ $value | humanize }}GB"
+          
+      # High CPU usage
+      - alert: MagrayHighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="magray-cli"}[5m]) * 100 > 80
+        for: 3m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "MAGRAY CLI high CPU usage"
+          description: "CPU usage is {{ $value }}%"
+          
+      # File descriptor exhaustion
+      - alert: MagrayHighFileDescriptors
+        expr: >
+          (
+            process_open_fds{job="magray-cli"} / 
+            process_max_fds{job="magray-cli"}
+          ) > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "MAGRAY CLI running out of file descriptors"
+          description: "{{ $value | humanizePercentage }} of available file descriptors in use"
+
+  # =========================================
+  # GPU ACCELERATION ALERTS
+  # =========================================
+  - name: magray_gpu_acceleration
+    interval: 60s
+    rules:
+      # GPU memory usage high
+      - alert: MagrayGPUMemoryHigh
+        expr: >
+          (
+            DCGM_FI_DEV_FB_USED / 
+            DCGM_FI_DEV_FB_TOTAL
+          ) > 0.9
+        for: 2m
+        labels:
+          severity: warning
+          component: gpu
+        annotations:
+          summary: "GPU memory usage high"
+          description: "GPU {{ $labels.gpu }} memory usage is {{ $value | humanizePercentage }}"
+          
+      # GPU temperature high  
+      - alert: MagrayGPUTemperatureHigh
+        expr: DCGM_FI_DEV_GPU_TEMP > 80
+        for: 3m
+        labels:
+          severity: warning
+          component: gpu
+        annotations:
+          summary: "GPU temperature high"
+          description: "GPU {{ $labels.gpu }} temperature is {{ $value }}°C"
+          
+      # GPU utilization low (может указывать на проблемы)
+      - alert: MagrayGPUUtilizationLow
+        expr: DCGM_FI_DEV_GPU_UTIL < 10
+        for: 10m
+        labels:
+          severity: info
+          component: gpu
+        annotations:
+          summary: "GPU utilization unexpectedly low"
+          description: "GPU {{ $labels.gpu }} utilization is {{ $value }}% - check if GPU acceleration is working"
+
+  # =========================================
+  # BUSINESS LOGIC ALERTS  
+  # =========================================
+  - name: magray_business_metrics
+    interval: 60s
+    rules:
+      # Vector similarity quality degradation
+      - alert: MagraySimilarityScoreLow
+        expr: histogram_quantile(0.50, rate(magray_similarity_score_bucket[10m])) < 0.7
+        for: 5m
+        labels:
+          severity: info
+          component: ai_quality
+        annotations:
+          summary: "Vector similarity scores degraded"
+          description: "Median similarity score dropped to {{ $value }}"
+          
+      # Reranking effectiveness low
+      - alert: MagrayRerankingEffectivenessLow
+        expr: magray_reranking_improvement_ratio < 0.1
+        for: 10m
+        labels:
+          severity: info
+          component: ai_quality
+        annotations:
+          summary: "Reranking showing low effectiveness"
+          description: "Reranking improvement ratio is {{ $value | humanizePercentage }}"
+          
+      # Embedding generation rate drops
+      - alert: MagrayEmbeddingRateDropped
+        expr: rate(magray_embeddings_generated_total[5m]) < rate(magray_embeddings_generated_total[10m] offset 1h) * 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: ai_performance
+        annotations:
+          summary: "Embedding generation rate dropped significantly" 
+          description: "Current rate {{ $value }}/sec is much lower than historical average"
+
+  # =========================================  
+  # INFRASTRUCTURE ALERTS
+  # =========================================
+  - name: magray_infrastructure
+    interval: 30s
+    rules:
+      # Dependency service down
+      - alert: MagrayDependencyDown
+        expr: up{job=~"redis|postgres|vector-db"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "MAGRAY dependency service is down"
+          description: "Service {{ $labels.job }} is down"
+          
+      # Network connectivity issues
+      - alert: MagrayExternalAPIUnreachable
+        expr: probe_success{job="blackbox"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: external_apis
+        annotations:
+          summary: "External API unreachable"
+          description: "Cannot reach {{ $labels.instance }}"

@@ -1,0 +1,124 @@
+# =============================================================================
+# Prometheus Configuration для MAGRAY CLI Monitoring  
+# Comprehensive metrics collection и alerting rules
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'magray-ci'
+    environment: 'development'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # В production здесь был бы real AlertManager
+          - alertmanager:9093
+
+# Load rules once и periodically evaluate them
+rule_files:
+  - "alert_rules.yml"
+  - "recording_rules.yml"
+
+# Scrape configuration
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+    scrape_interval: 5s
+
+  # OpenTelemetry Collector metrics
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8889']
+    metrics_path: /metrics
+    scrape_interval: 10s
+    honor_labels: true
+
+  # MAGRAY CLI application metrics
+  - job_name: 'magray-cli'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: /metrics
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    
+    # Relabeling для better metric organization
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'magray_(.+)'
+        target_label: 'magray_component'
+        replacement: '${1}'
+      
+      # Drop high-cardinality debugging metrics in production
+      - source_labels: [__name__]
+        regex: 'magray_debug_.*'
+        action: drop
+
+  # System metrics (node-exporter style)
+  - job_name: 'system'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+    
+  # Container metrics (cAdvisor)
+  - job_name: 'containers'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+    metrics_path: /metrics
+    
+  # GPU metrics (nvidia-dcgm-exporter)
+  - job_name: 'gpu-metrics'
+    static_configs:
+      - targets: ['dcgm-exporter:9400']
+    scrape_interval: 30s
+    honor_labels: true
+    
+  # Redis metrics (если используется для caching)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+
+  # Blackbox monitoring для external dependencies  
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+        - https://api.openai.com/v1/models
+        - https://api.anthropic.com/v1/messages
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+# Remote write configuration для long-term storage
+remote_write:
+  - url: "${REMOTE_WRITE_URL:-http://localhost:9201/write}"
+    headers:
+      Authorization: "${REMOTE_WRITE_TOKEN:-}"
+    queue_config:
+      capacity: 10000
+      max_shards: 50
+      min_shards: 1
+      max_samples_per_send: 2000
+      batch_send_deadline: 5s
+      min_backoff: 30ms
+      max_backoff: 100ms
+
+# Remote read configuration
+remote_read:
+  - url: "${REMOTE_READ_URL:-http://localhost:9201/read}"
+    headers:
+      Authorization: "${REMOTE_READ_TOKEN:-}"

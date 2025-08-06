@@ -4,7 +4,6 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use std::collections::HashMap;
 use tracing::{debug, info};
 use serde_json;
 
@@ -377,6 +376,7 @@ impl ResponseFormattingStrategy for AdaptiveResponseFormatter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     
     fn create_test_context(message: &str) -> RequestContext {
         RequestContext {

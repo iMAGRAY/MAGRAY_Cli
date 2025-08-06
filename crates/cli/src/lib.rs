@@ -8,7 +8,6 @@ pub mod handlers;
 pub mod strategies;
 pub mod orchestrator;
 pub mod unified_agent_v2;
-pub mod legacy_bridge; // Bridge для backward compatibility
 pub mod commands;
 pub mod health_checks;
 pub mod progress;
@@ -18,9 +17,8 @@ pub mod progress;
 mod agent_tests;
 
 // Re-export commonly used types
-pub use agent::UnifiedAgent; // LEGACY Bridge - обеспечивает backward compatibility
-pub use unified_agent_v2::UnifiedAgentV2; // NEW Clean Architecture - для новых проектов
-pub use legacy_bridge::LegacyUnifiedAgent; // Bridge implementation
+pub use agent::UnifiedAgent; // Modern Clean Architecture - unified interface
+pub use unified_agent_v2::UnifiedAgentV2; // Direct access to V2 implementation
 pub use agent_traits::*;
 pub use handlers::*;
 pub use strategies::*;
