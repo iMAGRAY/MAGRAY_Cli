@@ -11,5 +11,6 @@ serde_json = { workspace = true }
 reqwest = { workspace = true }
 tracing = { workspace = true }
 dotenv = { workspace = true }
+async-trait = "0.1.74"
 [dev-dependencies]
 mockito = "1.5"

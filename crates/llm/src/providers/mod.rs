@@ -24,7 +24,6 @@ pub struct LlmRequest {
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
     pub stream: bool,
-    pub context: Option<Vec<ChatMessage>>,
 }
 
 impl LlmRequest {
@@ -44,10 +43,6 @@ impl LlmRequest {
         self
     }
     
-    pub fn with_context(mut self, context: Vec<ChatMessage>) -> Self {
-        self.context = Some(context);
-        self
-    }
     
     pub fn with_parameters(mut self, max_tokens: Option<u32>, temperature: Option<f32>) -> Self {
         self.max_tokens = max_tokens;
@@ -67,7 +62,7 @@ pub struct LlmResponse {
 }
 
 /// Chat message for conversation context
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ChatMessage {
     pub role: MessageRole,
     pub content: String,
@@ -180,7 +175,7 @@ impl ProviderId {
 
 /// Unified LLM Provider trait
 #[async_trait]
-pub trait LlmProvider: Send + Sync + Clone {
+pub trait LlmProvider: Send + Sync {
     /// Unique identifier for this provider instance
     fn id(&self) -> ProviderId;
     
@@ -248,12 +243,75 @@ pub trait LlmProvider: Send + Sync + Clone {
     }
 }
 
+/// Enum wrapper for all provider types to enable trait objects
+#[derive(Debug, Clone)]
+pub enum ProviderWrapper {
+    OpenAI(OpenAIProvider),
+    Anthropic(AnthropicProvider),
+    Local(LocalProvider),
+    Azure(AzureProvider),
+    Groq(GroqProvider),
+}
+
+#[async_trait]
+impl LlmProvider for ProviderWrapper {
+    fn id(&self) -> ProviderId {
+        match self {
+            ProviderWrapper::OpenAI(p) => p.id(),
+            ProviderWrapper::Anthropic(p) => p.id(),
+            ProviderWrapper::Local(p) => p.id(),
+            ProviderWrapper::Azure(p) => p.id(),
+            ProviderWrapper::Groq(p) => p.id(),
+        }
+    }
+    
+    fn capabilities(&self) -> ProviderCapabilities {
+        match self {
+            ProviderWrapper::OpenAI(p) => p.capabilities(),
+            ProviderWrapper::Anthropic(p) => p.capabilities(),
+            ProviderWrapper::Local(p) => p.capabilities(),
+            ProviderWrapper::Azure(p) => p.capabilities(),
+            ProviderWrapper::Groq(p) => p.capabilities(),
+        }
+    }
+    
+    async fn health_check(&self) -> Result<ProviderHealth> {
+        match self {
+            ProviderWrapper::OpenAI(p) => p.health_check().await,
+            ProviderWrapper::Anthropic(p) => p.health_check().await,
+            ProviderWrapper::Local(p) => p.health_check().await,
+            ProviderWrapper::Azure(p) => p.health_check().await,
+            ProviderWrapper::Groq(p) => p.health_check().await,
+        }
+    }
+    
+    async fn complete(&self, request: LlmRequest) -> Result<LlmResponse> {
+        match self {
+            ProviderWrapper::OpenAI(p) => p.complete(request).await,
+            ProviderWrapper::Anthropic(p) => p.complete(request).await,
+            ProviderWrapper::Local(p) => p.complete(request).await,
+            ProviderWrapper::Azure(p) => p.complete(request).await,
+            ProviderWrapper::Groq(p) => p.complete(request).await,
+        }
+    }
+    
+    async fn complete_stream(&self, request: LlmRequest) -> Result<tokio::sync::mpsc::Receiver<String>> {
+        match self {
+            ProviderWrapper::OpenAI(p) => p.complete_stream(request).await,
+            ProviderWrapper::Anthropic(p) => p.complete_stream(request).await,
+            ProviderWrapper::Local(p) => p.complete_stream(request).await,
+            ProviderWrapper::Azure(p) => p.complete_stream(request).await,
+            ProviderWrapper::Groq(p) => p.complete_stream(request).await,
+        }
+    }
+}
+
 /// Provider factory for creating instances
 pub struct ProviderFactory;
 
 impl ProviderFactory {
     /// Create provider from configuration
-    pub fn create_provider(config: &ProviderConfig) -> Result<Box<dyn LlmProvider>> {
+    pub fn create_provider(config: &ProviderConfig) -> Result<ProviderWrapper> {
         match config.provider_type.as_str() {
             "openai" => {
                 let provider = OpenAIProvider::new(
@@ -261,14 +319,14 @@ impl ProviderFactory {
                     config.model.clone(),
                     config.endpoint.clone(),
                 )?;
-                Ok(Box::new(provider))
+                Ok(ProviderWrapper::OpenAI(provider))
             }
             "anthropic" => {
                 let provider = AnthropicProvider::new(
                     config.api_key.clone().unwrap_or_default(),
                     config.model.clone(),
                 )?;
-                Ok(Box::new(provider))
+                Ok(ProviderWrapper::Anthropic(provider))
             }
             "azure" => {
                 let provider = AzureProvider::new(
@@ -276,14 +334,14 @@ impl ProviderFactory {
                     config.api_key.clone().unwrap_or_default(),
                     config.model.clone(),
                 )?;
-                Ok(Box::new(provider))
+                Ok(ProviderWrapper::Azure(provider))
             }
             "groq" => {
                 let provider = GroqProvider::new(
                     config.api_key.clone().unwrap_or_default(),
                     config.model.clone(),
                 )?;
-                Ok(Box::new(provider))
+                Ok(ProviderWrapper::Groq(provider))
             }
             "local" | "ollama" | "lmstudio" => {
                 let provider = LocalProvider::new(
@@ -291,7 +349,7 @@ impl ProviderFactory {
                     config.model.clone(),
                     config.provider_type.clone(),
                 )?;
-                Ok(Box::new(provider))
+                Ok(ProviderWrapper::Local(provider))
             }
             _ => Err(anyhow::anyhow!("Unknown provider type: {}", config.provider_type)),
         }

@@ -6,12 +6,14 @@ use tracing::{info, debug, error};
 
 
 pub mod agents;
+pub mod providers;
 mod multi_provider;
 mod circuit_breaker;
 mod cost_optimizer;
 mod integration_test;
 
 pub use agents::*;
+pub use providers::*;
 pub use multi_provider::*;
 pub use circuit_breaker::*;
 pub use cost_optimizer::*;
