@@ -197,7 +197,7 @@ impl ToolExecutionPipeline {
         context: &ToolSelectionContext,
         strategy: ExecutionStrategy,
     ) -> Result<ExecutionResult> {
-        let _start_time = Instant::now();
+        let start_time = Instant::now();
         
         // Update metrics
         {
