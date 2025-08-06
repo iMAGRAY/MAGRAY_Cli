@@ -710,7 +710,7 @@ Advanced_Patterns := {
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-05 23:48:22 UTC*
+*Last updated: 2025-08-06 00:11:48 UTC*
 
 ## Components (CTL v2.0/v3.0 Mixed Format)
 
@@ -722,12 +722,15 @@ Advanced_Patterns := {
 {"k":"C","id":"ai_lib","t":"AI/ML services library","m":{"cur":85,"tgt":95,"u":"%"},"f":["ai","embeddings","onnx","bge-m3"],"x_file":"ai/src/lib.rs:1"}
 {"k":"C","id":"auto_device_selector","t":"Auto CPU/GPU selector","m":{"cur":95,"tgt":100,"u":"%"},"f":["ai","gpu","device-selection"],"x_file":"ai/src/auto_device_selector.rs:9"}
 {"k":"C","id":"backup_coordinator","t":"Backup orchestration coordinator","m":{"cur":0,"tgt":90,"u":"%"},"f":["orchestration","backup","coordinator"],"x_file":"memory/src/orchestration/backup_coordinator.rs:13"}
+{"k":"C","id":"basic_circuit_breaker","t":"Basic circuit breaker implementation","m":{"cur":90,"tgt":95,"u":"%"},"f":["circuit_breaker","resilience","production_ready"],"x_file":"cli/src/strategies/circuit_breaker.rs:53"}
 {"k":"C","id":"cache_error","t":"Cache error types","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","cache"],"x_file":"common/src/errors.rs:199"}
 {"k":"C","id":"chat_handler","t":"Specialized chat request handler","m":{"cur":85,"tgt":95,"u":"%"},"f":["single_responsibility","clean_architecture","di_ready"],"x_file":"cli/src/handlers/chat_handler.rs:16"}
+{"k":"C","id":"circuit_breaker_fallback","t":"Circuit breaker pattern fallback","m":{"cur":85,"tgt":95,"u":"%"},"f":["strategy_pattern","circuit_breaker","resilient"],"x_file":"cli/src/strategies/fallback_strategies.rs:254"}
 {"k":"C","id":"cli_lib","t":"CLI interface and commands","m":{"cur":85,"tgt":95,"u":"%"},"f":["cli","interface","commands","interactive"],"x_file":"cli/src/lib.rs:1"}
 {"k":"C","id":"cli_main","t":"CLI entry point with unified agent","m":{"cur":75,"tgt":100,"u":"%"},"f":["cli","agent","routing","services"],"x_file":"cli/src/main.rs:1"}
 {"k":"C","id":"cli_services","t":"Service layer for agent decomposition","m":{"cur":80,"tgt":100,"u":"%"},"f":["services","traits","separation","orchestration"],"x_file":"cli/src/services/mod.rs:1"}
 {"k":"C","id":"common_lib","t":"Common utilities and logging","m":{"cur":90,"tgt":95,"u":"%"},"f":["common","logging","structured","utils"],"x_file":"common/src/lib.rs:1"}
+{"k":"C","id":"composite_fallback_strategy","t":"Composite fallback strategy","m":{"cur":90,"tgt":95,"u":"%"},"f":["strategy_pattern","composite","comprehensive"],"x_file":"cli/src/strategies/fallback_strategies.rs:306"}
 {"k":"C","id":"database_error","t":"Database error types","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","database"],"x_file":"common/src/errors.rs:74"}
 {"k":"C","id":"database_manager","t":"Centralized sled database manager","m":{"cur":70,"tgt":100,"u":"%"},"f":["sled","concurrent","pooling"],"x_file":"memory/src/database_manager.rs:9"}
 {"k":"C","id":"di_container","t":"Dependency injection container","m":{"cur":88,"tgt":100,"u":"%"},"f":["di","ioc","architecture","validation","performance","async"],"x_file":"memory/src/di_container.rs:36"}
@@ -759,13 +762,16 @@ Advanced_Patterns := {
 {"k":"C","id":"health_checks","t":"Production health monitoring","m":{"cur":100,"tgt":100,"u":"%"},"f":["monitoring","production"],"x_file":"cli/src/health_checks.rs:10"}
 {"k":"C","id":"health_manager","t":"Health monitoring coordinator","m":{"cur":95,"tgt":95,"u":"%"},"f":["orchestration","health","monitoring","production","alerting","metrics","sla"],"x_file":"memory/src/orchestration/health_manager.rs:17"}
 {"k":"C","id":"health_monitor","t":"Health monitoring system","m":{"cur":85,"tgt":95,"u":"%"},"f":["monitoring","production"],"x_file":"memory/src/health.rs:134"}
+{"k":"C","id":"heuristic_intent_strategy","t":"Keyword-based intent classification","m":{"cur":90,"tgt":95,"u":"%"},"f":["strategy_pattern","fast","offline"],"x_file":"cli/src/strategies/intent_strategies.rs:17"}
 {"k":"C","id":"hnsw_index","t":"HNSW vector index with SIMD","m":{"cur":85,"tgt":100,"u":"%"},"f":["hnsw","simd","vector","search","performance"],"x_file":"memory/src/hnsw_index/index.rs:1"}
 {"k":"C","id":"index_error","t":"Vector index error types","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","index","vector"],"x_file":"common/src/errors.rs:219"}
 {"k":"C","id":"intent_analysis_service","t":"Intent analysis service trait","m":{"cur":95,"tgt":100,"u":"%"},"f":["trait","analysis","intent","clean_architecture"],"x_file":"cli/src/services/intent_analysis.rs:20"}
 {"k":"C","id":"intent_analyzer","t":"Chat vs tool intent classifier","m":{"cur":70,"tgt":95,"u":"%"},"f":["agent","classification","intent"],"x_file":"llm/src/agents/intent_analyzer.rs:12"}
+{"k":"C","id":"json_response_formatter","t":"JSON response formatter for APIs","m":{"cur":90,"tgt":95,"u":"%"},"f":["strategy_pattern","json","api_ready"],"x_file":"cli/src/strategies/response_strategies.rs:223"}
 {"k":"C","id":"layer_enum","t":"Memory layer enum types","m":{"cur":100,"tgt":100,"u":"%"},"f":["memory","types","enum"],"x_file":"memory/src/types.rs:6"}
 {"k":"C","id":"llm_client","t":"Multi-provider LLM client","m":{"cur":65,"tgt":95,"u":"%"},"f":["llm","agents","multi-provider"],"x_file":"llm/src/lib.rs:6"}
 {"k":"C","id":"llm_communication_service","t":"LLM communication service trait","m":{"cur":95,"tgt":100,"u":"%"},"f":["trait","llm","multi_provider","clean_architecture"],"x_file":"cli/src/services/llm_communication.rs:19"}
+{"k":"C","id":"llm_intent_strategy","t":"LLM-based intent classification","m":{"cur":85,"tgt":95,"u":"%"},"f":["strategy_pattern","ai_powered","high_accuracy"],"x_file":"cli/src/strategies/intent_strategies.rs:135"}
 {"k":"C","id":"magray_error_types","t":"Comprehensive error type system","m":{"cur":85,"tgt":95,"u":"%"},"f":["errors","production","monitoring"],"x_file":"common/src/errors.rs:5"}
 {"k":"C","id":"memory_di_config","t":"DI configuration for memory system","m":{"cur":60,"tgt":100,"u":"%"},"f":["di","config","memory"],"x_file":"memory/src/di_memory_config.rs:36"}
 {"k":"C","id":"memory_error","t":"Memory system error types","m":{"cur":80,"tgt":95,"u":"%"},"f":["errors","memory"],"x_file":"common/src/errors.rs:182"}
@@ -793,11 +799,14 @@ Advanced_Patterns := {
 {"k":"C","id":"resource_controller","t":"Resource management coordinator","m":{"cur":95,"tgt":95,"u":"%"},"f":["orchestration","resources","coordinator","auto-scaling","production","monitoring"],"x_file":"memory/src/orchestration/resource_controller.rs:17"}
 {"k":"C","id":"resource_manager","t":"Dynamic memory resource management","m":{"cur":95,"tgt":100,"u":"%"},"f":["memory","scaling","adaptive"],"x_file":"memory/src/resource_manager.rs:9"}
 {"k":"C","id":"retry_manager","t":"Exponential backoff retry manager","m":{"cur":95,"tgt":100,"u":"%"},"f":["retry","exponential","resilience"],"x_file":"memory/src/retry.rs:7"}
+{"k":"C","id":"rich_response_formatter","t":"Rich markdown response formatter","m":{"cur":90,"tgt":95,"u":"%"},"f":["strategy_pattern","rich_formatting","markdown"],"x_file":"cli/src/strategies/response_strategies.rs:91"}
 {"k":"C","id":"search_coordinator","t":"Search orchestration coordinator","m":{"cur":95,"tgt":95,"u":"%"},"f":["orchestration","search","coordinator","production","hnsw","adaptive-cache","circuit-breaker","sub-5ms","reranking","concurrent"],"x_file":"memory/src/orchestration/search_coordinator.rs:25"}
 {"k":"C","id":"service_orchestrator","t":"Service orchestrator trait","m":{"cur":95,"tgt":100,"u":"%"},"f":["trait","orchestration","coordination","clean_architecture"],"x_file":"cli/src/services/orchestrator.rs:18"}
 {"k":"C","id":"services_di_config","t":"Services DI configuration","m":{"cur":90,"tgt":100,"u":"%"},"f":["di","configuration","services","registration"],"x_file":"cli/src/services/di_config.rs:24"}
 {"k":"C","id":"shell_exec","t":"Shell command execution tool","m":{"cur":85,"tgt":95,"u":"%"},"f":["tools","shell","execution"],"x_file":"tools/src/shell_ops.rs:6"}
+{"k":"C","id":"simple_fallback_strategy","t":"Simple hardcoded fallback responses","m":{"cur":95,"tgt":100,"u":"%"},"f":["strategy_pattern","reliable","offline"],"x_file":"cli/src/strategies/fallback_strategies.rs:17"}
 {"k":"C","id":"simple_qwen3_tokenizer","t":"Simplified Qwen3 tokenizer for ONNX","m":{"cur":95,"tgt":100,"u":"%"},"x_file":"ai/src/tokenization/simple_qwen3.rs:1"}
+{"k":"C","id":"simple_response_formatter","t":"Simple text response formatter","m":{"cur":95,"tgt":100,"u":"%"},"f":["strategy_pattern","simple","reliable"],"x_file":"cli/src/strategies/response_strategies.rs:18"}
 {"k":"C","id":"smart_router","t":"Smart task orchestration","m":{"cur":70,"tgt":90,"u":"%"},"d":["llm_client","tools"],"f":["routing","orchestration"],"x_file":"router/src/lib.rs:9"}
 {"k":"C","id":"status_cmd","t":"System status diagnostic command","m":{"cur":100,"tgt":100,"u":"%"},"f":["cli","diagnostic","graceful-fallback"],"x_file":"cli/src/main.rs:504"}
 {"k":"C","id":"status_tests","t":"Unit tests for status command","m":{"cur":95,"tgt":100,"u":"%"},"f":["tests","status","cli"],"x_file":"cli/src/status_tests.rs:1"}
@@ -810,12 +819,13 @@ Advanced_Patterns := {
 {"k":"C","id":"tool_registry","t":"Tool execution system","m":{"cur":90,"tgt":95,"u":"%"},"f":["tools","execution","registry"],"x_file":"tools/src/lib.rs:5"}
 {"k":"C","id":"tool_selector","t":"Tool selection agent","m":{"cur":70,"tgt":95,"u":"%"},"f":["agent","tools","selection"],"x_file":"llm/src/agents/tool_selector.rs:12"}
 {"k":"C","id":"tools_handler","t":"Specialized tools execution handler","m":{"cur":85,"tgt":95,"u":"%"},"f":["single_responsibility","clean_architecture","di_ready"],"x_file":"cli/src/handlers/tools_handler.rs:16"}
-{"k":"C","id":"unified_agent","t":"Main agent orchestrator","m":{"cur":60,"tgt":90,"u":"%"},"d":["llm_client","smart_router"],"f":["agents","routing","memory"],"x_file":"cli/src/agent.rs:8"}
+{"k":"C","id":"unified_agent_v2","t":"Clean Architecture UnifiedAgent with DI","m":{"cur":90,"tgt":95,"u":"%"},"f":["clean_architecture","solid_principles","di_integration","strategy_pattern","circuit_breaker"],"x_file":"cli/src/unified_agent_v2.rs:233"}
 {"k":"C","id":"validation_error","t":"Validation error types","m":{"cur":90,"tgt":95,"u":"%"},"f":["errors","validation"],"x_file":"common/src/errors.rs:117"}
 {"k":"C","id":"vector_index_hnsw","t":"HNSW vector index wrapper","m":{"cur":95,"tgt":100,"u":"%"},"f":["vector","hnsw","search","legacy"],"x_file":"memory/src/vector_index_hnswlib.rs:12"}
 {"k":"C","id":"vector_store","t":"Vector storage with HNSW","m":{"cur":65,"tgt":95,"u":"%"},"f":["storage","hnsw","transactional"],"x_file":"memory/src/storage.rs:24"}
 {"k":"C","id":"web_fetch","t":"Web page fetch tool","m":{"cur":70,"tgt":85,"u":"%"},"f":["tools","web","fetch"],"x_file":"tools/src/web_ops.rs:68"}
 {"k":"C","id":"web_search","t":"Web search tool","m":{"cur":75,"tgt":90,"u":"%"},"f":["tools","web","search"],"x_file":"tools/src/web_ops.rs:5"}
+{"k":"T","id":"common_test_helpers","t":"Common test utilities and helpers","m":{"cur":100,"tgt":100,"u":"%"},"f":["test","utilities","helpers","shared","mocks"],"x_file":"memory/tests/common/mod.rs:23"}
 {"k":"T","id":"comprehensive_bench","t":"Comprehensive performance benchmarks","m":{"cur":100,"tgt":100,"u":"%"},"f":["benchmark","performance","comprehensive"],"x_file":"memory/benches/comprehensive_performance.rs:7"}
 {"k":"T","id":"di_perf_comparison","t":"DI container performance comparison","m":{"cur":100,"tgt":100,"u":"%"},"f":["test","performance","comparison"],"x_file":"memory/tests/test_di_performance_comparison.rs:13"}
 {"k":"T","id":"di_performance_bench","t":"DI performance benchmarking","m":{"cur":100,"tgt":100,"u":"%"},"f":["benchmark","performance","di"],"x_file":"memory/benches/di_performance.rs:15"}
