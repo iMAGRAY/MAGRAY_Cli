@@ -13,6 +13,9 @@ pub mod health_checks;
 pub mod progress;
 // pub mod services; // Временно отключено - архитектурная несовместимость
 
+#[cfg(test)]
+mod agent_tests;
+
 // Re-export commonly used types
 pub use agent::UnifiedAgent; // LEGACY - только для performance метрик
 pub use unified_agent_v2::UnifiedAgentV2; // NEW Clean Architecture

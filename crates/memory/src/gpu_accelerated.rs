@@ -6,6 +6,7 @@ use tracing::{info, warn, debug};
 use ai::{GpuFallbackManager, EmbeddingConfig, EmbeddingServiceTrait, GpuPipelineManager, PipelineConfig};
 use ai::gpu_fallback::FallbackStats;
 use crate::cache_interface::EmbeddingCacheInterface;
+use crate::batch_optimized::{BatchOptimizedProcessor, BatchOptimizedConfig};
 
 /// Статус здоровья GPU
 #[derive(Debug, Clone)]
@@ -33,10 +34,10 @@ impl GpuHealthStatus {
     }
 }
 
-/// Максимальный размер батча для GPU обработки
-const MAX_BATCH_SIZE: usize = 128;
-/// Максимальное количество одновременных GPU операций
-const MAX_CONCURRENT_GPU_OPS: usize = 4;
+/// Максимальный размер батча для GPU обработки (увеличено для 1000+ QPS)
+const MAX_BATCH_SIZE: usize = 512;
+/// Максимальное количество одновременных GPU операций (увеличено для throughput)
+const MAX_CONCURRENT_GPU_OPS: usize = 8;
 
 #[derive(Clone)]
 pub struct GpuBatchProcessor {
@@ -47,6 +48,8 @@ pub struct GpuBatchProcessor {
     batch_semaphore: Arc<Semaphore>,
     processing_queue: Arc<Mutex<Vec<PendingEmbedding>>>,
     config: BatchProcessorConfig,
+    /// Ultra-optimized batch processor для maximum QPS
+    ultra_batch_processor: Option<Arc<BatchOptimizedProcessor>>,
 }
 
 #[derive(Clone)]
@@ -61,7 +64,7 @@ impl Default for BatchProcessorConfig {
     fn default() -> Self {
         Self {
             max_batch_size: MAX_BATCH_SIZE,
-            batch_timeout_ms: 50,
+            batch_timeout_ms: 25,  // Уменьшено для sub-5ms latency
             use_gpu_if_available: true,
             cache_embeddings: true,
         }
@@ -104,6 +107,22 @@ impl GpuBatchProcessor {
             None
         };
 
+        // Создаем ultra-optimized batch processor для maximum QPS
+        let ultra_batch_processor = if config.max_batch_size >= 256 {
+            match Self::create_ultra_batch_processor(&config).await {
+                Ok(processor) => {
+                    info!("🚀 Ultra-optimized batch processor created for 1000+ QPS");
+                    Some(Arc::new(processor))
+                }
+                Err(e) => {
+                    warn!("⚠️ Could not create ultra-optimized processor: {}. Using standard batching.", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         info!("✅ GPU batch processor initialized with robust fallback mechanism");
 
         Ok(Self {
@@ -113,9 +132,26 @@ impl GpuBatchProcessor {
             batch_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_GPU_OPS)),
             processing_queue: Arc::new(Mutex::new(Vec::new())),
             config,
+            ultra_batch_processor,
         })
     }
 
+    /// Создать ultra-optimized batch processor для maximum QPS
+    async fn create_ultra_batch_processor(config: &BatchProcessorConfig) -> Result<BatchOptimizedProcessor> {
+        let ultra_config = BatchOptimizedConfig {
+            max_batch_size: config.max_batch_size,
+            min_batch_size: config.max_batch_size / 8,  // Adaptive min batch size
+            worker_threads: 8,  // High concurrency для 1000+ QPS
+            queue_capacity: 2048,  // Большая очередь для high throughput
+            batch_timeout_us: config.batch_timeout_ms * 1000,  // Convert to microseconds
+            use_prefetching: true,
+            use_aligned_memory: true,
+            adaptive_batching: true,
+        };
+        
+        BatchOptimizedProcessor::new(ultra_config)
+    }
+    
     /// Попытка создать GPU pipeline сс comprehensive validation
     async fn try_create_gpu_pipeline(
         config: &BatchProcessorConfig,

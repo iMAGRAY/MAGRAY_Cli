@@ -17,6 +17,7 @@ use crate::agent_traits::*;
 use crate::handlers::*;
 use crate::strategies::*;
 use crate::orchestrator::*;
+use tools::enhanced_tool_system::{EnhancedToolSystem, EnhancedToolSystemConfig};
 
 // ============================================================================
 // ADAPTER IMPLEMENTATIONS FOR EXISTING SERVICES
@@ -260,8 +261,8 @@ pub struct UnifiedAgentV2 {
     fallback_strategy: CompositeFallbackStrategy,
     response_strategy: Box<dyn ResponseFormattingStrategy>,
     
-    // Adaptive Task Orchestrator
-    task_orchestrator: AdaptiveTaskOrchestrator,
+    // Integrated Tool Orchestrator (replaces simple task orchestrator)
+    tool_orchestrator: ToolOrchestrator,
     
     // Performance monitoring
     performance_monitor: Arc<PerformanceMonitor>,
@@ -332,9 +333,16 @@ impl UnifiedAgentV2 {
             AdaptiveResponseFormatter::new()
         );
         
-        // Создаем Adaptive Task Orchestrator
+        // Создаем Integrated Tool Orchestrator
         let orchestrator_config = crate::orchestrator::OrchestrationConfig::default();
-        let task_orchestrator = AdaptiveTaskOrchestrator::new(orchestrator_config);
+        let tool_system_config = EnhancedToolSystemConfig::default();
+        let tool_orchestrator_config = ToolOrchestratorConfig {
+            orchestration_config: orchestrator_config,
+            tool_system_config,
+            enable_cross_system_optimization: true,
+            performance_monitoring_interval: std::time::Duration::from_secs(30),
+        };
+        let tool_orchestrator = ToolOrchestrator::new(tool_orchestrator_config).await?;
         
         let agent = Self {
             chat_handler,
@@ -344,7 +352,7 @@ impl UnifiedAgentV2 {
             intent_strategy,
             fallback_strategy,
             response_strategy,
-            task_orchestrator,
+            tool_orchestrator,
             performance_monitor,
             chat_circuit_breaker,
             tools_circuit_breaker,
@@ -379,14 +387,13 @@ impl UnifiedAgentV2 {
         self.admin_handler.initialize().await
             .map_err(|e| anyhow::anyhow!("Ошибка инициализации AdminHandler: {}", e))?;
         
-        // Инициализируем Adaptive Task Orchestrator
-        self.task_orchestrator.initialize().await
-            .map_err(|e| anyhow::anyhow!("Ошибка инициализации TaskOrchestrator: {}", e))?;
+        // Инициализируем Integrated Tool Orchestrator
+        // Note: ToolOrchestrator doesn't need separate initialization as it's initialized in constructor
         
         self.initialized = true;
         self.performance_monitor.finish_operation(&op_id, true);
         
-        info!("✅ UnifiedAgentV2 полностью инициализирован с Adaptive Task Orchestrator");
+        info!("✅ UnifiedAgentV2 полностью инициализирован с Integrated Tool Orchestrator");
         Ok(())
     }
 }
@@ -405,23 +412,44 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
         
         debug!("UnifiedAgentV2: обработка запроса '{}'", context.message);
         
-        // Шаг 1: Orchestration - анализ задачи и выбор стратегии выполнения
-        let task_id = format!("task_{}", uuid::Uuid::new_v4().to_string()[..8].to_string());
-        let orchestration_result = self.task_orchestrator.submit_task(
-            &task_id, 
+        // Шаг 1: Integrated Orchestration - анализ задачи и интеллектуальное выполнение
+        let orchestration_result = self.tool_orchestrator.process_request(
             &context.message, 
-            context.metadata.clone()
+            Some(context.metadata.clone())
         ).await;
         
-        // Если orchestrator рекомендует особую стратегию, используем её
-        let execution_strategy = match orchestration_result {
-            Ok(strategy) => {
-                info!("🎯 Orchestrator выбрал стратегию: {:?}", strategy);
-                Some(strategy)
+        // Анализируем результат интегрированной оркестрации
+        let (execution_strategy, orchestration_response) = match orchestration_result {
+            Ok(result) => {
+                info!("🎯 Integrated orchestrator завершил обработку: handler={}, optimization={}", 
+                      result.orchestration_result.handler_used, result.optimization_applied);
+                      
+                // Если задача была обработана через tool system, возвращаем результат
+                if let Some(tool_result) = &result.tool_result {
+                    // Завершаем операцию с performance metrics
+                    let execution_time = start_time.elapsed();
+                    self.performance_monitor.finish_operation(&op_id, tool_result.execution_result.output.success);
+                    
+                    return Ok(ProcessingResult {
+                        response: AgentResponse::ToolExecution(tool_result.execution_result.output.result.clone()),
+                        processing_time_ms: execution_time.as_millis() as u64,
+                        components_used: vec!["integrated_orchestrator".to_string(), "enhanced_tool_system".to_string()],
+                        metrics: {
+                            let mut m = HashMap::new();
+                            m.insert("orchestration_time".to_string(), result.performance_metrics.orchestration_time.as_millis() as f64);
+                            m.insert("tool_execution_time".to_string(), result.performance_metrics.tool_execution_time.as_millis() as f64);
+                            m.insert("optimization_applied".to_string(), if result.optimization_applied { 1.0 } else { 0.0 });
+                            m
+                        },
+                    });
+                }
+                
+                // Если не через tool system, продолжаем стандартную обработку
+                (None::<ExecutionStrategy>, Some(result.orchestration_result.response))
             }
             Err(e) => {
-                warn!("⚠️ Orchestrator недоступен: {}, используем стандартную обработку", e);
-                None
+                warn!("⚠️ Integrated orchestrator недоступен: {}, используем стандартную обработку", e);
+                (None::<ExecutionStrategy>, None::<String>)
             }
         };
         
@@ -502,10 +530,7 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
             Ok(resp) => {
                 self.performance_monitor.finish_operation(&op_id, true);
                 
-                // Уведомляем orchestrator об успешном завершении
-                if let Err(e) = self.task_orchestrator.complete_task(&task_id, true, processing_time).await {
-                    warn!("Ошибка завершения задачи в orchestrator: {}", e);
-                }
+                // Note: Tool orchestrator handles task completion internally
                 
                 resp
             }
@@ -513,10 +538,7 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
                 error!("Ошибка обработки запроса: {}", e);
                 self.performance_monitor.finish_operation(&op_id, false);
                 
-                // Уведомляем orchestrator о неуспешном завершении
-                if let Err(orch_err) = self.task_orchestrator.complete_task(&task_id, false, processing_time).await {
-                    warn!("Ошибка завершения задачи в orchestrator: {}", orch_err);
-                }
+                // Note: Tool orchestrator handles task completion internally
                 
                 // Используем fallback strategy
                 components_used.push("fallback_strategy".to_string());
@@ -555,8 +577,8 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
         info!("🛑 Начинаем graceful shutdown UnifiedAgentV2");
         
         // Последовательно останавливаем все компоненты
-        if let Err(e) = self.task_orchestrator.shutdown().await {
-            warn!("Ошибка при shutdown task orchestrator: {}", e);
+        if let Err(e) = self.tool_orchestrator.shutdown().await {
+            warn!("Ошибка при shutdown tool orchestrator: {}", e);
         }
         self.admin_handler.shutdown().await?;
         self.memory_handler.shutdown().await?;
@@ -599,12 +621,12 @@ impl UnifiedAgentV2 {
             if self.memory_handler.health_check().await.is_ok() { "✅ Healthy" } else { "❌ Unhealthy" }));
         stats.push_str(&format!("├─ Admin Handler: {}\n", 
             if self.admin_handler.health_check().await.is_ok() { "✅ Healthy" } else { "❌ Unhealthy" }));
-        stats.push_str(&format!("└─ Task Orchestrator: {}\n", 
-            if self.task_orchestrator.is_healthy().await { "✅ Healthy" } else { "❌ Unhealthy" }));
+        stats.push_str(&format!("└─ Tool Orchestrator: {}\n", 
+            if self.tool_orchestrator.health_check().await.is_ok() { "✅ Healthy" } else { "❌ Unhealthy" }));
         
-        // Task Orchestrator Statistics
+        // Integrated Tool Orchestrator Statistics
         stats.push_str("\n");
-        stats.push_str(&self.task_orchestrator.get_statistics().await);
+        stats.push_str(&self.tool_orchestrator.get_comprehensive_stats().await);
         
         stats
     }

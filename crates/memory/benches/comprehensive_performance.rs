@@ -118,7 +118,7 @@ fn bench_cache_performance(c: &mut Criterion) {
                         // Setup: create fresh cache
                         let temp_dir = tempfile::tempdir().unwrap();
                         let config = CacheConfig::default();
-                        let cache = EmbeddingCacheLRU::new(temp_dir.path(), config).unwrap();
+                        let cache = EmbeddingCache::new(temp_dir.path(), config).unwrap();
                         
                         let test_data: Vec<_> = (0..size)
                             .map(|i| {
@@ -200,7 +200,8 @@ fn bench_memory_service_integration(c: &mut Criterion) {
                 // Setup: create full memory service
                 rt.block_on(async {
                     let config = default_config().unwrap();
-                    let service = MemoryService::new(config).await.unwrap();
+                    let service = DIMemoryService::new(config).await.unwrap();
+                    service.initialize().await.unwrap();
                     
                     let test_records: Vec<_> = (0..100)
                         .map(|i| create_test_record(&format!("integration_test_{}", i), DIMENSIONS))
@@ -216,12 +217,14 @@ fn bench_memory_service_integration(c: &mut Criterion) {
                 }
                 
                 let query = "test content";
-                let search_results = service.search(query)
-                    .with_layer(Layer::Interact)
-                    .top_k(10)
-                    .execute()
-                    .await
-                    .unwrap();
+                let search_options = SearchOptions {
+                    layers: vec![Layer::Interact],
+                    top_k: 10,
+                    score_threshold: 0.5,
+                    tags: vec![],
+                    project: Some("benchmark".to_string()),
+                };
+                let search_results = service.search(query, Layer::Interact, search_options).await.unwrap();
                 
                 // Verify results
                 assert!(!search_results.is_empty());

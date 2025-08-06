@@ -187,7 +187,7 @@ impl ToolOrchestrator {
             let current_avg = metrics.average_orchestration_overhead;
             let requests = metrics.total_orchestrated_requests;
             let new_avg = Duration::from_nanos(
-                ((current_avg.as_nanos() * (requests - 1) as u128) + overhead.as_nanos()) / requests as u128
+                (((current_avg.as_nanos() * (requests - 1) as u128) + overhead.as_nanos()) / requests as u128) as u64
             );
             metrics.average_orchestration_overhead = new_avg;
             
@@ -199,6 +199,12 @@ impl ToolOrchestrator {
             };
         }
         
+        let tool_execution_time = tool_result.as_ref()
+            .map(|r| r.execution_result.execution_time)
+            .unwrap_or(Duration::from_millis(0));
+            
+        let resource_efficiency = self.calculate_resource_efficiency(&orchestration_result).await;
+        
         let result = IntegratedOrchestrationResult {
             orchestration_result,
             tool_result,
@@ -206,11 +212,9 @@ impl ToolOrchestrator {
             performance_metrics: IntegrationPerformanceMetrics {
                 total_execution_time,
                 orchestration_time,
-                tool_execution_time: tool_result.as_ref()
-                    .map(|r| r.execution_result.execution_time)
-                    .unwrap_or(Duration::from_millis(0)),
+                tool_execution_time,
                 optimization_time: if optimization_applied { Duration::from_millis(10) } else { Duration::from_millis(0) },
-                resource_efficiency: self.calculate_resource_efficiency(&orchestration_result).await,
+                resource_efficiency,
             },
         };
         
@@ -340,7 +344,7 @@ impl ToolOrchestrator {
         let mut stats = String::new();
         
         stats.push_str("🎯 Integrated Tool Orchestrator Statistics\n");
-        stats.push_str("=" .repeat(60));
+        stats.push_str(&"=".repeat(60));
         stats.push('\n');
         
         // Integration metrics

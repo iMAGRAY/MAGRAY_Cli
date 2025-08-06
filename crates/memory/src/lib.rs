@@ -1,4 +1,5 @@
 mod batch_manager;
+mod batch_optimized; // Ultra-optimized batch operations для 1000+ QPS
 mod cache_lru;
 mod cache_interface;
 mod cache_migration;
@@ -9,6 +10,8 @@ mod metrics;
 mod notifications;
 pub mod promotion;
 mod ml_promotion;
+pub mod simd_optimized; // SIMD оптимизации для векторных операций
+pub mod simd_fixed; // Исправленная SIMD реализация для debugging
 pub mod service_di; // DI-based service (единственная реализация)
 pub mod storage;
 mod types;
@@ -30,6 +33,7 @@ pub use di_container::{DIContainer, DIPerformanceMetrics, DIContainerStats, Life
 // Оркестрация системы памяти
 pub mod orchestration;
 pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};
+pub use batch_optimized::{BatchOptimizedProcessor, BatchOptimizedConfig, BatchOptimizedStats};
 pub use cache_lru::{EmbeddingCacheLRU as EmbeddingCache, CacheConfig};
 
 // Cache configuration type for service - теперь только LRU
@@ -43,6 +47,8 @@ pub use health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentTy
 pub use api::{UnifiedMemoryAPI, MemoryContext, SearchOptions as ApiSearchOptions, MemoryResult, OptimizationResult, SystemHealth, DetailedHealth, SystemStats, CacheStats, IndexSizes};
 pub use metrics::{MetricsCollector, MemoryMetrics, LatencyMetrics, LayerMetrics};
 pub use transaction::{Transaction, TransactionManager, TransactionGuard};
+pub use simd_optimized::{cosine_distance_auto, cosine_distance_memory_optimized, batch_cosine_distance_optimized, run_comprehensive_benchmark};
+pub use simd_fixed::{debug_simd_performance};
 
 /// Быстрое создание DI Memory Service с конфигурацией по умолчанию
 pub async fn create_di_memory_service() -> anyhow::Result<DIMemoryService> {

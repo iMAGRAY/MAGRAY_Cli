@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep:*)"
+      "mcp__archlens__get_project_structure"
     ],
     "deny": []
   },
@@ -33,8 +33,8 @@
     }
   },
   "hooks": {
-    "post-edit": "\"C:\\Users\\1\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\" \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\docs-daemon-python\\daemon_manager.py\" sync",
-    "post-multi-edit": "\"C:\\Users\\1\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\" \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\docs-daemon-python\\daemon_manager.py\" sync",
-    "pre-commit": "\"C:\\Users\\1\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\" \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\docs-daemon-python\\daemon_manager.py\" sync"
+    "post-edit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
+    "post-multi-edit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
+    "pre-commit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\""
   }
 }
