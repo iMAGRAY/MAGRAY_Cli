@@ -14,7 +14,6 @@ use crate::{
 };
 
 /// Production-ready менеджер здоровья системы с comprehensive monitoring
-// @component: {"k":"C","id":"health_manager","t":"Health monitoring coordinator","m":{"cur":95,"tgt":95,"u":"%"},"f":["orchestration","health","monitoring","production","alerting","metrics","sla"]}
 pub struct HealthManager {
     health_monitor: Arc<HealthMonitor>,
     ready: std::sync::atomic::AtomicBool,

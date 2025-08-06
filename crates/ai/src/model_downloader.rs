@@ -8,7 +8,6 @@ use tokio_stream::StreamExt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// @component: {"k":"C","id":"model_downloader","t":"Auto model downloader","m":{"cur":95,"tgt":100,"u":"%"}}
 pub struct ModelDownloader {
     base_path: PathBuf,
     client: reqwest::Client,

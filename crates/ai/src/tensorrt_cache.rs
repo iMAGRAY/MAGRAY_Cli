@@ -5,7 +5,6 @@ use anyhow::{Result, Context};
 use tracing::{info, debug};
 use serde::{Serialize, Deserialize};
 
-/// @component: {"k":"C","id":"tensorrt_cache","t":"TensorRT model cache","m":{"cur":90,"tgt":100,"u":"%"}}
 pub struct TensorRTCache {
     cache_dir: PathBuf,
     max_cache_size: u64,

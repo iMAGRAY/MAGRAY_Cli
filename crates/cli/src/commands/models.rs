@@ -3,7 +3,6 @@ use clap::{Args, Subcommand};
 use ai::{MODEL_REGISTRY, ModelType};
 use tracing::{info, warn, error};
 
-/// @component: {"k":"C","id":"models_commands","t":"Model management CLI","m":{"cur":100,"tgt":100,"u":"%"},"f":["cli","commands","models"]}
 #[derive(Debug, Args)]
 pub struct ModelsCommand {
     #[command(subcommand)]

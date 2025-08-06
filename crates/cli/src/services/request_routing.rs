@@ -16,7 +16,6 @@ use router::SmartRouter;
 use super::types::{IntentDecision, AgentResponse, RequestContext, OperationResult};
 
 /// Trait для сервиса маршрутизации запросов
-// @component: {"k":"C","id":"request_routing_service","t":"Request routing service trait","m":{"cur":95,"tgt":100,"u":"%"},"f":["trait","routing","clean_architecture","decision"]}
 #[async_trait::async_trait]
 pub trait RequestRoutingService: Send + Sync {
     /// Маршрутизировать запрос на основе анализа намерений
@@ -85,7 +84,6 @@ pub struct RoutingStats {
 }
 
 /// Реализация сервиса маршрутизации по умолчанию
-// @component: {"k":"C","id":"default_request_routing_service","t":"Default request routing service implementation","m":{"cur":85,"tgt":95,"u":"%"},"f":["service","routing","smart_router","business_logic","metrics"]}
 pub struct DefaultRequestRoutingService {
     /// SmartRouter для выполнения инструментов
     smart_router: SmartRouter,

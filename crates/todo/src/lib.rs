@@ -1,4 +1,3 @@
-// @component: {"k":"C","id":"todo_lib","t":"Task DAG management system","m":{"cur":80,"tgt":95,"u":"%"},"f":["todo","dag","sqlite","async"]}  
 use anyhow::Result;
 use std::path::Path;
 

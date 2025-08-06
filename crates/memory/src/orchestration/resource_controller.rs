@@ -14,7 +14,6 @@ use crate::{
 };
 
 /// Production-ready контроллер ресурсов с автомасштабированием
-// @component: {"k":"C","id":"resource_controller","t":"Resource management coordinator","m":{"cur":95,"tgt":95,"u":"%"},"f":["orchestration","resources","coordinator","auto-scaling","production","monitoring"]}
 pub struct ResourceController {
     resource_manager: Arc<parking_lot::RwLock<ResourceManager>>,
     ready: std::sync::atomic::AtomicBool,

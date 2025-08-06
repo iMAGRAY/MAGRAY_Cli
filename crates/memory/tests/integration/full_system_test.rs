@@ -24,7 +24,6 @@ use uuid::Uuid;
 use chrono::Utc;
 use std::collections::HashMap;
 
-// @component: {"k":"T","id":"full_system_integration_tests","t":"Complete MAGRAY CLI system integration tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["integration","system","end-to-end","production","sla"]}
 
 /// Утилита для создания тестовых записей
 fn create_test_record(text: &str, layer: Layer, session: &str) -> Record {

@@ -33,7 +33,6 @@ use crate::{
 use ai::{AiConfig, EmbeddingConfig, ModelLoader};
 
 /// Конфигуратор DI для memory системы
-// @component: {"k":"C","id":"memory_di_config","t":"DI configuration for memory system","m":{"cur":60,"tgt":100,"u":"%"},"f":["di","config","memory"]}
 pub struct MemoryDIConfigurator;
 
 impl MemoryDIConfigurator {

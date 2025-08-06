@@ -21,7 +21,6 @@ use uuid::Uuid;
 use chrono::Utc;
 use std::collections::HashMap;
 
-// @component: {"k":"T","id":"performance_integration_tests","t":"Performance integration tests with SLA validation","m":{"cur":95,"tgt":100,"u":"%"},"f":["integration","performance","sla","benchmarks","concurrent","sub-5ms"]}
 
 /// Утилита для создания performance test service
 async fn create_performance_test_service() -> Result<DIMemoryService> {

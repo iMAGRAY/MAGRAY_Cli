@@ -7,7 +7,6 @@ use tracing::{error, info, warn};
 
 use crate::health::{HealthAlert, AlertSeverity};
 
-// @component: {"k":"C","id":"notification_system","t":"Production alert notification system","m":{"cur":95,"tgt":100,"u":"%"},"f":["alerts","notifications","production"]}
 
 /// Типы каналов уведомлений
 #[derive(Debug, Clone, Serialize, Deserialize)]

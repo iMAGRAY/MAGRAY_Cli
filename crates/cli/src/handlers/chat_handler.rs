@@ -13,7 +13,6 @@ use crate::agent_traits::{
     RequestContext, AgentResponse
 };
 
-// @component: {"k":"C","id":"chat_handler","t":"Specialized chat request handler","m":{"cur":85,"tgt":95,"u":"%"},"f":["single_responsibility","clean_architecture","di_ready"]}
 pub struct ChatHandler<L, C> 
 where
     L: LlmServiceTrait,

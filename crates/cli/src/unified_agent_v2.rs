@@ -16,19 +16,37 @@ use tracing::{info, debug, error, warn};
 use crate::agent_traits::*;
 use crate::handlers::*;
 use crate::strategies::*;
+use crate::orchestrator::*;
 
 // ============================================================================
 // ADAPTER IMPLEMENTATIONS FOR EXISTING SERVICES
 // ============================================================================
 
-/// Adapter для LlmClient -> LlmServiceTrait
+/// Adapter для LlmClient -> LlmServiceTrait  
 pub struct LlmServiceAdapter {
     llm_client: llm::LlmClient,
 }
 
 impl LlmServiceAdapter {
-    pub fn new(llm_client: llm::LlmClient) -> Self {
-        Self { llm_client }
+    pub fn new() -> Result<Self> {
+        let llm_client = llm::LlmClient::from_env_multi()
+            .or_else(|_| {
+                info!("🔄 Multi-provider setup failed, falling back to single provider");
+                llm::LlmClient::from_env()
+            })?;
+        
+        if llm_client.is_multi_provider() {
+            info!("✅ LlmServiceAdapter using multi-provider orchestration");
+        } else {
+            info!("✅ LlmServiceAdapter using single provider");
+        }
+        
+        Ok(Self { llm_client })
+    }
+    
+    /// Get LLM status report if available
+    pub async fn get_status_report(&self) -> Option<String> {
+        self.llm_client.get_status_report().await
     }
 }
 
@@ -160,8 +178,8 @@ impl MemoryManagementTrait for MemoryManagementAdapter {
         let health = self.memory_service.check_health().await
             .map_err(|e| anyhow::anyhow!("Memory health check failed: {}", e))?;
         
-        if !health.is_healthy {
-            return Err(anyhow::anyhow!("Memory system unhealthy"));
+        if !matches!(health.overall_status, memory::health::HealthStatus::Healthy) {
+            return Err(anyhow::anyhow!("Memory system unhealthy: {:?}", health.overall_status));
         }
         
         Ok(())
@@ -230,7 +248,6 @@ impl AdminServiceTrait for BasicAdminService {
 // ============================================================================
 
 /// UnifiedAgent V2 с Clean Architecture
-// @component: {"k":"C","id":"unified_agent_v2","t":"Clean Architecture UnifiedAgent with DI","m":{"cur":90,"tgt":95,"u":"%"},"f":["clean_architecture","solid_principles","di_integration","strategy_pattern","circuit_breaker"]}
 pub struct UnifiedAgentV2 {
     // Specialized handlers (Dependency Injection)
     chat_handler: ChatHandler<LlmServiceAdapter, BasicCircuitBreaker>,
@@ -242,6 +259,9 @@ pub struct UnifiedAgentV2 {
     intent_strategy: Box<dyn IntentDecisionStrategy>,
     fallback_strategy: CompositeFallbackStrategy,
     response_strategy: Box<dyn ResponseFormattingStrategy>,
+    
+    // Adaptive Task Orchestrator
+    task_orchestrator: AdaptiveTaskOrchestrator,
     
     // Performance monitoring
     performance_monitor: Arc<PerformanceMonitor>,
@@ -271,10 +291,12 @@ impl UnifiedAgentV2 {
         let admin_circuit_breaker = BasicCircuitBreaker::with_defaults("admin_handler".to_string());
         
         // Создаем адаптеры для существующих сервисов
-        let llm_client = llm::LlmClient::from_env()?;
-        let llm_adapter = LlmServiceAdapter::new(llm_client.clone());
+        let llm_adapter = LlmServiceAdapter::new()?;
         
-        let smart_router = router::SmartRouter::new(llm_client.clone());
+        // Создаем SmartRouter с новым LLM client
+        let llm_client_for_router = llm::LlmClient::from_env_multi()
+            .or_else(|_| llm::LlmClient::from_env())?;
+        let smart_router = router::SmartRouter::new(llm_client_for_router);
         let routing_adapter = IntelligentRoutingAdapter::new(smart_router);
         
         let memory_config = memory::default_config()?;
@@ -286,26 +308,33 @@ impl UnifiedAgentV2 {
         
         let admin_service = BasicAdminService::new(performance_monitor.clone());
         
+        // Создаем strategy patterns
+        let intent_llm_adapter = LlmServiceAdapter::new()?;
+        let intent_strategy: Box<dyn IntentDecisionStrategy> = Box::new(
+            HybridIntentStrategy::new(intent_llm_adapter, 0.7)
+        );
+        
+        // Создаем отдельный адаптер для fallback strategy
+        let fallback_llm_adapter = LlmServiceAdapter::new()?;
+        let mut fallback_strategy = CompositeFallbackStrategy::new();
+        fallback_strategy = fallback_strategy
+            .add_strategy(Box::new(CircuitBreakerFallbackStrategy::new(5, 30)))
+            .add_strategy(Box::new(SmartFallbackStrategy::new(Some(fallback_llm_adapter), 3)))
+            .add_strategy(Box::new(SimpleFallbackStrategy::new()));
+        
         // Создаем specialized handlers
         let chat_handler = ChatHandler::new(llm_adapter, chat_circuit_breaker.clone());
         let tools_handler = ToolsHandler::new(routing_adapter, tools_circuit_breaker.clone());
         let memory_handler = MemoryHandler::new(memory_adapter, memory_circuit_breaker.clone());
         let admin_handler = AdminHandler::new(admin_service, admin_circuit_breaker.clone());
         
-        // Создаем strategy patterns
-        let intent_strategy: Box<dyn IntentDecisionStrategy> = Box::new(
-            HybridIntentStrategy::new(llm_client.clone(), 0.7)
-        );
-        
-        let mut fallback_strategy = CompositeFallbackStrategy::new();
-        fallback_strategy = fallback_strategy
-            .add_strategy(Box::new(CircuitBreakerFallbackStrategy::new(5, 30)))
-            .add_strategy(Box::new(SmartFallbackStrategy::new(Some(llm_client), 3)))
-            .add_strategy(Box::new(SimpleFallbackStrategy::new()));
-        
         let response_strategy: Box<dyn ResponseFormattingStrategy> = Box::new(
             AdaptiveResponseFormatter::new()
         );
+        
+        // Создаем Adaptive Task Orchestrator
+        let orchestrator_config = crate::orchestrator::OrchestrationConfig::default();
+        let task_orchestrator = AdaptiveTaskOrchestrator::new(orchestrator_config);
         
         let agent = Self {
             chat_handler,
@@ -315,6 +344,7 @@ impl UnifiedAgentV2 {
             intent_strategy,
             fallback_strategy,
             response_strategy,
+            task_orchestrator,
             performance_monitor,
             chat_circuit_breaker,
             tools_circuit_breaker,
@@ -349,10 +379,14 @@ impl UnifiedAgentV2 {
         self.admin_handler.initialize().await
             .map_err(|e| anyhow::anyhow!("Ошибка инициализации AdminHandler: {}", e))?;
         
+        // Инициализируем Adaptive Task Orchestrator
+        self.task_orchestrator.initialize().await
+            .map_err(|e| anyhow::anyhow!("Ошибка инициализации TaskOrchestrator: {}", e))?;
+        
         self.initialized = true;
         self.performance_monitor.finish_operation(&op_id, true);
         
-        info!("✅ UnifiedAgentV2 полностью инициализирован");
+        info!("✅ UnifiedAgentV2 полностью инициализирован с Adaptive Task Orchestrator");
         Ok(())
     }
 }
@@ -371,7 +405,27 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
         
         debug!("UnifiedAgentV2: обработка запроса '{}'", context.message);
         
-        // Шаг 1: Определение намерения (Intent Strategy)
+        // Шаг 1: Orchestration - анализ задачи и выбор стратегии выполнения
+        let task_id = format!("task_{}", uuid::Uuid::new_v4().to_string()[..8].to_string());
+        let orchestration_result = self.task_orchestrator.submit_task(
+            &task_id, 
+            &context.message, 
+            context.metadata.clone()
+        ).await;
+        
+        // Если orchestrator рекомендует особую стратегию, используем её
+        let execution_strategy = match orchestration_result {
+            Ok(strategy) => {
+                info!("🎯 Orchestrator выбрал стратегию: {:?}", strategy);
+                Some(strategy)
+            }
+            Err(e) => {
+                warn!("⚠️ Orchestrator недоступен: {}, используем стандартную обработку", e);
+                None
+            }
+        };
+        
+        // Шаг 2: Определение намерения (Intent Strategy)
         let intent_decision = match self.intent_strategy.analyze_intent(&context).await {
             Ok(decision) => {
                 components_used.push("intent_analyzer".to_string());
@@ -388,7 +442,13 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
         info!("Intent: {} (уверенность: {:.1}%)", 
               intent_decision.action_type, intent_decision.confidence * 100.0);
         
-        // Шаг 2: Делегирование специализированному handler'у
+        // Добавляем orchestration metrics
+        if execution_strategy.is_some() {
+            components_used.push("adaptive_orchestrator".to_string());
+            metrics.insert("orchestration_enabled".to_string(), 1.0);
+        }
+        
+        // Шаг 3: Делегирование специализированному handler'у
         let response = match intent_decision.action_type.as_str() {
             "chat" => {
                 if self.chat_handler.can_handle(&context).await {
@@ -441,11 +501,22 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
         let final_response = match response {
             Ok(resp) => {
                 self.performance_monitor.finish_operation(&op_id, true);
+                
+                // Уведомляем orchestrator об успешном завершении
+                if let Err(e) = self.task_orchestrator.complete_task(&task_id, true, processing_time).await {
+                    warn!("Ошибка завершения задачи в orchestrator: {}", e);
+                }
+                
                 resp
             }
             Err(e) => {
                 error!("Ошибка обработки запроса: {}", e);
                 self.performance_monitor.finish_operation(&op_id, false);
+                
+                // Уведомляем orchestrator о неуспешном завершении
+                if let Err(orch_err) = self.task_orchestrator.complete_task(&task_id, false, processing_time).await {
+                    warn!("Ошибка завершения задачи в orchestrator: {}", orch_err);
+                }
                 
                 // Используем fallback strategy
                 components_used.push("fallback_strategy".to_string());
@@ -484,6 +555,9 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
         info!("🛑 Начинаем graceful shutdown UnifiedAgentV2");
         
         // Последовательно останавливаем все компоненты
+        if let Err(e) = self.task_orchestrator.shutdown().await {
+            warn!("Ошибка при shutdown task orchestrator: {}", e);
+        }
         self.admin_handler.shutdown().await?;
         self.memory_handler.shutdown().await?;
         self.tools_handler.shutdown().await?;
@@ -523,8 +597,14 @@ impl UnifiedAgentV2 {
             if self.tools_handler.health_check().await.is_ok() { "✅ Healthy" } else { "❌ Unhealthy" }));
         stats.push_str(&format!("├─ Memory Handler: {}\n", 
             if self.memory_handler.health_check().await.is_ok() { "✅ Healthy" } else { "❌ Unhealthy" }));
-        stats.push_str(&format!("└─ Admin Handler: {}\n", 
+        stats.push_str(&format!("├─ Admin Handler: {}\n", 
             if self.admin_handler.health_check().await.is_ok() { "✅ Healthy" } else { "❌ Unhealthy" }));
+        stats.push_str(&format!("└─ Task Orchestrator: {}\n", 
+            if self.task_orchestrator.is_healthy().await { "✅ Healthy" } else { "❌ Unhealthy" }));
+        
+        // Task Orchestrator Statistics
+        stats.push_str("\n");
+        stats.push_str(&self.task_orchestrator.get_statistics().await);
         
         stats
     }

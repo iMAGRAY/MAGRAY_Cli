@@ -1,0 +1,3 @@
+# Зависимости для ctl_annotation_remover.py
+rich==13.7.0
+pathlib2==2.3.7

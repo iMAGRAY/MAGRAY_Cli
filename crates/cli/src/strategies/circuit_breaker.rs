@@ -50,7 +50,7 @@ impl Default for CircuitBreakerMetrics {
 // ============================================================================
 
 /// Базовая реализация Circuit Breaker
-// @component: {"k":"C","id":"basic_circuit_breaker","t":"Basic circuit breaker implementation","m":{"cur":90,"tgt":95,"u":"%"},"f":["circuit_breaker","resilience","production_ready"]}
+#[derive(Clone)]
 pub struct BasicCircuitBreaker {
     state: Arc<Mutex<CircuitBreakerState>>,
     metrics: Arc<Mutex<CircuitBreakerMetrics>>,
@@ -270,7 +270,6 @@ impl CircuitBreakerTrait for BasicCircuitBreaker {
 // ============================================================================
 
 /// Адаптивный Circuit Breaker с динамической настройкой порогов
-// @component: {"k":"C","id":"adaptive_circuit_breaker","t":"Adaptive circuit breaker with dynamic thresholds","m":{"cur":85,"tgt":95,"u":"%"},"f":["circuit_breaker","adaptive","intelligent"]}
 pub struct AdaptiveCircuitBreaker {
     basic: BasicCircuitBreaker,
     base_failure_threshold: u32,

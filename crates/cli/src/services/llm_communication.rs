@@ -16,7 +16,6 @@ use llm::LlmClient;
 use super::types::{RequestContext, OperationResult};
 
 /// Trait для сервиса взаимодействия с LLM
-// @component: {"k":"C","id":"llm_communication_service","t":"LLM communication service trait","m":{"cur":95,"tgt":100,"u":"%"},"f":["trait","llm","multi_provider","clean_architecture"]}
 #[async_trait::async_trait]
 pub trait LlmCommunicationService: Send + Sync {
     /// Отправить простой чат запрос к LLM
@@ -124,7 +123,6 @@ pub struct LlmUsageStats {
 }
 
 /// Реализация сервиса взаимодействия с LLM по умолчанию
-// @component: {"k":"C","id":"default_llm_communication_service","t":"Default LLM communication service implementation","m":{"cur":85,"tgt":95,"u":"%"},"f":["service","llm","fallback","caching","metrics"]}
 pub struct DefaultLlmCommunicationService {
     /// Основной LLM клиент
     llm_client: LlmClient,

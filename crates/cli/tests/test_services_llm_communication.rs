@@ -20,7 +20,6 @@ use tokio;
 use chrono::Utc;
 use std::collections::HashMap;
 
-// @component: {"k":"T","id":"llm_communication_service_tests","t":"Comprehensive LLM communication service tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["test","unit","mock","coverage","llm","cache"]}
 
 /// Mock LlmClient для тестирования
 pub struct MockLlmClient {

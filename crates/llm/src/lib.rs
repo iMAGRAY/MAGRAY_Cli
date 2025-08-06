@@ -1,19 +1,89 @@
-﻿use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::sync::Arc;
 use tracing::{info, debug, error};
 
-// @component: {"k":"C","id":"llm_client","t":"Multi-provider LLM client","m":{"cur":65,"tgt":95,"u":"%"},"f":["llm","agents","multi-provider"]}
 
 pub mod agents;
+mod multi_provider;
+mod circuit_breaker;
+mod cost_optimizer;
+mod integration_test;
 
 pub use agents::*;
+pub use multi_provider::*;
+pub use circuit_breaker::*;
+pub use cost_optimizer::*;
 
 #[derive(Debug, Clone)]
 pub enum LlmProvider {
     OpenAI { api_key: String, model: String },
     Anthropic { api_key: String, model: String },
     Local { url: String, model: String },
+    Ollama { url: String, model: String },
+    LMStudio { url: String, model: String },
+    Azure { endpoint: String, api_key: String, model: String },
+    Groq { api_key: String, model: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ProviderType {
+    OpenAI,
+    Anthropic,
+    Local,
+    Ollama,
+    LMStudio,
+    Azure,
+    Groq,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProviderStats {
+    pub total_requests: u64,
+    pub successful_requests: u64,
+    pub failed_requests: u64,
+    pub avg_latency_ms: f32,
+    pub total_cost: f32,
+    pub last_error: Option<String>,
+    pub circuit_breaker_state: CircuitBreakerState,
+}
+
+impl Default for ProviderStats {
+    fn default() -> Self {
+        Self {
+            total_requests: 0,
+            successful_requests: 0,
+            failed_requests: 0,
+            avg_latency_ms: 0.0,
+            total_cost: 0.0,
+            last_error: None,
+            circuit_breaker_state: CircuitBreakerState::Closed,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskComplexity {
+    pub tokens: u32,
+    pub complexity: ComplexityLevel,
+    pub priority: Priority,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ComplexityLevel {
+    Simple,   // Basic questions, simple tasks
+    Medium,   // Code review, analysis
+    Complex,  // Architecture design, complex reasoning
+    Expert,   // Advanced technical tasks
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Priority {
+    Low,
+    Normal,
+    High,
+    Critical,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +155,7 @@ pub struct LlmClient {
     client: reqwest::Client,
     max_tokens: u32,
     temperature: f32,
+    orchestrator: Option<Arc<MultiProviderLlmOrchestrator>>,
 }
 
 // OpenAI API types
@@ -144,7 +215,25 @@ impl LlmClient {
             client: reqwest::Client::new(),
             max_tokens,
             temperature,
+            orchestrator: None,
         }
+    }
+    
+    /// Create a new client with multi-provider orchestration
+    pub fn new_multi_provider(providers: Vec<LlmProvider>, daily_budget: Option<f32>) -> Self {
+        let orchestrator = Arc::new(MultiProviderLlmOrchestrator::new(providers.clone(), daily_budget));
+        Self {
+            provider: providers[0].clone(), // Fallback provider
+            client: reqwest::Client::new(),
+            max_tokens: 1000,
+            temperature: 0.7,
+            orchestrator: Some(orchestrator),
+        }
+    }
+    
+    /// Check if multi-provider mode is enabled
+    pub fn is_multi_provider(&self) -> bool {
+        self.orchestrator.is_some()
     }
 
     pub fn from_env() -> Result<Self> {
@@ -186,10 +275,19 @@ impl LlmClient {
             client: reqwest::Client::new(),
             max_tokens,
             temperature,
+            orchestrator: None,
         })
     }
 
     pub async fn complete(&self, request: CompletionRequest) -> Result<String> {
+        // Use orchestrator if available
+        if let Some(orchestrator) = &self.orchestrator {
+            info!("🎯 Using multi-provider orchestration for request");
+            return orchestrator.complete_smart(request).await;
+        }
+        
+        // Fallback to single provider mode
+        info!("🔧 Using single provider mode: {}", Self::get_provider_name(&self.provider));
         let message = if let Some(system) = &request.system_prompt {
             format!("{}\n\n{}", system, request.prompt)
         } else {
@@ -199,16 +297,13 @@ impl LlmClient {
         let max_tokens = request.max_tokens.unwrap_or(self.max_tokens);
         let temperature = request.temperature.unwrap_or(self.temperature);
         
-        // Временно сохраняем старые значения (для возможного будущего использования)
-        let _old_max_tokens = self.max_tokens;
-        let _old_temperature = self.temperature;
-        
         // Используем значения из request
         let self_with_overrides = Self {
             provider: self.provider.clone(),
             client: self.client.clone(), 
             max_tokens,
             temperature,
+            orchestrator: None, // Don't pass orchestrator to avoid recursion
         };
         
         self_with_overrides.chat_internal(&message).await
@@ -239,6 +334,18 @@ impl LlmClient {
             }
             LlmProvider::Local { url, model } => {
                 self.local_chat(url, model, message).await
+            }
+            LlmProvider::Ollama { url, model } => {
+                self.local_chat(url, model, message).await
+            }
+            LlmProvider::LMStudio { url, model } => {
+                self.local_chat(url, model, message).await
+            }
+            LlmProvider::Azure { endpoint, api_key, model } => {
+                self.azure_chat(endpoint, api_key, model, message).await
+            }
+            LlmProvider::Groq { api_key, model } => {
+                self.groq_chat(api_key, model, message).await
             }
         }
     }
@@ -360,5 +467,161 @@ impl LlmClient {
         } else {
             Err(anyhow!("Пустой ответ от локальной модели"))
         }
+    }
+    
+    async fn azure_chat(&self, endpoint: &str, api_key: &str, model: &str, message: &str) -> Result<String> {
+        let request = OpenAIChatRequest {
+            model: model.to_string(),
+            messages: vec![OpenAIMessage {
+                role: "user".to_string(),
+                content: message.to_string(),
+            }],
+            max_tokens: Some(self.max_tokens),
+            temperature: Some(self.temperature),
+        };
+
+        info!("🚀 Отправляю запрос в Azure OpenAI: {} -> {}", endpoint, model);
+        debug!("Текст запроса: {}", message);
+
+        let response = self
+            .client
+            .post(&format!("{}/openai/deployments/{}/chat/completions?api-version=2023-12-01-preview", endpoint, model))
+            .header("api-key", api_key)
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await?;
+            error!("Azure OpenAI ошибка: {}", error_text);
+            return Err(anyhow!("Azure OpenAI ошибка: {}", error_text));
+        }
+
+        let chat_response: OpenAIChatResponse = response.json().await?;
+        
+        if let Some(choice) = chat_response.choices.first() {
+            info!("✅ Получен ответ от Azure OpenAI");
+            Ok(choice.message.content.clone())
+        } else {
+            Err(anyhow!("Пустой ответ от Azure OpenAI"))
+        }
+    }
+    
+    async fn groq_chat(&self, api_key: &str, model: &str, message: &str) -> Result<String> {
+        let request = OpenAIChatRequest {
+            model: model.to_string(),
+            messages: vec![OpenAIMessage {
+                role: "user".to_string(),
+                content: message.to_string(),
+            }],
+            max_tokens: Some(self.max_tokens),
+            temperature: Some(self.temperature),
+        };
+
+        info!("🚀 Отправляю запрос в Groq: {}", model);
+        debug!("Текст запроса: {}", message);
+
+        let response = self
+            .client
+            .post("https://api.groq.com/openai/v1/chat/completions")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await?;
+            error!("Groq API ошибка: {}", error_text);
+            return Err(anyhow!("Groq API ошибка: {}", error_text));
+        }
+
+        let chat_response: OpenAIChatResponse = response.json().await?;
+        
+        if let Some(choice) = chat_response.choices.first() {
+            info!("✅ Получен ответ от Groq");
+            Ok(choice.message.content.clone())
+        } else {
+            Err(anyhow!("Пустой ответ от Groq"))
+        }
+    }
+    
+    /// Get provider name for display
+    fn get_provider_name(provider: &LlmProvider) -> String {
+        match provider {
+            LlmProvider::OpenAI { model, .. } => format!("OpenAI ({})", model),
+            LlmProvider::Anthropic { model, .. } => format!("Anthropic ({})", model),
+            LlmProvider::Local { model, .. } => format!("Local ({})", model),
+            LlmProvider::Ollama { model, .. } => format!("Ollama ({})", model),
+            LlmProvider::LMStudio { model, .. } => format!("LM Studio ({})", model),
+            LlmProvider::Azure { model, .. } => format!("Azure ({})", model),
+            LlmProvider::Groq { model, .. } => format!("Groq ({})", model),
+        }
+    }
+    
+    /// Get status report (for multi-provider mode)
+    pub async fn get_status_report(&self) -> Option<String> {
+        if let Some(orchestrator) = &self.orchestrator {
+            Some(orchestrator.get_status_report().await)
+        } else {
+            None
+        }
+    }
+    
+    /// Create from environment with multi-provider support
+    pub fn from_env_multi() -> Result<Self> {
+        dotenv::dotenv().ok();
+        
+        let mut providers = Vec::new();
+        
+        // Try to add OpenAI if configured
+        if let Ok(api_key) = env::var("OPENAI_API_KEY") {
+            let model = env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
+            providers.push(LlmProvider::OpenAI { api_key, model });
+            info!("✅ Added OpenAI provider");
+        }
+        
+        // Try to add Anthropic if configured
+        if let Ok(api_key) = env::var("ANTHROPIC_API_KEY") {
+            let model = env::var("ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-3-haiku-20240307".to_string());
+            providers.push(LlmProvider::Anthropic { api_key, model });
+            info!("✅ Added Anthropic provider");
+        }
+        
+        // Try to add Groq if configured
+        if let Ok(api_key) = env::var("GROQ_API_KEY") {
+            let model = env::var("GROQ_MODEL").unwrap_or_else(|_| "llama-3.1-8b-instant".to_string());
+            providers.push(LlmProvider::Groq { api_key, model });
+            info!("✅ Added Groq provider");
+        }
+        
+        // Try to add local providers
+        if let Ok(url) = env::var("OLLAMA_URL") {
+            let model = env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".to_string());
+            providers.push(LlmProvider::Ollama { url, model });
+            info!("✅ Added Ollama provider");
+        }
+        
+        if let Ok(url) = env::var("LMSTUDIO_URL") {
+            let model = env::var("LMSTUDIO_MODEL").unwrap_or_else(|_| "llama-3.2-3b-instruct".to_string());
+            providers.push(LlmProvider::LMStudio { url, model });
+            info!("✅ Added LM Studio provider");
+        }
+        
+        if providers.is_empty() {
+            return Err(anyhow!("No LLM providers configured. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, OLLAMA_URL, or LMSTUDIO_URL"));
+        }
+        
+        let daily_budget = env::var("LLM_DAILY_BUDGET")
+            .ok()
+            .and_then(|s| s.parse().ok());
+        
+        info!("🏗️ Created multi-provider LLM client with {} providers", providers.len());
+        if let Some(budget) = daily_budget {
+            info!("💰 Daily budget limit: ${:.2}", budget);
+        }
+        
+        Ok(Self::new_multi_provider(providers, daily_budget))
     }
 }

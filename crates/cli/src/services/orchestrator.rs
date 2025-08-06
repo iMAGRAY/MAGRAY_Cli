@@ -15,7 +15,6 @@ use super::{
 };
 
 /// Trait для оркестратора сервисов
-// @component: {"k":"C","id":"service_orchestrator","t":"Service orchestrator trait","m":{"cur":95,"tgt":100,"u":"%"},"f":["trait","orchestration","coordination","clean_architecture"]}
 #[async_trait::async_trait]
 pub trait ServiceOrchestrator: Send + Sync {
     /// Обработать сообщение пользователя (основной метод)
@@ -55,7 +54,6 @@ pub struct SystemHealthStatus {
 }
 
 /// Реализация оркестратора сервисов по умолчанию
-// @component: {"k":"C","id":"default_service_orchestrator","t":"Default service orchestrator implementation","m":{"cur":85,"tgt":95,"u":"%"},"f":["service","orchestration","di_integration","metrics"]}
 pub struct DefaultServiceOrchestrator {
     intent_analysis: Arc<dyn IntentAnalysisService>,
     request_routing: Arc<dyn RequestRoutingService>,

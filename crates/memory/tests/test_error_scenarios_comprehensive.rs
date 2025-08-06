@@ -24,7 +24,6 @@ use chrono::Utc;
 use std::collections::HashMap;
 use tempfile::TempDir;
 
-// @component: {"k":"T","id":"error_scenarios_comprehensive_tests","t":"Comprehensive error handling and edge case tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["test","error","edge_cases","recovery","coverage"]}
 
 /// Утилиты для создания проблематичных данных
 fn create_problematic_record(id: &str, problem_type: &str) -> Record {

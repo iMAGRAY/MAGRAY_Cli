@@ -1,9 +1,8 @@
 ﻿use anyhow::Result;
-use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, RwLock, Mutex};
 use tokio::time::interval;
 use tracing::{debug, error, info, warn};
 
@@ -121,7 +120,6 @@ impl BatchOperationManager {
     }
     
     /// Add multiple records to the batch
-    #[allow(clippy::await_holding_lock)]
     pub async fn add_batch(&self, records: Vec<Record>) -> Result<()> {
         if records.is_empty() {
             debug!("Attempted to add empty batch, skipping");
@@ -136,14 +134,8 @@ impl BatchOperationManager {
             by_layer.entry(record.layer).or_default().push(record);
         }
         
-        // Add to pending batches with detailed logging
-        let mut pending = match self.pending_batches.try_write() {
-            Some(guard) => guard,
-            None => {
-                warn!("Failed to acquire write lock on pending batches, using blocking write");
-                self.pending_batches.write()
-            }
-        };
+        // Add to pending batches with async lock
+        let mut pending = self.pending_batches.write().await;
         let mut needs_flush = Vec::new();
         
         for (layer, mut new_records) in by_layer {
@@ -159,17 +151,9 @@ impl BatchOperationManager {
         // Update stats with error handling
         {
             let pending_count: usize = pending.values().map(|v| v.len()).sum();
-            match self.stats.try_lock() {
-                Some(mut stats) => {
-                    stats.pending_records = pending_count;
-                    debug!("Updated pending records count to {}", pending_count);
-                }
-                None => {
-                    warn!("Failed to acquire stats lock, using blocking lock");
-                    let mut stats = self.stats.lock();
-                    stats.pending_records = pending_count;
-                }
-            }
+            let mut stats = self.stats.lock().await;
+            stats.pending_records = pending_count;
+            debug!("Updated pending records count to {}", pending_count);
         }
         
         drop(pending);
@@ -186,13 +170,7 @@ impl BatchOperationManager {
     pub async fn flush_all(&self) -> Result<()> {
         info!("Starting manual flush of all pending batches");
         let layers: Vec<Layer> = {
-            let pending = match self.pending_batches.try_read() {
-                Some(guard) => guard,
-                None => {
-                    warn!("Failed to acquire read lock for flush_all, using blocking read");
-                    self.pending_batches.read()
-                }
-            };
+            let pending = self.pending_batches.read().await;
             let layer_count = pending.len();
             debug!("Found {} layers with pending batches", layer_count);
             pending.keys().cloned().collect()
@@ -220,8 +198,8 @@ impl BatchOperationManager {
     }
     
     /// Get current statistics
-    pub fn stats(&self) -> BatchStats {
-        self.stats.lock().clone()
+    pub async fn stats(&self) -> BatchStats {
+        self.stats.lock().await.clone()
     }
     
     // Private methods
@@ -231,10 +209,10 @@ impl BatchOperationManager {
         debug!("Starting flush for layer {:?}", layer);
         let batch = {
             let mut pending = match self.pending_batches.try_write() {
-                Some(guard) => guard,
-                None => {
+                Ok(guard) => guard,
+                Err(_) => {
                     warn!("Failed to acquire write lock for flush_layer, using blocking write");
-                    self.pending_batches.write()
+                    self.pending_batches.write().await
                 }
             };
             pending.remove(&layer)
@@ -286,7 +264,7 @@ impl BatchOperationManager {
                     Err(e) => {
                         error!("Synchronous batch flush failed for layer {:?}: {}", layer, e);
                         // Update failed batch stats
-                        if let Some(mut stats) = self.stats.try_lock() {
+                        if let Ok(mut stats) = self.stats.try_lock() {
                             stats.failed_batches += 1;
                         }
                         return Err(e);
@@ -318,7 +296,7 @@ impl BatchOperationManager {
                 Err(e) => {
                     error!("Failed to acquire semaphore permit for batch processing: {}", e);
                     // Update failed batch stats
-                    let mut stats_guard = stats.lock();
+                    let mut stats_guard = stats.lock().await;
                     stats_guard.failed_batches += 1;
                     if let Some(metrics) = &metrics {
                         metrics.record_error(format!("Semaphore acquisition failed: {e}"));
@@ -347,7 +325,7 @@ impl BatchOperationManager {
                         );
                         
                         // Update stats
-                        let mut stats_guard = stats.lock();
+                        let mut stats_guard = stats.lock().await;
                         stats_guard.total_batches += 1;
                         stats_guard.total_records += batch_size as u64;
                         
@@ -367,7 +345,7 @@ impl BatchOperationManager {
                     }
                     Err(e) => {
                         warn!("Failed to flush batch: {}", e);
-                        let mut stats_guard = stats.lock();
+                        let mut stats_guard = stats.lock().await;
                         stats_guard.failed_batches += 1;
                         
                         if let Some(metrics) = &metrics {
@@ -396,7 +374,7 @@ impl BatchOperationManager {
             
             if let Some(sender) = &sender {
                 let batches_to_flush = {
-                    let mut pending_guard = pending.write();
+                    let mut pending_guard = pending.write().await;
                     let mut batches = Vec::new();
                     
                     for (layer, records) in pending_guard.drain() {
@@ -425,7 +403,7 @@ impl BatchOperationManager {
     /// Update statistics after a flush
     fn update_stats(&self, batch_size: usize, duration: Duration) {
         let stats_result = match self.stats.try_lock() {
-            Some(mut stats) => {
+            Ok(mut stats) => {
                 stats.total_batches += 1;
                 stats.total_records += batch_size as u64;
                 
@@ -440,7 +418,7 @@ impl BatchOperationManager {
                        stats.total_batches, stats.total_records, stats.avg_batch_size, stats.avg_flush_time_ms);
                 Ok(())
             }
-            None => {
+            Err(_) => {
                 warn!("Failed to acquire stats lock for update, stats may be inconsistent");
                 Err("Stats lock contention")
             }
@@ -448,9 +426,9 @@ impl BatchOperationManager {
         
         // Update pending count with separate lock to avoid deadlock
         if stats_result.is_ok() {
-            if let Some(pending) = self.pending_batches.try_read() {
+            if let Ok(pending) = self.pending_batches.try_read() {
                 let pending_count: usize = pending.values().map(|v| v.len()).sum();
-                if let Some(mut stats) = self.stats.try_lock() {
+                if let Ok(mut stats) = self.stats.try_lock() {
                     stats.pending_records = pending_count;
                 }
             }
@@ -569,7 +547,7 @@ mod tests {
         }
         
         // Check stats
-        let stats = manager.stats();
+        let stats = manager.stats().await;
         assert_eq!(stats.total_batches, 2); // Should have flushed 2 batches
         assert_eq!(stats.total_records, 20); // 2 * 10
         assert_eq!(stats.pending_records, 5); // 5 still pending
@@ -578,7 +556,7 @@ mod tests {
         manager.flush_all().await
             .map_err(|e| anyhow::anyhow!("Failed to flush remaining records: {}", e))?;
         
-        let final_stats = manager.stats();
+        let final_stats = manager.stats().await;
         assert_eq!(final_stats.total_batches, 3);
         assert_eq!(final_stats.total_records, 25);
         assert_eq!(final_stats.pending_records, 0);
@@ -628,7 +606,7 @@ mod tests {
         
         // Test adding empty batch
         manager.add_batch(vec![]).await?;
-        let stats = manager.stats();
+        let stats = manager.stats().await;
         assert_eq!(stats.total_batches, 0);
         
         // Test adding valid records
@@ -642,7 +620,7 @@ mod tests {
         manager.add_batch(records).await?;
         
         // Check stats after batch addition
-        let stats = manager.stats();
+        let stats = manager.stats().await;
         
         // Since we added all 7 records at once, they might all be processed in one batch
         // or split depending on the internal logic
@@ -659,7 +637,7 @@ mod tests {
         
         // Test manual flush of remaining
         manager.flush_all().await?;
-        let final_stats = manager.stats();
+        let final_stats = manager.stats().await;
         
         // Final check - all records should be processed and no pending
         assert_eq!(final_stats.total_records, 7, "Expected 7 total records after flush_all");

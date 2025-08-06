@@ -14,7 +14,6 @@ use crate::agent_traits::{IntentDecisionStrategy, RequestContext, IntentDecision
 // ============================================================================
 
 /// Эвристическая стратегия на основе ключевых слов
-// @component: {"k":"C","id":"heuristic_intent_strategy","t":"Keyword-based intent classification","m":{"cur":90,"tgt":95,"u":"%"},"f":["strategy_pattern","fast","offline"]}
 pub struct HeuristicIntentStrategy {
     confidence_threshold: f32,
 }
@@ -132,7 +131,6 @@ impl IntentDecisionStrategy for HeuristicIntentStrategy {
 }
 
 /// LLM-based стратегия с использованием языковой модели
-// @component: {"k":"C","id":"llm_intent_strategy","t":"LLM-based intent classification","m":{"cur":85,"tgt":95,"u":"%"},"f":["strategy_pattern","ai_powered","high_accuracy"]}
 pub struct LlmIntentStrategy<L>
 where
     L: LlmServiceTrait,
@@ -219,7 +217,6 @@ where
 }
 
 /// Комбинированная стратегия - сочетает эвристику и LLM
-// @component: {"k":"C","id":"hybrid_intent_strategy","t":"Hybrid heuristic + LLM intent classification","m":{"cur":85,"tgt":95,"u":"%"},"f":["strategy_pattern","hybrid","balanced"]}
 pub struct HybridIntentStrategy<L>
 where
     L: LlmServiceTrait,

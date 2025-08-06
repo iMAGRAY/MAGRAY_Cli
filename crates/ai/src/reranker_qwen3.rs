@@ -10,7 +10,6 @@ use std::sync::Mutex;
 use tracing::{info, debug, warn};
 
 /// Optimized Qwen3 Reranker Service with batch processing and memory pooling
-// @component: {"k":"C","id":"reranker_qwen3","t":"Qwen3 reranker with batching","m":{"cur":85,"tgt":95,"u":"%"},"f":["ai","reranking","batch","optimized","qwen3"]}
 pub struct OptimizedQwen3RerankerService {
     session: Arc<Mutex<Session>>,
     model_path: PathBuf,

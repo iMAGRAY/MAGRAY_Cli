@@ -3,7 +3,6 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::process::Command;
 
-// @component: {"k":"C","id":"git_status","t":"Git status tool","m":{"cur":90,"tgt":95,"u":"%"},"f":["tools","git","status"]}
 pub struct GitStatus;
 
 impl GitStatus {
@@ -63,7 +62,6 @@ impl Tool for GitStatus {
     }
 }
 
-// @component: {"k":"C","id":"git_commit","t":"Git commit tool","m":{"cur":85,"tgt":95,"u":"%"},"f":["tools","git","commit"]}
 pub struct GitCommit;
 
 impl GitCommit {
@@ -177,7 +175,6 @@ impl Tool for GitCommit {
     }
 }
 
-// @component: {"k":"C","id":"git_diff","t":"Git diff tool","m":{"cur":80,"tgt":90,"u":"%"},"f":["tools","git","diff"]}
 pub struct GitDiff;
 
 impl GitDiff {

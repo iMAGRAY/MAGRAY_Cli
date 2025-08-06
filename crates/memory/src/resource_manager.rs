@@ -6,7 +6,6 @@ use tracing::{debug, info, warn};
 use sysinfo::System;
 
 /// Динамическое управление ресурсами памяти с автомасштабированием
-// @component: {"k":"C","id":"resource_manager","t":"Dynamic memory resource management","m":{"cur":95,"tgt":100,"u":"%"},"f":["memory","scaling","adaptive"]}
 #[derive(Debug)]
 pub struct ResourceManager {
     config: ResourceConfig,

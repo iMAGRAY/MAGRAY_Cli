@@ -25,7 +25,6 @@ use tokio::time::{sleep, Duration, timeout};
 use uuid::Uuid;
 use chrono::Utc;
 
-// @component: {"k":"T","id":"orchestration_integration_tests","t":"Orchestration coordinators integration tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["integration","orchestration","coordinators","circuit-breaker","production"]}
 
 /// Утилита для создания test service с orchestration
 async fn create_orchestration_test_service() -> Result<DIMemoryService> {

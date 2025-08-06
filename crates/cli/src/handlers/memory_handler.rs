@@ -13,7 +13,6 @@ use crate::agent_traits::{
     RequestContext, AgentResponse
 };
 
-// @component: {"k":"C","id":"memory_handler","t":"Specialized memory management handler","m":{"cur":85,"tgt":95,"u":"%"},"f":["single_responsibility","clean_architecture","di_ready"]}
 pub struct MemoryHandler<M, C>
 where
     M: MemoryManagementTrait,

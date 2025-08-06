@@ -8,7 +8,6 @@ use tracing::{error, warn, info};
 use crate::errors::{MagrayError, ErrorSeverity};
 
 /// Мониторинг и метрики для ошибок
-// @component: {"k":"C","id":"error_monitor","t":"Error monitoring and alerting system","m":{"cur":0,"tgt":95,"u":"%"},"f":["monitoring","errors","alerting"]}
 pub struct ErrorMonitor {
     /// Общее количество ошибок
     total_errors: AtomicU64,

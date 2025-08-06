@@ -21,7 +21,6 @@ use super::{
 };
 
 /// Регистрация всех сервисов в DI контейнере
-// @component: {"k":"C","id":"services_di_config","t":"Services DI configuration","m":{"cur":90,"tgt":100,"u":"%"},"f":["di","configuration","services","registration"]}
 pub fn register_services(container: &DIContainer, llm_client: LlmClient) -> Result<()> {
     tracing::info!("🔧 Регистрация Services Layer в DI контейнере");
     

@@ -26,7 +26,6 @@ use tokio::time::{sleep, Duration, Instant};
 use uuid::Uuid;
 use chrono::Utc;
 
-// @component: {"k":"T","id":"di_container_integration_tests","t":"DI container integration and dependency injection tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["integration","di","dependency-injection","lifecycle","performance","singleton"]}
 
 /// Утилита для создания DI test service
 async fn create_di_test_service() -> Result<DIMemoryService> {

@@ -183,10 +183,7 @@
       "canvas:Создать новый холст": false,
       "daily-notes:Сегодняшняя заметка": false,
       "templates:Вставить шаблон": false,
-      "command-palette:Открыть палитру команд": false,
-      "new-3d-graph:Open 3d graph": false,
-      "breadcrumbs:Breadcrumbs Visualisation": false,
-      "infranodus-graph-view:InfraNodus Graph View": false
+      "command-palette:Открыть палитру команд": false
     }
   },
   "active": "94b790b6061f528c",

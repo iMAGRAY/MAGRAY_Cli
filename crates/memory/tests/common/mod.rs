@@ -20,7 +20,6 @@ use chrono::Utc;
 use std::sync::Arc;
 use tokio::time::Instant;
 
-// @component: {"k":"T","id":"common_test_helpers","t":"Common test utilities and helpers","m":{"cur":100,"tgt":100,"u":"%"},"f":["test","utilities","helpers","shared","mocks"]}
 
 /// Test configuration builder
 pub struct TestConfigBuilder {

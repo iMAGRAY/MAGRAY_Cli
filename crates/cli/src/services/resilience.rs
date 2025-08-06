@@ -11,7 +11,6 @@ use tracing::{debug, warn};
 use super::types::OperationResult;
 
 /// Trait для сервиса отказоустойчивости
-// @component: {"k":"C","id":"resilience_service","t":"Resilience service trait","m":{"cur":95,"tgt":100,"u":"%"},"f":["trait","resilience","circuit_breaker","retry","clean_architecture"]}
 #[async_trait::async_trait]
 pub trait ResilienceService: Send + Sync {
     /// Выполнить операцию с retry логикой
@@ -65,7 +64,6 @@ pub struct ResilienceStats {
 }
 
 /// Реализация сервиса отказоустойчивости по умолчанию
-// @component: {"k":"C","id":"default_resilience_service","t":"Default resilience service implementation","m":{"cur":85,"tgt":95,"u":"%"},"f":["service","resilience","exponential_backoff","jitter","metrics"]}
 pub struct DefaultResilienceService {
     stats: parking_lot::RwLock<ResilienceStats>,
 }

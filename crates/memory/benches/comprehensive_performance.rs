@@ -4,7 +4,6 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
-// @component: {"k":"T","id":"comprehensive_bench","t":"Comprehensive performance benchmarks","m":{"cur":100,"tgt":100,"u":"%"},"f":["benchmark","performance","comprehensive"]}
 
 const DIMENSIONS: usize = 1024; // Qwen3 actual dimension
 const BATCH_SIZES: &[usize] = &[1, 10, 50, 100, 500, 1000];

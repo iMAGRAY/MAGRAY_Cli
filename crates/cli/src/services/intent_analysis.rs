@@ -17,7 +17,6 @@ use llm::IntentAnalyzerAgent;
 use super::types::{IntentDecision, RequestContext};
 
 /// Trait для сервиса анализа намерений
-// @component: {"k":"C","id":"intent_analysis_service","t":"Intent analysis service trait","m":{"cur":95,"tgt":100,"u":"%"},"f":["trait","analysis","intent","clean_architecture"]}
 #[async_trait::async_trait]
 pub trait IntentAnalysisService: Send + Sync {
     /// Анализировать намерение пользователя из сообщения
@@ -45,7 +44,6 @@ pub struct IntentAnalysisStats {
 }
 
 /// Реализация сервиса анализа намерений по умолчанию
-// @component: {"k":"C","id":"default_intent_analysis_service","t":"Default intent analysis service implementation","m":{"cur":85,"tgt":95,"u":"%"},"f":["service","analysis","ml","fallback","metrics"]}
 pub struct DefaultIntentAnalysisService {
     /// ML-based агент для анализа намерений
     intent_analyzer: IntentAnalyzerAgent,

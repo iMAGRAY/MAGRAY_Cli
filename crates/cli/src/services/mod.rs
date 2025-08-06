@@ -1,4 +1,3 @@
-// @component: {"k":"C","id":"cli_services","t":"Service layer for agent decomposition","m":{"cur":80,"tgt":100,"u":"%"},"f":["services","traits","separation","orchestration"]}
 //! Service layer для разделения ответственностей UnifiedAgent
 //! 
 //! Этот модуль содержит trait-based сервисы, которые разделяют

@@ -33,7 +33,6 @@ pub enum Lifetime {
 }
 
 /// Dependency Injection Container для MAGRAY архитектуры
-// @component: {"k":"C","id":"di_container","t":"Dependency injection container","m":{"cur":88,"tgt":100,"u":"%"},"f":["di","ioc","architecture","validation","performance","async"]}
 pub struct DIContainer {
     /// Зарегистрированные factory функции
     factories: RwLock<HashMap<TypeId, (Factory, Lifetime)>>,

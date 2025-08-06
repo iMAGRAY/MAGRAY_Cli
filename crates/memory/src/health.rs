@@ -131,7 +131,6 @@ impl Default for HealthMonitorConfig {
     }
 }
 
-/// @component: {"k":"C","id":"health_monitor","t":"Health monitoring system","m":{"cur":85,"tgt":95,"u":"%"},"f":["monitoring","production"]}
 pub struct HealthMonitor {
     component_stats: Arc<RwLock<HashMap<ComponentType, ComponentPerformanceStats>>>,
     metrics_history: Arc<RwLock<HashMap<String, VecDeque<HealthMetric>>>>,

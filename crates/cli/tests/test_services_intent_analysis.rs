@@ -18,7 +18,6 @@ use tokio;
 use chrono::Utc;
 use std::collections::HashMap;
 
-// @component: {"k":"T","id":"intent_analysis_service_tests","t":"Comprehensive intent analysis service tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["test","unit","mock","coverage"]}
 
 /// Mock IntentAnalyzerAgent для тестирования
 pub struct MockIntentAnalyzerAgent {

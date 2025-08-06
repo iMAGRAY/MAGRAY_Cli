@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use anyhow::Result;
 use tracing::{info, warn};
 
-/// @component: {"k":"C","id":"model_registry","t":"Centralized model registry","m":{"cur":100,"tgt":100,"u":"%"},"f":["models","config","registry"]}
 pub struct ModelRegistry {
     models_dir: PathBuf,
     available_models: HashMap<String, ModelInfo>,

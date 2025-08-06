@@ -13,7 +13,6 @@ use crate::agent_traits::{
     RequestContext, AgentResponse, AdminResponse
 };
 
-// @component: {"k":"C","id":"admin_handler","t":"Specialized admin operations handler","m":{"cur":85,"tgt":95,"u":"%"},"f":["single_responsibility","clean_architecture","di_ready"]}
 pub struct AdminHandler<A, C>
 where
     A: AdminServiceTrait,

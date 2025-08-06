@@ -6,7 +6,6 @@ use parking_lot::Mutex;
 use sled::{Db, Config};
 use tracing::{debug, info, warn};
 
-// @component: {"k":"C","id":"database_manager","t":"Centralized sled database manager","m":{"cur":70,"tgt":100,"u":"%"},"f":["sled","concurrent","pooling"]}
 
 /// Централизованный менеджер sled баз данных для предотвращения concurrent access issues
 pub struct DatabaseManager {

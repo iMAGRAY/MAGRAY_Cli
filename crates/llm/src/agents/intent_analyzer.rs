@@ -9,7 +9,6 @@ pub struct IntentDecision {
     pub reasoning: String,
 }
 
-// @component: {"k":"C","id":"intent_analyzer","t":"Chat vs tool intent classifier","m":{"cur":70,"tgt":95,"u":"%"},"f":["agent","classification","intent"]}
 /// Агент для принятия решений о типе действия
 pub struct IntentAnalyzerAgent {
     llm: LlmClient,

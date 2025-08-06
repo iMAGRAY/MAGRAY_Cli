@@ -26,7 +26,6 @@ use std::sync::Arc;
 use tokio;
 use serde_json;
 
-// @component: {"k":"T","id":"memory_orchestrator_tests","t":"Comprehensive memory orchestrator tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["test","integration","orchestration","coordination","coverage"]}
 
 /// Mock координаторы для comprehensive тестирования
 #[derive(Clone)]

@@ -9,7 +9,6 @@ pub type HnswRsStats = HnswStats;
 
 /// Legacy wrapper для обратной совместимости
 /// Использует новую модульную архитектуру VectorIndex под капотом
-// @component: {"k":"C","id":"vector_index_hnsw","t":"HNSW vector index wrapper","m":{"cur":95,"tgt":100,"u":"%"},"f":["vector","hnsw","search","legacy"]}
 pub struct VectorIndexHnswRs {
     inner: VectorIndex,
 }

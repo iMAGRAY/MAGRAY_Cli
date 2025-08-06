@@ -10,7 +10,6 @@ use crate::{
 };
 
 /// Координатор продвижения записей между слоями
-// @component: {"k":"C","id":"promotion_coordinator","t":"Promotion orchestration coordinator","m":{"cur":0,"tgt":90,"u":"%"},"f":["orchestration","promotion","coordinator"]}
 pub struct PromotionCoordinator {
     promotion_engine: Arc<PromotionEngine>,
     ml_promotion: Option<Arc<parking_lot::RwLock<MLPromotionEngine>>>,

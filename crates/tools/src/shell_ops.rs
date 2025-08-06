@@ -3,7 +3,6 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::process::Command;
 
-// @component: {"k":"C","id":"shell_exec","t":"Shell command execution tool","m":{"cur":85,"tgt":95,"u":"%"},"f":["tools","shell","execution"]}
 pub struct ShellExec;
 
 impl ShellExec {

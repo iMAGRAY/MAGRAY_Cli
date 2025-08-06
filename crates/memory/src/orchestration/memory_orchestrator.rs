@@ -36,7 +36,6 @@ use crate::{
 };
 
 /// Production-ready главный оркестратор memory системы с полным lifecycle management
-// @component: {"k":"C","id":"memory_orchestrator","t":"Main memory system orchestrator","m":{"cur":95,"tgt":95,"u":"%"},"f":["orchestration","coordinator","main","production","lifecycle","monitoring","resilience","circuit-breaker","load-balancing"]}
 pub struct MemoryOrchestrator {
     // === Координаторы ===
     /// Координатор embeddings

@@ -12,7 +12,6 @@ use crate::{
 };
 
 /// Streaming API для real-time обработки embeddings
-/// @component: {"k":"C","id":"streaming_api","t":"Real-time memory processing","m":{"cur":95,"tgt":100,"u":"%"},"f":["streaming","real-time","async"]}
 pub struct StreamingMemoryAPI {
     service: Arc<MemoryService>,
     /// Активные streaming sessions

@@ -14,7 +14,6 @@ use crate::agent_traits::{FallbackStrategy, RequestContext, AgentResponse, LlmSe
 // ============================================================================
 
 /// Простая fallback стратегия с хардкоженными ответами
-// @component: {"k":"C","id":"simple_fallback_strategy","t":"Simple hardcoded fallback responses","m":{"cur":95,"tgt":100,"u":"%"},"f":["strategy_pattern","reliable","offline"]}
 pub struct SimpleFallbackStrategy {
     default_responses: HashMap<String, String>,
 }
@@ -97,7 +96,6 @@ impl FallbackStrategy for SimpleFallbackStrategy {
 }
 
 /// Умная fallback стратегия с попыткой альтернативных подходов
-// @component: {"k":"C","id":"smart_fallback_strategy","t":"Smart fallback with alternative approaches","m":{"cur":85,"tgt":95,"u":"%"},"f":["strategy_pattern","adaptive","intelligent"]}
 pub struct SmartFallbackStrategy<L>
 where
     L: LlmServiceTrait,
@@ -251,7 +249,6 @@ where
 }
 
 /// Circuit Breaker fallback стратегия
-// @component: {"k":"C","id":"circuit_breaker_fallback","t":"Circuit breaker pattern fallback","m":{"cur":85,"tgt":95,"u":"%"},"f":["strategy_pattern","circuit_breaker","resilient"]}
 pub struct CircuitBreakerFallbackStrategy {
     failure_threshold: u32,
     recovery_timeout_seconds: u64,
@@ -303,7 +300,6 @@ impl FallbackStrategy for CircuitBreakerFallbackStrategy {
 }
 
 /// Композитная fallback стратегия - объединяет несколько стратегий
-// @component: {"k":"C","id":"composite_fallback_strategy","t":"Composite fallback strategy","m":{"cur":90,"tgt":95,"u":"%"},"f":["strategy_pattern","composite","comprehensive"]}
 pub struct CompositeFallbackStrategy {
     strategies: Vec<Box<dyn FallbackStrategy>>,
 }

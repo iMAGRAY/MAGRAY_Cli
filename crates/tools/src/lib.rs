@@ -2,12 +2,15 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// @component: {"k":"C","id":"tool_registry","t":"Tool execution system","m":{"cur":90,"tgt":95,"u":"%"},"f":["tools","execution","registry"]}
 
 pub mod file_ops;
 pub mod git_ops;
 pub mod web_ops;
 pub mod shell_ops;
+pub mod intelligent_selector;
+pub mod execution_pipeline;
+pub mod performance_monitor;
+pub mod enhanced_tool_system;
 
 // Базовые типы для системы инструментов
 #[derive(Debug, Clone, Serialize, Deserialize)]

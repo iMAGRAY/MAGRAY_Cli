@@ -163,7 +163,6 @@ impl Default for LifecycleManager {
 }
 
 /// Production-ready DI Memory Service с полной orchestration интеграцией
-// @component: {"k":"C","id":"di_memory_service","t":"Production DI memory service with orchestration coordinators","m":{"cur":95,"tgt":95,"u":"%"},"f":["di","memory","clean_architecture","production","orchestration","coordinators","circuit_breaker","metrics"]}
 pub struct DIMemoryService {
     /// DI контейнер со всеми зависимостями
     container: DIContainer,
@@ -810,9 +809,7 @@ impl DIMemoryService {
 
         let promotion_stats = PromotionStats::default(); // TODO: получить из PromotionCoordinator
 
-        let batch_stats = self.container.try_resolve::<BatchOperationManager>()
-            .map(|manager| manager.stats())
-            .unwrap_or_default();
+        let batch_stats = BatchStats::default(); // TODO: сделать async get_stats или создать sync версию
 
         let gpu_stats = self.container.try_resolve::<GpuBatchProcessor>()
             .map(|_processor| {

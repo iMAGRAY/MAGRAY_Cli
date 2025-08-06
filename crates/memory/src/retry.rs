@@ -4,7 +4,6 @@ use tokio::time::sleep;
 use tracing::{debug, warn};
 use rand;
 
-// @component: {"k":"C","id":"retry_manager","t":"Exponential backoff retry manager","m":{"cur":95,"tgt":100,"u":"%"},"f":["retry","exponential","resilience"]}
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]

@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use tracing::{info, debug, warn};
 
-/// @component: {"k":"C","id":"gpu_memory_pool","t":"GPU memory pool manager","m":{"cur":90,"tgt":100,"u":"%"}}
 pub struct GpuMemoryPool {
     /// Пул буферов различных размеров
     pools: Arc<Mutex<Vec<BufferPool>>>,
@@ -68,13 +67,15 @@ impl GpuMemoryPool {
     
     /// Получить буфер из пула или создать новый
     pub fn acquire_buffer(&self, required_size: usize) -> Result<Vec<u8>> {
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self.stats.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire stats lock: {}", e))?;
         stats.allocations += 1;
         
         // Находим подходящий размер (ближайшая степень двойки)
         let actual_size = required_size.next_power_of_two();
         
-        let mut pools = self.pools.lock().unwrap();
+        let mut pools = self.pools.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire pools lock: {}", e))?;
         
         // Ищем подходящий пул
         for pool in pools.iter_mut() {
@@ -111,30 +112,34 @@ impl GpuMemoryPool {
     }
     
     /// Вернуть буфер в пул
-    pub fn release_buffer(&self, mut buffer: Vec<u8>) {
-        let mut stats = self.stats.lock().unwrap();
+    pub fn release_buffer(&self, mut buffer: Vec<u8>) -> Result<()> {
+        let mut stats = self.stats.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire stats lock: {}", e))?;
         stats.deallocations += 1;
         
         let size = buffer.capacity();
         buffer.clear(); // Очищаем данные
         
-        let mut pools = self.pools.lock().unwrap();
+        let mut pools = self.pools.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire pools lock: {}", e))?;
         
         // Находим подходящий пул
         for pool in pools.iter_mut() {
             if pool.size == size && pool.buffers.len() < pool.max_buffers {
                 pool.buffers.push_back(buffer);
                 debug!("♻️ Буфер {}KB возвращён в пул", size / 1024);
-                return;
+                return Ok(());
             }
         }
         
         // Если пул переполнен, просто освобождаем память
-        let mut current = self.current_size.lock().unwrap();
+        let mut current = self.current_size.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire current_size lock: {}", e))?;
         *current = current.saturating_sub(size);
         drop(current);
         stats.current_buffers = stats.current_buffers.saturating_sub(1);
         debug!("🗑️ Буфер {}KB удалён (пул переполнен)", size / 1024);
+        Ok(())
     }
     
     /// Выполнить функцию с временным буфером
@@ -144,7 +149,7 @@ impl GpuMemoryPool {
     {
         let mut buffer = self.acquire_buffer(size)?;
         let result = f(&mut buffer);
-        self.release_buffer(buffer);
+        let _ = self.release_buffer(buffer); // Игнорируем ошибку release для обратной совместимости
         result
     }
     
@@ -156,13 +161,14 @@ impl GpuMemoryPool {
     {
         let buffer = self.acquire_buffer(size)?;
         let (result, returned_buffer) = f(buffer).await?;
-        self.release_buffer(returned_buffer);
+        let _ = self.release_buffer(returned_buffer); // Игнорируем ошибку release для обратной совместимости
         Ok(result)
     }
     
     /// Очистить все неиспользуемые буферы
-    pub fn clear_unused(&self) {
-        let mut pools = self.pools.lock().unwrap();
+    pub fn clear_unused(&self) -> Result<()> {
+        let mut pools = self.pools.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire pools lock: {}", e))?;
         let mut freed = 0;
         
         for pool in pools.iter_mut() {
@@ -174,22 +180,29 @@ impl GpuMemoryPool {
         }
         
         if freed > 0 {
-            *self.current_size.lock().unwrap() -= freed;
-            let mut stats = self.stats.lock().unwrap();
+            *self.current_size.lock()
+                .map_err(|e| anyhow::anyhow!("Failed to update current_size: {}", e))? -= freed;
+            let mut stats = self.stats.lock()
+                .map_err(|e| anyhow::anyhow!("Failed to update stats: {}", e))?;
             stats.current_buffers = 0;
             info!("🧹 Очищено {} MB из пула памяти", freed / 1024 / 1024);
         }
+        Ok(())
     }
     
     /// Получить статистику использования
-    pub fn get_stats(&self) -> PoolStats {
-        self.stats.lock().unwrap().clone()
+    pub fn get_stats(&self) -> Result<PoolStats> {
+        let stats = self.stats.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire stats lock: {}", e))?
+            .clone();
+        Ok(stats)
     }
     
     /// Вывести статистику
-    pub fn print_stats(&self) {
-        let stats = self.get_stats();
-        let current = *self.current_size.lock().unwrap();
+    pub fn print_stats(&self) -> Result<()> {
+        let stats = self.get_stats()?;
+        let current = *self.current_size.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire current_size lock: {}", e))?;
         
         info!("📊 GPU Memory Pool статистика:");
         info!("  - Текущий размер: {} MB / {} MB", current / 1024 / 1024, self.max_pool_size / 1024 / 1024);
@@ -203,6 +216,7 @@ impl GpuMemoryPool {
                 0.0 
             });
         info!("  - Текущих буферов: {}", stats.current_buffers);
+        Ok(())
     }
 }
 
@@ -244,12 +258,12 @@ mod tests {
         assert!(result.is_ok());
         
         // Тест повторного использования
-        let _ = pool.acquire_buffer(1024).unwrap();
-        let _ = pool.acquire_buffer(1024).unwrap();
+        let _ = pool.acquire_buffer(1024).expect("Failed to acquire buffer");
+        let _ = pool.acquire_buffer(1024).expect("Failed to acquire buffer");
         
-        let stats = pool.get_stats();
+        let stats = pool.get_stats().expect("Failed to get stats");
         assert!(stats.allocations >= 2);
         
-        pool.print_stats();
+        let _ = pool.print_stats(); // Игнорируем ошибку print для тестов
     }
 }

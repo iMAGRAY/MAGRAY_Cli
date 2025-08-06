@@ -20,7 +20,6 @@ use crate::{
 };
 
 /// Production-ready координатор для работы с embeddings
-// @component: {"k":"C","id":"embedding_coordinator","t":"Embedding orchestration coordinator","m":{"cur":95,"tgt":95,"u":"%"},"f":["orchestration","embeddings","coordinator","production","ai-optimized","concurrency","model-warming","circuit-breaker","adaptive-batching"]}
 pub struct EmbeddingCoordinator {
     /// GPU batch processor для получения embeddings
     gpu_processor: Arc<GpuBatchProcessor>,

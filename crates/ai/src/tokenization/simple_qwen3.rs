@@ -1,4 +1,3 @@
-// @component: {"k":"C","id":"simple_qwen3_tokenizer","t":"Simplified Qwen3 tokenizer for ONNX","m":{"cur":95,"tgt":100,"u":"%"}}
 use anyhow::Result;
 use std::collections::HashMap;
 use std::path::Path;

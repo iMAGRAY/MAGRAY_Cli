@@ -8,7 +8,6 @@ use std::time::Instant;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
-/// @component: {"k":"C","id":"reranker_qwen3_optimized","t":"Optimized Qwen3 ONNX reranker","m":{"cur":90,"tgt":100,"u":"percent"},"f":["ai","reranking","qwen3","optimized"]}
 pub struct OptimizedRerankingService {
     session: Arc<Mutex<Session>>,
     tokenizer: Arc<OptimizedTokenizer>,

@@ -14,7 +14,6 @@ use crate::tokenization::OptimizedTokenizer;
 #[cfg(feature = "gpu")]
 use tracing::warn;
 
-/// @component: {"k":"C","id":"embeddings_gpu","t":"GPU-accelerated embeddings","m":{"cur":95,"tgt":100,"u":"%"},"f":["ai","embeddings","gpu","cuda","tensorrt"]}
 pub struct GpuEmbeddingService {
     session: Arc<Mutex<Session>>,
     tokenizer: Arc<OptimizedTokenizer>,
@@ -403,7 +402,7 @@ impl GpuEmbeddingService {
         }).await?;
         
         debug!("💾 Memory pool статистика после обработки:");
-        GPU_MEMORY_POOL.print_stats();
+        let _ = GPU_MEMORY_POOL.print_stats();
         
         Ok(result)
     }

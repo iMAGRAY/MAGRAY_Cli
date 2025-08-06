@@ -22,7 +22,6 @@ use chrono::Utc;
 use std::collections::HashMap;
 use tempfile::TempDir;
 
-// @component: {"k":"T","id":"di_memory_service_comprehensive_tests","t":"Comprehensive DIMemoryService tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["test","integration","di","memory","crud","coverage"]}
 
 /// Утилиты для создания тестовых записей
 fn create_test_record(id: &str, content: &str, layer: Layer) -> Record {

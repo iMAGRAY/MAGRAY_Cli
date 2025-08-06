@@ -1,4 +1,3 @@
-// @component: {"k":"C","id":"ai_lib","t":"AI/ML services library","m":{"cur":85,"tgt":95,"u":"%"},"f":["ai","embeddings","onnx","bge-m3"]}
 pub mod config;
 pub mod embeddings_bge_m3;
 pub mod embeddings_cpu;

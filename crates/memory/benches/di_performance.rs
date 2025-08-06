@@ -12,7 +12,6 @@ use tokio::runtime::Runtime;
 /// Performance benchmarks для DI container system
 /// Измеряет: registration, resolution, factory execution, caching performance
 
-// @component: {"k":"T","id":"di_performance_bench","t":"DI performance benchmarking","m":{"cur":100,"tgt":100,"u":"%"},"f":["benchmark","performance","di"]}
 
 /// Simple service для тестирования
 struct LightweightService {

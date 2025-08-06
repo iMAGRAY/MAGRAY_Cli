@@ -11,7 +11,6 @@ use std::time::Instant;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-// @component: {"k":"T","id":"perf_benchmarks","t":"Performance benchmarks для memory system","m":{"cur":0,"tgt":100,"u":"%"},"f":["benchmarks","performance"]}
 
 /// Генерация случайных векторов для тестов
 fn generate_random_vectors(count: usize, dimension: usize) -> Vec<Vec<f32>> {

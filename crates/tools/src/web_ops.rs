@@ -2,7 +2,6 @@ use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
 use anyhow::Result;
 use std::collections::HashMap;
 
-// @component: {"k":"C","id":"web_search","t":"Web search tool","m":{"cur":75,"tgt":90,"u":"%"},"f":["tools","web","search"]}
 pub struct WebSearch;
 
 impl WebSearch {
@@ -65,7 +64,6 @@ impl Tool for WebSearch {
     }
 }
 
-// @component: {"k":"C","id":"web_fetch","t":"Web page fetch tool","m":{"cur":70,"tgt":85,"u":"%"},"f":["tools","web","fetch"]}
 pub struct WebFetch;
 
 impl WebFetch {

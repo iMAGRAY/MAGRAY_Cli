@@ -4,8 +4,15 @@ use router::SmartRouter;
 use memory::{DIMemoryService, default_config};
 use common::OperationTimer;
 use tracing::{info, debug, warn};
+// use crate::agent_traits::AgentResponse; // Временно отключен из-за циклических зависимостей
 
-// @component: {"k":"C","id":"unified_agent","t":"Main agent orchestrator (LEGACY - see UnifiedAgentV2)","m":{"cur":90,"tgt":95,"u":"%"},"d":["clean_architecture","solid_principles"],"f":["agents","routing","memory","clean_architecture","solid_principles","di_integration","strategy_pattern","circuit_breaker"]}
+#[derive(Debug, Clone)]
+pub enum AgentResponse {
+    Chat(String),
+    ToolExecution(String),
+    Error(String),
+}
+
 pub struct UnifiedAgent {
     llm_client: LlmClient,
     smart_router: SmartRouter,
@@ -13,13 +20,7 @@ pub struct UnifiedAgent {
     memory_service: DIMemoryService,
 }
 
-// Удалены старые типы - теперь используем типы из specialized_agents
-
-#[derive(Debug)]
-pub enum AgentResponse {
-    Chat(String),
-    ToolExecution(String),
-}
+// AgentResponse перенесен в agent_traits.rs - используйте расширенную версию оттуда
 
 impl UnifiedAgent {
     /// LEGACY: Создание оригинального UnifiedAgent
@@ -29,7 +30,11 @@ impl UnifiedAgent {
         warn!("🤖 Создание LEGACY UnifiedAgent - рекомендуется использовать UnifiedAgentV2");
         info!("🤖 Инициализация UnifiedAgent с DI системой");
         
-        let llm_client = LlmClient::from_env()?;
+        let llm_client = LlmClient::from_env_multi()
+            .or_else(|_| {
+                info!("🔄 Multi-provider setup failed, falling back to single provider");
+                LlmClient::from_env()
+            })?;
         let smart_router = SmartRouter::new(llm_client.clone());
         let intent_analyzer = IntentAnalyzerAgent::new(llm_client.clone());
         

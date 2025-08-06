@@ -17,7 +17,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio;
 
-// @component: {"k":"T","id":"resilience_service_tests","t":"Comprehensive resilience service tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["test","unit","retry","exponential_backoff","jitter","coverage"]}
 
 /// Mock operation для тестирования retry логики
 struct MockOperation {

@@ -9,7 +9,6 @@ pub struct ToolSelection {
     pub reasoning: String,
 }
 
-// @component: {"k":"C","id":"tool_selector","t":"Tool selection agent","m":{"cur":70,"tgt":95,"u":"%"},"f":["agent","tools","selection"]}
 /// Агент для выбора подходящего инструмента
 pub struct ToolSelectorAgent {
     llm: LlmClient,

@@ -15,7 +15,6 @@ use crate::agent_traits::{ResponseFormattingStrategy, RequestContext, AgentRespo
 // ============================================================================
 
 /// Простая стратегия форматирования с базовым текстом
-// @component: {"k":"C","id":"simple_response_formatter","t":"Simple text response formatter","m":{"cur":95,"tgt":100,"u":"%"},"f":["strategy_pattern","simple","reliable"]}
 pub struct SimpleResponseFormatter {
     add_emoji: bool,
     add_timestamp: bool,
@@ -88,7 +87,6 @@ impl ResponseFormattingStrategy for SimpleResponseFormatter {
 }
 
 /// Богатая стратегия форматирования с разметкой
-// @component: {"k":"C","id":"rich_response_formatter","t":"Rich markdown response formatter","m":{"cur":90,"tgt":95,"u":"%"},"f":["strategy_pattern","rich_formatting","markdown"]}
 pub struct RichResponseFormatter {
     use_markdown: bool,
     show_context: bool,
@@ -220,7 +218,6 @@ impl ResponseFormattingStrategy for RichResponseFormatter {
 }
 
 /// JSON стратегия форматирования для API интеграций
-// @component: {"k":"C","id":"json_response_formatter","t":"JSON response formatter for APIs","m":{"cur":90,"tgt":95,"u":"%"},"f":["strategy_pattern","json","api_ready"]}
 pub struct JsonResponseFormatter {
     pretty_print: bool,
     include_metadata: bool,
@@ -320,7 +317,6 @@ impl ResponseFormattingStrategy for JsonResponseFormatter {
 }
 
 /// Адаптивная стратегия форматирования - выбирает формат на основе контекста
-// @component: {"k":"C","id":"adaptive_response_formatter","t":"Adaptive response formatter based on context","m":{"cur":85,"tgt":95,"u":"%"},"f":["strategy_pattern","adaptive","intelligent"]}
 pub struct AdaptiveResponseFormatter {
     simple: SimpleResponseFormatter,
     rich: RichResponseFormatter,

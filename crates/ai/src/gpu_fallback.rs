@@ -139,7 +139,6 @@ impl FallbackStats {
     }
 }
 
-/// @component: {"k":"C","id":"gpu_fallback_manager","t":"Reliable GPU fallback system","m":{"cur":100,"tgt":100,"u":"%"},"f":["fallback","resilience","gpu"]}
 pub struct GpuFallbackManager {
     #[cfg(feature = "gpu")]
     gpu_service: Option<Arc<GpuEmbeddingService>>,

@@ -7,7 +7,6 @@ use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
 use common::OperationTimer;
 
-/// @component: {"k":"C","id":"health_checks","t":"Production health monitoring","m":{"cur":100,"tgt":100,"u":"%"},"f":["monitoring","production"]}
 /// Результат проверки здоровья компонента
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthCheckResult {

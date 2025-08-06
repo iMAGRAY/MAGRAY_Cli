@@ -1,5 +1,5 @@
-// @component: {"k":"C","id":"common_lib","t":"Common utilities and logging","m":{"cur":90,"tgt":95,"u":"%"},"f":["common","logging","structured","utils"]}
 pub mod structured_logging;
+pub mod comprehensive_errors;
 
 pub use structured_logging::{
     init_structured_logging, 
@@ -9,4 +9,19 @@ pub use structured_logging::{
     PerformanceMetrics,
     OperationTimer,
     RequestContext,
+};
+
+pub use comprehensive_errors::{
+    MagrayCoreError, MagrayCoreResult,
+    MemoryError, MemoryResult,
+    AIError, AIResult,
+    LLMError, LLMResult,
+    ResourceError, ResourceResult,
+    ConfigError, ConfigResult,
+    NetworkError, NetworkResult,
+    FileSystemError, FileSystemResult,
+    CriticalError, CriticalResult,
+    RecoveryStrategy,
+    ErrorContext,
+    SafeUnwrap,
 };

@@ -22,7 +22,6 @@ use tokio::time::{sleep, Duration, timeout, Instant};
 use uuid::Uuid;
 use chrono::Utc;
 
-// @component: {"k":"T","id":"resilience_integration_tests","t":"Resilience and fault tolerance integration tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["integration","resilience","fault-tolerance","circuit-breaker","recovery","graceful-degradation"]}
 
 /// Утилита для создания resilience test service
 async fn create_resilience_test_service() -> Result<DIMemoryService> {

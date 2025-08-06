@@ -17,7 +17,6 @@ pub struct PlanStep {
     pub parameters: HashMap<String, String>,
 }
 
-// @component: {"k":"C","id":"action_planner","t":"Multi-step action planner agent","m":{"cur":70,"tgt":95,"u":"%"},"f":["agent","planning","llm"]}
 /// Агент для планирования сложных действий
 pub struct ActionPlannerAgent {
     llm: LlmClient,

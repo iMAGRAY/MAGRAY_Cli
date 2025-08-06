@@ -10,7 +10,6 @@ use ai::{
 };
 use tracing::{info, warn, error};
 
-/// @component: {"k":"C","id":"gpu_commands","t":"GPU management CLI","m":{"cur":95,"tgt":100,"u":"%"},"f":["cli","commands","gpu"]}
 #[derive(Debug, Args)]
 pub struct GpuCommand {
     #[command(subcommand)]
@@ -198,10 +197,10 @@ impl GpuCommand {
     fn handle_memory(&self, action: &MemoryAction) -> Result<()> {
         match action {
             MemoryAction::Stats => {
-                GPU_MEMORY_POOL.print_stats();
+                let _ = GPU_MEMORY_POOL.print_stats();
             }
             MemoryAction::Clear => {
-                GPU_MEMORY_POOL.clear_unused();
+                let _ = GPU_MEMORY_POOL.clear_unused();
                 info!("✅ Неиспользуемые буферы GPU очищены");
             }
         }

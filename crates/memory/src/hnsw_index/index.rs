@@ -1,4 +1,3 @@
-// @component: {"k":"C","id":"hnsw_index","t":"HNSW vector index with SIMD","m":{"cur":85,"tgt":100,"u":"%"},"f":["hnsw","simd","vector","search","performance"]}
 use anyhow::{anyhow, Result};
 use hnsw_rs::hnsw::*;
 use hnsw_rs::prelude::*;

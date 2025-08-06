@@ -59,4 +59,3 @@ pub mod performance_test;
 pub mod resilience_test;
 pub mod di_container_test;
 
-// @component: {"k":"T","id":"integration_tests_module","t":"Integration tests module for comprehensive system validation","m":{"cur":100,"tgt":100,"u":"%"},"f":["integration","comprehensive","system","validation","sla","production"]}

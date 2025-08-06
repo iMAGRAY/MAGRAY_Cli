@@ -10,7 +10,6 @@ use std::time::Instant;
 /// Comprehensive тесты сравнения производительности DI containers
 /// Сравнивает: оригинальный vs оптимизированный DI container
 
-// @component: {"k":"T","id":"di_perf_comparison","t":"DI container performance comparison","m":{"cur":100,"tgt":100,"u":"%"},"f":["test","performance","comparison"]}
 
 /// Simple test service для бенчмарков
 struct SimpleTestService {

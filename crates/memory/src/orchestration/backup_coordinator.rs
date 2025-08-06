@@ -10,7 +10,6 @@ use crate::{
 };
 
 /// Координатор резервного копирования
-// @component: {"k":"C","id":"backup_coordinator","t":"Backup orchestration coordinator","m":{"cur":0,"tgt":90,"u":"%"},"f":["orchestration","backup","coordinator"]}
 pub struct BackupCoordinator {
     backup_manager: Arc<BackupManager>,
     store: Arc<VectorStore>,

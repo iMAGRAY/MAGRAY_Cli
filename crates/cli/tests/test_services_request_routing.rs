@@ -20,7 +20,6 @@ use tokio;
 use chrono::Utc;
 use std::collections::HashMap;
 
-// @component: {"k":"T","id":"request_routing_service_tests","t":"Comprehensive request routing service tests","m":{"cur":95,"tgt":100,"u":"%"},"f":["test","unit","mock","coverage","business_logic"]}
 
 /// Mock SmartRouter для тестирования
 pub struct MockSmartRouter {

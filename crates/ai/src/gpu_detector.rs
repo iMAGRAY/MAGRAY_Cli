@@ -3,7 +3,6 @@ use std::str;
 use serde::{Deserialize, Serialize};
 use tracing::{info, debug};
 
-/// @component: {"k":"C","id":"gpu_detector","t":"GPU detection and info","m":{"cur":95,"tgt":100,"u":"%"},"f":["ai","gpu","detection","cuda"]}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GpuDetector {
     pub available: bool,

@@ -6,7 +6,6 @@ use std::time::Instant;
 use tokio::sync::{Semaphore, Mutex};
 use tracing::{info, debug};
 
-/// @component: {"k":"C","id":"gpu_pipeline_manager","t":"GPU pipeline for parallel batches","m":{"cur":95,"tgt":100,"u":"%"},"f":["gpu","pipeline","parallel","optimized"]}
 pub struct GpuPipelineManager {
     services: Vec<Arc<GpuEmbeddingService>>,
     semaphore: Arc<Semaphore>,
@@ -85,7 +84,7 @@ impl GpuPipelineManager {
         // Инициализируем memory pool если включен
         if config.memory_pooling_enabled {
             info!("💾 Memory pooling включен");
-            GPU_MEMORY_POOL.print_stats();
+            let _ = GPU_MEMORY_POOL.print_stats();
         }
 
         Ok(Self {
@@ -196,7 +195,7 @@ impl GpuPipelineManager {
         // Печатаем статистику memory pool
         if self.config.memory_pooling_enabled {
             info!("💾 Финальная статистика Memory Pool:");
-            GPU_MEMORY_POOL.print_stats();
+            let _ = GPU_MEMORY_POOL.print_stats();
         }
 
         Ok(all_embeddings)
@@ -237,7 +236,7 @@ impl GpuPipelineManager {
         let stats = self.stats.lock().await;
         
         // Добавляем статистику memory pool
-        let pool_stats = GPU_MEMORY_POOL.get_stats();
+        let pool_stats = GPU_MEMORY_POOL.get_stats().unwrap_or_default();
         let mut result = stats.clone();
         result.memory_pool_hits = pool_stats.hits;
         result.memory_pool_misses = pool_stats.misses;
@@ -266,7 +265,7 @@ impl GpuPipelineManager {
         info!("🧹 Очистка GpuPipelineManager...");
         
         if self.config.memory_pooling_enabled {
-            GPU_MEMORY_POOL.clear_unused();
+            let _ = GPU_MEMORY_POOL.clear_unused();
             info!("💾 Memory pool очищен");
         }
         

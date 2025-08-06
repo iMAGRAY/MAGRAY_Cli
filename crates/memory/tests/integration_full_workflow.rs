@@ -10,7 +10,6 @@ use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 use chrono::Utc;
 
-// @component: {"k":"T","id":"integration_tests","t":"Full workflow integration tests","m":{"cur":0,"tgt":90,"u":"%"},"f":["integration","workflow","testing"]}
 
 /// Комплексный тест полного workflow системы памяти
 #[tokio::test]

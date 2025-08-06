@@ -1,5 +1,0 @@
-/target
-/Cargo.lock
-cache.json
-component_cache.json
-*.log

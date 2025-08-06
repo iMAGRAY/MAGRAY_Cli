@@ -22,7 +22,6 @@ use crate::{
 };
 
 /// Production-ready координатор поиска с sub-5ms HNSW векторным поиском
-// @component: {"k":"C","id":"search_coordinator","t":"Search orchestration coordinator","m":{"cur":95,"tgt":95,"u":"%"},"f":["orchestration","search","coordinator","production","hnsw","adaptive-cache","circuit-breaker","sub-5ms","reranking","concurrent"]}
 pub struct SearchCoordinator {
     store: Arc<VectorStore>,
     embedding_coordinator: Arc<EmbeddingCoordinator>,

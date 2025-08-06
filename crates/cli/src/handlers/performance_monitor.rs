@@ -15,7 +15,6 @@ use crate::agent_traits::{
     PerformanceMonitoringTrait, ComponentLifecycleTrait
 };
 
-// @component: {"k":"C","id":"performance_monitor","t":"Specialized performance monitoring component","m":{"cur":90,"tgt":95,"u":"%"},"f":["single_responsibility","clean_architecture","production_ready"]}
 pub struct PerformanceMonitor {
     operations: Arc<Mutex<HashMap<String, OperationMetrics>>>,
     aggregated_metrics: Arc<Mutex<HashMap<String, AggregatedMetrics>>>,

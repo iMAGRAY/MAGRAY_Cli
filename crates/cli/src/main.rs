@@ -1,4 +1,3 @@
-// @component: {"k":"C","id":"cli_main","t":"CLI entry point with unified agent","m":{"cur":75,"tgt":100,"u":"%"},"f":["cli","agent","routing","services"]}
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use console::{style, Term};
@@ -18,7 +17,10 @@ mod progress;
 #[cfg(test)]
 mod status_tests;
 
-use agent::{UnifiedAgent, AgentResponse};
+use agent::UnifiedAgent;
+use cli::agent_traits::AgentResponse;
+use cli::unified_agent_v2::UnifiedAgentV2;
+use cli::agent_traits::{RequestProcessorTrait, RequestContext};
 use commands::{GpuCommand, MemoryCommand, ModelsCommand};
 
 
@@ -94,6 +96,8 @@ enum Commands {
     Health,
     /// [📊] Показать состояние системы
     Status,
+    /// [🤖] Показать статус LLM провайдеров
+    LlmStatus,
     /// [📈] Показать performance метрики DI системы
     Performance,
 }
@@ -113,31 +117,31 @@ async fn main() -> Result<()> {
             handle_chat(message).await?;
         }
         Some(Commands::Read { path }) => {
-            let agent = UnifiedAgent::new().await?;
+            let agent = create_unified_agent_v2().await?;
             let message = format!("прочитай файл {path}");
-            let response = agent.process_message(&message).await?;
+            let response = process_agent_message(&agent, &message).await?;
             display_response(response).await;
         }
         Some(Commands::Write { path, content }) => {
-            let agent = UnifiedAgent::new().await?;
+            let agent = create_unified_agent_v2().await?;
             let message = format!("создай файл {path} с содержимым: {content}");
-            let response = agent.process_message(&message).await?;
+            let response = process_agent_message(&agent, &message).await?;
             display_response(response).await;
         }
         Some(Commands::List { path }) => {
-            let agent = UnifiedAgent::new().await?;
+            let agent = create_unified_agent_v2().await?;
             let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
-            let response = agent.process_message(&message).await?;
+            let response = process_agent_message(&agent, &message).await?;
             display_response(response).await;
         }
         Some(Commands::Tool { action }) => {
-            let agent = UnifiedAgent::new().await?;
-            let response = agent.process_message(&action).await?;
+            let agent = create_unified_agent_v2().await?;
+            let response = process_agent_message(&agent, &action).await?;
             display_response(response).await;
         }
         Some(Commands::Smart { task }) => {
-            let agent = UnifiedAgent::new().await?;
-            let response = agent.process_message(&task).await?;
+            let agent = create_unified_agent_v2().await?;
+            let response = process_agent_message(&agent, &task).await?;
             display_response(response).await;
         }
         Some(Commands::Gpu(gpu_command)) => {
@@ -166,6 +170,9 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Status) => {
             show_system_status().await?;
+        }
+        Some(Commands::LlmStatus) => {
+            show_llm_status().await?;
         }
         Some(Commands::Performance) => {
             show_performance_metrics().await?;
@@ -301,8 +308,8 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
         }
     };
 
-    // Создаем единый агент с timeout защитой
-    let agent_future = UnifiedAgent::new();
+    // Создаем новый Clean Architecture агент с timeout защитой
+    let agent_future = create_unified_agent_v2();
     let agent = match timeout(TokioDuration::from_secs(30), agent_future).await {
         Ok(Ok(agent)) => agent,
         Ok(Err(e)) => return Err(e),
@@ -323,11 +330,11 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     Ok(())
 }
 
-async fn process_single_message(agent: &UnifiedAgent, message: &str) -> Result<()> {
+async fn process_single_message(agent: &UnifiedAgentV2, message: &str) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
     
     // Защита от зависания с таймаутом 60 секунд
-    let process_future = agent.process_message(message);
+    let process_future = process_agent_message(agent, message);
     let response = match timeout(TokioDuration::from_secs(60), process_future).await {
         Ok(Ok(response)) => response,
         Ok(Err(e)) => return Err(e),
@@ -342,7 +349,7 @@ async fn process_single_message(agent: &UnifiedAgent, message: &str) -> Result<(
     Ok(())
 }
 
-async fn run_interactive_chat(agent: &UnifiedAgent) -> Result<()> {
+async fn run_interactive_chat(agent: &UnifiedAgentV2) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
     
     println!("{} {}", 
@@ -404,7 +411,7 @@ async fn run_interactive_chat(agent: &UnifiedAgent) -> Result<()> {
         }
 
         // Обрабатываем сообщение с timeout защитой
-        let process_future = agent.process_message(&input);
+        let process_future = process_agent_message(agent, &input);
         let response = match timeout(TokioDuration::from_secs(60), process_future).await {
             Ok(Ok(response)) => response,
             Ok(Err(e)) => {
@@ -434,6 +441,18 @@ async fn display_response(response: AgentResponse) {
         AgentResponse::ToolExecution(result) => {
             println!("{result}");
         }
+        AgentResponse::Admin(admin_response) => {
+            use cli::agent_traits::AdminResponse;
+            match admin_response {
+                AdminResponse::SystemStats(stats) => println!("{}", stats),
+                AdminResponse::HealthStatus(status) => println!("{}", status),
+                AdminResponse::PerformanceMetrics(metrics) => println!("{}", metrics),
+                AdminResponse::OperationResult(result) => println!("{}", result),
+            }
+        }
+        AgentResponse::Error(error_msg) => {
+            println!("{} {}", style("[✗]").red().bold(), style(error_msg).red());
+        }
     }
 }
 
@@ -460,6 +479,27 @@ async fn display_chat_response(text: &str) {
 
 
 
+
+/// Создание и инициализация UnifiedAgentV2
+async fn create_unified_agent_v2() -> Result<UnifiedAgentV2> {
+    let mut agent = UnifiedAgentV2::new().await?;
+    agent.initialize().await?;
+    Ok(agent)
+}
+
+/// Обработка сообщения через UnifiedAgentV2 API
+async fn process_agent_message(agent: &UnifiedAgentV2, message: &str) -> Result<AgentResponse> {
+    let context = RequestContext {
+        message: message.to_string(),
+        session_id: "main_session".to_string(),
+        metadata: std::collections::HashMap::new(),
+    };
+    
+    let result = agent.process_user_request(context).await?;
+    
+    // result.response уже является AgentResponse
+    Ok(result.response)
+}
 
 async fn show_goodbye_animation() -> Result<()> {
     let spinner = indicatif::ProgressBar::new_spinner();
@@ -501,7 +541,6 @@ async fn show_goodbye_animation() -> Result<()> {
     Ok(())
 }
 
-// @component: {"k":"C","id":"status_cmd","t":"System status diagnostic command","m":{"cur":100,"tgt":100,"u":"%"},"f":["cli","diagnostic","graceful-fallback"]}
 async fn show_system_status() -> Result<()> {
     use memory::{DIMemoryService as MemoryService};
     use std::sync::Arc;
@@ -625,6 +664,59 @@ async fn show_system_status() -> Result<()> {
     
     println!();
     
+    Ok(())
+}
+
+async fn show_llm_status() -> Result<()> {
+    use colored::Colorize;
+    use tracing::info;
+    
+    let spinner = progress::ProgressBuilder::fast("Проверка статуса LLM провайдеров...");
+    
+    info!("🤖 Проверка статуса LLM системы");
+    
+    // Пытаемся создать multi-provider клиент
+    let client_result = LlmClient::from_env_multi();
+    
+    match client_result {
+        Ok(client) => {
+            spinner.finish_success(Some("Multi-provider система доступна!"));
+            
+            if let Some(status_report) = client.get_status_report().await {
+                println!("\n{}", status_report);
+            } else {
+                println!("\n🔧 Multi-provider система инициализирована, но статус недоступен");
+            }
+        }
+        Err(e) => {
+            spinner.finish_success(Some("Fallback к single-provider режиму"));
+            
+            match LlmClient::from_env() {
+                Ok(_single_client) => {
+                    println!("\n🔧 Single Provider Mode");
+                    println!("{} LLM провайдер настроен и готов к работе", "✓".green().bold());
+                    println!();
+                    println!("💡 Для активации multi-provider режима настройте:");
+                    println!("  • OPENAI_API_KEY=your_openai_key");
+                    println!("  • ANTHROPIC_API_KEY=your_anthropic_key");  
+                    println!("  • GROQ_API_KEY=your_groq_key");
+                    println!("  • OLLAMA_URL=http://localhost:11434");
+                    println!("  • LMSTUDIO_URL=http://localhost:1234");
+                }
+                Err(single_err) => {
+                    println!("\n{} Ошибка конфигурации LLM", "❌".red().bold());
+                    println!("Multi-provider ошибка: {}", e);
+                    println!("Single-provider ошибка: {}", single_err);
+                    println!();
+                    println!("🔧 Настройте хотя бы один провайдер:");
+                    println!("  LLM_PROVIDER=openai");
+                    println!("  OPENAI_API_KEY=your_key_here");
+                }
+            }
+        }
+    }
+    
+    println!();
     Ok(())
 }
 

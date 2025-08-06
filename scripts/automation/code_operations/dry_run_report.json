@@ -1,0 +1,2130 @@
+{
+  "total_files_processed": 119,
+  "total_annotations_removed": 155,
+  "files_with_annotations": 119,
+  "backup_location": "",
+  "compilation_success": true,
+  "duration_seconds": 0.414044,
+  "detailed_results": [
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\examples\\test_memory_pool_only.rs",
+      "removed_count": 1,
+      "original_lines": 135,
+      "final_lines": 134,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\examples\\test_memory_pool_only.rs",
+          "line_number": 7,
+          "line_content": "/// @component: {\"k\":\"T\",\"id\":\"test_memory_pool_only\",\"t\":\"Memory pool standalone test\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\examples\\test_qwen3_models.rs",
+      "removed_count": 1,
+      "original_lines": 148,
+      "final_lines": 147,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\examples\\test_qwen3_models.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"test_qwen3_models\",\"t\":\"Test Qwen3 models loading\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\examples\\test_real_tokenizer.rs",
+      "removed_count": 1,
+      "original_lines": 69,
+      "final_lines": 68,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\examples\\test_real_tokenizer.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"test_real_tokenizer\",\"t\":\"Test real BPE tokenizer quality\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\config.rs",
+      "removed_count": 3,
+      "original_lines": 82,
+      "final_lines": 79,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\config.rs",
+          "line_number": 4,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"ai_config\",\"t\":\"AI system configuration\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"ai\",\"config\",\"models\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\config.rs",
+          "line_number": 15,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"embedding_config\",\"t\":\"Embedding model configuration\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"ai\",\"config\",\"embeddings\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\config.rs",
+          "line_number": 33,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"reranking_config\",\"t\":\"Reranking model configuration\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"ai\",\"config\",\"reranking\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\auto_device_selector.rs",
+      "removed_count": 1,
+      "original_lines": 287,
+      "final_lines": 286,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\auto_device_selector.rs",
+          "line_number": 9,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"auto_device_selector\",\"t\":\"Auto CPU/GPU selector\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"ai\",\"gpu\",\"device-selection\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\embeddings_cpu.rs",
+      "removed_count": 1,
+      "original_lines": 576,
+      "final_lines": 575,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\embeddings_cpu.rs",
+          "line_number": 15,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"embeddings_cpu\",\"t\":\"CPU-based embeddings\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"ai\",\"embeddings\",\"cpu\",\"onnx\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_config.rs",
+      "removed_count": 1,
+      "original_lines": 209,
+      "final_lines": 208,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_config.rs",
+          "line_number": 13,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"gpu_config\",\"t\":\"GPU configuration for ONNX\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"ai\",\"gpu\",\"config\",\"onnx\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\embeddings_gpu.rs",
+      "removed_count": 1,
+      "original_lines": 430,
+      "final_lines": 429,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\embeddings_gpu.rs",
+          "line_number": 17,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"embeddings_gpu\",\"t\":\"GPU-accelerated embeddings\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"ai\",\"embeddings\",\"gpu\",\"cuda\",\"tensorrt\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_detector.rs",
+      "removed_count": 1,
+      "original_lines": 247,
+      "final_lines": 246,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_detector.rs",
+          "line_number": 6,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"gpu_detector\",\"t\":\"GPU detection and info\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"ai\",\"gpu\",\"detection\",\"cuda\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_fallback.rs",
+      "removed_count": 1,
+      "original_lines": 422,
+      "final_lines": 421,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_fallback.rs",
+          "line_number": 142,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"gpu_fallback_manager\",\"t\":\"Reliable GPU fallback system\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"fallback\",\"resilience\",\"gpu\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_memory_pool.rs",
+      "removed_count": 1,
+      "original_lines": 270,
+      "final_lines": 269,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_memory_pool.rs",
+          "line_number": 6,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"gpu_memory_pool\",\"t\":\"GPU memory pool manager\",\"m\":{\"cur\":90,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\lib.rs",
+      "removed_count": 1,
+      "original_lines": 42,
+      "final_lines": 41,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\lib.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"ai_lib\",\"t\":\"AI/ML services library\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"ai\",\"embeddings\",\"onnx\",\"bge-m3\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_pipeline.rs",
+      "removed_count": 1,
+      "original_lines": 318,
+      "final_lines": 317,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\gpu_pipeline.rs",
+          "line_number": 9,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"gpu_pipeline_manager\",\"t\":\"GPU pipeline for parallel batches\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"gpu\",\"pipeline\",\"parallel\",\"optimized\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\model_downloader.rs",
+      "removed_count": 1,
+      "original_lines": 406,
+      "final_lines": 405,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\model_downloader.rs",
+          "line_number": 11,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"model_downloader\",\"t\":\"Auto model downloader\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\model_registry.rs",
+      "removed_count": 1,
+      "original_lines": 275,
+      "final_lines": 274,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\model_registry.rs",
+          "line_number": 6,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"model_registry\",\"t\":\"Centralized model registry\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"models\",\"config\",\"registry\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\reranker_qwen3_optimized.rs",
+      "removed_count": 1,
+      "original_lines": 361,
+      "final_lines": 360,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\reranker_qwen3_optimized.rs",
+          "line_number": 11,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"reranker_qwen3_optimized\",\"t\":\"Optimized Qwen3 ONNX reranker\",\"m\":{\"cur\":90,\"tgt\":100,\"u\":\"percent\"},\"f\":[\"ai\",\"reranking\",\"qwen3\",\"optimized\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\reranker_qwen3.rs",
+      "removed_count": 1,
+      "original_lines": 510,
+      "final_lines": 509,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\reranker_qwen3.rs",
+          "line_number": 13,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"reranker_qwen3\",\"t\":\"Qwen3 reranker with batching\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"ai\",\"reranking\",\"batch\",\"optimized\",\"qwen3\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\agent.rs",
+      "removed_count": 1,
+      "original_lines": 216,
+      "final_lines": 215,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\agent.rs",
+          "line_number": 8,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"unified_agent\",\"t\":\"Main agent orchestrator (LEGACY - see UnifiedAgentV2)\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"d\":[\"clean_architecture\",\"solid_principles\"],\"f\":[\"agents\",\"routing\",\"memory\",\"clean_architecture\",\"solid_principles\",\"di_integration\",\"strategy_pattern\",\"circuit_breaker\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\tokenization\\simple_qwen3.rs",
+      "removed_count": 1,
+      "original_lines": 242,
+      "final_lines": 241,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\tokenization\\simple_qwen3.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"simple_qwen3_tokenizer\",\"t\":\"Simplified Qwen3 tokenizer for ONNX\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\tensorrt_cache.rs",
+      "removed_count": 1,
+      "original_lines": 324,
+      "final_lines": 323,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\ai\\src\\tensorrt_cache.rs",
+          "line_number": 8,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"tensorrt_cache\",\"t\":\"TensorRT model cache\",\"m\":{\"cur\":90,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\lib.rs",
+      "removed_count": 1,
+      "original_lines": 24,
+      "final_lines": 23,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\lib.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"cli_lib\",\"t\":\"CLI interface and commands\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"cli\",\"interface\",\"commands\",\"interactive\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\health_checks.rs",
+      "removed_count": 1,
+      "original_lines": 534,
+      "final_lines": 533,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\health_checks.rs",
+          "line_number": 10,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"health_checks\",\"t\":\"Production health monitoring\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"monitoring\",\"production\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\progress.rs",
+      "removed_count": 2,
+      "original_lines": 266,
+      "final_lines": 264,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\progress.rs",
+          "line_number": 5,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"progress_type\",\"t\":\"Operation types for progress\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"ui\",\"progress\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\progress.rs",
+          "line_number": 108,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"adaptive_spinner\",\"t\":\"Smart adaptive progress spinner\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"ui\",\"progress\",\"adaptive\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\status_tests.rs",
+      "removed_count": 1,
+      "original_lines": 150,
+      "final_lines": 149,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\status_tests.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"status_tests\",\"t\":\"Unit tests for status command\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"tests\",\"status\",\"cli\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\unified_agent_v2.rs",
+      "removed_count": 1,
+      "original_lines": 556,
+      "final_lines": 555,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\unified_agent_v2.rs",
+          "line_number": 250,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"unified_agent_v2\",\"t\":\"Clean Architecture UnifiedAgent with DI\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"clean_architecture\",\"solid_principles\",\"di_integration\",\"strategy_pattern\",\"circuit_breaker\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\main.rs",
+      "removed_count": 2,
+      "original_lines": 751,
+      "final_lines": 749,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\main.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"cli_main\",\"t\":\"CLI entry point with unified agent\",\"m\":{\"cur\":75,\"tgt\":100,\"u\":\"%\"},\"f\":[\"cli\",\"agent\",\"routing\",\"services\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\main.rs",
+          "line_number": 504,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"status_cmd\",\"t\":\"System status diagnostic command\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"cli\",\"diagnostic\",\"graceful-fallback\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\tests\\test_services_intent_analysis.rs",
+      "removed_count": 1,
+      "original_lines": 514,
+      "final_lines": 513,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\tests\\test_services_intent_analysis.rs",
+          "line_number": 21,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"intent_analysis_service_tests\",\"t\":\"Comprehensive intent analysis service tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"unit\",\"mock\",\"coverage\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\tests\\test_services_llm_communication.rs",
+      "removed_count": 1,
+      "original_lines": 717,
+      "final_lines": 716,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\tests\\test_services_llm_communication.rs",
+          "line_number": 23,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"llm_communication_service_tests\",\"t\":\"Comprehensive LLM communication service tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"unit\",\"mock\",\"coverage\",\"llm\",\"cache\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\tests\\test_services_request_routing.rs",
+      "removed_count": 1,
+      "original_lines": 599,
+      "final_lines": 598,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\tests\\test_services_request_routing.rs",
+          "line_number": 23,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"request_routing_service_tests\",\"t\":\"Comprehensive request routing service tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"unit\",\"mock\",\"coverage\",\"business_logic\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\tests\\test_services_resilience.rs",
+      "removed_count": 1,
+      "original_lines": 645,
+      "final_lines": 644,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\tests\\test_services_resilience.rs",
+          "line_number": 20,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"resilience_service_tests\",\"t\":\"Comprehensive resilience service tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"unit\",\"retry\",\"exponential_backoff\",\"jitter\",\"coverage\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\commands\\gpu.rs",
+      "removed_count": 1,
+      "original_lines": 279,
+      "final_lines": 278,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\commands\\gpu.rs",
+          "line_number": 13,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"gpu_commands\",\"t\":\"GPU management CLI\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"cli\",\"commands\",\"gpu\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\commands\\models.rs",
+      "removed_count": 1,
+      "original_lines": 259,
+      "final_lines": 258,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\commands\\models.rs",
+          "line_number": 6,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"models_commands\",\"t\":\"Model management CLI\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"cli\",\"commands\",\"models\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\chat_handler.rs",
+      "removed_count": 1,
+      "original_lines": 246,
+      "final_lines": 245,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\chat_handler.rs",
+          "line_number": 16,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"chat_handler\",\"t\":\"Specialized chat request handler\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"single_responsibility\",\"clean_architecture\",\"di_ready\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\admin_handler.rs",
+      "removed_count": 1,
+      "original_lines": 376,
+      "final_lines": 375,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\admin_handler.rs",
+          "line_number": 16,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"admin_handler\",\"t\":\"Specialized admin operations handler\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"single_responsibility\",\"clean_architecture\",\"di_ready\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\memory_handler.rs",
+      "removed_count": 1,
+      "original_lines": 330,
+      "final_lines": 329,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\memory_handler.rs",
+          "line_number": 16,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"memory_handler\",\"t\":\"Specialized memory management handler\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"single_responsibility\",\"clean_architecture\",\"di_ready\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\tools_handler.rs",
+      "removed_count": 1,
+      "original_lines": 275,
+      "final_lines": 274,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\tools_handler.rs",
+          "line_number": 16,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"tools_handler\",\"t\":\"Specialized tools execution handler\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"single_responsibility\",\"clean_architecture\",\"di_ready\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\performance_monitor.rs",
+      "removed_count": 1,
+      "original_lines": 425,
+      "final_lines": 424,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\handlers\\performance_monitor.rs",
+          "line_number": 18,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"performance_monitor\",\"t\":\"Specialized performance monitoring component\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"single_responsibility\",\"clean_architecture\",\"production_ready\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\di_config.rs",
+      "removed_count": 1,
+      "original_lines": 212,
+      "final_lines": 211,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\di_config.rs",
+          "line_number": 24,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"services_di_config\",\"t\":\"Services DI configuration\",\"m\":{\"cur\":90,\"tgt\":100,\"u\":\"%\"},\"f\":[\"di\",\"configuration\",\"services\",\"registration\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\intent_analysis.rs",
+      "removed_count": 2,
+      "original_lines": 311,
+      "final_lines": 309,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\intent_analysis.rs",
+          "line_number": 20,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"intent_analysis_service\",\"t\":\"Intent analysis service trait\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"trait\",\"analysis\",\"intent\",\"clean_architecture\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\intent_analysis.rs",
+          "line_number": 48,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"default_intent_analysis_service\",\"t\":\"Default intent analysis service implementation\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"service\",\"analysis\",\"ml\",\"fallback\",\"metrics\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\llm_communication.rs",
+      "removed_count": 2,
+      "original_lines": 625,
+      "final_lines": 623,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\llm_communication.rs",
+          "line_number": 19,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"llm_communication_service\",\"t\":\"LLM communication service trait\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"trait\",\"llm\",\"multi_provider\",\"clean_architecture\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\llm_communication.rs",
+          "line_number": 127,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"default_llm_communication_service\",\"t\":\"Default LLM communication service implementation\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"service\",\"llm\",\"fallback\",\"caching\",\"metrics\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\mod.rs",
+      "removed_count": 1,
+      "original_lines": 66,
+      "final_lines": 65,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\mod.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"cli_services\",\"t\":\"Service layer for agent decomposition\",\"m\":{\"cur\":80,\"tgt\":100,\"u\":\"%\"},\"f\":[\"services\",\"traits\",\"separation\",\"orchestration\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\request_routing.rs",
+      "removed_count": 2,
+      "original_lines": 492,
+      "final_lines": 490,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\request_routing.rs",
+          "line_number": 19,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"request_routing_service\",\"t\":\"Request routing service trait\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"trait\",\"routing\",\"clean_architecture\",\"decision\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\request_routing.rs",
+          "line_number": 88,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"default_request_routing_service\",\"t\":\"Default request routing service implementation\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"service\",\"routing\",\"smart_router\",\"business_logic\",\"metrics\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\resilience.rs",
+      "removed_count": 2,
+      "original_lines": 188,
+      "final_lines": 186,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\resilience.rs",
+          "line_number": 14,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"resilience_service\",\"t\":\"Resilience service trait\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"trait\",\"resilience\",\"circuit_breaker\",\"retry\",\"clean_architecture\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\resilience.rs",
+          "line_number": 68,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"default_resilience_service\",\"t\":\"Default resilience service implementation\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"service\",\"resilience\",\"exponential_backoff\",\"jitter\",\"metrics\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\orchestrator.rs",
+      "removed_count": 2,
+      "original_lines": 253,
+      "final_lines": 251,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\orchestrator.rs",
+          "line_number": 18,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"service_orchestrator\",\"t\":\"Service orchestrator trait\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"trait\",\"orchestration\",\"coordination\",\"clean_architecture\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\orchestrator.rs",
+          "line_number": 58,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"default_service_orchestrator\",\"t\":\"Default service orchestrator implementation\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"service\",\"orchestration\",\"di_integration\",\"metrics\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\circuit_breaker.rs",
+      "removed_count": 2,
+      "original_lines": 449,
+      "final_lines": 447,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\circuit_breaker.rs",
+          "line_number": 53,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"basic_circuit_breaker\",\"t\":\"Basic circuit breaker implementation\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"circuit_breaker\",\"resilience\",\"production_ready\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\circuit_breaker.rs",
+          "line_number": 274,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"adaptive_circuit_breaker\",\"t\":\"Adaptive circuit breaker with dynamic thresholds\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"circuit_breaker\",\"adaptive\",\"intelligent\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\fallback_strategies.rs",
+      "removed_count": 4,
+      "original_lines": 446,
+      "final_lines": 442,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\fallback_strategies.rs",
+          "line_number": 17,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"simple_fallback_strategy\",\"t\":\"Simple hardcoded fallback responses\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"reliable\",\"offline\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\fallback_strategies.rs",
+          "line_number": 100,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"smart_fallback_strategy\",\"t\":\"Smart fallback with alternative approaches\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"adaptive\",\"intelligent\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\fallback_strategies.rs",
+          "line_number": 254,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"circuit_breaker_fallback\",\"t\":\"Circuit breaker pattern fallback\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"circuit_breaker\",\"resilient\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\fallback_strategies.rs",
+          "line_number": 306,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"composite_fallback_strategy\",\"t\":\"Composite fallback strategy\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"composite\",\"comprehensive\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\response_strategies.rs",
+      "removed_count": 4,
+      "original_lines": 473,
+      "final_lines": 469,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\response_strategies.rs",
+          "line_number": 18,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"simple_response_formatter\",\"t\":\"Simple text response formatter\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"simple\",\"reliable\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\response_strategies.rs",
+          "line_number": 91,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"rich_response_formatter\",\"t\":\"Rich markdown response formatter\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"rich_formatting\",\"markdown\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\response_strategies.rs",
+          "line_number": 223,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"json_response_formatter\",\"t\":\"JSON response formatter for APIs\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"json\",\"api_ready\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\response_strategies.rs",
+          "line_number": 323,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"adaptive_response_formatter\",\"t\":\"Adaptive response formatter based on context\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"adaptive\",\"intelligent\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\intent_strategies.rs",
+      "removed_count": 3,
+      "original_lines": 366,
+      "final_lines": 363,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\intent_strategies.rs",
+          "line_number": 17,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"heuristic_intent_strategy\",\"t\":\"Keyword-based intent classification\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"fast\",\"offline\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\intent_strategies.rs",
+          "line_number": 135,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"llm_intent_strategy\",\"t\":\"LLM-based intent classification\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"ai_powered\",\"high_accuracy\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\strategies\\intent_strategies.rs",
+          "line_number": 222,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"hybrid_intent_strategy\",\"t\":\"Hybrid heuristic + LLM intent classification\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"strategy_pattern\",\"hybrid\",\"balanced\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\comprehensive_errors.rs",
+      "removed_count": 1,
+      "original_lines": 408,
+      "final_lines": 407,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\comprehensive_errors.rs",
+          "line_number": 11,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"comprehensive_error_system\",\"t\":\"Comprehensive error handling system\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"error_handling\",\"production_ready\",\"comprehensive\",\"structured_errors\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+      "removed_count": 10,
+      "original_lines": 420,
+      "final_lines": 410,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 5,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"magray_error_types\",\"t\":\"Comprehensive error type system\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"errors\",\"production\",\"monitoring\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 74,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"database_error\",\"t\":\"Database error types\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"errors\",\"database\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 97,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"network_error\",\"t\":\"Network error types\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"errors\",\"network\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 117,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"validation_error\",\"t\":\"Validation error types\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"errors\",\"validation\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 142,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"embedding_error\",\"t\":\"Embedding error types\",\"m\":{\"cur\":80,\"tgt\":95,\"u\":\"%\"},\"f\":[\"errors\",\"ai\",\"embeddings\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 162,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"gpu_error\",\"t\":\"GPU error types\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"errors\",\"gpu\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 182,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"memory_error\",\"t\":\"Memory system error types\",\"m\":{\"cur\":80,\"tgt\":95,\"u\":\"%\"},\"f\":[\"errors\",\"memory\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 199,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"cache_error\",\"t\":\"Cache error types\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"errors\",\"cache\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 219,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"index_error\",\"t\":\"Vector index error types\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"errors\",\"index\",\"vector\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\errors.rs",
+          "line_number": 292,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"error_severity\",\"t\":\"Error severity levels\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"errors\",\"monitoring\",\"alerting\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\error_monitor.rs",
+      "removed_count": 1,
+      "original_lines": 445,
+      "final_lines": 444,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\error_monitor.rs",
+          "line_number": 11,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"error_monitor\",\"t\":\"Error monitoring and alerting system\",\"m\":{\"cur\":0,\"tgt\":95,\"u\":\"%\"},\"f\":[\"monitoring\",\"errors\",\"alerting\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\lib.rs",
+      "removed_count": 1,
+      "original_lines": 628,
+      "final_lines": 627,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\lib.rs",
+          "line_number": 7,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"llm_client\",\"t\":\"Advanced multi-provider LLM orchestrator\",\"m\":{\"cur\":95,\"tgt\":95,\"u\":\"%\"},\"f\":[\"llm\",\"multi-provider\",\"fallback\",\"balancing\",\"cost-optimization\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\lib.rs",
+      "removed_count": 1,
+      "original_lines": 28,
+      "final_lines": 27,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\lib.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"common_lib\",\"t\":\"Common utilities and logging\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"common\",\"logging\",\"structured\",\"utils\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\structured_logging.rs",
+      "removed_count": 1,
+      "original_lines": 499,
+      "final_lines": 498,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\common\\src\\structured_logging.rs",
+          "line_number": 11,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"structured_logging\",\"t\":\"JSON structured logging system\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"logging\",\"json\",\"production\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\agents\\action_planner.rs",
+      "removed_count": 1,
+      "original_lines": 125,
+      "final_lines": 124,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\agents\\action_planner.rs",
+          "line_number": 20,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"action_planner\",\"t\":\"Multi-step action planner agent\",\"m\":{\"cur\":70,\"tgt\":95,\"u\":\"%\"},\"f\":[\"agent\",\"planning\",\"llm\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\agents\\intent_analyzer.rs",
+      "removed_count": 1,
+      "original_lines": 104,
+      "final_lines": 103,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\agents\\intent_analyzer.rs",
+          "line_number": 12,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"intent_analyzer\",\"t\":\"Chat vs tool intent classifier\",\"m\":{\"cur\":70,\"tgt\":95,\"u\":\"%\"},\"f\":[\"agent\",\"classification\",\"intent\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\agents\\tool_selector.rs",
+      "removed_count": 1,
+      "original_lines": 89,
+      "final_lines": 88,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\agents\\tool_selector.rs",
+          "line_number": 12,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"tool_selector\",\"t\":\"Tool selection agent\",\"m\":{\"cur\":70,\"tgt\":95,\"u\":\"%\"},\"f\":[\"agent\",\"tools\",\"selection\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\benches\\comprehensive_performance.rs",
+      "removed_count": 1,
+      "original_lines": 251,
+      "final_lines": 250,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\benches\\comprehensive_performance.rs",
+          "line_number": 7,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"comprehensive_bench\",\"t\":\"Comprehensive performance benchmarks\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"benchmark\",\"performance\",\"comprehensive\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\benches\\di_performance.rs",
+      "removed_count": 1,
+      "original_lines": 422,
+      "final_lines": 421,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\benches\\di_performance.rs",
+          "line_number": 15,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"di_performance_bench\",\"t\":\"DI performance benchmarking\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"benchmark\",\"performance\",\"di\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\agents\\parameter_extractor.rs",
+      "removed_count": 1,
+      "original_lines": 128,
+      "final_lines": 127,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\llm\\src\\agents\\parameter_extractor.rs",
+          "line_number": 13,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"param_extractor\",\"t\":\"Parameter extraction agent\",\"m\":{\"cur\":70,\"tgt\":95,\"u\":\"%\"},\"f\":[\"agent\",\"nlp\",\"extraction\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_batch_operations.rs",
+      "removed_count": 1,
+      "original_lines": 184,
+      "final_lines": 183,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_batch_operations.rs",
+          "line_number": 8,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"test_batch_operations\",\"t\":\"Test batch API functionality\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"batch\",\"api\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\benches\\vector_benchmarks.rs",
+      "removed_count": 1,
+      "original_lines": 509,
+      "final_lines": 508,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\benches\\vector_benchmarks.rs",
+          "line_number": 14,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"perf_benchmarks\",\"t\":\"Performance benchmarks для memory system\",\"m\":{\"cur\":0,\"tgt\":100,\"u\":\"%\"},\"f\":[\"benchmarks\",\"performance\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_di_system.rs",
+      "removed_count": 1,
+      "original_lines": 95,
+      "final_lines": 94,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_di_system.rs",
+          "line_number": 2,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"test_di_system\",\"t\":\"Test DI memory system functionality\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"di\",\"integration\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_gpu_optimization.rs",
+      "removed_count": 1,
+      "original_lines": 165,
+      "final_lines": 164,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_gpu_optimization.rs",
+          "line_number": 9,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"test_gpu_optimization\",\"t\":\"GPU optimization benchmark\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"benchmark\",\"gpu\",\"optimization\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_gpu_memory_pool.rs",
+      "removed_count": 1,
+      "original_lines": 161,
+      "final_lines": 160,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_gpu_memory_pool.rs",
+          "line_number": 9,
+          "line_content": "/// @component: {\"k\":\"T\",\"id\":\"test_memory_gpu\",\"t\":\"Memory GPU integration test\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_gpu_pipeline.rs",
+      "removed_count": 1,
+      "original_lines": 220,
+      "final_lines": 219,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_gpu_pipeline.rs",
+          "line_number": 8,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"test_gpu_pipeline\",\"t\":\"Test GPU pipeline performance\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"gpu\",\"pipeline\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_ml_promotion.rs",
+      "removed_count": 1,
+      "original_lines": 240,
+      "final_lines": 239,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_ml_promotion.rs",
+          "line_number": 10,
+          "line_content": "/// @component: {\"k\":\"T\",\"id\":\"test_ml_promotion\",\"t\":\"ML promotion engine test\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_gpu_profiler.rs",
+      "removed_count": 1,
+      "original_lines": 352,
+      "final_lines": 351,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_gpu_profiler.rs",
+          "line_number": 10,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"test_gpu_profiler\",\"t\":\"Detailed GPU performance profiler\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"profiler\",\"gpu\",\"performance\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_notification_system.rs",
+      "removed_count": 1,
+      "original_lines": 208,
+      "final_lines": 207,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_notification_system.rs",
+          "line_number": 12,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"test_notification_system\",\"t\":\"Test notification system integration\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"notifications\",\"alerts\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_streaming_api.rs",
+      "removed_count": 1,
+      "original_lines": 301,
+      "final_lines": 300,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_streaming_api.rs",
+          "line_number": 15,
+          "line_content": "/// @component: {\"k\":\"T\",\"id\":\"test_streaming\",\"t\":\"Test streaming API functionality\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_production_metrics.rs",
+      "removed_count": 1,
+      "original_lines": 160,
+      "final_lines": 159,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\examples\\test_production_metrics.rs",
+          "line_number": 7,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"test_production_metrics\",\"t\":\"Test production metrics integration\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"metrics\",\"production\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\cache_lru.rs",
+      "removed_count": 1,
+      "original_lines": 729,
+      "final_lines": 728,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\cache_lru.rs",
+          "line_number": 44,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"embedding_cache\",\"t\":\"LRU cache with eviction policy\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"cache\",\"lru\",\"eviction\",\"unified\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\database_manager.rs",
+      "removed_count": 1,
+      "original_lines": 259,
+      "final_lines": 258,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\database_manager.rs",
+          "line_number": 9,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"database_manager\",\"t\":\"Centralized sled database manager\",\"m\":{\"cur\":70,\"tgt\":100,\"u\":\"%\"},\"f\":[\"sled\",\"concurrent\",\"pooling\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\di_container.rs",
+      "removed_count": 1,
+      "original_lines": 1145,
+      "final_lines": 1144,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\di_container.rs",
+          "line_number": 36,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"di_container\",\"t\":\"Dependency injection container\",\"m\":{\"cur\":88,\"tgt\":100,\"u\":\"%\"},\"f\":[\"di\",\"ioc\",\"architecture\",\"validation\",\"performance\",\"async\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\di_memory_config.rs",
+      "removed_count": 1,
+      "original_lines": 553,
+      "final_lines": 552,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\di_memory_config.rs",
+          "line_number": 36,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"memory_di_config\",\"t\":\"DI configuration for memory system\",\"m\":{\"cur\":60,\"tgt\":100,\"u\":\"%\"},\"f\":[\"di\",\"config\",\"memory\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\flush_config.rs",
+      "removed_count": 1,
+      "original_lines": 274,
+      "final_lines": 273,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\flush_config.rs",
+          "line_number": 3,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"flush_config\",\"t\":\"Configurable flush intervals\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"config\",\"performance\",\"reliability\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\fallback.rs",
+      "removed_count": 1,
+      "original_lines": 350,
+      "final_lines": 349,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\fallback.rs",
+          "line_number": 137,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"graceful_embedding\",\"t\":\"Fallback embedding service\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"fallback\",\"resilience\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\lib.rs",
+      "removed_count": 1,
+      "original_lines": 67,
+      "final_lines": 66,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\lib.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"memory_lib\",\"t\":\"3-layer HNSW memory system with DI\",\"m\":{\"cur\":92,\"tgt\":100,\"u\":\"%\"},\"f\":[\"memory\",\"hnsw\",\"layers\",\"orchestration\",\"di\",\"production\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\gpu_accelerated.rs",
+      "removed_count": 1,
+      "original_lines": 924,
+      "final_lines": 923,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\gpu_accelerated.rs",
+          "line_number": 41,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"gpu_batch_processor\",\"t\":\"GPU batch embedding processor\",\"m\":{\"cur\":60,\"tgt\":100,\"u\":\"%\"},\"f\":[\"gpu\",\"batch\",\"embeddings\",\"fallback\",\"disabled\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\health.rs",
+      "removed_count": 1,
+      "original_lines": 482,
+      "final_lines": 481,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\health.rs",
+          "line_number": 134,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"health_monitor\",\"t\":\"Health monitoring system\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"monitoring\",\"production\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\metrics.rs",
+      "removed_count": 1,
+      "original_lines": 375,
+      "final_lines": 374,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\metrics.rs",
+          "line_number": 9,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"metrics_collector\",\"t\":\"Memory system metrics\",\"m\":{\"cur\":60,\"tgt\":95,\"u\":\"%\"},\"f\":[\"metrics\",\"monitoring\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\promotion.rs",
+      "removed_count": 1,
+      "original_lines": 633,
+      "final_lines": 632,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\promotion.rs",
+          "line_number": 14,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"promotion_engine\",\"t\":\"Time-based memory promotion\",\"m\":{\"cur\":75,\"tgt\":90,\"u\":\"%\"},\"f\":[\"promotion\",\"time-index\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\notifications.rs",
+      "removed_count": 1,
+      "original_lines": 686,
+      "final_lines": 685,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\notifications.rs",
+          "line_number": 10,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"notification_system\",\"t\":\"Production alert notification system\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"alerts\",\"notifications\",\"production\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\resource_manager.rs",
+      "removed_count": 1,
+      "original_lines": 448,
+      "final_lines": 447,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\resource_manager.rs",
+          "line_number": 9,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"resource_manager\",\"t\":\"Dynamic memory resource management\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"memory\",\"scaling\",\"adaptive\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\ml_promotion.rs",
+      "removed_count": 1,
+      "original_lines": 954,
+      "final_lines": 953,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\ml_promotion.rs",
+          "line_number": 92,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"ml_promotion_engine\",\"t\":\"ML-based smart promotion system\",\"m\":{\"cur\":70,\"tgt\":100,\"u\":\"%\"}}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\storage.rs",
+      "removed_count": 2,
+      "original_lines": 870,
+      "final_lines": 868,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\storage.rs",
+          "line_number": 18,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"stored_record\",\"t\":\"Serializable record wrapper\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"serde\",\"storage\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\storage.rs",
+          "line_number": 24,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"vector_store\",\"t\":\"Vector storage with HNSW\",\"m\":{\"cur\":65,\"tgt\":95,\"u\":\"%\"},\"f\":[\"storage\",\"hnsw\",\"transactional\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\retry.rs",
+      "removed_count": 1,
+      "original_lines": 163,
+      "final_lines": 162,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\retry.rs",
+          "line_number": 7,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"retry_manager\",\"t\":\"Exponential backoff retry manager\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"retry\",\"exponential\",\"resilience\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\service_di.rs",
+      "removed_count": 1,
+      "original_lines": 1484,
+      "final_lines": 1483,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\service_di.rs",
+          "line_number": 166,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"di_memory_service\",\"t\":\"Production DI memory service with orchestration coordinators\",\"m\":{\"cur\":95,\"tgt\":95,\"u\":\"%\"},\"f\":[\"di\",\"memory\",\"clean_architecture\",\"production\",\"orchestration\",\"coordinators\",\"circuit_breaker\",\"metrics\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\streaming.rs",
+      "removed_count": 1,
+      "original_lines": 731,
+      "final_lines": 730,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\streaming.rs",
+          "line_number": 15,
+          "line_content": "/// @component: {\"k\":\"C\",\"id\":\"streaming_api\",\"t\":\"Real-time memory processing\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"streaming\",\"real-time\",\"async\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\vector_index_hnswlib.rs",
+      "removed_count": 1,
+      "original_lines": 139,
+      "final_lines": 138,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\vector_index_hnswlib.rs",
+          "line_number": 12,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"vector_index_hnsw\",\"t\":\"HNSW vector index wrapper\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"vector\",\"hnsw\",\"search\",\"legacy\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\types.rs",
+      "removed_count": 3,
+      "original_lines": 107,
+      "final_lines": 104,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\types.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"memory_types\",\"t\":\"Memory system core types\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"memory\",\"types\",\"core\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\types.rs",
+          "line_number": 6,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"layer_enum\",\"t\":\"Memory layer enum types\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"memory\",\"types\",\"enum\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\types.rs",
+          "line_number": 32,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"memory_record\",\"t\":\"Memory record structure\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"memory\",\"types\",\"record\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration_full_workflow.rs",
+      "removed_count": 1,
+      "original_lines": 508,
+      "final_lines": 507,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration_full_workflow.rs",
+          "line_number": 13,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"integration_tests\",\"t\":\"Full workflow integration tests\",\"m\":{\"cur\":0,\"tgt\":90,\"u\":\"%\"},\"f\":[\"integration\",\"workflow\",\"testing\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_di_performance_comparison.rs",
+      "removed_count": 1,
+      "original_lines": 540,
+      "final_lines": 539,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_di_performance_comparison.rs",
+          "line_number": 13,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"di_perf_comparison\",\"t\":\"DI container performance comparison\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"performance\",\"comparison\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_di_memory_service_comprehensive.rs",
+      "removed_count": 1,
+      "original_lines": 579,
+      "final_lines": 578,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_di_memory_service_comprehensive.rs",
+          "line_number": 25,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"di_memory_service_comprehensive_tests\",\"t\":\"Comprehensive DIMemoryService tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"integration\",\"di\",\"memory\",\"crud\",\"coverage\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_error_scenarios_comprehensive.rs",
+      "removed_count": 1,
+      "original_lines": 630,
+      "final_lines": 629,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_error_scenarios_comprehensive.rs",
+          "line_number": 27,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"error_scenarios_comprehensive_tests\",\"t\":\"Comprehensive error handling and edge case tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"error\",\"edge_cases\",\"recovery\",\"coverage\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_hnsw_property_based.rs",
+      "removed_count": 1,
+      "original_lines": 542,
+      "final_lines": 541,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_hnsw_property_based.rs",
+          "line_number": 20,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"hnsw_property_based_tests\",\"t\":\"Property-based tests for HNSW vector search\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"property\",\"hnsw\",\"vector\",\"quickcheck\",\"coverage\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\backup_coordinator.rs",
+      "removed_count": 1,
+      "original_lines": 93,
+      "final_lines": 92,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\backup_coordinator.rs",
+          "line_number": 13,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"backup_coordinator\",\"t\":\"Backup orchestration coordinator\",\"m\":{\"cur\":0,\"tgt\":90,\"u\":\"%\"},\"f\":[\"orchestration\",\"backup\",\"coordinator\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\embedding_coordinator.rs",
+      "removed_count": 1,
+      "original_lines": 557,
+      "final_lines": 556,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\embedding_coordinator.rs",
+          "line_number": 23,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"embedding_coordinator\",\"t\":\"Embedding orchestration coordinator\",\"m\":{\"cur\":95,\"tgt\":95,\"u\":\"%\"},\"f\":[\"orchestration\",\"embeddings\",\"coordinator\",\"production\",\"ai-optimized\",\"concurrency\",\"model-warming\",\"circuit-breaker\",\"adaptive-batching\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_orchestration_memory_orchestrator.rs",
+      "removed_count": 1,
+      "original_lines": 749,
+      "final_lines": 748,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\test_orchestration_memory_orchestrator.rs",
+          "line_number": 29,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"memory_orchestrator_tests\",\"t\":\"Comprehensive memory orchestrator tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"integration\",\"orchestration\",\"coordination\",\"coverage\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\hnsw_index\\index.rs",
+      "removed_count": 1,
+      "original_lines": 806,
+      "final_lines": 805,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\hnsw_index\\index.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"hnsw_index\",\"t\":\"HNSW vector index with SIMD\",\"m\":{\"cur\":85,\"tgt\":100,\"u\":\"%\"},\"f\":[\"hnsw\",\"simd\",\"vector\",\"search\",\"performance\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\memory_orchestrator.rs",
+      "removed_count": 1,
+      "original_lines": 1244,
+      "final_lines": 1243,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\memory_orchestrator.rs",
+          "line_number": 39,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"memory_orchestrator\",\"t\":\"Main memory system orchestrator\",\"m\":{\"cur\":95,\"tgt\":95,\"u\":\"%\"},\"f\":[\"orchestration\",\"coordinator\",\"main\",\"production\",\"lifecycle\",\"monitoring\",\"resilience\",\"circuit-breaker\",\"load-balancing\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\health_manager.rs",
+      "removed_count": 1,
+      "original_lines": 546,
+      "final_lines": 545,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\health_manager.rs",
+          "line_number": 17,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"health_manager\",\"t\":\"Health monitoring coordinator\",\"m\":{\"cur\":95,\"tgt\":95,\"u\":\"%\"},\"f\":[\"orchestration\",\"health\",\"monitoring\",\"production\",\"alerting\",\"metrics\",\"sla\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\resource_controller.rs",
+      "removed_count": 1,
+      "original_lines": 677,
+      "final_lines": 676,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\resource_controller.rs",
+          "line_number": 17,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"resource_controller\",\"t\":\"Resource management coordinator\",\"m\":{\"cur\":95,\"tgt\":95,\"u\":\"%\"},\"f\":[\"orchestration\",\"resources\",\"coordinator\",\"auto-scaling\",\"production\",\"monitoring\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\promotion_coordinator.rs",
+      "removed_count": 1,
+      "original_lines": 88,
+      "final_lines": 87,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\promotion_coordinator.rs",
+          "line_number": 13,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"promotion_coordinator\",\"t\":\"Promotion orchestration coordinator\",\"m\":{\"cur\":0,\"tgt\":90,\"u\":\"%\"},\"f\":[\"orchestration\",\"promotion\",\"coordinator\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\search_coordinator.rs",
+      "removed_count": 1,
+      "original_lines": 809,
+      "final_lines": 808,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\src\\orchestration\\search_coordinator.rs",
+          "line_number": 25,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"search_coordinator\",\"t\":\"Search orchestration coordinator\",\"m\":{\"cur\":95,\"tgt\":95,\"u\":\"%\"},\"f\":[\"orchestration\",\"search\",\"coordinator\",\"production\",\"hnsw\",\"adaptive-cache\",\"circuit-breaker\",\"sub-5ms\",\"reranking\",\"concurrent\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\common\\mod.rs",
+      "removed_count": 1,
+      "original_lines": 426,
+      "final_lines": 425,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\common\\mod.rs",
+          "line_number": 23,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"common_test_helpers\",\"t\":\"Common test utilities and helpers\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"test\",\"utilities\",\"helpers\",\"shared\",\"mocks\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\di_container_test.rs",
+      "removed_count": 1,
+      "original_lines": 748,
+      "final_lines": 747,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\di_container_test.rs",
+          "line_number": 29,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"di_container_integration_tests\",\"t\":\"DI container integration and dependency injection tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"integration\",\"di\",\"dependency-injection\",\"lifecycle\",\"performance\",\"singleton\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\full_system_test.rs",
+      "removed_count": 1,
+      "original_lines": 684,
+      "final_lines": 683,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\full_system_test.rs",
+          "line_number": 27,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"full_system_integration_tests\",\"t\":\"Complete MAGRAY CLI system integration tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"integration\",\"system\",\"end-to-end\",\"production\",\"sla\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\mod.rs",
+      "removed_count": 1,
+      "original_lines": 62,
+      "final_lines": 61,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\mod.rs",
+          "line_number": 62,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"integration_tests_module\",\"t\":\"Integration tests module for comprehensive system validation\",\"m\":{\"cur\":100,\"tgt\":100,\"u\":\"%\"},\"f\":[\"integration\",\"comprehensive\",\"system\",\"validation\",\"sla\",\"production\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\orchestration_test.rs",
+      "removed_count": 1,
+      "original_lines": 702,
+      "final_lines": 701,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\orchestration_test.rs",
+          "line_number": 28,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"orchestration_integration_tests\",\"t\":\"Orchestration coordinators integration tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"integration\",\"orchestration\",\"coordinators\",\"circuit-breaker\",\"production\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\performance_test.rs",
+      "removed_count": 1,
+      "original_lines": 775,
+      "final_lines": 774,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\performance_test.rs",
+          "line_number": 24,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"performance_integration_tests\",\"t\":\"Performance integration tests with SLA validation\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"integration\",\"performance\",\"sla\",\"benchmarks\",\"concurrent\",\"sub-5ms\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\resilience_test.rs",
+      "removed_count": 1,
+      "original_lines": 868,
+      "final_lines": 867,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\memory\\tests\\integration\\resilience_test.rs",
+          "line_number": 25,
+          "line_content": "// @component: {\"k\":\"T\",\"id\":\"resilience_integration_tests\",\"t\":\"Resilience and fault tolerance integration tests\",\"m\":{\"cur\":95,\"tgt\":100,\"u\":\"%\"},\"f\":[\"integration\",\"resilience\",\"fault-tolerance\",\"circuit-breaker\",\"recovery\",\"graceful-degradation\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\router\\src\\lib.rs",
+      "removed_count": 1,
+      "original_lines": 261,
+      "final_lines": 260,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\router\\src\\lib.rs",
+          "line_number": 9,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"smart_router\",\"t\":\"Smart task orchestration\",\"m\":{\"cur\":70,\"tgt\":90,\"u\":\"%\"},\"d\":[\"llm_client\",\"tools\"],\"f\":[\"routing\",\"orchestration\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\todo\\src\\lib.rs",
+      "removed_count": 1,
+      "original_lines": 113,
+      "final_lines": 112,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\todo\\src\\lib.rs",
+          "line_number": 1,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"todo_lib\",\"t\":\"Task DAG management system\",\"m\":{\"cur\":80,\"tgt\":95,\"u\":\"%\"},\"f\":[\"todo\",\"dag\",\"sqlite\",\"async\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\file_ops.rs",
+      "removed_count": 4,
+      "original_lines": 411,
+      "final_lines": 407,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\file_ops.rs",
+          "line_number": 8,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"file_reader\",\"t\":\"File reading tool\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"tools\",\"file\",\"read\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\file_ops.rs",
+          "line_number": 82,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"file_writer\",\"t\":\"File writing tool\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"tools\",\"file\",\"write\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\file_ops.rs",
+          "line_number": 150,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"dir_lister\",\"t\":\"Directory listing tool\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"tools\",\"directory\",\"list\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\file_ops.rs",
+          "line_number": 253,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"file_searcher\",\"t\":\"File search tool\",\"m\":{\"cur\":80,\"tgt\":90,\"u\":\"%\"},\"f\":[\"tools\",\"search\",\"file\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\git_ops.rs",
+      "removed_count": 3,
+      "original_lines": 242,
+      "final_lines": 239,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\git_ops.rs",
+          "line_number": 6,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"git_status\",\"t\":\"Git status tool\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"tools\",\"git\",\"status\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\git_ops.rs",
+          "line_number": 66,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"git_commit\",\"t\":\"Git commit tool\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"tools\",\"git\",\"commit\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\git_ops.rs",
+          "line_number": 180,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"git_diff\",\"t\":\"Git diff tool\",\"m\":{\"cur\":80,\"tgt\":90,\"u\":\"%\"},\"f\":[\"tools\",\"git\",\"diff\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\lib.rs",
+      "removed_count": 1,
+      "original_lines": 89,
+      "final_lines": 88,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\lib.rs",
+          "line_number": 5,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"tool_registry\",\"t\":\"Tool execution system\",\"m\":{\"cur\":90,\"tgt\":95,\"u\":\"%\"},\"f\":[\"tools\",\"execution\",\"registry\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\web_ops.rs",
+      "removed_count": 2,
+      "original_lines": 134,
+      "final_lines": 132,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\web_ops.rs",
+          "line_number": 5,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"web_search\",\"t\":\"Web search tool\",\"m\":{\"cur\":75,\"tgt\":90,\"u\":\"%\"},\"f\":[\"tools\",\"web\",\"search\"]}",
+          "annotation_type": "@component"
+        },
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\web_ops.rs",
+          "line_number": 68,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"web_fetch\",\"t\":\"Web page fetch tool\",\"m\":{\"cur\":70,\"tgt\":85,\"u\":\"%\"},\"f\":[\"tools\",\"web\",\"fetch\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    },
+    {
+      "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\shell_ops.rs",
+      "removed_count": 1,
+      "original_lines": 111,
+      "final_lines": 110,
+      "annotations": [
+        {
+          "file_path": "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\tools\\src\\shell_ops.rs",
+          "line_number": 6,
+          "line_content": "// @component: {\"k\":\"C\",\"id\":\"shell_exec\",\"t\":\"Shell command execution tool\",\"m\":{\"cur\":85,\"tgt\":95,\"u\":\"%\"},\"f\":[\"tools\",\"shell\",\"execution\"]}",
+          "annotation_type": "@component"
+        }
+      ],
+      "success": true,
+      "error": null
+    }
+  ]
+}

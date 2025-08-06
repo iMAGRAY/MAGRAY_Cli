@@ -17,7 +17,6 @@ use quickcheck::{quickcheck, Arbitrary, Gen, TestResult};
 use std::collections::HashMap;
 use chrono::Utc;
 
-// @component: {"k":"T","id":"hnsw_property_based_tests","t":"Property-based tests for HNSW vector search","m":{"cur":95,"tgt":100,"u":"%"},"f":["test","property","hnsw","vector","quickcheck","coverage"]}
 
 /// Генератор векторов для property-based тестирования
 #[derive(Clone, Debug)]

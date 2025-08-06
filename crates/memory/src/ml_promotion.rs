@@ -89,7 +89,6 @@ impl PerformanceOptimizer {
 }
 
 /// ML-based promotion engine с машинным обучением для smart promotion
-/// @component: {"k":"C","id":"ml_promotion_engine","t":"ML-based smart promotion system","m":{"cur":70,"tgt":100,"u":"%"}}
 pub struct MLPromotionEngine {
     store: Arc<VectorStore>,
     model: PromotionModel,

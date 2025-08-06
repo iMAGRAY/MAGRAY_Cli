@@ -8,7 +8,6 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use std::io::{self, Write};
 use chrono::Utc;
 
-/// @component: {"k":"C","id":"structured_logging","t":"JSON structured logging system","m":{"cur":100,"tgt":100,"u":"%"},"f":["logging","json","production"]}
 /// Структурированная запись лога в JSON формате
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StructuredLogEntry {
