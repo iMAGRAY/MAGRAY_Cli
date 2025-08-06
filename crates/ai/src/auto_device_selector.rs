@@ -217,30 +217,94 @@ impl AutoDeviceSelector {
     }
 }
 
-/// Умная фабрика для создания embedding сервиса
+/// Умная фабрика для создания embedding сервиса с fallback
 pub struct SmartEmbeddingFactory;
 
 impl SmartEmbeddingFactory {
-    /// Создать оптимальный embedding сервис
+    /// Создать оптимальный embedding сервис с GPU/CPU fallback
     pub async fn create_optimized(
         base_config: EmbeddingConfig
     ) -> Result<(Box<dyn EmbeddingServiceTrait>, DeviceDecision)> {
         let mut selector = AutoDeviceSelector::new();
         let decision = selector.select_device(&base_config).await?;
         
-        // Создаём конфигурацию на основе решения
-        let mut config = base_config;
-        config.use_gpu = decision.use_gpu;
-        config.batch_size = decision.recommended_batch_size;
+        // Пробуем создать надёжный сервис с fallback
+        let fallback_service = crate::gpu_fallback::GpuFallbackManager::new(base_config.clone()).await?;
         
-        if decision.use_gpu {
-            config.gpu_config = Some(crate::GpuConfig::auto_optimized());
+        info!("✅ Создан SmartEmbeddingService с {} fallback", 
+              if decision.use_gpu { "GPU-primary" } else { "CPU-only" });
+        
+        Ok((Box::new(fallback_service), decision))
+    }
+    
+    /// Создать адаптивный пайплайн для high-throughput сценариев
+    pub async fn create_high_throughput_pipeline(
+        base_config: EmbeddingConfig,
+        max_concurrent_batches: Option<usize>
+    ) -> Result<crate::gpu_pipeline::GpuPipelineManager> {
+        use crate::gpu_pipeline::{GpuPipelineManager, PipelineConfig};
+        
+        // Определяем оптимальное количество параллельных батчей
+        let detector = crate::gpu_detector::GpuDetector::detect();
+        let optimal_concurrency = if detector.available {
+            max_concurrent_batches.unwrap_or(4.min(detector.devices.len() * 2))
+        } else {
+            1 // Один CPU stream
+        };
+        
+        let pipeline_config = PipelineConfig {
+            max_concurrent_batches: optimal_concurrency,
+            optimal_batch_size: if detector.available { 64 } else { 16 },
+            adaptive_batching: true,
+            memory_pooling_enabled: true,
+            prefetch_enabled: true,
+            ..Default::default()
+        };
+        
+        info!("🚀 Создан high-throughput pipeline: {} concurrent batches", optimal_concurrency);
+        
+        GpuPipelineManager::new(base_config, pipeline_config).await
+    }
+    
+    /// Автоматическая оптимизация конфигурации на основе системы
+    pub fn optimize_config_for_system(mut config: EmbeddingConfig) -> EmbeddingConfig {
+        let detector = crate::gpu_detector::GpuDetector::detect();
+        
+        if detector.available {
+            // Оптимизируем для GPU
+            let best_device = detector.devices.iter().max_by_key(|d| d.free_memory_mb);
+            
+            if let Some(device) = best_device {
+                config.use_gpu = true;
+                config.batch_size = match device.total_memory_mb {
+                    mem if mem >= 16000 => 128, // 16GB+ GPU
+                    mem if mem >= 8000 => 64,   // 8GB+ GPU
+                    mem if mem >= 4000 => 32,   // 4GB+ GPU
+                    _ => 16,                     // Меньше 4GB
+                };
+                
+                let mut gpu_config = crate::GpuConfig::auto_optimized();
+                gpu_config.preferred_provider = if cfg!(windows) {
+                    crate::gpu_config::GpuProviderType::Auto // Пробуем CUDA -> DirectML -> OpenVINO
+                } else {
+                    crate::gpu_config::GpuProviderType::CUDA // Linux/macOS: CUDA -> OpenVINO
+                };
+                
+                config.gpu_config = Some(gpu_config);
+                
+                info!("⚙️ Конфиг оптимизирован для GPU: batch_size={}, device={}", 
+                      config.batch_size, device.name);
+            }
+        } else {
+            // Оптимизируем для CPU
+            config.use_gpu = false;
+            config.batch_size = num_cpus::get().min(16); // Не больше 16 для CPU
+            config.gpu_config = None;
+            
+            info!("⚙️ Конфиг оптимизирован для CPU: batch_size={}", config.batch_size);
         }
         
-        // Создаём сервис
-        let service = crate::embeddings_gpu::GpuEmbeddingService::new(config).await?;
-        
-        Ok((Box::new(service), decision))
+        config
     }
 }
 
@@ -256,6 +320,14 @@ pub trait EmbeddingServiceTrait: Send + Sync {
 impl EmbeddingServiceTrait for crate::embeddings_gpu::GpuEmbeddingService {
     async fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
         self.embed_batch(texts).await
+    }
+}
+
+#[async_trait]
+impl EmbeddingServiceTrait for crate::embeddings_cpu::CpuEmbeddingService {
+    async fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        let results = self.embed_batch(&texts)?;
+        Ok(results.into_iter().map(|r| r.embedding).collect())
     }
 }
 

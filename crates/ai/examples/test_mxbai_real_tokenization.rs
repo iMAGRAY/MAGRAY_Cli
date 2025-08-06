@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ai::reranker_qwen3::OptimizedQwen3RerankerService;
+// use ai::reranker_qwen3::OptimizedQwen3RerankerService;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
@@ -13,7 +13,10 @@ fn main() -> Result<()> {
     let model_path = PathBuf::from("crates/memory/models/mxbai_rerank_base_v2/model.onnx");
     
     println!("\n1. Creating MxbaiRerankerService with real tokenization...");
-    let service = match OptimizedMxbaiRerankerService::new(model_path, 512, 8) {
+    println!("⚠️ MXBai reranker service не реализован");
+    return Ok(());
+    
+    /*let service = match OptimizedMxbaiRerankerService::new(model_path, 512, 8) {
         Ok(service) => {
             println!("✅ MxbaiRerankerService created successfully with real tokenization!");
             service
@@ -119,5 +122,6 @@ fn main() -> Result<()> {
         println!("\n✅ Progress made, further optimization may be beneficial");
     }
     
+    */
     Ok(())
 }

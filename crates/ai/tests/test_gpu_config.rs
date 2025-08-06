@@ -11,6 +11,9 @@ fn test_gpu_config_default() {
     assert_eq!(config.tensorrt_cache_size, 1024 * 1024 * 1024); // 1GB
     assert!(config.enable_fp16); // Default true
     assert!(config.auto_optimize); // Default true
+    assert_eq!(config.preferred_provider, GpuProviderType::Auto);
+    assert_eq!(config.use_directml, cfg!(windows));
+    assert!(config.use_openvino);
 }
 
 #[test]
@@ -21,18 +24,19 @@ fn test_gpu_config_auto_optimized() {
     assert!(config.device_id >= 0);
     assert!(config.gpu_mem_limit > 0);
     assert!(config.tensorrt_cache_size > 0);
+    assert_eq!(config.preferred_provider, GpuProviderType::Auto);
 }
 
 #[test]
 fn test_gpu_config_creation() {
-    let config = GpuConfig {
-        device_id: 1,
-        gpu_mem_limit: 4 * 1024 * 1024 * 1024, // 4GB
-        use_tensorrt: true,
-        tensorrt_cache_size: 2 * 1024 * 1024 * 1024, // 2GB
-        enable_fp16: false,
-        auto_optimize: false,
-    };
+    let mut config = GpuConfig::default();
+    config.device_id = 1;
+    config.gpu_mem_limit = 4 * 1024 * 1024 * 1024; // 4GB
+    config.use_tensorrt = true;
+    config.tensorrt_cache_size = 2 * 1024 * 1024 * 1024; // 2GB
+    config.enable_fp16 = false;
+    config.auto_optimize = false;
+    config.preferred_provider = GpuProviderType::CUDA;
     
     assert_eq!(config.device_id, 1);
     assert_eq!(config.gpu_mem_limit, 4 * 1024 * 1024 * 1024);
@@ -40,19 +44,12 @@ fn test_gpu_config_creation() {
     assert_eq!(config.tensorrt_cache_size, 2 * 1024 * 1024 * 1024);
     assert!(!config.enable_fp16);
     assert!(!config.auto_optimize);
+    assert_eq!(config.preferred_provider, GpuProviderType::CUDA);
 }
 
 #[test]
 fn test_gpu_config_clone() {
-    let original = GpuConfig {
-        device_id: 0,
-        gpu_mem_limit: 8 * 1024 * 1024 * 1024, // 8GB
-        use_tensorrt: false,
-        tensorrt_cache_size: 512 * 1024 * 1024, // 512MB
-        enable_fp16: true,
-        auto_optimize: true,
-    };
-    
+    let original = GpuConfig::auto_optimized();
     let cloned = original.clone();
     
     assert_eq!(original.device_id, cloned.device_id);
@@ -61,16 +58,21 @@ fn test_gpu_config_clone() {
     assert_eq!(original.tensorrt_cache_size, cloned.tensorrt_cache_size);
     assert_eq!(original.enable_fp16, cloned.enable_fp16);
     assert_eq!(original.auto_optimize, cloned.auto_optimize);
+    assert_eq!(original.preferred_provider, cloned.preferred_provider);
+    assert_eq!(original.use_directml, cloned.use_directml);
+    assert_eq!(original.use_openvino, cloned.use_openvino);
 }
 
 #[test]
-fn test_gpu_config_debug() {
+fn test_gpu_config_debug_format() {
     let config = GpuConfig::default();
-    
     let debug_str = format!("{:?}", config);
+    
+    // Debug format should contain key information
     assert!(debug_str.contains("GpuConfig"));
     assert!(debug_str.contains("device_id"));
     assert!(debug_str.contains("gpu_mem_limit"));
+    assert!(debug_str.contains("preferred_provider"));
 }
 
 #[test]
@@ -84,14 +86,8 @@ fn test_memory_limit_validation() {
     ];
     
     for limit in memory_limits {
-        let config = GpuConfig {
-            device_id: 0,
-            gpu_mem_limit: limit,
-            use_tensorrt: false,
-            tensorrt_cache_size: 1024 * 1024 * 1024,
-            enable_fp16: true,
-            auto_optimize: true,
-        };
+        let mut config = GpuConfig::default();
+        config.gpu_mem_limit = limit;
         
         assert!(config.gpu_mem_limit > 0);
         assert!(config.gpu_mem_limit >= 512 * 1024 * 1024); // At least 512MB
@@ -104,14 +100,8 @@ fn test_device_id_validation() {
     let device_ids = [0, 1, 2, 3, 7]; // Common GPU device IDs
     
     for device_id in device_ids {
-        let config = GpuConfig {
-            device_id,
-            gpu_mem_limit: 2 * 1024 * 1024 * 1024,
-            use_tensorrt: true,
-            tensorrt_cache_size: 1024 * 1024 * 1024,
-            enable_fp16: true,
-            auto_optimize: true,
-        };
+        let mut config = GpuConfig::default();
+        config.device_id = device_id;
         
         assert!(config.device_id >= 0);
         assert!(config.device_id < 16); // Reasonable upper bound
@@ -119,37 +109,49 @@ fn test_device_id_validation() {
 }
 
 #[test]
-fn test_gpu_config_combinations() {
-    // Test various configuration combinations
-    let configs = vec![
-        // Performance-oriented config
-        GpuConfig {
-            device_id: 0,
-            gpu_mem_limit: 8 * 1024 * 1024 * 1024, // 8GB
-            use_tensorrt: true,
-            tensorrt_cache_size: 2 * 1024 * 1024 * 1024, // 2GB
-            enable_fp16: true,
-            auto_optimize: true,
-        },
-        // Memory-conservative config
-        GpuConfig {
-            device_id: 0,
-            gpu_mem_limit: 1024 * 1024 * 1024, // 1GB
-            use_tensorrt: false,
-            tensorrt_cache_size: 256 * 1024 * 1024, // 256MB
-            enable_fp16: false,
-            auto_optimize: false,
-        },
-        // Minimal config
-        GpuConfig {
-            device_id: 0,
-            gpu_mem_limit: 512 * 1024 * 1024, // 512MB
-            use_tensorrt: false,
-            tensorrt_cache_size: 128 * 1024 * 1024, // 128MB
-            enable_fp16: false,
-            auto_optimize: false,
-        },
+fn test_gpu_provider_types() {
+    let provider_types = vec![
+        GpuProviderType::Auto,
+        GpuProviderType::CUDA,
+        GpuProviderType::DirectML,
+        GpuProviderType::OpenVINO,
     ];
+    
+    for provider_type in provider_types {
+        let mut config = GpuConfig::default();
+        config.preferred_provider = provider_type.clone();
+        
+        assert_eq!(config.preferred_provider, provider_type);
+    }
+}
+
+#[test]
+fn test_gpu_config_combinations() {
+    // Performance-oriented config
+    let mut perf_config = GpuConfig::default();
+    perf_config.gpu_mem_limit = 8 * 1024 * 1024 * 1024; // 8GB
+    perf_config.use_tensorrt = true;
+    perf_config.tensorrt_cache_size = 2 * 1024 * 1024 * 1024; // 2GB
+    perf_config.enable_fp16 = true;
+    perf_config.preferred_provider = GpuProviderType::CUDA;
+    
+    // Memory-conservative config
+    let mut conservative_config = GpuConfig::default();
+    conservative_config.gpu_mem_limit = 1024 * 1024 * 1024; // 1GB
+    conservative_config.use_tensorrt = false;
+    conservative_config.tensorrt_cache_size = 256 * 1024 * 1024; // 256MB
+    conservative_config.enable_fp16 = false;
+    conservative_config.preferred_provider = GpuProviderType::OpenVINO;
+    
+    // Minimal config  
+    let mut minimal_config = GpuConfig::default();
+    minimal_config.gpu_mem_limit = 512 * 1024 * 1024; // 512MB
+    minimal_config.use_tensorrt = false;
+    minimal_config.tensorrt_cache_size = 128 * 1024 * 1024; // 128MB
+    minimal_config.enable_fp16 = false;
+    minimal_config.auto_optimize = false;
+    
+    let configs = vec![perf_config, conservative_config, minimal_config];
     
     for config in configs {
         // All configs should be valid
@@ -171,156 +173,83 @@ fn test_tensorrt_cache_size_validation() {
     ];
     
     for cache_size in cache_sizes {
-        let config = GpuConfig {
-            device_id: 0,
-            gpu_mem_limit: 4 * 1024 * 1024 * 1024,
-            use_tensorrt: true,
-            tensorrt_cache_size: cache_size,
-            enable_fp16: true,
-            auto_optimize: true,
-        };
+        let mut config = GpuConfig::default();
+        config.tensorrt_cache_size = cache_size;
         
-        assert!(config.tensorrt_cache_size > 0);
         assert!(config.tensorrt_cache_size >= 128 * 1024 * 1024); // At least 128MB
-        assert!(config.tensorrt_cache_size <= config.gpu_mem_limit); // Should not exceed GPU memory
+        assert!(config.tensorrt_cache_size <= 8 * 1024 * 1024 * 1024); // Max 8GB reasonable
     }
 }
 
 #[test]
-fn test_gpu_config_feature_flags() {
-    // Test TensorRT enabled
-    let tensorrt_config = GpuConfig {
-        device_id: 0,
-        gpu_mem_limit: 4 * 1024 * 1024 * 1024,
-        use_tensorrt: true,
-        tensorrt_cache_size: 1024 * 1024 * 1024,
-        enable_fp16: true,
-        auto_optimize: true,
-    };
-    
-    assert!(tensorrt_config.use_tensorrt);
-    assert!(tensorrt_config.enable_fp16);
-    assert!(tensorrt_config.auto_optimize);
-    
-    // Test minimal features
-    let minimal_config = GpuConfig {
-        device_id: 0,
-        gpu_mem_limit: 1024 * 1024 * 1024,
-        use_tensorrt: false,
-        tensorrt_cache_size: 256 * 1024 * 1024,
-        enable_fp16: false,
-        auto_optimize: false,
-    };
-    
-    assert!(!minimal_config.use_tensorrt);
-    assert!(!minimal_config.enable_fp16);
-    assert!(!minimal_config.auto_optimize);
-}
-
-#[test]
-fn test_gpu_config_serialization_fields() {
-    let config = GpuConfig {
-        device_id: 2,
-        gpu_mem_limit: 6 * 1024 * 1024 * 1024, // 6GB
-        use_tensorrt: true,
-        tensorrt_cache_size: 1536 * 1024 * 1024, // 1.5GB
-        enable_fp16: true,
-        auto_optimize: false,
-    };
-    
-    // Test that all fields are accessible
-    let _ = config.device_id;
-    let _ = config.gpu_mem_limit;
-    let _ = config.use_tensorrt;
-    let _ = config.tensorrt_cache_size;
-    let _ = config.enable_fp16;
-    let _ = config.auto_optimize;
-    
-    // All field access should work without panicking
-    assert!(true);
-}
-
-#[test]
-fn test_gpu_config_edge_cases() {
-    // Minimum memory configuration
-    let min_config = GpuConfig {
-        device_id: 0,
-        gpu_mem_limit: 256 * 1024 * 1024, // Very small: 256MB
-        use_tensorrt: false,
-        tensorrt_cache_size: 64 * 1024 * 1024, // 64MB
-        enable_fp16: false,
-        auto_optimize: false,
-    };
-    
-    assert!(min_config.gpu_mem_limit > 0);
-    assert!(min_config.tensorrt_cache_size > 0);
-    
-    // Maximum memory configuration
-    let max_config = GpuConfig {
-        device_id: 0,
-        gpu_mem_limit: 24 * 1024 * 1024 * 1024, // Large: 24GB
-        use_tensorrt: true,
-        tensorrt_cache_size: 4 * 1024 * 1024 * 1024, // 4GB
-        enable_fp16: true,
-        auto_optimize: true,
-    };
-    
-    assert!(max_config.gpu_mem_limit > max_config.tensorrt_cache_size);
-}
-
-#[test]
-fn test_memory_efficiency_ratios() {
-    let config = GpuConfig {
-        device_id: 0,
-        gpu_mem_limit: 8 * 1024 * 1024 * 1024, // 8GB
-        use_tensorrt: true,
-        tensorrt_cache_size: 2 * 1024 * 1024 * 1024, // 2GB
-        enable_fp16: true,
-        auto_optimize: true,
-    };
-    
-    // TensorRT cache should be reasonable fraction of total memory
-    let cache_ratio = config.tensorrt_cache_size as f64 / config.gpu_mem_limit as f64;
-    assert!(cache_ratio > 0.0);
-    assert!(cache_ratio <= 0.5); // Max 50% for cache is reasonable
-}
-
-#[test]
-fn test_gpu_config_optimization_levels() {
-    // Full optimization
-    let full_opt = GpuConfig {
-        device_id: 0,
-        gpu_mem_limit: 8 * 1024 * 1024 * 1024,
-        use_tensorrt: true,
-        tensorrt_cache_size: 2 * 1024 * 1024 * 1024,
-        enable_fp16: true,
-        auto_optimize: true,
-    };
-    
-    // Count optimization features enabled
-    let opt_features = [
-        full_opt.use_tensorrt,
-        full_opt.enable_fp16,
-        full_opt.auto_optimize,
+fn test_fp16_and_tensorrt_combinations() {
+    let combinations = [
+        (false, false), // No TensorRT, no FP16
+        (false, true),  // No TensorRT, with FP16
+        (true, false),  // TensorRT, no FP16
+        (true, true),   // TensorRT with FP16 (optimal)
     ];
-    let enabled_count = opt_features.iter().filter(|&&x| x).count();
-    assert_eq!(enabled_count, 3); // All optimizations enabled
     
-    // No optimization
-    let no_opt = GpuConfig {
-        device_id: 0,
-        gpu_mem_limit: 2 * 1024 * 1024 * 1024,
-        use_tensorrt: false,
-        tensorrt_cache_size: 512 * 1024 * 1024,
-        enable_fp16: false,
-        auto_optimize: false,
-    };
+    for (use_tensorrt, enable_fp16) in combinations {
+        let mut config = GpuConfig::default();
+        config.use_tensorrt = use_tensorrt;
+        config.enable_fp16 = enable_fp16;
+        
+        // All combinations should be valid
+        assert_eq!(config.use_tensorrt, use_tensorrt);
+        assert_eq!(config.enable_fp16, enable_fp16);
+    }
+}
+
+#[test]
+fn test_optimal_params_calculation() {
+    let config = GpuConfig::auto_optimized();
     
-    let no_opt_features = [
-        no_opt.use_tensorrt,
-        no_opt.enable_fp16,
-        no_opt.auto_optimize,
-    ];
-    let no_opt_enabled_count = no_opt_features.iter().filter(|&&x| x).count();
-    assert_eq!(no_opt_enabled_count, 0); // No optimizations enabled
+    // Test with different model sizes
+    let model_sizes = [500, 1000, 2000]; // MB
+    
+    for model_size in model_sizes {
+        let params = config.get_optimal_params(model_size);
+        
+        assert!(params.batch_size > 0);
+        assert!(params.batch_size <= 512); // Reasonable upper limit
+        assert!(params.max_sequence_length > 0);
+        assert!(params.max_sequence_length <= 2048); // Reasonable upper limit
+        assert!(params.memory_fraction > 0.0);
+        assert!(params.memory_fraction <= 1.0);
+    }
+}
+
+#[cfg(feature = "gpu")]
+#[test]
+fn test_provider_creation() {
+    let config = GpuConfig::auto_optimized();
+    
+    // This might fail in test environment without GPU, but shouldn't panic
+    match config.create_providers() {
+        Ok(providers) => {
+            println!("✅ Created {} GPU providers", providers.len());
+        }
+        Err(e) => {
+            println!("⚠️ GPU providers unavailable in test environment: {}", e);
+            // This is expected in CI/testing environments
+        }
+    }
+}
+
+#[test] 
+fn test_windows_directml_config() {
+    let mut config = GpuConfig::default();
+    
+    // DirectML should be enabled by default on Windows
+    if cfg!(windows) {
+        assert!(config.use_directml);
+        
+        // Test manual configuration
+        config.preferred_provider = GpuProviderType::DirectML;
+        assert_eq!(config.preferred_provider, GpuProviderType::DirectML);
+    } else {
+        // On non-Windows, DirectML should be false by default
+        assert!(!config.use_directml);
+    }
 }

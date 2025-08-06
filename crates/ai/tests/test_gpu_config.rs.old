@@ -1,0 +1,335 @@
+use ai::gpu_config::*;
+
+#[test]
+fn test_gpu_config_default() {
+    let config = GpuConfig::default();
+    
+    // Should have reasonable default values
+    assert_eq!(config.device_id, 0);
+    assert_eq!(config.gpu_mem_limit, 2 * 1024 * 1024 * 1024); // 2GB
+    assert!(!config.use_tensorrt); // Default false
+    assert_eq!(config.tensorrt_cache_size, 1024 * 1024 * 1024); // 1GB
+    assert!(config.enable_fp16); // Default true
+    assert!(config.auto_optimize); // Default true
+}
+
+#[test]
+fn test_gpu_config_auto_optimized() {
+    let config = GpuConfig::auto_optimized();
+    
+    // Auto-optimized config should have performance-oriented defaults
+    assert!(config.device_id >= 0);
+    assert!(config.gpu_mem_limit > 0);
+    assert!(config.tensorrt_cache_size > 0);
+}
+
+#[test]
+fn test_gpu_config_creation() {
+    let config = GpuConfig {
+        device_id: 1,
+        gpu_mem_limit: 4 * 1024 * 1024 * 1024, // 4GB
+        use_tensorrt: true,
+        tensorrt_cache_size: 2 * 1024 * 1024 * 1024, // 2GB
+        enable_fp16: false,
+        auto_optimize: false,
+        preferred_provider: GpuProviderType::CUDA,
+        use_directml: false,
+        use_openvino: false,
+    };
+    
+    assert_eq!(config.device_id, 1);
+    assert_eq!(config.gpu_mem_limit, 4 * 1024 * 1024 * 1024);
+    assert!(config.use_tensorrt);
+    assert_eq!(config.tensorrt_cache_size, 2 * 1024 * 1024 * 1024);
+    assert!(!config.enable_fp16);
+    assert!(!config.auto_optimize);
+}
+
+#[test]
+fn test_gpu_config_clone() {
+    let original = GpuConfig {
+        device_id: 0,
+        gpu_mem_limit: 8 * 1024 * 1024 * 1024, // 8GB
+        use_tensorrt: false,
+        tensorrt_cache_size: 1024 * 1024 * 1024, // 1GB
+        enable_fp16: true,
+        auto_optimize: true,
+        preferred_provider: GpuProviderType::Auto,
+        use_directml: true,
+        use_openvino: true,
+        tensorrt_cache_size: 512 * 1024 * 1024, // 512MB
+        enable_fp16: true,
+        auto_optimize: true,
+    };
+    
+    let cloned = original.clone();
+    
+    assert_eq!(original.device_id, cloned.device_id);
+    assert_eq!(original.gpu_mem_limit, cloned.gpu_mem_limit);
+    assert_eq!(original.use_tensorrt, cloned.use_tensorrt);
+    assert_eq!(original.tensorrt_cache_size, cloned.tensorrt_cache_size);
+    assert_eq!(original.enable_fp16, cloned.enable_fp16);
+    assert_eq!(original.auto_optimize, cloned.auto_optimize);
+}
+
+#[test]
+fn test_gpu_config_debug() {
+    let config = GpuConfig::default();
+    
+    let debug_str = format!("{:?}", config);
+    assert!(debug_str.contains("GpuConfig"));
+    assert!(debug_str.contains("device_id"));
+    assert!(debug_str.contains("gpu_mem_limit"));
+}
+
+#[test]
+fn test_memory_limit_validation() {
+    let memory_limits = [
+        512 * 1024 * 1024,      // 512MB
+        1024 * 1024 * 1024,     // 1GB
+        2 * 1024 * 1024 * 1024, // 2GB
+        4 * 1024 * 1024 * 1024, // 4GB
+        8 * 1024 * 1024 * 1024, // 8GB
+    ];
+    
+    for limit in memory_limits {
+        let config = GpuConfig {
+            device_id: 0,
+            gpu_mem_limit: limit,
+            use_tensorrt: false,
+            tensorrt_cache_size: 1024 * 1024 * 1024,
+            enable_fp16: true,
+            auto_optimize: true,
+        };
+        
+        assert!(config.gpu_mem_limit > 0);
+        assert!(config.gpu_mem_limit >= 512 * 1024 * 1024); // At least 512MB
+        assert!(config.gpu_mem_limit <= 32 * 1024 * 1024 * 1024); // Max 32GB reasonable
+    }
+}
+
+#[test]
+fn test_device_id_validation() {
+    let device_ids = [0, 1, 2, 3, 7]; // Common GPU device IDs
+    
+    for device_id in device_ids {
+        let config = GpuConfig {
+            device_id,
+            gpu_mem_limit: 2 * 1024 * 1024 * 1024,
+            use_tensorrt: true,
+            tensorrt_cache_size: 1024 * 1024 * 1024,
+            enable_fp16: true,
+            auto_optimize: true,
+        };
+        
+        assert!(config.device_id >= 0);
+        assert!(config.device_id < 16); // Reasonable upper bound
+    }
+}
+
+#[test]
+fn test_gpu_config_combinations() {
+    // Test various configuration combinations
+    let configs = vec![
+        // Performance-oriented config
+        GpuConfig {
+            device_id: 0,
+            gpu_mem_limit: 8 * 1024 * 1024 * 1024, // 8GB
+            use_tensorrt: true,
+            tensorrt_cache_size: 2 * 1024 * 1024 * 1024, // 2GB
+            enable_fp16: true,
+            auto_optimize: true,
+        },
+        // Memory-conservative config
+        GpuConfig {
+            device_id: 0,
+            gpu_mem_limit: 1024 * 1024 * 1024, // 1GB
+            use_tensorrt: false,
+            tensorrt_cache_size: 256 * 1024 * 1024, // 256MB
+            enable_fp16: false,
+            auto_optimize: false,
+        },
+        // Minimal config
+        GpuConfig {
+            device_id: 0,
+            gpu_mem_limit: 512 * 1024 * 1024, // 512MB
+            use_tensorrt: false,
+            tensorrt_cache_size: 128 * 1024 * 1024, // 128MB
+            enable_fp16: false,
+            auto_optimize: false,
+        },
+    ];
+    
+    for config in configs {
+        // All configs should be valid
+        assert!(config.device_id >= 0);
+        assert!(config.gpu_mem_limit > 0);
+        assert!(config.tensorrt_cache_size > 0);
+        // Boolean fields can be any value
+    }
+}
+
+#[test]
+fn test_tensorrt_cache_size_validation() {
+    let cache_sizes = [
+        128 * 1024 * 1024,      // 128MB
+        256 * 1024 * 1024,      // 256MB
+        512 * 1024 * 1024,      // 512MB
+        1024 * 1024 * 1024,     // 1GB
+        2 * 1024 * 1024 * 1024, // 2GB
+    ];
+    
+    for cache_size in cache_sizes {
+        let config = GpuConfig {
+            device_id: 0,
+            gpu_mem_limit: 4 * 1024 * 1024 * 1024,
+            use_tensorrt: true,
+            tensorrt_cache_size: cache_size,
+            enable_fp16: true,
+            auto_optimize: true,
+        };
+        
+        assert!(config.tensorrt_cache_size > 0);
+        assert!(config.tensorrt_cache_size >= 128 * 1024 * 1024); // At least 128MB
+        assert!(config.tensorrt_cache_size <= config.gpu_mem_limit); // Should not exceed GPU memory
+    }
+}
+
+#[test]
+fn test_gpu_config_feature_flags() {
+    // Test TensorRT enabled
+    let tensorrt_config = GpuConfig {
+        device_id: 0,
+        gpu_mem_limit: 4 * 1024 * 1024 * 1024,
+        use_tensorrt: true,
+        tensorrt_cache_size: 1024 * 1024 * 1024,
+        enable_fp16: true,
+        auto_optimize: true,
+    };
+    
+    assert!(tensorrt_config.use_tensorrt);
+    assert!(tensorrt_config.enable_fp16);
+    assert!(tensorrt_config.auto_optimize);
+    
+    // Test minimal features
+    let minimal_config = GpuConfig {
+        device_id: 0,
+        gpu_mem_limit: 1024 * 1024 * 1024,
+        use_tensorrt: false,
+        tensorrt_cache_size: 256 * 1024 * 1024,
+        enable_fp16: false,
+        auto_optimize: false,
+    };
+    
+    assert!(!minimal_config.use_tensorrt);
+    assert!(!minimal_config.enable_fp16);
+    assert!(!minimal_config.auto_optimize);
+}
+
+#[test]
+fn test_gpu_config_serialization_fields() {
+    let config = GpuConfig {
+        device_id: 2,
+        gpu_mem_limit: 6 * 1024 * 1024 * 1024, // 6GB
+        use_tensorrt: true,
+        tensorrt_cache_size: 1536 * 1024 * 1024, // 1.5GB
+        enable_fp16: true,
+        auto_optimize: false,
+    };
+    
+    // Test that all fields are accessible
+    let _ = config.device_id;
+    let _ = config.gpu_mem_limit;
+    let _ = config.use_tensorrt;
+    let _ = config.tensorrt_cache_size;
+    let _ = config.enable_fp16;
+    let _ = config.auto_optimize;
+    
+    // All field access should work without panicking
+    assert!(true);
+}
+
+#[test]
+fn test_gpu_config_edge_cases() {
+    // Minimum memory configuration
+    let min_config = GpuConfig {
+        device_id: 0,
+        gpu_mem_limit: 256 * 1024 * 1024, // Very small: 256MB
+        use_tensorrt: false,
+        tensorrt_cache_size: 64 * 1024 * 1024, // 64MB
+        enable_fp16: false,
+        auto_optimize: false,
+    };
+    
+    assert!(min_config.gpu_mem_limit > 0);
+    assert!(min_config.tensorrt_cache_size > 0);
+    
+    // Maximum memory configuration
+    let max_config = GpuConfig {
+        device_id: 0,
+        gpu_mem_limit: 24 * 1024 * 1024 * 1024, // Large: 24GB
+        use_tensorrt: true,
+        tensorrt_cache_size: 4 * 1024 * 1024 * 1024, // 4GB
+        enable_fp16: true,
+        auto_optimize: true,
+    };
+    
+    assert!(max_config.gpu_mem_limit > max_config.tensorrt_cache_size);
+}
+
+#[test]
+fn test_memory_efficiency_ratios() {
+    let config = GpuConfig {
+        device_id: 0,
+        gpu_mem_limit: 8 * 1024 * 1024 * 1024, // 8GB
+        use_tensorrt: true,
+        tensorrt_cache_size: 2 * 1024 * 1024 * 1024, // 2GB
+        enable_fp16: true,
+        auto_optimize: true,
+    };
+    
+    // TensorRT cache should be reasonable fraction of total memory
+    let cache_ratio = config.tensorrt_cache_size as f64 / config.gpu_mem_limit as f64;
+    assert!(cache_ratio > 0.0);
+    assert!(cache_ratio <= 0.5); // Max 50% for cache is reasonable
+}
+
+#[test]
+fn test_gpu_config_optimization_levels() {
+    // Full optimization
+    let full_opt = GpuConfig {
+        device_id: 0,
+        gpu_mem_limit: 8 * 1024 * 1024 * 1024,
+        use_tensorrt: true,
+        tensorrt_cache_size: 2 * 1024 * 1024 * 1024,
+        enable_fp16: true,
+        auto_optimize: true,
+    };
+    
+    // Count optimization features enabled
+    let opt_features = [
+        full_opt.use_tensorrt,
+        full_opt.enable_fp16,
+        full_opt.auto_optimize,
+    ];
+    let enabled_count = opt_features.iter().filter(|&&x| x).count();
+    assert_eq!(enabled_count, 3); // All optimizations enabled
+    
+    // No optimization
+    let no_opt = GpuConfig {
+        device_id: 0,
+        gpu_mem_limit: 2 * 1024 * 1024 * 1024,
+        use_tensorrt: false,
+        tensorrt_cache_size: 512 * 1024 * 1024,
+        enable_fp16: false,
+        auto_optimize: false,
+    };
+    
+    let no_opt_features = [
+        no_opt.use_tensorrt,
+        no_opt.enable_fp16,
+        no_opt.auto_optimize,
+    ];
+    let no_opt_enabled_count = no_opt_features.iter().filter(|&&x| x).count();
+    assert_eq!(no_opt_enabled_count, 0); // No optimizations enabled
+}

@@ -7,6 +7,12 @@ use tracing::warn;
 #[cfg(feature = "gpu")]
 use ort::execution_providers::{CUDAExecutionProvider, TensorRTExecutionProvider, ExecutionProviderDispatch};
 
+#[cfg(all(feature = "gpu", windows))]
+use ort::execution_providers::DirectMLExecutionProvider;
+
+#[cfg(feature = "gpu")]
+use ort::execution_providers::OpenVINOExecutionProvider;
+
 use crate::gpu_detector::{GpuDetector, GpuOptimalParams};
 
 /// GPU конфигурация для ONNX Runtime
@@ -24,6 +30,20 @@ pub struct GpuConfig {
     pub enable_fp16: bool,
     /// Автоматически оптимизировать параметры
     pub auto_optimize: bool,
+    /// Предпочитаемый тип провайдера
+    pub preferred_provider: GpuProviderType,
+    /// Использовать DirectML на Windows
+    pub use_directml: bool,
+    /// Использовать OpenVINO для Intel GPU/CPU
+    pub use_openvino: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GpuProviderType {
+    CUDA,
+    DirectML,
+    OpenVINO,
+    Auto,
 }
 
 impl Default for GpuConfig {
@@ -35,6 +55,9 @@ impl Default for GpuConfig {
             tensorrt_cache_size: 1024 * 1024 * 1024, // 1GB
             enable_fp16: true,
             auto_optimize: true,
+            preferred_provider: GpuProviderType::Auto,
+            use_directml: cfg!(windows),
+            use_openvino: true,
         }
     }
 }
@@ -75,46 +98,94 @@ impl GpuConfig {
         config
     }
     
-    /// Создать execution providers для GPU (новый API)
+    /// Создать execution providers для GPU с автоматическим выбором лучшего
     #[cfg(feature = "gpu")]
     pub fn create_providers(&self) -> Result<Vec<ExecutionProviderDispatch>> {
         let mut providers = Vec::new();
         
-        // Проверяем реальную доступность GPU
-        let detector = GpuDetector::detect();
-        if !detector.available {
-            warn!("⚠️ GPU не обнаружен, providers не будут созданы");
-            return Ok(providers);
-        }
+        // Определяем какие провайдеры попробовать
+        let provider_attempts = match self.preferred_provider {
+            GpuProviderType::CUDA => vec![GpuProviderType::CUDA],
+            GpuProviderType::DirectML => vec![GpuProviderType::DirectML],
+            GpuProviderType::OpenVINO => vec![GpuProviderType::OpenVINO],
+            GpuProviderType::Auto => {
+                // Порядок приоритета: CUDA -> DirectML (Windows) -> OpenVINO -> CPU fallback
+                let mut attempts = vec![GpuProviderType::CUDA];
+                if cfg!(windows) && self.use_directml {
+                    attempts.push(GpuProviderType::DirectML);
+                }
+                if self.use_openvino {
+                    attempts.push(GpuProviderType::OpenVINO);
+                }
+                attempts
+            }
+        };
         
-        // TensorRT provider (если включен и доступен)
-        if self.use_tensorrt {
+        info!("🔍 Попытка создания GPU providers: {:?}", provider_attempts);
+        
+        // Пробуем создать TensorRT provider если включен (только для CUDA)
+        if self.use_tensorrt && provider_attempts.contains(&GpuProviderType::CUDA) {
             match self.create_tensorrt_provider() {
                 Ok(provider) => {
                     info!("✅ TensorRT provider инициализирован для GPU {}", self.device_id);
                     providers.push(provider);
                 }
                 Err(e) => {
-                    warn!("⚠️ Не удалось создать TensorRT provider: {}", e);
+                    warn!("⚠️ TensorRT provider неудачен: {}", e);
                 }
             }
         }
         
-        // CUDA provider (основной)
-        match self.create_cuda_provider() {
-            Ok(provider) => {
-                info!("✅ CUDA provider инициализирован для GPU {}", self.device_id);
-                info!("  📊 GPU memory limit: {} MB", self.gpu_mem_limit / 1024 / 1024);
-                providers.push(provider);
-            }
-            Err(e) => {
-                warn!("⚠️ Не удалось создать CUDA provider: {}", e);
-                warn!("  Проверьте установку CUDA и cuDNN");
+        // Пробуем создать основные GPU providers
+        for provider_type in provider_attempts {
+            match provider_type {
+                GpuProviderType::CUDA => {
+                    match self.create_cuda_provider() {
+                        Ok(provider) => {
+                            info!("✅ CUDA provider инициализирован для GPU {}", self.device_id);
+                            info!("  📊 GPU memory limit: {} MB", self.gpu_mem_limit / 1024 / 1024);
+                            providers.push(provider);
+                            break; // Успешно создали, прекращаем попытки
+                        }
+                        Err(e) => {
+                            warn!("⚠️ CUDA provider failed: {}. Trying next...", e);
+                        }
+                    }
+                }
+                GpuProviderType::DirectML => {
+                    #[cfg(windows)]
+                    match self.create_directml_provider() {
+                        Ok(provider) => {
+                            info!("✅ DirectML provider инициализирован");
+                            providers.push(provider);
+                            break;
+                        }
+                        Err(e) => {
+                            warn!("⚠️ DirectML provider failed: {}. Trying next...", e);
+                        }
+                    }
+                    
+                    #[cfg(not(windows))]
+                    warn!("⚠️ DirectML доступен только на Windows");
+                }
+                GpuProviderType::OpenVINO => {
+                    match self.create_openvino_provider() {
+                        Ok(provider) => {
+                            info!("✅ OpenVINO provider инициализирован");
+                            providers.push(provider);
+                            break;
+                        }
+                        Err(e) => {
+                            warn!("⚠️ OpenVINO provider failed: {}. Trying next...", e);
+                        }
+                    }
+                }
+                GpuProviderType::Auto => unreachable!("Auto should be resolved earlier"),
             }
         }
         
         if providers.is_empty() {
-            warn!("⚠️ Ни один GPU provider не был создан");
+            warn!("⚠️ Не удалось создать ни одного GPU provider. Fallback на CPU.");
         }
         
         Ok(providers)
@@ -144,6 +215,32 @@ impl GpuConfig {
             .with_force_sequential_engine_build(false) // Параллельная сборка
             .build();
             
+        Ok(provider)
+    }
+    
+    /// Создать DirectML provider (Windows только)
+    #[cfg(all(feature = "gpu", windows))]
+    fn create_directml_provider(&self) -> Result<ExecutionProviderDispatch> {
+        let provider = DirectMLExecutionProvider::default()
+            .with_device_id(self.device_id)
+            .build();
+        Ok(provider)
+    }
+    
+    /// DirectML provider stub для non-Windows
+    #[cfg(all(feature = "gpu", not(windows)))]
+    fn create_directml_provider(&self) -> Result<ExecutionProviderDispatch> {
+        Err(anyhow::anyhow!("DirectML доступен только на Windows"))
+    }
+    
+    /// Создать OpenVINO provider
+    #[cfg(feature = "gpu")]
+    fn create_openvino_provider(&self) -> Result<ExecutionProviderDispatch> {
+        let provider = OpenVINOExecutionProvider::default()
+            .with_device_type("GPU") // Используем GPU, fallback на CPU автоматический
+            .with_cache_dir("./openvino_cache")
+            .with_num_threads(num_cpus::get())
+            .build();
         Ok(provider)
     }
     
