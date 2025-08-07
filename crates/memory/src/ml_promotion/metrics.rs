@@ -93,7 +93,7 @@ struct InternalStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct HistoricalSnapshot {
+pub struct HistoricalSnapshot {
     timestamp: DateTime<Utc>,
     avg_inference_time: f32,
     avg_accuracy: f32,

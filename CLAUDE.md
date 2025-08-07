@@ -29,7 +29,7 @@
 
 ## ⚠️ РЕАЛЬНОЕ СОСТОЯНИЕ ПРОЕКТА (ALPHA)
 
-**Автоматический анализ от 2025-08-07 19:26:48 UTC:**
+**Автоматический анализ от 2025-08-07 19:31:23 UTC:**
 
 ### 🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:
 - **Критических issues**: 115
@@ -164,7 +164,7 @@
 
 # ТЕКУЩЕЕ СОСТОЯНИЕ ПРОЕКТА:
 
-*Last updated: 2025-08-07 19:26:48 UTC*
+*Last updated: 2025-08-07 19:31:23 UTC*
 *Status: ALPHA - не готов к production использованию*
 
 ## АВТОМАТИЧЕСКИ ОБНОВЛЯЕТСЯ ПРИ РЕДАКТИРОВАНИИ ФАЙЛОВ
@@ -204,16 +204,16 @@ graph TB
 
     %% Зависимости между крейтами
     AI -.->|uses| COMMON
-    APPLICATION -.->|uses| DOMAIN
     APPLICATION -.->|uses| COMMON
-    CLI -.->|uses| ROUTER
+    APPLICATION -.->|uses| DOMAIN
     CLI -.->|uses| MEMORY
-    CLI -.->|uses| TOOLS
-    CLI -.->|uses| LLM
     CLI -.->|uses| AI
+    CLI -.->|uses| ROUTER
+    CLI -.->|uses| LLM
+    CLI -.->|uses| TOOLS
     CLI -.->|uses| COMMON
-    MEMORY -.->|uses| AI
     MEMORY -.->|uses| COMMON
+    MEMORY -.->|uses| AI
     ROUTER -.->|uses| TOOLS
     ROUTER -.->|uses| LLM
     TODO -.->|uses| MEMORY

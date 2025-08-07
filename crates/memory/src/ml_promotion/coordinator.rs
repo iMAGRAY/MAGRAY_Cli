@@ -108,7 +108,7 @@ impl PromotionCoordinatorBuilder {
     }
 
     /// Автоматически создает все зависимости если они не заданы
-    pub async fn build(mut self) -> Result<PromotionCoordinator> {
+    pub async fn build(self) -> Result<PromotionCoordinator> {
         info!("🏗️ Сборка PromotionCoordinator");
 
         // Проверяем обязательные зависимости

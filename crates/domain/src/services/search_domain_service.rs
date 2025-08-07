@@ -176,6 +176,7 @@ where
 
 /// Trait for search domain service operations
 #[async_trait]
+#[allow(dead_code)]
 pub trait SearchDomainServiceTrait: Send + Sync {
     async fn search_with_intelligence(&self, query: SearchQuery) -> DomainResult<SearchResults>;
     async fn search_with_fallback(&self, query: SearchQuery) -> DomainResult<SearchResults>;

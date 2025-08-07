@@ -393,6 +393,7 @@ impl GpuBatchProcessor {
     }
 
     /// Получить оптимальное количество GPU streams
+    #[allow(dead_code)]
     fn get_optimal_gpu_streams() -> Result<usize> {
         #[cfg(feature = "gpu")]
         {
@@ -452,6 +453,7 @@ impl GpuBatchProcessor {
     }
 
     /// Проверить можно ли использовать pinned memory
+    #[allow(dead_code)]
     fn can_use_pinned_memory() -> bool {
         #[cfg(feature = "gpu")]
         {
@@ -475,6 +477,7 @@ impl GpuBatchProcessor {
     }
 
     /// Проверить можно ли использовать prefetch
+    #[allow(dead_code)]
     fn can_use_prefetch() -> bool {
         #[cfg(feature = "gpu")]
         {

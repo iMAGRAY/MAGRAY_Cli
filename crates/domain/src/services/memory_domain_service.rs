@@ -243,6 +243,7 @@ where
 
 /// Trait for domain service operations
 #[async_trait]
+#[allow(dead_code)]
 pub trait MemoryDomainServiceTrait: Send + Sync {
     async fn store_record_with_embedding(
         &self,

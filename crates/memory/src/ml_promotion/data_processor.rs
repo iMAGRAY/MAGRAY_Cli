@@ -60,7 +60,7 @@ struct CachedFeatures {
 
 /// Статистика для нормализации features
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct NormalizationStats {
+pub struct NormalizationStats {
     age_hours_mean: f32,
     age_hours_std: f32,
     access_count_mean: f32,

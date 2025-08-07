@@ -42,6 +42,7 @@ pub struct UnifiedContainer {
     /// Сбор метрик (опциональный для production)
     metrics: Option<Arc<ContainerMetricsImpl>>,
     /// Кэш для singleton объектов
+    #[allow(dead_code)]
     singleton_cache: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
     /// Конфигурация контейнера
     config: ContainerConfig,
@@ -79,7 +80,7 @@ impl Clone for FactoryInfo {
 
 /// === RESOLVER IMPLEMENTATION ===
 /// Отвечает ТОЛЬКО за разрешение зависимостей (SRP)
-struct ServiceResolverImpl {
+pub struct ServiceResolverImpl {
     registry: Arc<ServiceRegistryImpl>,
     cache: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
 }

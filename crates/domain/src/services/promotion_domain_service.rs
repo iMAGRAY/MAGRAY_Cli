@@ -377,6 +377,7 @@ pub struct PromotionStatistics {
 
 /// Trait for promotion domain service operations
 #[async_trait]
+#[allow(dead_code)]
 pub trait PromotionDomainServiceTrait: Send + Sync {
     async fn analyze_promotion_candidates(
         &self,

@@ -209,6 +209,7 @@ pub struct SemanticAlgorithm {
     last_training: DateTime<Utc>,
     best_weights: Option<SemanticWeights>,
     config: AlgorithmConfig,
+    #[allow(dead_code)]
     topic_embeddings: HashMap<String, Vec<f32>>,
 }
 
