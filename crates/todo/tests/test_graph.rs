@@ -2,42 +2,40 @@ use todo::{DependencyGraph, TaskState, TodoItem};
 use uuid::Uuid;
 
 fn create_test_task(title: &str) -> TodoItem {
-    TodoItem {
-        title: title.to_string(),
-        ..TodoItem::default()
-    }
+    TodoItem { title: title.to_string(), ..TodoItem::default() }
 }
 
 #[test]
 fn test_graph_creation() {
     let graph = DependencyGraph::new();
-    assert_eq!(graph.task_count(), 0);
+    // В V2 нет явного счетчика, проверим stats
+    let stats = graph.stats();
+    assert_eq!(stats.total_tasks, 0);
 }
 
 #[test]
 fn test_add_task() {
     let graph = DependencyGraph::new();
     let task = create_test_task("Test task");
-
-    graph.add_task(&task).unwrap();
-
-    assert_eq!(graph.task_count(), 1);
+    graph.upsert_task(&task).unwrap();
+    let stats = graph.stats();
+    assert_eq!(stats.total_tasks, 1);
 }
 
 #[test]
 fn test_add_task_with_dependencies() {
     let graph = DependencyGraph::new();
-
     let task1 = create_test_task("Task 1");
     let mut task2 = create_test_task("Task 2");
-
     let id1 = task1.id;
     task2.depends_on.push(id1);
 
-    graph.add_task(&task1).unwrap();
-    graph.add_task(&task2).unwrap();
+    graph.upsert_task(&task1).unwrap();
+    graph.upsert_task(&task2).unwrap();
 
-    assert_eq!(graph.task_count(), 2);
+    let stats = graph.stats();
+    assert_eq!(stats.total_tasks, 2);
+    assert_eq!(stats.total_dependencies, 1);
 }
 
 #[test]
@@ -52,13 +50,13 @@ fn test_circular_dependency_detection() {
 
     task2.depends_on.push(id1);
 
-    graph.add_task(&task1).unwrap();
-    graph.add_task(&task2).unwrap();
+    graph.upsert_task(&task1).unwrap();
+    graph.upsert_task(&task2).unwrap();
 
-    // Проверяем что обратная зависимость создаст цикл
+    // Проверяем что обратная зависимость создаст путь 2->1 (цикл при 1<-2)
     assert!(graph.would_create_cycle(&id1, &id2).unwrap());
 
-    // Проверяем что обычная зависимость не создаст цикл
+    // Независимый id не должен создавать цикл
     let task3_id = Uuid::new_v4();
     assert!(!graph.would_create_cycle(&task3_id, &id1).unwrap());
 }
@@ -74,15 +72,17 @@ fn test_update_dependencies() {
     let id1 = task1.id;
     let id2 = task2.id;
 
-    graph.add_task(&task1).unwrap();
-    graph.add_task(&task2).unwrap();
-    graph.add_task(&task3).unwrap();
+    graph.upsert_task(&task1).unwrap();
+    graph.upsert_task(&task2).unwrap();
+    graph.upsert_task(&task3).unwrap();
 
-    // Обновляем зависимости task3
+    // Обновляем зависимости task3 (в V2 upsert_task сам обновит рёбра)
     task3.depends_on = vec![id1, id2];
-    graph.update_dependencies(&task3).unwrap();
+    graph.upsert_task(&task3).unwrap();
 
-    assert_eq!(graph.task_count(), 3);
+    let stats = graph.stats();
+    assert_eq!(stats.total_tasks, 3);
+    assert_eq!(stats.total_dependencies, 2);
 }
 
 #[test]
@@ -95,10 +95,10 @@ fn test_is_ready() {
     let id1 = task1.id;
     let id2 = task2.id;
 
-    graph.add_task(&task1).unwrap();
-    graph.add_task(&task2).unwrap();
+    graph.upsert_task(&task1).unwrap();
+    graph.upsert_task(&task2).unwrap();
 
-    // Проверяем готовность задач
+    // В V2 задача готова если все её зависимости выполнены (их нет)
     assert!(graph.is_ready(&id1).unwrap());
     assert!(graph.is_ready(&id2).unwrap());
 }
@@ -119,20 +119,15 @@ fn test_topological_sort() {
     task2.depends_on.push(id1);
     task3.depends_on.push(id2);
 
-    graph.add_task(&task1).unwrap();
-    graph.add_task(&task2).unwrap();
-    graph.add_task(&task3).unwrap();
+    graph.upsert_task(&task1).unwrap();
+    graph.upsert_task(&task2).unwrap();
+    graph.upsert_task(&task3).unwrap();
 
     let sorted = graph.topological_sort().unwrap();
 
-    // Проверяем что порядок корректный
     assert_eq!(sorted.len(), 3);
-
     let index_of = |id: Uuid| sorted.iter().position(|&x| x == id).unwrap();
-
-    // task1 должен быть раньше task2
     assert!(index_of(id1) < index_of(id2));
-    // task2 должен быть раньше task3
     assert!(index_of(id2) < index_of(id3));
 }
 
@@ -140,14 +135,16 @@ fn test_topological_sort() {
 fn test_update_state() {
     let graph = DependencyGraph::new();
 
-    let task = create_test_task("Test task");
+    let mut task = create_test_task("Test task");
     let task_id = task.id;
 
-    graph.add_task(&task).unwrap();
+    graph.upsert_task(&task).unwrap();
 
-    // Обновляем состояние (пока это no-op)
-    let result = graph.update_state(&task_id, TaskState::InProgress);
-    assert!(result.is_ok());
+    // Обновляем состояние
+    graph.update_state(&task_id, TaskState::InProgress).unwrap();
+
+    // Готовность не должна быть true для InProgress
+    assert!(!graph.is_ready(&task_id).unwrap());
 }
 
 #[test]
@@ -162,13 +159,13 @@ fn test_would_create_cycle_complex() {
     let id2 = task2.id;
     let id3 = task3.id;
 
-    // Создаем цепочку: 1 -> 2 -> 3
+    // Цепочка: 1 -> 2 -> 3
     task2.depends_on.push(id1);
     task3.depends_on.push(id2);
 
-    graph.add_task(&task1).unwrap();
-    graph.add_task(&task2).unwrap();
-    graph.add_task(&task3).unwrap();
+    graph.upsert_task(&task1).unwrap();
+    graph.upsert_task(&task2).unwrap();
+    graph.upsert_task(&task3).unwrap();
 
     // Попытка создать цикл 1 <- 3 должна быть обнаружена
     assert!(graph.would_create_cycle(&id1, &id3).unwrap());
