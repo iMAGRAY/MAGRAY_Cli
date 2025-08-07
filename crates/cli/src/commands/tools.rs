@@ -34,12 +34,36 @@ pub enum ToolsSubcommand {
         #[arg(long, default_value_t = String::from("MCP proxied tool"))]
         description: String,
     },
+
+    /// Выполнить инструмент по имени: --name <tool> --command <cmd> --arg k=v --arg x=y
+    #[command(name = "run")]
+    Run {
+        /// Имя инструмента
+        #[arg(long)]
+        name: String,
+        /// Команда для инструмента
+        #[arg(long)]
+        command: String,
+        /// Аргументы в формате key=value (можно несколько раз)
+        #[arg(long, num_args=0.., value_parser=parse_kv)]
+        arg: Vec<(String, String)>,
+        /// Необязательный контекст
+        #[arg(long)]
+        context: Option<String>,
+    },
 }
 
 impl ToolsCommand {
     pub async fn execute(self) -> Result<()> {
         handle_tools_command(self.command).await
     }
+}
+
+fn parse_kv(s: &str) -> Result<(String, String), String> {
+    let (k, v) = s
+        .split_once('=')
+        .ok_or_else(|| "arg must be in key=value format".to_string())?;
+    Ok((k.to_string(), v.to_string()))
 }
 
 async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
@@ -62,6 +86,17 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             };
             registry.register_mcp_tool(&name, cmd, args_vec, remote_tool, description);
             println!("{} Зарегистрирован MCP инструмент: {}", "✓".green(), name.bold());
+            Ok(())
+        }
+        ToolsSubcommand::Run { name, command, arg, context } => {
+            let tool = registry.get(&name).ok_or_else(|| anyhow::anyhow!("Tool not found: {}", name))?;
+            let mut args_map = std::collections::HashMap::new();
+            for (k, v) in arg {
+                args_map.insert(k, v);
+            }
+            let input = tools::ToolInput { command, args: args_map, context };
+            let output = tool.execute(input).await?;
+            if output.success { println!("{} {}", "✓".green(), output.result); } else { println!("{} {}", "✗".red(), output.result); }
             Ok(())
         }
     }
