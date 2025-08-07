@@ -7,6 +7,7 @@ use tools::{Tool, ToolInput, ToolOutput, ToolRegistry};
 use std::collections::HashMap;
 use todo::{TodoService, Priority, TaskState, TodoItem, create_default_service};
 use std::path::PathBuf;
+use std::fs;
 
 #[derive(Debug)]
 struct SimplePlanner;
@@ -54,9 +55,18 @@ impl Executor for SimpleExecutor {
             let desc = step.description.clone();
             let output = execute_step(&registry, &desc, step.tool_hint.clone()).await;
 
-            // Обновляем состояние задачи
+            // Обновляем состояние задачи и сохраняем артефакт/метаданные
             match output {
                 Ok(out) => {
+                    // Сохраняем короткий артефакт вывода (до 64KB) в ~/.magray/artifacts/<task-id>.txt
+                    if !out.result.trim().is_empty() {
+                        if let Ok(path) = save_text_artifact(&task.id, &out.result) {
+                            let mut meta = std::collections::HashMap::new();
+                            meta.insert("artifact_path".to_string(), serde_json::json!(path.to_string_lossy()));
+                            meta.insert("tool".to_string(), serde_json::json!(step.tool_hint.clone().unwrap_or_else(|| "auto".to_string())));
+                            todo_service.upsert_metadata(&task.id, meta).await.ok();
+                        }
+                    }
                     todo_service.update_state(&task.id, TaskState::Done).await?;
                     results.push(StepResult {
                         step_id: step.id.clone(),
@@ -66,6 +76,9 @@ impl Executor for SimpleExecutor {
                     })
                 }
                 Err(e) => {
+                    let mut meta = std::collections::HashMap::new();
+                    meta.insert("error".to_string(), serde_json::json!(e.to_string()));
+                    todo_service.upsert_metadata(&task.id, meta).await.ok();
                     todo_service.update_state(&task.id, TaskState::Failed).await?;
                     results.push(StepResult {
                         step_id: step.id.clone(),
@@ -87,6 +100,19 @@ fn default_tasks_db_path() -> PathBuf {
     std::fs::create_dir_all(&dir).ok();
     dir.push("tasks.db");
     dir
+}
+
+fn save_text_artifact(task_id: &uuid::Uuid, text: &str) -> Result<PathBuf> {
+    let mut dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    dir.push(".magray");
+    dir.push("artifacts");
+    fs::create_dir_all(&dir)?;
+    let mut path = dir;
+    path.push(format!("{}.txt", task_id));
+    // Ограничим размер до ~64KB
+    let truncated = if text.len() > 64 * 1024 { &text[..64 * 1024] } else { text };
+    fs::write(&path, truncated)?;
+    Ok(path)
 }
 
 struct SimpleOrchestrator<P: Planner, E: Executor> {
