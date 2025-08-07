@@ -148,14 +148,14 @@ pub mod production_helpers {
 
 #[cfg(feature = "persistence")]
 pub fn open_db_with_context(path: &std::path::Path) -> Result<sled::Db> {
-    use crate::utils::fmt_utils::ContextExt;
     sled::open(path).with_context_fmt("Failed to open database", &[&path.display(), &"sled open"])        
 }
 
 #[cfg(feature = "persistence")]
 pub fn flush_tree(tree: &sled::Tree, context: &str) -> Result<()> {
-    use crate::utils::fmt_utils::ContextExt;
-    tree.flush().with_context_fmt("Failed to flush tree", &[&context])
+    tree.flush()
+        .with_context_fmt("Failed to flush tree", &[&context])
+        .map(|_| ())
 }
 
 #[cfg(feature = "persistence")]
@@ -169,7 +169,6 @@ where
     K: AsRef<[u8]>,
     V: Into<sled::IVec>,
 {
-    use crate::utils::fmt_utils::ContextExt;
     tree.insert(key, value)
         .with_context_fmt("Failed to insert into sled", &[&context])?;
     Ok(())

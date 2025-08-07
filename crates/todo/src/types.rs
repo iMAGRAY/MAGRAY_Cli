@@ -19,7 +19,7 @@ impl MemoryReference {
         Self {
             layer: record.layer,
             record_id: record.id,
-            created_at: record.ts,
+            created_at: Utc::now(),
         }
     }
 }
@@ -270,14 +270,15 @@ pub struct TaskStats {
 }
 
 #[cfg(feature = "minimal")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Layer {
-    ShortTerm,
-    LongTerm,
+    Interact,
+    Insights,
+    Assets,
 }
 
 #[cfg(feature = "minimal")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Record {
     pub id: uuid::Uuid,
     pub text: String,

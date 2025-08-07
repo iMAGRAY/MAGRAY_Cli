@@ -210,25 +210,13 @@ impl HealthCheck for MemoryHealthCheck {
     }
 
     async fn check(&self) -> Result<HealthCheckResult> {
-        // Проверяем базовую функциональность поиска
-        let test_query = "test health check query";
-        let search_result = self
-            .memory_service
-            .search(
-                test_query,
-                memory::Layer::Interact,
-                memory::SearchOptions::default(),
-            )
-            .await;
-
         let mut metadata = HashMap::new();
-
-        // Добавляем базовые метрики без обращения к методам
+        // Добавляем базовые метрики без обращения к методам поиска
         metadata.insert("status".to_string(), "operational".into());
         metadata.insert("layers".to_string(), "3".into());
-
-        match search_result {
-            Ok(_) => Ok(HealthCheckResult {
+        // Проверяем базовый health эндпоинт
+        match self.memory_service.check_health().await {
+            Ok(_status) => Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Healthy,
                 message: "Memory service is operational".to_string(),

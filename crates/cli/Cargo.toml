@@ -8,7 +8,7 @@ name = "magray"
 path = "src/main.rs"
 
 [features]
-default = ["cpu"]
+default = ["minimal"]
 
 # Minimal build - basic CLI functionality only
 minimal = [
