@@ -1,8 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use memory::{
-    di_container::{DIContainer, DIContainerBuilder, Lifetime},
-    di_memory_config::MemoryDIConfigurator,
-    MemoryConfig,
+    di::{DIContainer, DIContainerBuilder, UnifiedMemoryConfigurator, MemoryServiceConfig, Lifetime},
 };
 use ai::AiConfig;
 use std::sync::Arc;
@@ -69,46 +67,18 @@ impl DependentService {
 }
 
 /// Создать тестовую конфигурацию
-fn create_test_config() -> MemoryConfig {
+fn create_test_config() -> MemoryServiceConfig {
     let temp_dir = TempDir::new().unwrap();
     let base_path = temp_dir.path().to_path_buf();
 
-    MemoryConfig {
+    MemoryServiceConfig {
         db_path: base_path.join("bench.db"),
         cache_path: base_path.join("cache"),
         promotion: memory::types::PromotionConfig::default(),
-        ml_promotion: None,
-        streaming_config: None,
-        ai_config: AiConfig {
-            models_dir: base_path.join("models"),
-            embedding: ai::EmbeddingConfig {
-                model_name: "bench-model".to_string(),
-                use_gpu: false,
-                batch_size: 32,
-                max_length: 512,
-                gpu_config: None,
-                embedding_dim: Some(1024),
-            },
-            reranking: ai::RerankingConfig {
-                model_name: "bench-reranker".to_string(),
-                use_gpu: false,
-                batch_size: 16,
-                max_length: 512,
-                gpu_config: None,
-            },
-        },
-        health_config: memory::health::HealthConfig::default(),
-        notification_config: memory::notifications::NotificationConfig::default(),
-        cache_config: memory::CacheConfigType::Simple,
+        cache_config: memory::CacheConfigType::default(),
+        health_enabled: true,
+        health_config: memory::health::HealthMonitorConfig::default(),
         batch_config: memory::batch_manager::BatchConfig::default(),
-        resource_config: memory::resource_manager::ResourceConfig::default(),
-        // Legacy fields
-        #[allow(deprecated)]
-        max_vectors: 10000,
-        #[allow(deprecated)]
-        max_cache_size_bytes: 1024 * 1024 * 10,
-        #[allow(deprecated)]
-        max_memory_usage_percent: Some(70),
     }
 }
 

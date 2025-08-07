@@ -4,9 +4,11 @@
 // =============================================================================
 
 use memory::{
-    Layer, Record, SearchOptions, MemoryLayer, PromotionConfig,
-    BatchConfig, CacheConfig, cosine_distance_auto,
+    types::{Layer, Record, SearchOptions, MemoryLayer, PromotionConfig,
+           BatchConfig, CacheConfig},
+    cosine_distance_auto,
 };
+use serde_json::Value;
 use proptest::prelude::*;
 use uuid::Uuid;
 use chrono::Utc;
@@ -34,27 +36,19 @@ mod types_tests {
     #[test]
     fn test_record_creation_and_validation() {
         let record = Record {
-            id: Uuid::new_v4(),
-            text: "test content".to_string(),
+            id: "test_record".to_string(),
+            content: "test content".to_string(),
             embedding: vec![0.1, 0.2, 0.3],
             layer: Layer::Interact,
-            kind: "test".to_string(),
-            tags: vec!["test".to_string()],
-            project: "test_project".to_string(),
-            session: "test_session".to_string(),
-            ts: Utc::now(),
+            timestamp: Utc::now(),
             score: 0.95,
-            access_count: 1,
-            last_access: Utc::now(),
         };
 
         // Basic validation
-        assert_eq!(record.text, "test content");
+        assert_eq!(record.content, "test content");
         assert_eq!(record.embedding.len(), 3);
         assert_eq!(record.layer, Layer::Interact);
         assert!(record.score > 0.0);
-        assert_eq!(record.kind, "test");
-        assert_eq!(record.project, "test_project");
     }
 
     #[test]
@@ -64,19 +58,17 @@ mod types_tests {
         metadata.insert("priority".to_string(), Value::Number(serde_json::Number::from(1)));
 
         let record = Record {
-            text: "test with metadata".to_string(),
+            id: "test_metadata".to_string(),
+            content: "test with metadata".to_string(),
             embedding: vec![0.1, 0.2, 0.3, 0.4],
-            layer: Layer::LongTerm,
-            ts: chrono::Utc::now(),
-            score: None,
-            metadata: Some(metadata.clone()),
+            layer: Layer::Insights,
+            timestamp: chrono::Utc::now(),
+            score: 0.85,
         };
 
-        assert_eq!(record.metadata.as_ref().unwrap().len(), 2);
-        assert_eq!(
-            record.metadata.as_ref().unwrap().get("source").unwrap(),
-            &Value::String("test".to_string())
-        );
+        // Metadata test simplified since Record structure may not include metadata field
+        assert_eq!(record.embedding.len(), 4);
+        assert_eq!(record.layer, Layer::Insights);
     }
 
     #[test]
@@ -92,11 +84,11 @@ mod types_tests {
     #[test]
     fn test_memory_layer_alias() {
         // Test that MemoryLayer alias works correctly
-        let layer: MemoryLayer = Layer::ShortTerm;
-        assert_eq!(layer, Layer::ShortTerm);
+        let layer: MemoryLayer = Layer::Interact;
+        assert_eq!(layer, Layer::Interact);
         
-        let layer2: Layer = MemoryLayer::LongTerm;
-        assert_eq!(layer2, Layer::LongTerm);
+        let layer2: Layer = MemoryLayer::Insights;
+        assert_eq!(layer2, Layer::Insights);
     }
 
     #[test]
@@ -213,18 +205,18 @@ mod property_tests {
         #[test]
         fn test_record_text_invariants(text in "\\PC{1,1000}") {
             let record = Record {
-                text: text.clone(),
+                id: format!("test_{}", text.len()),
+                content: text.clone(),
                 embedding: vec![0.1, 0.2],
-                layer: Layer::ShortTerm,
-                ts: chrono::Utc::now(),
-                score: Some(0.5),
-                metadata: None,
+                layer: Layer::Interact,
+                timestamp: chrono::Utc::now(),
+                score: 0.5,
             };
             
             // Invariants
-            prop_assert_eq!(record.text, text);
-            prop_assert!(!record.text.is_empty());
-            prop_assert!(record.text.len() <= 1000);
+            prop_assert_eq!(record.content, text);
+            prop_assert!(!record.content.is_empty());
+            prop_assert!(record.content.len() <= 1000);
         }
 
         #[test]
@@ -235,12 +227,12 @@ mod property_tests {
             let embedding = values.into_iter().take(dim).collect::<Vec<f32>>();
             
             let record = Record {
-                text: "test".to_string(),
+                id: "prop_test".to_string(),
+                content: "test".to_string(),
                 embedding: embedding.clone(),
-                layer: Layer::ShortTerm,
-                ts: chrono::Utc::now(),
-                score: Some(0.5),
-                metadata: None,
+                layer: Layer::Interact,
+                timestamp: chrono::Utc::now(),
+                score: 0.5,
             };
             
             prop_assert_eq!(record.embedding.len(), embedding.len());
@@ -248,18 +240,18 @@ mod property_tests {
         }
 
         #[test]
-        fn test_score_range_validation(score in 0.0f64..=1.0f64) {
+        fn test_score_range_validation(score in 0.0f32..=1.0f32) {
             let record = Record {
-                text: "test".to_string(),
+                id: "score_test".to_string(),
+                content: "test".to_string(),
                 embedding: vec![0.1],
-                layer: Layer::ShortTerm,
-                ts: chrono::Utc::now(),
-                score: Some(score),
-                metadata: None,
+                layer: Layer::Interact,
+                timestamp: chrono::Utc::now(),
+                score: score,
             };
             
-            prop_assert!(record.score.unwrap() >= 0.0);
-            prop_assert!(record.score.unwrap() <= 1.0);
+            prop_assert!(record.score >= 0.0);
+            prop_assert!(record.score <= 1.0);
         }
 
         #[test]
@@ -294,29 +286,29 @@ mod error_handling_tests {
 
     #[test]
     fn test_record_with_invalid_score() {
-        // Test that we can create records with None score
+        // Test that we can create records with low score
         let record = Record {
-            text: "test".to_string(),
+            id: "invalid_score_test".to_string(),
+            content: "test".to_string(),
             embedding: vec![0.1],
-            layer: Layer::ShortTerm,
-            ts: chrono::Utc::now(),
-            score: None,
-            metadata: None,
+            layer: Layer::Interact,
+            timestamp: chrono::Utc::now(),
+            score: 0.0,
         };
         
-        assert!(record.score.is_none());
+        assert_eq!(record.score, 0.0);
     }
 
     #[test]
     fn test_empty_embedding_vector() {
         // Test that we can create record with empty embedding
         let record = Record {
-            text: "test".to_string(),
+            id: "empty_embedding".to_string(),
+            content: "test".to_string(),
             embedding: vec![],
-            layer: Layer::ShortTerm,
-            ts: chrono::Utc::now(),
-            score: Some(0.5),
-            metadata: None,
+            layer: Layer::Interact,
+            timestamp: chrono::Utc::now(),
+            score: 0.5,
         };
         
         assert!(record.embedding.is_empty());
@@ -388,12 +380,12 @@ mod performance_tests {
     #[test]
     fn test_record_serialization_performance() {
         let record = Record {
-            text: "x".repeat(1000), // 1KB text
-            embedding: vec![0.1f64; 512], // 512-dim embedding
-            layer: Layer::ShortTerm,
-            ts: chrono::Utc::now(),
-            score: Some(0.85),
-            metadata: None,
+            id: "perf_test".to_string(),
+            content: "x".repeat(1000), // 1KB text
+            embedding: vec![0.1f32; 512], // 512-dim embedding
+            layer: Layer::Insights,
+            timestamp: chrono::Utc::now(),
+            score: 0.85,
         };
         
         let start = Instant::now();

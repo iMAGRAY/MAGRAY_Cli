@@ -53,6 +53,50 @@ impl Default for AiConfig {
     }
 }
 
+impl AiConfig {
+    pub fn production() -> Self {
+        Self {
+            models_dir: PathBuf::from("/opt/magray/models"), // Production path
+            embedding: EmbeddingConfig {
+                model_name: "qwen3emb_prod".to_string(),
+                batch_size: 64, // Больший batch для production
+                max_length: 1024, // Больше tokens
+                use_gpu: true,
+                gpu_config: Some(crate::GpuConfig::auto_optimized()),
+                embedding_dim: Some(1024),
+            },
+            reranking: RerankingConfig {
+                model_name: "qwen3_reranker_prod".to_string(),
+                batch_size: 32, // Больший batch
+                max_length: 1024,
+                use_gpu: true,
+                gpu_config: Some(crate::GpuConfig::auto_optimized()),
+            },
+        }
+    }
+
+    pub fn minimal() -> Self {
+        Self {
+            models_dir: PathBuf::from("./models"), // Локальная папка
+            embedding: EmbeddingConfig {
+                model_name: "qwen3emb_small".to_string(),
+                batch_size: 8, // Маленький batch
+                max_length: 256, // Меньше tokens
+                use_gpu: false, // CPU только
+                gpu_config: None,
+                embedding_dim: Some(512), // Меньшая размерность
+            },
+            reranking: RerankingConfig {
+                model_name: "qwen3_reranker_small".to_string(),
+                batch_size: 4,
+                max_length: 256,
+                use_gpu: false,
+                gpu_config: None,
+            },
+        }
+    }
+}
+
 impl Default for EmbeddingConfig {
     fn default() -> Self {
         Self {

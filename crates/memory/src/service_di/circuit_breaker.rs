@@ -149,6 +149,16 @@ impl CircuitBreaker {
         Self::new(CircuitBreakerConfig::minimal())
     }
 
+    /// Alias для with_production_config() для совместимости
+    pub fn new_production() -> Self {
+        Self::with_production_config()
+    }
+
+    /// Alias для with_minimal_config() для совместимости
+    pub fn new_minimal() -> Self {
+        Self::with_minimal_config()
+    }
+
     /// Проверить состояние и разрешить/заблокировать операцию
     pub async fn check_and_allow_operation(&self) -> Result<()> {
         let mut state = self.internal_state.write().await;

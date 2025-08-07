@@ -38,21 +38,23 @@ pub async fn migrate_cache_to_lru(
 /// Configuration helper for choosing appropriate cache settings
 #[allow(dead_code)]
 pub fn recommend_cache_config(available_memory_mb: usize) -> CacheConfig {
-    let max_size_bytes = if available_memory_mb > 16384 { // > 16GB
-        4_294_967_296 // 4GB cache
+    let max_cache_entries = if available_memory_mb > 16384 { // > 16GB
+        400_000 // ~4GB worth of embeddings
     } else if available_memory_mb > 8192 { // > 8GB
-        2_147_483_648 // 2GB cache
+        200_000 // ~2GB worth of embeddings
     } else if available_memory_mb > 4096 { // > 4GB
-        1_073_741_824 // 1GB cache
+        100_000 // ~1GB worth of embeddings
     } else {
-        536_870_912 // 512MB cache
+        50_000 // ~512MB worth of embeddings
     };
 
     CacheConfig {
-        max_size_bytes,
-        max_entries: max_size_bytes / 10240, // Assume ~10KB per embedding
-        ttl_seconds: Some(86400 * 30), // 30 days
-        eviction_batch_size: 100,
+        base: common::config_base::CacheConfigBase {
+            max_cache_size: max_cache_entries,
+            cache_ttl_seconds: 86400 * 30, // 30 days
+            eviction_policy: "lru".to_string(),
+            enable_compression: true,
+        },
     }
 }
 
@@ -61,18 +63,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_cache_config_recommendation() {
-        // Test different memory sizes
+    fn test_cache_config_recommendations() {
+        // Test different memory sizes - now we test max_entries directly
         let config_16gb = recommend_cache_config(20000); // > 16GB
-        assert_eq!(config_16gb.max_size_bytes, 4_294_967_296);
+        assert_eq!(config_16gb.max_entries(), 400_000);
 
         let config_8gb = recommend_cache_config(10000); // > 8GB but < 16GB
-        assert_eq!(config_8gb.max_size_bytes, 2_147_483_648);
+        assert_eq!(config_8gb.max_entries(), 200_000);
 
         let config_4gb = recommend_cache_config(5000); // > 4GB but < 8GB
-        assert_eq!(config_4gb.max_size_bytes, 1_073_741_824);
+        assert_eq!(config_4gb.max_entries(), 100_000);
 
         let config_2gb = recommend_cache_config(2048);
-        assert_eq!(config_2gb.max_size_bytes, 536_870_912);
+        assert_eq!(config_2gb.max_entries(), 50_000);
+    }
+    
+    #[test]
+    fn test_recommended_config_cache_creation() {
+        // Test that we can actually create a cache with the recommended config
+        let config = recommend_cache_config(8192);
+        assert_eq!(config.base.eviction_policy, "lru");
+        assert!(config.base.enable_compression);
+        assert_eq!(config.base.cache_ttl_seconds, 86400 * 30);
     }
 }

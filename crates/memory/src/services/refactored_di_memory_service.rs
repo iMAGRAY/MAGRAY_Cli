@@ -12,16 +12,15 @@ use anyhow::Result;
 use tracing::{info, debug, warn, error};
 
 use crate::{
-    di_container::DIContainer,
+    di::{UnifiedDIContainer, UnifiedMemoryConfigurator, MemoryServiceConfig, DIResolver},
     types::{Layer, Record, SearchOptions},
     health::SystemHealthStatus,
     promotion::PromotionStats,
-    service_di::{MemoryServiceConfig, BatchInsertResult, BatchSearchResult, MemorySystemStats},
+    service_di::{BatchInsertResult, BatchSearchResult, MemorySystemStats},
     services::{
         ServiceFactory, ServiceCollection, ServiceFactoryConfig,
     },
     backup::BackupMetadata,
-    di_memory_config::MemoryDIConfigurator,
     DIContainerStats, DIPerformanceMetrics,
 };
 
@@ -29,7 +28,7 @@ use crate::{
 /// Вместо God Object теперь делегирует к 5 специализированным сервисам
 pub struct RefactoredDIMemoryService {
     /// DI контейнер со всеми зависимостями
-    container: Arc<DIContainer>,
+    container: Arc<UnifiedDIContainer>,
     
     /// Коллекция всех специализированных сервисов
     services: ServiceCollection,
@@ -69,7 +68,7 @@ impl RefactoredDIMemoryService {
         info!("🚀 Создание RefactoredDIMemoryService с композицией специализированных сервисов");
 
         // Настраиваем полный DI контейнер
-        let container = Arc::new(MemoryDIConfigurator::configure_full(config).await?);
+        let container = Arc::new(UnifiedMemoryConfigurator::configure_full(&config).await?);
 
         // Создаём все специализированные сервисы через фабрику
         let service_factory = ServiceFactory::new(container.clone());
@@ -94,7 +93,7 @@ impl RefactoredDIMemoryService {
     pub async fn new_minimal(config: MemoryServiceConfig) -> Result<Self> {
         info!("🧪 Создание минимального RefactoredDIMemoryService для тестов");
 
-        let container = Arc::new(MemoryDIConfigurator::configure_minimal(config).await?);
+        let container = Arc::new(UnifiedMemoryConfigurator::configure_minimal(&config).await?);
         
         // Создаём минимальные сервисы для тестов
         let service_factory = ServiceFactory::new(container.clone());
@@ -414,7 +413,7 @@ impl RefactoredDIMemoryService {
 
     #[allow(dead_code)]
     pub fn get_performance_metrics(&self) -> DIPerformanceMetrics {
-        self.container.get_performance_metrics()
+        self.container.performance_metrics()
     }
 
     #[allow(dead_code)]

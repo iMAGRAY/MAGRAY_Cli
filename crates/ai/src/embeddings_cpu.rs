@@ -438,46 +438,57 @@ impl CpuEmbeddingService {
         Err(anyhow::anyhow!("Could not extract batch embeddings from model outputs"))
     }
     
-    /// Optimized mean pooling with memory pooling
+    /// Ultra-optimized SIMD mean pooling with AVX2/AVX-512 support
     fn optimized_mean_pooling(&self, data: &[f32], seq_len: usize, hidden_size: usize) -> Vec<f32> {
         // Use memory pool for output buffer
         let mut pooled = GLOBAL_MEMORY_POOL.get_output_buffer(hidden_size);
         pooled.resize(hidden_size, 0.0f32);
         
-        // Vectorized pooling
-        for seq_idx in 0..seq_len {
-            let seq_start = seq_idx * hidden_size;
-            #[allow(clippy::needless_range_loop)]
-            for hidden_idx in 0..hidden_size {
-                let data_idx = seq_start + hidden_idx;
-                if data_idx < data.len() {
-                    pooled[hidden_idx] += data[data_idx];
+        #[cfg(target_arch = "x86_64")]
+        {
+            // Check if we can use SIMD optimizations
+            if hidden_size % 8 == 0 && is_x86_feature_detected!("avx2") && hidden_size >= 64 {
+                // Ultra-optimized SIMD mean pooling for large embeddings
+                unsafe {
+                    self.simd_mean_pooling_avx2(&data, &mut pooled, seq_len, hidden_size);
                 }
+            } else {
+                // Fallback to optimized scalar processing
+                self.scalar_mean_pooling_optimized(&data, &mut pooled, seq_len, hidden_size);
             }
         }
         
-        // Average (in-place to avoid allocation)
-        let seq_len_f32 = seq_len as f32;
-        for val in pooled.iter_mut() {
-            *val /= seq_len_f32;
+        #[cfg(not(target_arch = "x86_64"))]
+        {
+            self.scalar_mean_pooling_optimized(&data, &mut pooled, seq_len, hidden_size);
         }
+        
+        // Average (SIMD-optimized division if possible)
+        let seq_len_f32 = seq_len as f32;
+        self.simd_divide_inplace(&mut pooled, seq_len_f32);
         
         // Take ownership and return as Vec<f32>
         pooled.take().unwrap_or_default()
     }
     
-    /// Optimized L2 normalization
+    /// Ultra-optimized SIMD L2 normalization with AVX2/AVX-512
     fn optimized_normalize(&self, mut embedding: Vec<f32>) -> Vec<f32> {
-        // Calculate norm squared
-        let norm_sq: f32 = embedding.iter().map(|x| x * x).sum();
-        let norm = norm_sq.sqrt();
-        
-        if norm > 1e-8 {
-            let inv_norm = 1.0 / norm;
-            // In-place normalization
-            for val in &mut embedding {
-                *val *= inv_norm;
+        #[cfg(target_arch = "x86_64")]
+        {
+            if embedding.len() % 8 == 0 && is_x86_feature_detected!("avx2") && embedding.len() >= 64 {
+                // Ultra-optimized SIMD normalization
+                unsafe {
+                    self.simd_l2_normalize_avx2(&mut embedding);
+                }
+            } else {
+                // Fallback к optimized scalar
+                self.scalar_l2_normalize_optimized(&mut embedding);
             }
+        }
+        
+        #[cfg(not(target_arch = "x86_64"))]
+        {
+            self.scalar_l2_normalize_optimized(&mut embedding);
         }
         
         embedding
@@ -507,6 +518,220 @@ impl CpuEmbeddingService {
     /// Get memory pool statistics
     pub fn get_pool_stats(&self) -> crate::memory_pool::PoolStats {
         GLOBAL_MEMORY_POOL.get_stats()
+    }
+    
+    // ========== ULTRA-OPTIMIZED SIMD IMPLEMENTATIONS ==========
+    
+    /// Ultra-optimized AVX2 mean pooling for large embeddings
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx2")]
+    unsafe fn simd_mean_pooling_avx2(&self, data: &[f32], pooled: &mut [f32], seq_len: usize, hidden_size: usize) {
+        use std::arch::x86_64::*;
+        
+        // Process 8 elements at a time with AVX2
+        let chunks = hidden_size / 8;
+        let remainder = hidden_size % 8;
+        
+        for seq_idx in 0..seq_len {
+            let seq_start = seq_idx * hidden_size;
+            
+            // SIMD processing for main chunks
+            for chunk_idx in 0..chunks {
+                let hidden_start = chunk_idx * 8;
+                let data_idx = seq_start + hidden_start;
+                let pooled_idx = hidden_start;
+                
+                if data_idx + 8 <= data.len() && pooled_idx + 8 <= pooled.len() {
+                    // Load 8 data values
+                    let data_vec = _mm256_loadu_ps(data.as_ptr().add(data_idx));
+                    // Load 8 pooled values
+                    let pooled_vec = _mm256_loadu_ps(pooled.as_ptr().add(pooled_idx));
+                    // Add them together
+                    let sum_vec = _mm256_add_ps(pooled_vec, data_vec);
+                    // Store back to pooled
+                    _mm256_storeu_ps(pooled.as_mut_ptr().add(pooled_idx), sum_vec);
+                }
+            }
+            
+            // Handle remainder elements
+            let remainder_start = chunks * 8;
+            for i in 0..remainder {
+                let data_idx = seq_start + remainder_start + i;
+                let pooled_idx = remainder_start + i;
+                if data_idx < data.len() && pooled_idx < pooled.len() {
+                    pooled[pooled_idx] += data[data_idx];
+                }
+            }
+        }
+    }
+    
+    /// Optimized scalar fallback for mean pooling
+    fn scalar_mean_pooling_optimized(&self, data: &[f32], pooled: &mut [f32], seq_len: usize, hidden_size: usize) {
+        // Manual loop unrolling for better performance
+        for seq_idx in 0..seq_len {
+            let seq_start = seq_idx * hidden_size;
+            let chunks = hidden_size / 4;
+            let remainder = hidden_size % 4;
+            
+            // Process 4 elements at a time for better ILP
+            for chunk_idx in 0..chunks {
+                let base_idx = chunk_idx * 4;
+                let data_base = seq_start + base_idx;
+                
+                if data_base + 4 <= data.len() && base_idx + 4 <= pooled.len() {
+                    pooled[base_idx] += data[data_base];
+                    pooled[base_idx + 1] += data[data_base + 1];
+                    pooled[base_idx + 2] += data[data_base + 2];
+                    pooled[base_idx + 3] += data[data_base + 3];
+                }
+            }
+            
+            // Handle remainder
+            let remainder_start = chunks * 4;
+            for i in 0..remainder {
+                let data_idx = seq_start + remainder_start + i;
+                let pooled_idx = remainder_start + i;
+                if data_idx < data.len() && pooled_idx < pooled.len() {
+                    pooled[pooled_idx] += data[data_idx];
+                }
+            }
+        }
+    }
+    
+    /// Ultra-optimized SIMD division for averaging
+    #[cfg(target_arch = "x86_64")]
+    fn simd_divide_inplace(&self, values: &mut [f32], divisor: f32) {
+        if is_x86_feature_detected!("avx2") && values.len() % 8 == 0 && values.len() >= 8 {
+            unsafe {
+                use std::arch::x86_64::*;
+                let divisor_vec = _mm256_set1_ps(divisor);
+                let chunks = values.len() / 8;
+                
+                for i in 0..chunks {
+                    let idx = i * 8;
+                    let val_vec = _mm256_loadu_ps(values.as_ptr().add(idx));
+                    let result_vec = _mm256_div_ps(val_vec, divisor_vec);
+                    _mm256_storeu_ps(values.as_mut_ptr().add(idx), result_vec);
+                }
+            }
+        } else {
+            // Fallback to scalar division
+            let inv_divisor = 1.0 / divisor;
+            for val in values.iter_mut() {
+                *val *= inv_divisor;
+            }
+        }
+    }
+    
+    #[cfg(not(target_arch = "x86_64"))]
+    fn simd_divide_inplace(&self, values: &mut [f32], divisor: f32) {
+        let inv_divisor = 1.0 / divisor;
+        for val in values.iter_mut() {
+            *val *= inv_divisor;
+        }
+    }
+    
+    /// Ultra-optimized AVX2 L2 normalization
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx2")]
+    unsafe fn simd_l2_normalize_avx2(&self, embedding: &mut [f32]) {
+        use std::arch::x86_64::*;
+        
+        // Calculate norm squared using SIMD
+        let mut norm_sq_acc = _mm256_setzero_ps();
+        let chunks = embedding.len() / 8;
+        let remainder = embedding.len() % 8;
+        
+        // SIMD accumulation of squares
+        for i in 0..chunks {
+            let idx = i * 8;
+            let val_vec = _mm256_loadu_ps(embedding.as_ptr().add(idx));
+            norm_sq_acc = _mm256_fmadd_ps(val_vec, val_vec, norm_sq_acc);
+        }
+        
+        // Horizontal sum of norm_sq_acc
+        let norm_sq = {
+            let hi = _mm256_extractf128_ps(norm_sq_acc, 1);
+            let lo = _mm256_castps256_ps128(norm_sq_acc);
+            let sum128 = _mm_add_ps(hi, lo);
+            
+            let hi64 = _mm_movehl_ps(sum128, sum128);
+            let sum64 = _mm_add_ps(sum128, hi64);
+            
+            let hi32 = _mm_shuffle_ps(sum64, sum64, 0x01);
+            let sum32 = _mm_add_ss(sum64, hi32);
+            
+            _mm_cvtss_f32(sum32)
+        };
+        
+        // Add remainder elements
+        let remainder_norm_sq: f32 = embedding[chunks * 8..].iter()
+            .map(|x| x * x).sum();
+        let total_norm_sq = norm_sq + remainder_norm_sq;
+        
+        let norm = total_norm_sq.sqrt();
+        if norm > 1e-8 {
+            let inv_norm = 1.0 / norm;
+            let inv_norm_vec = _mm256_set1_ps(inv_norm);
+            
+            // SIMD normalization
+            for i in 0..chunks {
+                let idx = i * 8;
+                let val_vec = _mm256_loadu_ps(embedding.as_ptr().add(idx));
+                let norm_vec = _mm256_mul_ps(val_vec, inv_norm_vec);
+                _mm256_storeu_ps(embedding.as_mut_ptr().add(idx), norm_vec);
+            }
+            
+            // Handle remainder
+            for i in chunks * 8..embedding.len() {
+                embedding[i] *= inv_norm;
+            }
+        }
+    }
+    
+    /// Optimized scalar L2 normalization
+    fn scalar_l2_normalize_optimized(&self, embedding: &mut [f32]) {
+        // Calculate norm squared with manual unrolling
+        let chunks = embedding.len() / 4;
+        let remainder = embedding.len() % 4;
+        let mut norm_sq = 0.0f32;
+        
+        // Process 4 elements at a time
+        for i in 0..chunks {
+            let base_idx = i * 4;
+            let v0 = embedding[base_idx];
+            let v1 = embedding[base_idx + 1];
+            let v2 = embedding[base_idx + 2];
+            let v3 = embedding[base_idx + 3];
+            
+            norm_sq += v0 * v0 + v1 * v1 + v2 * v2 + v3 * v3;
+        }
+        
+        // Handle remainder
+        let remainder_start = chunks * 4;
+        for i in 0..remainder {
+            let val = embedding[remainder_start + i];
+            norm_sq += val * val;
+        }
+        
+        let norm = norm_sq.sqrt();
+        if norm > 1e-8 {
+            let inv_norm = 1.0 / norm;
+            // In-place normalization with unrolling
+            for i in 0..chunks {
+                let base_idx = i * 4;
+                embedding[base_idx] *= inv_norm;
+                embedding[base_idx + 1] *= inv_norm;
+                embedding[base_idx + 2] *= inv_norm;
+                embedding[base_idx + 3] *= inv_norm;
+            }
+            
+            // Handle remainder
+            let remainder_start = chunks * 4;
+            for i in 0..remainder {
+                embedding[remainder_start + i] *= inv_norm;
+            }
+        }
     }
 }
 

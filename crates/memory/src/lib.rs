@@ -4,20 +4,20 @@ mod cache_lru;
 mod cache_interface;
 mod cache_migration;
 pub mod fallback;
-mod hnsw_index; // Модульная HNSW архитектура
+pub mod hnsw_index; // Модульная HNSW архитектура
 pub mod health;
 // pub mod layers; // ВРЕМЕННО ОТКЛЮЧЕНО для бенчмарка - проблемы с sqlx
 mod metrics;
 mod notifications;
 pub mod promotion;
-mod ml_promotion;
+pub mod ml_promotion; // Декомпозированная ML promotion система (SOLID compliant)
 pub mod simd_optimized; // SIMD оптимизации для векторных операций
 pub mod simd_fixed; // Исправленная SIMD реализация для debugging
 pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance
+pub mod simd_feature_detection; // Advanced CPU feature detection и adaptive algorithm selection
 pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 pub mod service_di; // REFACTORED модули в service_di/
 pub mod service_di_facade; // FACADE для обратной совместимости
-pub mod service_di_refactored; // Рефакторированная архитектура
 
 // Re-export для обратной совместимости
 pub use service_di_facade::{DIMemoryService, DIMemoryServiceBuilder};
@@ -36,12 +36,12 @@ mod retry;
 mod database_manager;
 // Refactored Dependency Injection система (SOLID compliant)
 pub mod di; // Новая модульная архитектура
-mod di_container; // Legacy facade для обратной совместимости
-pub mod di_memory_config;
 // Re-export главного API (из нового di модуля)
-pub use di::{DIContainer, DIContainerBuilder, create_default_container};
-// Legacy compatibility
-pub use di_container::{DIPerformanceMetrics, DIContainerStats, Lifetime};
+pub use di::{
+    DIContainer, DIContainerBuilder, create_default_container, DIPerformanceMetrics, DIContainerStats, Lifetime,
+    // Новый унифицированный API
+    UnifiedDIContainer, UnifiedMemoryConfigurator, MemoryServiceConfig, create_default_memory_config
+};
 // Оркестрация системы памяти
 pub mod orchestration;
 // Специализированные сервисы (SOLID refactoring)
@@ -54,8 +54,7 @@ pub use cache_lru::{EmbeddingCacheLRU as EmbeddingCache, CacheConfig as LruCache
 pub type CacheConfigType = LruCacheConfig;
 pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
-// Legacy MemoryService удален - используем DIMemoryService (DEPRECATED)
-pub use service_di_refactored::{DIMemoryService as MemoryService, MemoryServiceConfig, MemoryConfig, default_config};
+// Legacy MemoryService удален - используем DIMemoryService через unified_container
 pub use service_di::{BatchInsertResult, BatchSearchResult};
 
 // NEW: Refactored services based on SOLID principles
@@ -85,7 +84,7 @@ pub use services::{RefactoredDIMemoryService, RefactoredDIMemoryServiceBuilder};
 //     VectorSearchResult, StorageStats, IndexStats, QueryStats, RankingCriteria,
 //     LayerHealthStatus,
 // };
-pub use di_memory_config::{MemoryDIConfigurator};
+// MemoryDIConfigurator moved to di/unified_container.rs
 pub use health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus};
 pub use api::{UnifiedMemoryAPI, MemoryContext, SearchOptions as ApiSearchOptions, MemoryResult, OptimizationResult, SystemHealth, DetailedHealth, SystemStats, CacheStats, IndexSizes};
 pub use resource_manager::{ResourceManager, ResourceConfig};
@@ -96,6 +95,7 @@ pub use transaction::{Transaction, TransactionManager, TransactionGuard};
 pub use simd_optimized::{cosine_distance_auto, cosine_distance_memory_optimized, batch_cosine_distance_optimized, run_comprehensive_benchmark};
 pub use simd_fixed::{debug_simd_performance};
 pub use simd_ultra_optimized::{cosine_distance_ultra_optimized, AlignedVector, batch_cosine_distance_ultra, test_ultra_optimized_performance};
+pub use simd_feature_detection::{SimdLevel, CpuInfo, WorkloadProfile, AdaptiveAlgorithmSelector, AlgorithmStrategy, get_adaptive_selector, quick_cpu_info};
 pub use gpu_ultra_accelerated::{GpuDevice, GpuCosineProcessor, GpuDeviceManager, benchmark_gpu_vs_cpu};
 
 /// Быстрое создание DI Memory Service с конфигурацией по умолчанию
@@ -106,6 +106,9 @@ pub async fn create_di_memory_service() -> anyhow::Result<DIMemoryService> {
 
 // Профессиональная HNSW реализация - единственная векторная реализация
 pub use vector_index_hnswlib::{VectorIndexHnswRs, HnswRsConfig, HnswRsStats};
+
+// HNSW index module exports
+pub use hnsw_index::{HnswConfig, HnswStats, VectorIndex};
 
 // ML-based promotion system
 pub use ml_promotion::{MLPromotionEngine, MLPromotionConfig, MLPromotionStats, PromotionFeatures, PromotionDecision, UsageTracker};

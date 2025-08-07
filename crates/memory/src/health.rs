@@ -26,6 +26,9 @@ pub enum ComponentType {
     Cache,
     Database,
     Memory,
+    Disk,
+    Network,
+    Api,
 }
 
 impl ComponentType {
@@ -38,6 +41,9 @@ impl ComponentType {
             ComponentType::Cache => "cache",
             ComponentType::Database => "database",
             ComponentType::Memory => "memory",
+            ComponentType::Disk => "disk",
+            ComponentType::Network => "network",
+            ComponentType::Api => "api",
         }
     }
 }
@@ -126,6 +132,30 @@ impl Default for HealthMonitorConfig {
         Self {
             enable_alerts: true,
             metrics_retention_days: 7,
+            alert_thresholds: HashMap::new(),
+        }
+    }
+}
+
+impl HealthMonitorConfig {
+    pub fn production() -> Self {
+        let mut alert_thresholds = HashMap::new();
+        alert_thresholds.insert(ComponentType::Memory, 0.9);
+        alert_thresholds.insert(ComponentType::Disk, 0.85);
+        alert_thresholds.insert(ComponentType::Network, 0.95);
+        alert_thresholds.insert(ComponentType::Api, 0.99);
+        
+        Self {
+            enable_alerts: true,
+            metrics_retention_days: 30,
+            alert_thresholds,
+        }
+    }
+
+    pub fn minimal() -> Self {
+        Self {
+            enable_alerts: false,
+            metrics_retention_days: 1,
             alert_thresholds: HashMap::new(),
         }
     }

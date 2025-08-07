@@ -234,7 +234,7 @@ impl MonitoringServiceTrait for MonitoringService {
 
         // Базовые проверки DI контейнера
         let di_stats = self.container.stats();
-        if di_stats.total_types == 0 {
+        if di_stats.registered_factories == 0 {
             return Err(anyhow::anyhow!("DI контейнер пуст - нет зарегистрированных типов"));
         }
 
@@ -310,7 +310,7 @@ impl MonitoringServiceTrait for MonitoringService {
 
         info!("🎉 === MONITORING INITIALIZATION SUMMARY ===");
         info!("📊 Активных координаторов: {}", coordinator_count);
-        info!("🔧 DI зависимостей: {}", di_stats.total_types);
+        info!("🔧 DI зависимостей: {}", di_stats.registered_factories);
         info!("📈 Запущено monitoring задач: {}", monitoring_tasks);
         info!("⚡ Система готова к мониторингу");
         info!("===============================================");

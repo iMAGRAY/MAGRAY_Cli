@@ -208,7 +208,7 @@ impl Default for RetryHandlers {
 
 impl MemoryOrchestrator {
     /// Создать новый production-ready оркестратор из DI контейнера
-    pub fn from_container(container: &crate::di_container::DIContainer) -> Result<Self> {
+    pub fn from_container(container: &crate::di::container_core::ContainerCore) -> Result<Self> {
         info!("🚀 Создание MemoryOrchestrator из DI контейнера");
         
         // Разрешаем координаторы из контейнера

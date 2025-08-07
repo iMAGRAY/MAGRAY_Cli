@@ -8,6 +8,8 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info, warn};
 
+use common::{config_base::CacheConfigBase, ConfigTrait};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedEmbedding {
     embedding: Vec<f32>,
@@ -18,25 +20,64 @@ struct CachedEmbedding {
     size_bytes: usize,
 }
 
-#[derive(Debug, Clone)]
+/// Configuration for cache behavior - устранение дублирования с CacheConfigBase
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheConfig {
-    /// Maximum cache size in bytes
-    pub max_size_bytes: usize,
-    /// Maximum number of entries
-    pub max_entries: usize,
-    /// TTL for cache entries in seconds (None = no expiration)
-    pub ttl_seconds: Option<u64>,
-    /// Number of entries to evict at once when cache is full
-    pub eviction_batch_size: usize,
+    /// Базовая cache конфигурация
+    #[serde(flatten)]
+    pub base: CacheConfigBase,
 }
 
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
-            max_size_bytes: 1024 * 1024 * 1024, // 1GB
-            max_entries: 100_000,
-            ttl_seconds: Some(86400 * 7), // 7 days
-            eviction_batch_size: 100,
+            base: CacheConfigBase::default(),
+        }
+    }
+}
+
+impl ConfigTrait for CacheConfig {
+    fn production() -> Self {
+        Self {
+            base: CacheConfigBase {
+                max_cache_size: 500_000, // 500k entries
+                cache_ttl_seconds: 86400 * 30, // 30 days
+                eviction_policy: "lru".to_string(),
+                enable_compression: true,
+            },
+        }
+    }
+
+    fn minimal() -> Self {
+        Self {
+            base: CacheConfigBase {
+                max_cache_size: 10_000, // 10k entries
+                cache_ttl_seconds: 86400, // 1 day
+                eviction_policy: "lru".to_string(),
+                enable_compression: false,
+            },
+        }
+    }
+}
+
+impl CacheConfig {
+    /// Доступ к базовым настройкам cache
+    pub fn max_size_bytes(&self) -> usize { self.base.max_cache_size }
+    pub fn max_entries(&self) -> usize { self.base.max_cache_size }
+    pub fn ttl_seconds(&self) -> Option<u64> { Some(self.base.cache_ttl_seconds) }
+    pub fn eviction_batch_size(&self) -> usize { 100 } // Default batch size
+}
+
+impl CacheConfig {
+    pub fn production() -> Self {
+        Self {
+            base: CacheConfigBase::large(),
+        }
+    }
+
+    pub fn minimal() -> Self {
+        Self {
+            base: CacheConfigBase::small(),
         }
     }
 }
@@ -135,9 +176,9 @@ impl EmbeddingCacheLRU {
 
         info!("Opening LRU embedding cache at: {:?}", cache_path);
         info!("Cache config: max_size={}MB, max_entries={}, ttl={:?}s", 
-              config.max_size_bytes / 1024 / 1024,
-              config.max_entries,
-              config.ttl_seconds);
+              config.max_size_bytes() / 1024 / 1024,
+              config.max_entries(),
+              config.ttl_seconds());
         
         let db = Self::open_cache_database(cache_path)?;
 
@@ -221,10 +262,10 @@ impl EmbeddingCacheLRU {
                 match bincode::deserialize::<CachedEmbedding>(&bytes) {
                     Ok(mut cached) => {
                         // Check TTL
-                        if let Some(ttl) = self.config.ttl_seconds {
+                        if let Some(ttl) = self.config.ttl_seconds() {
                             let now = current_timestamp();
                             // Handle potential time issues gracefully
-                            if now >= cached.created_at {
+                            if now >= cached.created_at && ttl > 0 {
                                 let age = now - cached.created_at;
                                 if age > ttl {
                                     debug!("Cache entry expired: age={} > ttl={}", age, ttl);
@@ -232,7 +273,7 @@ impl EmbeddingCacheLRU {
                                     let _ = self.remove_entry(&key);
                                     return None;
                                 }
-                            } else {
+                            } else if ttl > 0 && now < cached.created_at {
                                 warn!("Clock skew detected: now={} < created_at={}", now, cached.created_at);
                                 // Don't expire due to clock issues
                             }
@@ -355,11 +396,11 @@ impl EmbeddingCacheLRU {
         // Check size constraint
         let mut entries_to_evict = Vec::new();
         
-        if index.total_size + needed_size > self.config.max_size_bytes {
-            let target_size = self.config.max_size_bytes * 8 / 10; // Free up to 80%
+        if index.total_size + needed_size > self.config.max_size_bytes() {
+            let target_size = self.config.max_size_bytes() * 8 / 10; // Free up to 80%
             let mut current_size = index.total_size;
             
-            for key in index.get_oldest(self.config.eviction_batch_size) {
+            for key in index.get_oldest(self.config.eviction_batch_size()) {
                 if current_size <= target_size {
                     break;
                 }
@@ -372,8 +413,8 @@ impl EmbeddingCacheLRU {
         }
         
         // Check count constraint
-        if index.entries.len() + 1 > self.config.max_entries {
-            let additional = index.get_oldest(self.config.eviction_batch_size);
+        if index.entries.len() + 1 > self.config.max_entries() {
+            let additional = index.get_oldest(self.config.eviction_batch_size());
             for key in additional {
                 if !entries_to_evict.contains(&key) {
                     entries_to_evict.push(key);
@@ -551,9 +592,9 @@ impl EmbeddingCacheLRU {
 
     /// Remove expired entries
     pub fn cleanup_expired(&self) -> Result<u64> {
-        let ttl = match self.config.ttl_seconds {
-            Some(ttl) => ttl,
-            None => return Ok(0), // No TTL configured
+        let ttl = match self.config.ttl_seconds() {
+            Some(ttl) if ttl > 0 => ttl,
+            _ => return Ok(0), // No TTL configured or TTL is 0
         };
 
         let now = match current_timestamp_safe() {
@@ -571,7 +612,7 @@ impl EmbeddingCacheLRU {
             match item {
                 Ok((key, value)) => {
                     if let Ok(cached) = bincode::deserialize::<CachedEmbedding>(&value) {
-                        if now - cached.created_at > ttl {
+                        if now >= cached.created_at && (now - cached.created_at) > ttl {
                             keys_to_remove.push(key.to_vec());
                         }
                     }
@@ -655,10 +696,12 @@ mod tests {
         let temp_dir = TempDir::new()?;
         let max_entries = 3;
         let config = CacheConfig {
-            max_size_bytes: 1024, // Very small for testing
-            max_entries: 3,
-            ttl_seconds: None,
-            eviction_batch_size: 2,
+            base: CacheConfigBase {
+                max_cache_size: 3,
+                cache_ttl_seconds: 0, // No TTL
+                eviction_policy: "lru".to_string(),
+                enable_compression: false,
+            },
         };
         
         let cache = EmbeddingCacheLRU::new(temp_dir.path().join("test_cache"), config)?;
@@ -701,10 +744,12 @@ mod tests {
     fn test_ttl_expiration() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let config = CacheConfig {
-            max_size_bytes: 1024 * 1024,
-            max_entries: 100,
-            ttl_seconds: Some(1), // 1 second TTL
-            eviction_batch_size: 10,
+            base: CacheConfigBase {
+                max_cache_size: 100,
+                cache_ttl_seconds: 1, // 1 second TTL
+                eviction_policy: "lru".to_string(),
+                enable_compression: false,
+            },
         };
         
         let cache = EmbeddingCacheLRU::new(temp_dir.path().join("test_cache"), config)?;

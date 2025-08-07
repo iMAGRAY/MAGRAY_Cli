@@ -66,7 +66,7 @@ impl PromotionCoordinatorTrait for PromotionCoordinator {
             let engine_arc = Arc::clone(ml_engine);
             let stats = tokio::task::spawn_blocking(move || {
                 tokio::runtime::Handle::current().block_on(async {
-                    let engine = engine_arc.read();
+                    let mut engine = engine_arc.write();
                     engine.promote().await
                 })
             }).await??;

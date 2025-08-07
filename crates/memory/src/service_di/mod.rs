@@ -10,6 +10,7 @@ pub mod production_monitoring;
 pub mod circuit_breaker;
 pub mod lifecycle_manager;
 pub mod operation_executor;
+// facade.rs удален - используется unified_container
 
 // === Re-exports для удобства ===
 pub use service_config::{
@@ -59,6 +60,9 @@ pub use operation_executor::{
     BatchInsertResult,
     BatchSearchResult,
 };
+
+// === Main type alias для замены God Object ===
+// DIMemoryService теперь в unified_container.rs
 
 // === Backward Compatibility Types ===
 use crate::{

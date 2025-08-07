@@ -140,6 +140,16 @@ impl LifecycleManager {
         Self::new(LifecycleConfig::minimal())
     }
 
+    /// Alias для with_production_config() для совместимости
+    pub fn new_production() -> Self {
+        Self::with_production_config()
+    }
+
+    /// Alias для with_minimal_config() для совместимости  
+    pub fn new_minimal() -> Self {
+        Self::with_minimal_config()
+    }
+
     /// Инициализировать сервис
     pub async fn initialize<F, Fut>(&self, init_fn: F) -> Result<()>
     where

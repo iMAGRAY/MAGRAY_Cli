@@ -27,6 +27,9 @@ pub struct ContainerCore {
     metrics_reporter: Arc<super::metrics_collector::MetricsReporterImpl>,
 }
 
+// NOTE: Clone удален из-за parking_lot::RwLock не имплементирующего Clone
+// Вместо этого будем оборачивать ContainerCore в Arc и клонировать Arc
+
 impl ContainerCore {
     /// Создать новый контейнер с инжектированными зависимостями
     /// Применяет принцип Dependency Inversion (DIP)
@@ -101,6 +104,37 @@ impl ContainerCore {
     /// Получить детальные метрики производительности
     pub fn performance_metrics(&self) -> super::traits::DIPerformanceMetrics {
         self.metrics_reporter.get_performance_metrics()
+    }
+    
+    /// Получить краткий отчет о производительности в формате строки
+    pub fn get_performance_report(&self) -> String {
+        let metrics = self.performance_metrics();
+        format!(
+            "DI Container Performance Report:\n\
+            - Total resolutions: {}\n\
+            - Total resolution time: {:?}\n\
+            - Average resolution time: {:?}\n\
+            - Error count: {}\n\
+            - Success rate: {:.2}%",
+            metrics.total_resolutions,
+            metrics.total_resolution_time,
+            if metrics.total_resolutions > 0 {
+                metrics.total_resolution_time / metrics.total_resolutions as u32
+            } else {
+                std::time::Duration::from_secs(0)
+            },
+            metrics.error_count,
+            if metrics.total_resolutions > 0 {
+                (metrics.total_resolutions - metrics.error_count) as f64 / metrics.total_resolutions as f64 * 100.0
+            } else {
+                100.0
+            }
+        )
+    }
+    
+    /// Сбросить метрики производительности
+    pub fn reset_performance_metrics(&self) {
+        self.metrics_reporter.clear_metrics();
     }
 }
 

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use tracing::{info, warn, debug};
 
 /// ONNX model session с поддержкой ONNX Runtime
+#[derive(Debug)]
 pub struct OnnxSession {
     model_name: String,
     model_path: PathBuf,
@@ -284,5 +285,254 @@ impl ModelLoader {
         
         // Default to tokenizer.json
         model_dir.join("tokenizer.json")
+    }
+}
+
+impl AsRef<Path> for OnnxSession {
+    fn as_ref(&self) -> &Path {
+        &self.model_path
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs::File;
+
+    #[test]
+    fn test_onnx_session_fallback_creation() {
+        let model_path = PathBuf::from("/nonexistent/model.onnx");
+        let session = OnnxSession::new_fallback(
+            "test_model".to_string(),
+            model_path.clone(),
+            "Test fallback".to_string()
+        );
+        
+        assert_eq!(session.model_name(), "test_model");
+        assert_eq!(session.model_path(), model_path.as_path());
+        assert!(session.is_fallback());
+        
+        let fallback_reason = session.get_fallback_reason();
+        assert!(fallback_reason.is_some());
+        assert_eq!(fallback_reason.unwrap(), "Test fallback");
+    }
+
+    #[test]
+    fn test_onnx_session_model_not_found() {
+        let nonexistent_path = PathBuf::from("/definitely/nonexistent/model.onnx");
+        let result = OnnxSession::new(
+            "test_model".to_string(),
+            nonexistent_path,
+            false
+        );
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AiError::ModelLoadError(msg) => {
+                assert!(msg.contains("Model file not found"));
+            },
+            _ => panic!("Expected ModelLoadError"),
+        }
+    }
+
+    #[test]
+    fn test_onnx_session_with_existing_file() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let model_path = temp_dir.path().join("model.onnx");
+        
+        // Create empty model file
+        File::create(&model_path).unwrap();
+        
+        let session = OnnxSession::new(
+            "test_embed_model".to_string(),
+            model_path.clone(),
+            false
+        )?;
+        
+        assert_eq!(session.model_name(), "test_embed_model");
+        assert_eq!(session.model_path(), model_path.as_path());
+        // May or may not be fallback depending on ONNX runtime availability
+        // Just check that the session was created successfully
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_input_info_fallback_embed_model() -> Result<()> {
+        let session = OnnxSession::new_fallback(
+            "embed_model".to_string(),
+            PathBuf::from("model.onnx"),
+            "Test".to_string()
+        );
+        
+        let input_info = session.get_input_info()?;
+        assert_eq!(input_info.len(), 2);
+        assert_eq!(input_info[0].0, "input_ids");
+        assert_eq!(input_info[1].0, "attention_mask");
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_input_info_fallback_rerank_model() -> Result<()> {
+        let session = OnnxSession::new_fallback(
+            "rerank_model".to_string(),
+            PathBuf::from("model.onnx"),
+            "Test".to_string()
+        );
+        
+        let input_info = session.get_input_info()?;
+        assert_eq!(input_info.len(), 2);
+        assert_eq!(input_info[0].0, "input_ids");
+        assert_eq!(input_info[1].0, "attention_mask");
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_input_info_fallback_default_model() -> Result<()> {
+        let session = OnnxSession::new_fallback(
+            "generic_model".to_string(),
+            PathBuf::from("model.onnx"),
+            "Test".to_string()
+        );
+        
+        let input_info = session.get_input_info()?;
+        assert_eq!(input_info.len(), 1);
+        assert_eq!(input_info[0].0, "input");
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_output_info() -> Result<()> {
+        let session = OnnxSession::new_fallback(
+            "embed_model".to_string(),
+            PathBuf::from("model.onnx"),
+            "Test".to_string()
+        );
+        
+        let output_info = session.get_output_info()?;
+        assert_eq!(output_info.len(), 1);
+        assert_eq!(output_info[0].0, "last_hidden_state");
+        assert_eq!(output_info[0].1, vec![-1, -1, 768]);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_as_ref_implementation() {
+        let model_path = PathBuf::from("/test/model.onnx");
+        let session = OnnxSession::new_fallback(
+            "test".to_string(),
+            model_path.clone(),
+            "Test".to_string()
+        );
+        
+        let path_ref: &Path = session.as_ref();
+        assert_eq!(path_ref, model_path.as_path());
+    }
+
+    #[test]
+    fn test_model_loader_creation() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ModelLoader::new(temp_dir.path())?;
+        
+        // Directory should be created
+        assert!(temp_dir.path().exists());
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_model_loader_model_exists() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ModelLoader::new(temp_dir.path())?;
+        
+        // Model doesn't exist yet
+        assert!(!loader.model_exists("test_model"));
+        
+        // Create model directory
+        let model_dir = temp_dir.path().join("test_model");
+        std::fs::create_dir(&model_dir).unwrap();
+        
+        // Now it should exist
+        assert!(loader.model_exists("test_model"));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_model_loader_list_models() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ModelLoader::new(temp_dir.path())?;
+        
+        // Initially empty
+        let models = loader.list_models()?;
+        assert!(models.is_empty());
+        
+        // Create some model directories
+        std::fs::create_dir(temp_dir.path().join("model_a")).unwrap();
+        std::fs::create_dir(temp_dir.path().join("model_b")).unwrap();
+        
+        let models = loader.list_models()?;
+        assert_eq!(models.len(), 2);
+        assert!(models.contains(&"model_a".to_string()));
+        assert!(models.contains(&"model_b".to_string()));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_model_loader_get_model_path() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ModelLoader::new(temp_dir.path())?;
+        
+        let expected_path = temp_dir.path().join("test_model").join("model.onnx");
+        let actual_path = loader.get_model_path("test_model");
+        
+        assert_eq!(actual_path, expected_path);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_model_loader_get_tokenizer_path() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ModelLoader::new(temp_dir.path())?;
+        
+        // Create model directory
+        let model_dir = temp_dir.path().join("test_model");
+        std::fs::create_dir(&model_dir).unwrap();
+        
+        // Default case - no tokenizer files exist
+        let tokenizer_path = loader.get_tokenizer_path("test_model");
+        assert_eq!(tokenizer_path, model_dir.join("tokenizer.json"));
+        
+        // Create tokenizer.json
+        File::create(model_dir.join("tokenizer.json")).unwrap();
+        let tokenizer_path = loader.get_tokenizer_path("test_model");
+        assert_eq!(tokenizer_path, model_dir.join("tokenizer.json"));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_model_loader_load_nonexistent_model() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ModelLoader::new(temp_dir.path())?;
+        
+        let result = loader.load_model("nonexistent_model", false);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            AiError::ModelLoadError(msg) => {
+                assert!(msg.contains("Model not found"));
+            },
+            _ => panic!("Expected ModelLoadError"),
+        }
+        
+        Ok(())
     }
 }

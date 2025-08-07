@@ -33,8 +33,20 @@
     }
   },
   "hooks": {
+    "user-prompt-submit-hook": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
     "post-edit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
     "post-multi-edit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
-    "pre-commit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\""
+    "pre-commit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py \\\"C:\\\\Users\\\\1\\\\Documents\\\\GitHub\\\\MAGRAY_Cli\\\\scripts\\\\architecture_daemon.py\\"
+          }
+        ]
+      }
+    ]
   }
 }

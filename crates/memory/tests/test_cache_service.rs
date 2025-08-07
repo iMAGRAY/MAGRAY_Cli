@@ -14,6 +14,7 @@ use tokio_test;
 use proptest::prelude::*;
 use once_cell::sync::Lazy;
 use mockall::{predicate::*, mock};
+use tempfile::TempDir;
 
 use memory::{
     services::{
@@ -385,6 +386,7 @@ proptest::proptest! {
             for val in &embedding {
                 prop_assert!(val.is_finite(), "Embedding не должен содержать NaN или infinity");
             }
+            Ok(())
         });
     }
     
@@ -413,6 +415,7 @@ proptest::proptest! {
             if total == 0 {
                 prop_assert_eq!(expected_rate, 0.0, "Hit rate должен быть 0 при отсутствии операций");
             }
+            Ok(())
         });
     }
     
@@ -434,6 +437,7 @@ proptest::proptest! {
                 let async_embedding = service.get_or_create_embedding(text).await.unwrap();
                 prop_assert_eq!(async_embedding.len(), dimension, "Async embeddings должны иметь ту же размерность");
             }
+            Ok(())
         });
     }
 }
@@ -491,15 +495,27 @@ async fn test_extreme_dimensions() -> Result<()> {
 async fn test_cache_service_with_real_coordinator() -> Result<()> {
     let container = create_test_container();
     
+    // Create cache first
+    let temp_dir = TempDir::new()?;
+    let cache = Arc::new(memory::EmbeddingCache::new(
+        temp_dir.path().join("cache"), 
+        memory::CacheConfig::default()
+    )?);
+    container.register(cache.clone())?;
+    
     // Add required dependencies for CoordinatorService
-    let gpu_processor = Arc::new(GpuBatchProcessor::new_cpu_fallback());
+    let gpu_processor = Arc::new(GpuBatchProcessor::new(
+        memory::gpu_accelerated::BatchProcessorConfig::default(),
+        ai::EmbeddingConfig::default(),
+        cache.clone(),
+    ).await?);
     container.register(gpu_processor)?;
     
-    let health_monitor = Arc::new(HealthMonitor::new());
+    let health_monitor = Arc::new(HealthMonitor::new(memory::health::HealthMonitorConfig::default()));
     container.register(health_monitor)?;
     
     let resource_manager = Arc::new(parking_lot::RwLock::new(
-        memory::resource_manager::ResourceManager::new()
+        memory::resource_manager::ResourceManager::new(memory::resource_manager::ResourceConfig::default())?
     ));
     container.register(resource_manager)?;
     

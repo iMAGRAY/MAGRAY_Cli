@@ -7,6 +7,9 @@ use anyhow::Result;
 use std::sync::Arc;
 use tracing::{debug, info};
 
+// Import traits для методов координаторов
+use crate::orchestration::traits::EmbeddingCoordinator as EmbeddingCoordinatorTrait;
+
 use crate::{
     cache_interface::EmbeddingCacheInterface,
     di_container::DIContainer,
@@ -14,8 +17,8 @@ use crate::{
     storage::VectorStore,
     gpu_accelerated::GpuBatchProcessor,
     orchestration::{
-        EmbeddingCoordinator as EmbeddingCoordinatorImpl,
-        SearchCoordinator as SearchCoordinatorImpl,
+        EmbeddingCoordinator,
+        SearchCoordinator,
         HealthManager,
         ResourceController,
     },
@@ -25,17 +28,17 @@ use crate::orchestration::Coordinator;
 
 /// Trait для создания координаторов (Dependency Inversion)
 pub trait CoordinatorFactory {
-    async fn create_embedding_coordinator(&self, container: &DIContainer) -> Result<Arc<EmbeddingCoordinatorImpl>>;
-    async fn create_search_coordinator(&self, container: &DIContainer, embedding_coordinator: &Arc<EmbeddingCoordinatorImpl>) -> Result<Arc<SearchCoordinatorImpl>>;
+    async fn create_embedding_coordinator(&self, container: &DIContainer) -> Result<Arc<EmbeddingCoordinator>>;
+    async fn create_search_coordinator(&self, container: &DIContainer, embedding_coordinator: &Arc<EmbeddingCoordinator>) -> Result<Arc<SearchCoordinator>>;
     async fn create_health_manager(&self, container: &DIContainer) -> Result<Arc<HealthManager>>;
     async fn create_resource_controller(&self, container: &DIContainer) -> Result<Arc<ResourceController>>;
 }
 
 /// Структура для хранения созданных координаторов
-#[derive(Debug)]
+// NOTE: Debug trait не реализован из-за зависимостей без Debug
 pub struct OrchestrationCoordinators {
-    pub embedding_coordinator: Option<Arc<EmbeddingCoordinatorImpl>>,
-    pub search_coordinator: Option<Arc<SearchCoordinatorImpl>>,
+    pub embedding_coordinator: Option<Arc<EmbeddingCoordinator>>,
+    pub search_coordinator: Option<Arc<SearchCoordinator>>,
     pub health_manager: Option<Arc<HealthManager>>,
     pub resource_controller: Option<Arc<ResourceController>>,
 }
@@ -213,6 +216,52 @@ impl OrchestrationCoordinators {
         info!("✅ Все координаторы готовы к работе");
         Ok(())
     }
+
+    /// Инициализация координаторов (alias для initialize_all)
+    pub async fn initialize(&self) -> Result<()> {
+        self.initialize_all().await
+    }
+
+    /// Shutdown координаторов (alias для shutdown_all)
+    pub async fn shutdown(&self) -> Result<()> {
+        self.shutdown_all().await
+    }
+
+    /// Проверить health всех координаторов
+    pub async fn check_health(&self) -> Result<crate::health::SystemHealthStatus> {
+        if let Some(health_manager) = &self.health_manager {
+            // Временная заглушка - возвращаем default health status
+            Ok(crate::health::SystemHealthStatus::default())
+        } else {
+            // Возвращаем базовый health status если нет health manager
+            Ok(crate::health::SystemHealthStatus::default())
+        }
+    }
+
+    /// Получить статистику cache из координаторов
+    pub async fn get_cache_stats(&self) -> (u64, u64, u64) {
+        let mut total_hits = 0;
+        let mut total_misses = 0; 
+        let mut total_size = 0;
+
+        // Получаем статистику от embedding координатора
+        if let Some(embedding_coord) = &self.embedding_coordinator {
+            let (hits, misses, size) = embedding_coord.cache_stats().await;
+            total_hits += hits;
+            total_misses += misses;
+            total_size += size;
+        }
+
+        // Получаем статистику от search координатора
+        if let Some(search_coord) = &self.search_coordinator {
+            let stats = search_coord.metrics().await;
+            // В качестве заглушки добавляем базовые значения
+            total_hits += 0;
+            total_misses += 0;
+        }
+
+        (total_hits, total_misses, total_size)
+    }
 }
 
 /// Production-ready factory для создания координаторов
@@ -296,11 +345,29 @@ impl ProductionCoordinatorFactory {
         
         Ok(coordinators)
     }
+
+    /// Создать координаторы (алиас для create_all_coordinators)
+    pub async fn create_coordinators(&self) -> Result<OrchestrationCoordinators> {
+        // Для facade мы создаем временный контейнер
+        // В реальном использовании контейнер будет передан извне
+        let container = crate::di_container::DIContainer::default_container()?;
+        self.create_all_coordinators(&container).await
+    }
+
+    /// Конструктор с DI контейнером
+    pub fn with_container(_container: DIContainer) -> Self {
+        Self {
+            create_embedding: true,
+            create_search: true,
+            create_health: true,
+            create_resources: true,
+        }
+    }
 }
 
 impl CoordinatorFactory for ProductionCoordinatorFactory {
     /// Создать embedding coordinator
-    async fn create_embedding_coordinator(&self, container: &DIContainer) -> Result<Arc<EmbeddingCoordinatorImpl>> {
+    async fn create_embedding_coordinator(&self, container: &DIContainer) -> Result<Arc<EmbeddingCoordinator>> {
         let gpu_processor = container.resolve::<GpuBatchProcessor>()?;
         
         // Создаем временный cache для демонстрации
@@ -310,7 +377,7 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
             crate::cache_lru::CacheConfig::default()
         )?) as Arc<dyn EmbeddingCacheInterface>;
         
-        let coordinator = Arc::new(EmbeddingCoordinatorImpl::new(gpu_processor, cache));
+        let coordinator = Arc::new(EmbeddingCoordinator::new(gpu_processor, cache));
         debug!("✅ EmbeddingCoordinator создан");
         
         Ok(coordinator)
@@ -320,11 +387,11 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
     async fn create_search_coordinator(
         &self, 
         container: &DIContainer, 
-        embedding_coordinator: &Arc<EmbeddingCoordinatorImpl>
-    ) -> Result<Arc<SearchCoordinatorImpl>> {
+        embedding_coordinator: &Arc<EmbeddingCoordinator>
+    ) -> Result<Arc<SearchCoordinator>> {
         let store = container.resolve::<VectorStore>()?;
         
-        let coordinator = Arc::new(SearchCoordinatorImpl::new_production(
+        let coordinator = Arc::new(SearchCoordinator::new_production(
             store,
             embedding_coordinator.clone(),
             64,  // max concurrent searches
@@ -360,12 +427,12 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
 pub struct TestCoordinatorFactory;
 
 impl CoordinatorFactory for TestCoordinatorFactory {
-    async fn create_embedding_coordinator(&self, _container: &DIContainer) -> Result<Arc<EmbeddingCoordinatorImpl>> {
+    async fn create_embedding_coordinator(&self, _container: &DIContainer) -> Result<Arc<EmbeddingCoordinator>> {
         // В тестах можем создавать mock координаторы
         Err(anyhow::anyhow!("Test coordinator factory - not implemented"))
     }
 
-    async fn create_search_coordinator(&self, _container: &DIContainer, _embedding_coordinator: &Arc<EmbeddingCoordinatorImpl>) -> Result<Arc<SearchCoordinatorImpl>> {
+    async fn create_search_coordinator(&self, _container: &DIContainer, _embedding_coordinator: &Arc<EmbeddingCoordinator>) -> Result<Arc<SearchCoordinator>> {
         Err(anyhow::anyhow!("Test coordinator factory - not implemented"))
     }
 

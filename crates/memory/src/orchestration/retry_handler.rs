@@ -94,6 +94,7 @@ impl<T> RetryResult<T> {
 }
 
 /// Обработчик повторных попыток
+#[derive(Debug)]
 pub struct RetryHandler {
     policy: RetryPolicy,
 }

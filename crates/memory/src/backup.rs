@@ -22,7 +22,7 @@ use crate::{
 const BACKUP_FORMAT_VERSION: u32 = 1;
 
 /// Метаданные backup
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct BackupMetadata {
     pub version: u32,
     pub created_at: DateTime<Utc>,

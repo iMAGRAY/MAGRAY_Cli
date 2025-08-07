@@ -27,204 +27,19 @@
 8. **SCRIPTS**: Все утилиты и скрипты в папке scripts/
 9. **АГЕНТЫ**: Всегда используй специализированных агентов для максимальной эффективности
 
-## ⚠️ РЕАЛЬНОЕ СОСТОЯНИЕ ПРОЕКТА (ALPHA)
-
-**Автоматический анализ от 2025-08-06 17:01:02 UTC:**
-
-### 🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:
-- **Критических issues**: 138
-- **High priority issues**: 254  
-- **Циклических зависимостей**: 0
-- **Технический долг**: 4609 часов
-- **Файлов с высокой сложностью**: 124
-
-### ❌ ЧТО НЕ РАБОТАЕТ:
-- **God Objects остаются**: 56 обнаружено
-- **Дублирование кода**: 59 случаев
-- **Неиспользуемый код**: dead code warnings в большинстве модулей
-- **Покрытие тестами**: недостаточное (tests: 0, mocks: 46)
-
-### 📊 СТАТИСТИКА ПРОЕКТА:
-- **Crates**: 8
-- **Файлов**: 342
-- **Структур**: 503
-- **Функций**: 1135
-- **Тестов**: 0
-- **Моков**: 46
-
-## 📋 ПЛАН РАЗВИТИЯ ПРОЕКТА
-
-**🔴 ФАЗА 0 (КРИТИЧНО): Стабилизация базы**
-- ❌ Исправить компиляцию всех тестов
-- ❌ Устранить оставшиеся warnings
-- ❌ Декомпозировать God Objects
-- ❌ Настроить покрытие тестами >30%
-
-**❌ ФАЗА 1: Архитектурный рефакторинг**
-- ❌ Завершить миграцию на Clean Architecture
-- ❌ Устранить циклические зависимости
-- ❌ Внедрить proper DI везде
-
-**❌ ФАЗА 2: LLM Integration**
-- ❌ Multi-Provider orchestration
-- ❌ Circuit breakers активация
-- ❌ Tool System реализация
-
-**❌ ФАЗА 3: Memory Optimization**
-- ❓ HNSW SIMD оптимизации
-- ❓ GPU Acceleration
-- ❓ Batch Processing метрики
-
-**❌ ФАЗА 4: Production Readiness**
-- ❌ Performance benchmarking
-- ❌ Health monitoring activation
-- ❌ Оптимизация размера бинарника
-
-**📋 ФАЗА 5: Desktop Distribution**
-- 📋 Single binary ~16MB
-- 📋 Native desktop integration
-- 📋 Auto-updater system
-
-## 🎯 СПЕЦИАЛИЗИРОВАННЫЕ АГЕНТЫ (.claude/agents/)
-
-**ОСНОВНЫЕ АРХИТЕКТУРНЫЕ АГЕНТЫ:**
-- **rust-architect-supreme** - Декомпозиция God Objects, SOLID principles, DI patterns
-- **rust-refactoring-master** - Безопасный рефакторинг с сохранением функциональности
-- **ai-architecture-maestro** - ONNX optimization, embedding pipelines, GPU acceleration
-
-**КАЧЕСТВО И ПРОИЗВОДИТЕЛЬНОСТЬ:**
-- **rust-quality-guardian** - Тестирование (unit/integration/property-based), coverage 80%+
-- **rust-performance-virtuoso** - SIMD optimization, microsecond-level tuning, zero-copy
-- **rust-code-optimizer** - Общая оптимизация кода, устранение дублирования
-
-**ИНФРАСТРУКТУРА И ОПЕРАЦИИ:**
-- **devops-orchestration-master** - CI/CD pipelines, containerization, monitoring
-- **task-coordinator** - Координация сложных multi-step задач с зависимостями
-
-**ДОКУМЕНТАЦИЯ:**
-- **obsidian-docs-architect** - Создание связанной документации архитектуры
-- **obsidian-docs-maintainer** - Поддержка актуальности документации
-
-## 📊 РЕАЛЬНОЕ СОСТОЯНИЕ КОДА
-
-## 💸 Технический долг
-
-**Общий долг**: 4608.8 часов (576.1 дней)
-**Критических проблем**: 138
-**Высокий приоритет**: 254
-
-- [CRITICAL] Цикломатическая сложность 41 (должна быть < 10)
-  - Файл: `ai/src/auto_device_selector.rs`
-  - Оценка: 10.5 часов
-- [CRITICAL] Цикломатическая сложность 31 (должна быть < 10)
-  - Файл: `ai/src/embeddings_bge_m3.rs`
-  - Оценка: 5.5 часов
-- [CRITICAL] Цикломатическая сложность 69 (должна быть < 10)
-  - Файл: `ai/src/embeddings_cpu.rs`
-  - Оценка: 16.0 часов
-- [CRITICAL] God Object вероятность 80%
-  - Файл: `ai/src/embeddings_cpu.rs`
-  - Оценка: 16.0 часов
-- [CRITICAL] Цикломатическая сложность 50 (должна быть < 10)
-  - Файл: `ai/src/embeddings_gpu.rs`
-  - Оценка: 15.0 часов
-
-## 📊 Метрики сложности
-
-### Самые сложные файлы:
-- `memory/src/orchestration/memory_orchestrator.rs`:
-  - Цикломатическая: 121
-  - Когнитивная: 3910
-  - ⚠️ God Object: 100%
-- `memory/src/gpu_accelerated.rs`:
-  - Цикломатическая: 119
-  - Когнитивная: 3050
-  - ⚠️ God Object: 80%
-- `memory/src/storage.rs`:
-  - Цикломатическая: 105
-  - Когнитивная: 2362
-  - ⚠️ God Object: 80%
-- `cli/src/main.rs`:
-  - Цикломатическая: 98
-  - Когнитивная: 2853
-- `memory/src/cache_lru.rs`:
-  - Цикломатическая: 98
-  - Когнитивная: 2016
-  - ⚠️ God Object: 80%
-
-## 🔍 Обнаруженные дубликаты
-
-- **impl AsRef** встречается 22 раз:
-  - `ai/src/models.rs` (AsRef)
-  - `ai/src/model_downloader.rs` (AsRef)
-  - `ai/src/tensorrt_cache.rs` (AsRef)
-  - ...и еще 19 мест
-- **impl CacheService** встречается 2 раз:
-  - `memory/src/services/cache_service.rs` (CacheService)
-  - `memory/src/services/cache_service.rs` (CacheService)
-- **impl ChatMessage** встречается 2 раз:
-  - `llm/src/lib.rs` (ChatMessage)
-  - `llm/src/providers/mod.rs` (ChatMessage)
-- **impl CircuitBreaker** встречается 2 раз:
-  - `ai/src/gpu_fallback.rs` (CircuitBreaker)
-  - `llm/src/circuit_breaker.rs` (CircuitBreaker)
-- **impl CircuitBreakerTrait for MockCircuitBreaker** встречается 4 раз:
-  - `cli/src/handlers/admin_handler.rs` (MockCircuitBreaker)
-  - `cli/src/handlers/chat_handler.rs` (MockCircuitBreaker)
-  - `cli/src/handlers/memory_handler.rs` (MockCircuitBreaker)
-  - ...и еще 1 мест
-- **impl CoordinatorServiceTrait for TestCoordinatorService** встречается 2 раз:
-  - `memory/tests/test_cache_service.rs` (TestCoordinatorService)
-  - `memory/tests/test_monitoring_service.rs` (TestCoordinatorService)
-- **impl CoreMemoryService** встречается 2 раз:
-  - `memory/src/services/core_memory_service.rs` (CoreMemoryService)
-  - `memory/src/services/core_memory_service.rs` (CoreMemoryService)
-- **impl DIContainer** встречается 2 раз:
-  - `memory/examples/test_performance_metrics.rs` (DIContainer)
-  - `memory/src/di_container.rs` (DIContainer)
-- **impl DIPerformanceMetrics** встречается 2 раз:
-  - `memory/examples/test_performance_metrics.rs` (DIPerformanceMetrics)
-  - `memory/src/di_container.rs` (DIPerformanceMetrics)
-- **impl Default for CacheConfig** встречается 2 раз:
-  - `memory/src/cache_lru.rs` (CacheConfig)
-  - `memory/src/layers/mod.rs` (CacheConfig)
-
-## 🎭 Реестр моков и заглушек
-
-Всего найдено моков: **60**
-
-### cli
-- `MockAdminService` в cli/src/handlers/admin_handler.rs
-- `MockCircuitBreaker` в cli/src/handlers/admin_handler.rs
-- `MockHealthCheck` в cli/src/health_checks.rs
-- `MockIntentAnalyzer` в cli/src/services/intent_analysis.rs
-- `MockIntentAnalyzerAgent` в cli/tests/test_services_intent_analysis.rs
-### memory
-- `DependentTestService` в memory/tests/test_di_performance_comparison.rs
-- `DummyLogger` в memory/tests/test_mocks_and_stubs.rs
-- `FakeMemoryService` в memory/tests/test_mocks_and_stubs.rs
-- `HeavyTestService` в memory/tests/test_di_performance_comparison.rs
-- `MockBackupCoordinator` в memory/tests/test_orchestration_memory_orchestrator.rs
-### router
-- `MockTool` в router/tests/test_router_async.rs
-### tools
-- `MockTool` в tools/tests/test_registry.rs
-- `impl MockTool` в tools/tests/test_registry.rs
-
-## 🛠️ Тестовые утилиты и билдеры
-
-### memory
-- `TestConfigBuilder` в memory/tests/common/mod.rs
-- `TestDataGenerator` в memory/tests/common/mod.rs
-- `TestRecordBuilder` в memory/tests/common/mod.rs
-
-
 ---
 
 # AUTO-GENERATED ARCHITECTURE
 
-*Last updated: 2025-08-06 17:01:02 UTC*
-*Status: ALPHA - не готов к production использованию*
+*Last updated: 2025-08-06 критический анализ*
+*Status: PRE-ALPHA - катастрофическое состояние кода*
+
+**⚠️ КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ:**
+- 1054 потенциальных panic через .unwrap()
+- 300+ warnings при каждой сборке
+- Unsafe code без документации
+- Массивные неиспользуемые импорты
+- God Objects не декомпозированы
 
 ## Компактная архитектура MAGRAY CLI
 
@@ -241,7 +56,7 @@ graph TB
         AI_test_qwen3_models[test_qwen3_models<br/>TEST<br/>EXAMPLE<br/>fn:main,test_qwen3_embeddings]:::testFile
         AI_test_qwen3_reranker[test_qwen3_reranker<br/>TEST<br/>EXAMPLE<br/>fn:main]:::testFile
         AI_auto_device_selector[auto_device_selector<br/>S:AutoDeviceSelector,DeviceDecision<br/>T:EmbeddingServiceTrait<br/>fn:default,new<br/>...+1]
-        AI_config[config<br/>S:AiConfig,EmbeddingConfig<br/>fn:default,default<br/>m:Default::default,Default::default]
+        AI_config[config<br/>S:AiConfig,EmbeddingConfig<br/>fn:default,production<br/>m:Default::default,AiConfig::production]
         AI_embeddings_bge_m3[embeddings_bge_m3<br/>S:BgeM3EmbeddingService,EmbeddingResult<br/>fn:new,embed<br/>m:BgeM3EmbeddingService::new,BgeM3EmbeddingService::embed]
         AI_embeddings_cpu[embeddings_cpu<br/>S:CpuEmbeddingService,OptimizedEmbeddingResult<br/>fn:new,embed<br/>m:CpuEmbeddingService::new,CpuEmbeddingService::embed]
         AI_embeddings_gpu[embeddings_gpu<br/>S:GpuEmbeddingService,PerformanceMetrics<br/>fn:tokens_per_second,cache_hit_rate<br/>m:PerformanceMetrics::tokens_per_second,PerformanceMetrics::cache_hit_rate]
@@ -309,13 +124,27 @@ graph TB
 
     subgraph COMMON[Common Utilities]
         COMMON_comprehensive_errors[comprehensive_errors<br/>S:ErrorContext<br/>T:SafeUnwrap<br/>E:MagrayCoreError,MemoryError<br/>...+3]
+        COMMON_config_base[config_base<br/>S:BatchConfigBase,TimeoutConfigBase<br/>T:ConfigComposition<br/>fn:default,small<br/>...+2]
         COMMON_errors[errors<br/>T:IsRetriable,IsRecoverable<br/>E:MagrayError,DatabaseError<br/>fn:is_retriable,is_recoverable<br/>...+2]
         COMMON_error_monitor[error_monitor<br/>S:ErrorMonitor,ErrorMonitorConfig<br/>fn:default,new<br/>m:Default::default,RateLimiter::new<br/>...+1]
         COMMON_lib[lib]
+        COMMON_macros[macros<br/>MOCK<br/>S:TestConfig<br/>fn:test_config_default_macro<br/>...+2]:::mockFile
+        COMMON_service_traits[service_traits<br/>MOCK<br/>S:RetryConfig,PoolStats<br/>T:BaseService,ConfigurableService<br/>...+4]:::mockFile
         COMMON_structured_logging[structured_logging<br/>S:StructuredLogEntry,ExecutionContext<br/>fn:default,on_event<br/>m:Default::default,JsonFormatter::on_event<br/>...+1]
         COMMON_test_logging_advanced[test_logging_advanced<br/>TEST<br/>fn:test_execution_context_default,test_execution_context_with_all_fields]:::testFile
         COMMON_test_structured_logging[test_structured_logging<br/>TEST<br/>fn:test_structured_log_entry_creation,test_execution_context]:::testFile
         COMMON_test_structured_logging_extended[test_structured_logging_extended<br/>TEST<br/>fn:test_structured_log_entry_full,test_structured_log_entry_minimal]:::testFile
+    end
+
+    subgraph DOMAIN[Domain Crate]
+        DOMAIN_errors[errors<br/>E:DomainError,ErrorCategory<br/>fn:is_validation_error,is_business_rule_error<br/>m:DomainError::is_validation_error,DomainError::is_business_rule_error]
+        DOMAIN_lib[lib]
+        DOMAIN_memory_record[memory_record<br/>S:MemoryRecord<br/>fn:new,with_id<br/>m:MemoryRecord::new,MemoryRecord::with_id]
+        DOMAIN_mod[mod]
+        DOMAIN_record_id[record_id<br/>S:RecordId<br/>fn:new,from_string<br/>m:RecordId::new,RecordId::from_string]
+        DOMAIN_access_pattern[access_pattern<br/>S:AccessPattern<br/>fn:new,with_first_access<br/>m:AccessPattern::new,AccessPattern::with_first_access]
+        DOMAIN_layer_type[layer_type<br/>E:LayerType<br/>fn:as_str,description<br/>m:LayerType::as_str,LayerType::description]
+        DOMAIN_mod[mod]
     end
 
     subgraph LLM[Multi-Provider LLM]
@@ -347,6 +176,7 @@ graph TB
     subgraph MEMORY[3-Layer HNSW Memory]
         MEMORY_comprehensive_performance[comprehensive_performance<br/>BENCH<br/>fn:create_test_record,bench_vector_store_operations]:::benchFile
         MEMORY_di_performance[di_performance<br/>BENCH<br/>S:LightweightService,HeavyService<br/>fn:new,new<br/>...+1]:::benchFile
+        MEMORY_hnsw_performance_baseline[hnsw_performance_baseline<br/>BENCH<br/>S:HnswConfig,SimpleHnsw<br/>fn:baseline,optimized<br/>...+2]:::benchFile
         MEMORY_scalability_benchmarks[scalability_benchmarks<br/>BENCH<br/>fn:generate_embedding,bench_search_scalability]:::benchFile
         MEMORY_simple_test[simple_test<br/>TEST<br/>BENCH<br/>fn:simple_benchmark]:::testFile
         MEMORY_vector_benchmarks[vector_benchmarks<br/>BENCH<br/>fn:generate_random_vectors,create_test_records<br/>unsafe:2]:::benchFile
@@ -360,20 +190,27 @@ graph TB
         MEMORY_full_pipeline_test[full_pipeline_test<br/>TEST<br/>EXAMPLE<br/>fn:main]:::testFile
         MEMORY_api[api<br/>S:UnifiedMemoryAPI,MemoryContext<br/>T:MemoryServiceTrait<br/>fn:search_sync,run_promotion_sync<br/>...+1]
         MEMORY_backup[backup<br/>S:BackupMetadata,LayerInfo<br/>fn:new,create_backup<br/>m:BackupManager::new,BackupManager::create_backup]
-        MEMORY_batch_manager[batch_manager<br/>S:BatchConfig,BatchStats<br/>fn:default,new<br/>m:Default::default,BatchOperationManager::new]
+        MEMORY_batch_manager[batch_manager<br/>S:BatchConfig,BatchStats<br/>fn:default,production<br/>m:Default::default,BatchConfig::production]
         MEMORY_batch_optimized[batch_optimized<br/>S:BatchOptimizedConfig,BatchOptimizedStats<br/>E:BatchRequest<br/>fn:default,throughput_qps<br/>...+2]
         MEMORY_cache_interface[cache_interface<br/>T:EmbeddingCacheInterface<br/>fn:is_null_check,get<br/>m:EmbeddingCacheInterface::get,EmbeddingCacheInterface::insert]
-        MEMORY_cache_lru[cache_lru<br/>S:CachedEmbedding,CacheConfig<br/>fn:default,new<br/>m:Default::default,LruIndex::new]
+        MEMORY_cache_lru[cache_lru<br/>S:CachedEmbedding,CacheConfig<br/>fn:default,production<br/>m:Default::default,ConfigTrait::production]
         MEMORY_cache_migration[cache_migration<br/>fn:migrate_cache_to_lru,recommend_cache_config]
         MEMORY_database_manager[database_manager<br/>S:DatabaseManager,DatabaseStats<br/>fn:new,global<br/>m:DatabaseManager::new,DatabaseManager::global]
         MEMORY_integration_full_workflow[integration_full_workflow<br/>TEST<br/>fn:test_complete_memory_system_workflow,test_performance_under_load]:::testFile
         MEMORY_integration_test[integration_test<br/>TEST<br/>fn:test_memory_service_basic_operations,test_memory_layers]:::testFile
         MEMORY_performance_test[performance_test<br/>TEST<br/>fn:generate_embedding,test_vector_search_performance]:::testFile
+        MEMORY_test_basic_isolated[test_basic_isolated<br/>TEST<br/>fn:test_uuid_creation,test_datetime_creation]:::testFile
         MEMORY_test_batch_optimized[test_batch_optimized<br/>TEST<br/>fn:create_test_processor,create_test_record]:::testFile
         MEMORY_test_cache_migration[test_cache_migration<br/>TEST<br/>fn:test_cache_config_recommendations,test_recommended_config_cache_creation]:::testFile
         MEMORY_test_cache_service[test_cache_service<br/>TEST<br/>MOCK<br/>fn:create_test_container,create_mock_coordinator_service<br/>...+1]:::testFile
-        MEMORY_test_coordinator_service[test_coordinator_service<br/>TEST<br/>MOCK<br/>fn:create_test_container_with_mocks,create_minimal_container<br/>...+1]:::testFile
-        MEMORY_test_core_memory_service[test_core_memory_service<br/>TEST<br/>fn:create_test_container,create_test_container_sync]:::testFile
+        MEMORY_test_comprehensive_core[test_comprehensive_core<br/>TEST<br/>MOCK<br/>S:MockVectorStore<br/>...+4]:::testFile
+        MEMORY_container_builder[container_builder<br/>MOCK<br/>S:DIContainerBuilder,DIContainer<br/>fn:new,with_validation<br/>...+2]:::mockFile
+        MEMORY_container_core[container_core<br/>S:ContainerCore<br/>fn:new,get_type_name<br/>m:ContainerCore::new,ContainerCore::get_type_name<br/>...+1]
+        MEMORY_dependency_validator[dependency_validator<br/>S:DependencyGraph,DependencyGraphStats<br/>fn:new,add_dependency<br/>m:DependencyGraph::new,DependencyGraph::add_dependency]
+        MEMORY_lifetime_manager[lifetime_manager<br/>MOCK<br/>S:LifetimeManagerImpl,CacheStats<br/>T:LifetimeStrategy<br/>...+3]:::mockFile
+        MEMORY_metrics_collector[metrics_collector<br/>S:AtomicCounters,MetricsReporterImpl<br/>fn:new,reset<br/>m:AtomicCounters::new,AtomicCounters::reset]
+        MEMORY_mod[mod<br/>MOCK<br/>S:TestService,DependentService<br/>fn:create_default_container,create_minimal_container<br/>...+2]:::mockFile
+        MEMORY_traits[traits<br/>S:DIContainerStats,DIPerformanceMetrics<br/>T:DIResolver,DIRegistrar<br/>E:Lifetime<br/>...+2]
         MEMORY_config[config<br/>S:HnswConfig<br/>fn:default,high_quality<br/>m:Default::default,HnswConfig::high_quality]
         MEMORY_index[index<br/>S:VectorIndex<br/>fn:cosine_distance_avx2,horizontal_sum_avx2<br/>m:VectorIndex::new,VectorIndex::detect_simd_capabilities<br/>...+1]
         MEMORY_mod[mod]
@@ -385,14 +222,22 @@ graph TB
         MEMORY_query[query<br/>S:SemanticQueryLayer<br/>fn:new,semantic_search<br/>m:SemanticQueryLayer::new,QueryLayer::semantic_search]
         MEMORY_storage[storage<br/>S:SqliteStorageLayer,InternalStorageStats<br/>E:StatType<br/>fn:new,run_migrations<br/>...+2]
         MEMORY_traits[traits<br/>S:VectorSearchResult,StorageStats<br/>T:StorageLayer,IndexLayer<br/>fn:default,test_ranking_criteria_default<br/>...+1]
+        MEMORY_algorithms[algorithms<br/>S:FrequencyAlgorithm,FrequencyWeights<br/>fn:default,predict_score<br/>m:Default::default,PromotionAlgorithm::predict_score]
+        MEMORY_coordinator[coordinator<br/>MOCK<br/>S:PromotionCoordinator,PromotionCoordinatorBuilder<br/>fn:new,production<br/>...+3]:::mockFile
+        MEMORY_data_processor[data_processor<br/>S:MLDataProcessor,DataProcessorConfig<br/>fn:default,default<br/>m:Default::default,Default::default]
+        MEMORY_legacy_facade[legacy_facade<br/>S:MLPromotionEngine,UsageTracker<br/>fn:new,run_ml_promotion_cycle<br/>m:MLPromotionEngine::new,MLPromotionEngine::run_ml_promotion_cycle]
+        MEMORY_metrics[metrics<br/>S:MLPromotionMetricsCollector,MetricsConfig<br/>fn:default,production<br/>m:Default::default,MetricsConfig::production]
+        MEMORY_mod[mod<br/>S:MigrationHelper<br/>fn:create_production_coordinator,create_development_coordinator<br/>m:MigrationHelper::create_compatible_coordinator]
+        MEMORY_rules_engine[rules_engine<br/>S:ConfigurableRulesEngine,RulesConfig<br/>E:SpecialCondition,BusinessRule<br/>fn:default,production<br/>...+1]
+        MEMORY_traits[traits<br/>S:TrainingExample,InferenceResult<br/>T:PromotionAlgorithm,PromotionMetrics<br/>fn:default<br/>...+1]
         MEMORY_backup_coordinator[backup_coordinator<br/>S:BackupCoordinator<br/>fn:new,initialize<br/>m:BackupCoordinator::new,Coordinator::initialize]
+        MEMORY_circuit_breaker_manager[circuit_breaker_manager<br/>S:CircuitBreakerManager,CircuitBreakerConfig<br/>T:CircuitBreakerManagerTrait<br/>E:CircuitBreakerStatus<br/>...+2]
+        MEMORY_coordinator_registry[coordinator_registry<br/>MOCK<br/>S:CoordinatorRegistry,ReadinessStatus<br/>T:CoordinatorRegistryTrait<br/>...+3]:::mockFile
         MEMORY_embedding_coordinator[embedding_coordinator<br/>S:EmbeddingCoordinator,CircuitBreaker<br/>E:CircuitState<br/>fn:new,with_retry_policy<br/>...+1]
         MEMORY_health_manager[health_manager<br/>S:HealthManager,HealthMetrics<br/>E:AlertLevel<br/>fn:new,setup_production_monitoring<br/>...+1]
         MEMORY_memory_orchestrator[memory_orchestrator<br/>S:MemoryOrchestrator,CircuitBreakerState<br/>E:CircuitBreakerStatus<br/>fn:clone,new<br/>...+1]
+        MEMORY_metrics_collector[metrics_collector<br/>S:MetricsCollector,MetricsCoordinatorRegistry<br/>T:MetricsCollectorTrait<br/>E:ThroughputTrend<br/>...+2]
         MEMORY_mod[mod]
-        MEMORY_promotion_coordinator[promotion_coordinator<br/>S:PromotionCoordinator<br/>fn:new,initialize<br/>m:PromotionCoordinator::new,Coordinator::initialize]
-        MEMORY_resource_controller[resource_controller<br/>S:ResourceController,ResourceMetrics<br/>E:ResourceAlertType<br/>fn:new,new_production<br/>...+1]
-        MEMORY_retry_handler[retry_handler<br/>S:RetryPolicy,RetryHandler<br/>E:RetryResult<br/>fn:default,fast<br/>...+1]
         MEMORY_cache_service[cache_service<br/>S:CacheService,CacheDetailedStats<br/>fn:new,new_with_coordinator<br/>m:CacheService::new,CacheService::new_with_coordinator]
         MEMORY_coordinator_service[coordinator_service<br/>S:CoordinatorRefs,CoordinatorService<br/>fn:default,new<br/>m:Default::default,CoordinatorService::new]
         MEMORY_core_memory_service[core_memory_service<br/>S:CoreMemoryService<br/>fn:new,new_minimal<br/>m:CoreMemoryService::new,CoreMemoryService::new_minimal]
@@ -401,6 +246,14 @@ graph TB
         MEMORY_refactored_di_memory_service[refactored_di_memory_service<br/>S:RefactoredDIMemoryService,LifecycleManager<br/>fn:default,new<br/>m:Default::default,RefactoredDIMemoryService::new]
         MEMORY_resilience_service[resilience_service<br/>S:CircuitBreakerState,ResilienceService<br/>fn:default,new<br/>m:Default::default,ResilienceService::new]
         MEMORY_service_factory[service_factory<br/>S:ServiceFactory,ServiceCollection<br/>fn:default,production<br/>m:Default::default,ServiceFactoryConfig::production]
+        MEMORY_circuit_breaker[circuit_breaker<br/>S:CircuitBreakerConfig,CircuitBreakerInternalState<br/>E:CircuitBreakerState<br/>fn:default,default<br/>...+1]
+        MEMORY_coordinator_factory[coordinator_factory<br/>MOCK<br/>S:OrchestrationCoordinators,ProductionCoordinatorFactory<br/>T:CoordinatorFactory<br/>...+3]:::mockFile
+        MEMORY_facade[facade<br/>S:DIMemoryServiceFacade,DIMemoryServiceBuilder<br/>fn:new,new_minimal<br/>m:DIMemoryServiceFacade::new,DIMemoryServiceFacade::new_minimal]
+        MEMORY_lifecycle_manager[lifecycle_manager<br/>S:LifecycleConfig,OperationStats<br/>E:LifecycleState<br/>fn:default,production<br/>...+1]
+        MEMORY_mod[mod<br/>S:MemorySystemStats<br/>fn:default<br/>m:Default::default]
+        MEMORY_operation_executor[operation_executor<br/>S:BatchInsertResult,BatchSearchResult<br/>T:OperationExecutor<br/>fn:default,production<br/>...+1]
+        MEMORY_production_monitoring[production_monitoring<br/>S:ProductionMetrics,ProductionMetricsCollector<br/>T:MetricsCollector<br/>fn:success_rate,failure_rate<br/>...+1]
+        MEMORY_service_config[service_config<br/>S:MemoryServiceConfig,MemoryServiceConfigBuilder<br/>T:ServiceConfigFactory<br/>E:ServiceConfigType<br/>...+2]
         MEMORY_mod[mod<br/>TEST<br/>MOCK<br/>S:TestConfigBuilder,TestRecordBuilder<br/>...+4]:::testFile
         MEMORY_di_container_test[di_container_test<br/>TEST<br/>fn:create_di_test_service,create_di_test_record]:::testFile
         MEMORY_full_system_test[full_system_test<br/>TEST<br/>fn:create_test_record,create_production_test_service]:::testFile
@@ -460,18 +313,18 @@ graph TB
     end
 
     %% Зависимости между крейтами
-    CLI -.->|uses| COMMON
-    CLI -.->|uses| LLM
-    CLI -.->|uses| TOOLS
-    CLI -.->|uses| AI
     CLI -.->|uses| ROUTER
+    CLI -.->|uses| AI
     CLI -.->|uses| MEMORY
+    CLI -.->|uses| LLM
+    CLI -.->|uses| COMMON
+    CLI -.->|uses| TOOLS
     MEMORY -.->|uses| COMMON
     MEMORY -.->|uses| AI
-    ROUTER -.->|uses| TOOLS
     ROUTER -.->|uses| LLM
-    TODO -.->|uses| MEMORY
+    ROUTER -.->|uses| TOOLS
     TODO -.->|uses| LLM
+    TODO -.->|uses| MEMORY
     TOOLS -.->|uses| LLM
 
     classDef crate fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
@@ -486,14 +339,27 @@ graph TB
 
 ## 📝 MEMORY
 
-**Текущая памятка проекта:**
-- **Продолжать использовать соответствующих агентов для каждой задачи**
-- **Полностью привести проект в порядок:**
-  - После выполнения всех Todos полностью анализировать текущее состояние проекта
-  - Генерировать состояние проекта в CLAUDE.md с помощью mermaid
-  - Создавать детальный план реализации проекта
-  - Обновлять todos
-  - Приступать к выполнению циклично, пока проект не будет завершен
-- **Быть максимально честно критичным к себе и создаваемым изменениям**
-- **НИКОГДА не писать о том, что было сделано, и не хвастаться успехами**
-- **Писать только о том, что не сделано**
+## 🚨 КРИТИЧЕСКАЯ ПАМЯТКА ПРОЕКТА
+
+**ПРОЕКТ В КАТАСТРОФИЧЕСКОМ СОСТОЯНИИ:**
+- ❌ **1054 .unwrap() вызовов** - каждый может привести к panic
+- ❌ **300+ warnings** загрязняют каждую сборку
+- ❌ **Unsafe код** без documentation и justification  
+- ❌ **God Objects** продолжают существовать
+- ❌ **Моки вместо тестов** - тестирование отсутствует
+- ❌ **Domain/Application слои** - пустые заглушки
+- ❌ **Clean Architecture** - только структура директорий
+
+**НЕМЕДЛЕННЫЕ ПРИОРИТЕТЫ:**
+1. Устранить небезопасные .unwrap() паттерны
+2. Исправить все compilation warnings
+3. Удалить неиспользуемый код (dead code)
+4. Заменить async fn в traits на proper Future returns
+5. Документировать или удалить unsafe блоки
+
+**ЗАПРЕЩЕНО:**
+- ❌ Добавлять новую функциональность без исправления существующих проблем
+- ❌ Игнорировать warnings и dead code  
+- ❌ Использовать .unwrap() в новом коде
+- ❌ Создавать новые God Objects
+- ❌ Писать моки вместо реальных тестов

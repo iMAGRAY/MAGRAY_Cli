@@ -14,6 +14,7 @@ use crate::{
 };
 
 /// Production-ready контроллер ресурсов с автомасштабированием
+#[derive(Debug)]
 pub struct ResourceController {
     resource_manager: Arc<parking_lot::RwLock<ResourceManager>>,
     ready: std::sync::atomic::AtomicBool,

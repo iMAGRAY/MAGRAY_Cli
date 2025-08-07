@@ -1,0 +1,197 @@
+# =========================================
+# MAGRAY CLI Dependency Security Policy
+# =========================================
+# Используется cargo-deny для security и compliance
+
+[graph]
+# If true, metadata will be collected with `--all-features`. 
+all-features = false
+# If true, metadata will be collected with `--no-default-features`.
+no-default-features = false
+# If set, these feature will be enabled when collecting metadata.
+features = ["cpu"]
+
+[output]
+# More output per crate when there are warnings or errors
+feature-depth = 1
+
+# =========================================
+# ADVISORY CONFIGURATION (Security)
+# =========================================
+[advisories]
+# The path где advisory database находится
+db-path = "~/.cargo/advisory-db"
+# The url(s) где advisory database может быть fetched
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# The lint level для security vulnerabilities
+vulnerability = "deny"
+# The lint level для unmaintained crates
+unmaintained = "warn"
+# The lint level для crates with security notices
+notice = "warn"
+# A list advisory IDs для игнорирования
+ignore = [
+    # Example: "RUSTSEC-2020-0001",
+]
+# Threshold для severity levels
+severity-threshold = "medium"
+
+# =========================================  
+# BANNED CRATES (Security Risks)
+# =========================================
+[bans]
+# Lint level для when multiple versions одного crate
+multiple-versions = "warn"
+# Lint level для when a crate version requirement is `*`
+wildcards = "allow"
+highlight = "all"
+
+# Explicitly banned crates
+deny = [
+    # Banned из-за security issues
+    { name = "openssl", version = "*" },  # Prefer rustls
+    # { name = "native-tls", version = "*" },  # Allow для compatibility
+    
+    # Banned из-за maintenance issues  
+    { name = "net2", version = "*" },     # Deprecated, use socket2
+    { name = "ws2_32-sys", version = "*" }, # Old Windows API
+]
+
+# Specific version bans
+# [[bans.deny]]
+# name = "some-crate"
+# version = "=1.0.0"  # Specific version ban
+
+skip = [
+    # Skip certain crates из-за ecosystem requirements
+    { name = "windows-sys" },  # Multiple versions needed для ecosystem
+]
+
+skip-tree = [
+    # Skip entire dependency trees
+    { name = "ort" },  # ONNX Runtime may have version conflicts
+]
+
+# =========================================
+# LICENSE POLICY  
+# =========================================
+[licenses]
+# Lint level для copyleft licenses
+copyleft = "warn"
+# List explicitly allowed licenses
+allow = [
+    "MIT",
+    "Apache-2.0", 
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "0BSD",
+]
+
+# List explicitly disallowed licenses
+deny = [
+    "GPL-2.0",
+    "GPL-3.0", 
+    "AGPL-1.0",
+    "AGPL-3.0",
+    "CC-BY-SA-4.0",
+    "SSPL-1.0",
+    # "MPL-2.0",  # Mozilla Public License - may be too restrictive
+]
+
+# Confidence threshold для license detection
+confidence-threshold = 0.8
+
+# Exceptions для specific crates
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+name = "webpki-roots"  # Root certificates
+
+[[licenses.exceptions]] 
+allow = ["OpenSSL"]
+name = "ring"  # Cryptographic library
+
+# =========================================
+# SOURCE VALIDATION
+# =========================================
+[sources]
+# Lint level для crates not from crates.io
+unknown-registry = "warn"
+# Lint level для crates from Git repositories  
+unknown-git = "warn"
+
+# Allow specific Git sources
+allow-git = [
+    # "https://github.com/rust-lang/crates.io-index",
+]
+
+[sources.allow-org]
+# Allow organizations на GitHub
+github = [
+    "rustsec",
+    "RustCrypto", 
+    "microsoft",    # ONNX Runtime
+    "huggingface",  # Tokenizers
+]
+
+# =========================================
+# CUSTOM POLICIES
+# =========================================
+
+# Example: Custom policy для AI/ML related crates
+# [bans.features]
+# Multiple versions are generally bad, но для AI crates 
+# можем allow из-за ecosystem fragmentation
+# ml-ecosystem = "allow"
+
+# Security-focused configurations
+[advisories.informational]
+# Report informational advisories
+unmaintained = "warn"
+unsound = "warn"
+notice = "warn"
+
+# Development vs Production policy
+[profile.development]
+[advisories]
+vulnerability = "warn"  # Less strict для development
+
+[profile.production] 
+[advisories]
+vulnerability = "deny"  # Strict для production
+unmaintained = "deny"
+unsound = "deny"
+
+# =========================================
+# REPORTING CONFIGURATION
+# =========================================
+[output]
+format = "human"  # human, json, tsv
+feature-depth = 1
+
+# Custom ignore patterns
+[advisories.ignore]
+# Temporary ignores с expiration dates
+# Format: { id = "ADVISORY-ID", reason = "explanation", expires = "2024-12-31" }
+
+# Example temporary ignore
+# { id = "RUSTSEC-2023-0001", reason = "False positive, tracking upstream fix", expires = "2024-06-01" }
+
+# =========================================
+# POLICY ENFORCEMENT
+# =========================================
+
+# This configuration enforces:
+# 1. No critical security vulnerabilities
+# 2. Compatible license policy
+# 3. Minimal banned crate usage  
+# 4. Source validation
+
+# Usage:
+# cargo deny check          # Check all policies
+# cargo deny check licenses # Check only licenses
+# cargo deny check bans     # Check only banned crates
+# cargo deny check advisories # Check only security advisories

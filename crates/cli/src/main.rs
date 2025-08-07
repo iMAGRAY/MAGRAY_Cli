@@ -753,7 +753,7 @@ async fn show_performance_metrics() -> Result<()> {
     // В будущем можно добавить специальный метод для получения performance метрик
     let mock_metrics = memory::DIPerformanceMetrics::default();
     
-    if mock_metrics.total_resolves > 0 {
+    if mock_metrics.total_resolutions > 0 {
         println!();
         println!("{}", style("=== Detailed Analysis ===").bold().yellow());
         
@@ -783,11 +783,11 @@ async fn show_performance_metrics() -> Result<()> {
         if !slowest_types.is_empty() {
             println!();
             println!("{}", style("Slowest Dependencies:").bold().red());
-            for (i, (type_name, type_metrics)) in slowest_types.iter().enumerate() {
-                let short_name = type_name.split("::").last().unwrap_or(type_name);
-                let avg_time = type_metrics.avg_creation_time_ns as f64 / 1000.0;
+            for (i, (type_id, type_metrics)) in slowest_types.iter().enumerate() {
+                let short_name = format!("TypeId({:?})", type_id);
+                let avg_time = type_metrics.average_time.as_nanos() as f64 / 1000.0;
                 println!("  {}. {} - {:.1}μs ({} resolves)", 
-                         i + 1, short_name, avg_time, type_metrics.resolve_count);
+                         i + 1, short_name, avg_time, type_metrics.resolutions);
             }
         }
         
@@ -799,9 +799,9 @@ async fn show_performance_metrics() -> Result<()> {
         if total_errors > 0 {
             println!();
             println!("{} {} Total Errors Found", "❌".red(), total_errors);
-            for (type_name, type_metrics) in &mock_metrics.type_metrics {
+            for (type_id, type_metrics) in &mock_metrics.type_metrics {
                 if type_metrics.error_count > 0 {
-                    let short_name = type_name.split("::").last().unwrap_or(type_name);
+                    let short_name = format!("TypeId({:?})", type_id);
                     println!("  • {} - {} errors", short_name, type_metrics.error_count);
                 }
             }
@@ -823,7 +823,7 @@ async fn show_performance_metrics() -> Result<()> {
             println!("{} Fix dependency registration errors to improve system stability", "💡".red());
         }
         
-        if mock_metrics.factory_creates as f64 / mock_metrics.total_resolves as f64 > 0.7 {
+        if mock_metrics.factory_creates() as f64 / mock_metrics.total_resolves() as f64 > 0.7 {
             println!("{} High factory creation rate - consider more singleton services", "💡".yellow());
         }
         

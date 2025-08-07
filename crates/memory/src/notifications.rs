@@ -89,6 +89,65 @@ impl Default for NotificationConfig {
     }
 }
 
+
+impl NotificationConfig {
+    pub fn production() -> Self {
+        let mut routing = HashMap::new();
+        routing.insert(AlertSeverity::Info, vec!["log".to_string()]);
+        routing.insert(AlertSeverity::Warning, vec!["log".to_string(), "slack".to_string()]);
+        routing.insert(AlertSeverity::Critical, vec!["log".to_string(), "slack".to_string(), "email".to_string(), "sms".to_string()]);
+        routing.insert(AlertSeverity::Fatal, vec!["*".to_string()]); // All channels
+        
+        Self {
+            channels: vec![
+                NotificationChannel::Log,
+                NotificationChannel::Console { colored: false }, // No colors in production logs
+                NotificationChannel::Email {
+                    smtp_server: "smtp.company.com".to_string(),
+                    smtp_port: 587,
+                    username: "alerts@company.com".to_string(),
+                    password: "password".to_string(),
+                    from_address: "MAGRAY Alerts <alerts@company.com>".to_string(),
+                    to_addresses: vec!["alerts@company.com".to_string()],
+                    use_tls: true,
+                },
+                NotificationChannel::Webhook {
+                    url: "https://hooks.slack.com/services/...".to_string(),
+                    method: "POST".to_string(),
+                    headers: HashMap::new(),
+                    auth_token: None,
+                },
+            ],
+            routing,
+            cooldown_seconds: 60, // Более частые уведомления в production
+            enable_grouping: true,
+            max_group_size: 20,
+            group_interval_seconds: 30,
+            component_filters: None, // Получаем все алерты
+            ignore_patterns: vec![], // Не игнорируем в production
+        }
+    }
+
+    pub fn minimal() -> Self {
+        let mut routing = HashMap::new();
+        routing.insert(AlertSeverity::Critical, vec!["console".to_string()]);
+        routing.insert(AlertSeverity::Fatal, vec!["console".to_string()]);
+        
+        Self {
+            channels: vec![
+                NotificationChannel::Console { colored: true },
+            ],
+            routing,
+            cooldown_seconds: 900, // 15 минут - редкие уведомления
+            enable_grouping: false, // Отключаем группировку
+            max_group_size: 1,
+            group_interval_seconds: 600,
+            component_filters: Some(vec!["critical".to_string()]), // Только критичные
+            ignore_patterns: vec!["debug".to_string(), "trace".to_string()],
+        }
+    }
+}
+
 /// Трейт для отправки уведомлений
 #[async_trait]
 #[allow(dead_code)]

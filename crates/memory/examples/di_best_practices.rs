@@ -89,11 +89,8 @@ fn create_optimized_config() -> Result<MemoryServiceConfig> {
     config.promotion.promotion_threshold = 0.7;  // Порог для продвижения
     
     // Настройка кэша
-    use memory::CacheConfigType;
-    config.cache_config = CacheConfigType::Lru {
-        max_size: 10000,
-        ttl_seconds: 1800,  // 30 минут
-    };
+    use memory::CacheConfig;
+    config.cache_config = CacheConfig::production();
     
     // Настройка здоровья системы
     config.health_config.check_interval_seconds = 60;

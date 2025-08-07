@@ -15,7 +15,7 @@ async fn test_orchestration_coordinators_integration() -> Result<()> {
     // Выводим статистику DI контейнера
     let di_stats = service.di_stats();
     println!("📊 DI Container Stats: registered={}, cached={}, total={}",
-             di_stats.registered_factories, di_stats.cached_singletons, di_stats.total_types);
+             di_stats.registered_factories, di_stats.cached_singletons, di_stats.total_resolutions);
     
     // Проверяем что можем разрешить основные координаторы
     println!("🔍 Тестирование разрешения координаторов...");

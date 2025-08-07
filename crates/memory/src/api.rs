@@ -312,6 +312,9 @@ impl UnifiedMemoryAPI {
                         ComponentType::RerankingService => "reranking_service",
                         ComponentType::Database => "database",
                         ComponentType::Memory => "memory",
+                        ComponentType::Disk => "disk",
+                        ComponentType::Network => "network",
+                        ComponentType::Api => "api",
                     };
                     
                     let status_str = match status {

@@ -60,6 +60,8 @@ pub mod lifetime_manager;
 pub mod dependency_validator;
 pub mod metrics_collector;
 pub mod container_builder;
+pub mod unified_container;
+pub mod migration_facade;
 
 // Re-export основных типов для удобства использования
 pub use traits::{
@@ -72,9 +74,23 @@ pub use lifetime_manager::{LifetimeManagerImpl, ExtensibleLifetimeManager, Lifet
 pub use dependency_validator::{DependencyValidatorImpl, DependencyGraph, DependencyGraphStats};
 pub use metrics_collector::{MetricsReporterImpl, CompositeMetricsReporter, TimingStatsReport};
 pub use container_builder::{DIContainer, DIContainerBuilder};
+pub use unified_container::{
+    UnifiedDIContainer, UnifiedDIContainerBuilder, ContainerConfiguration, ComponentFactory,
+    UnifiedMemoryConfigurator, MemoryServiceConfig, create_default_memory_config
+};
+pub use migration_facade::{
+    DIMemoryServiceMigrationFacade, DIMemoryServiceMigrationBuilder, LegacyMemoryConfig,
+    DIMemoryServiceOriginalCompatible, DIMemoryServiceRefactoredCompatible, DIMemoryServiceFacadeCompatible
+};
 
 // Legacy compatibility - старый API остается доступным
 pub use container_builder::DIContainer as DIContainerLegacy;
+
+// NEW UNIFIED API - заменяет все дублирования
+pub use unified_container::UnifiedDIContainer as DIContainerUnified;
+
+// MIGRATION FACADES - для постепенного перехода
+pub use migration_facade::DIMemoryServiceMigrationFacade as DIMemoryServiceUnified;
 
 /// Создать DI контейнер с настройками по умолчанию
 /// 
@@ -110,6 +126,37 @@ pub fn create_custom_container(
         metrics_reporter,
     );
     DIContainer::new(core)
+}
+
+/// === NEW UNIFIED CONTAINER FACTORY FUNCTIONS ===
+
+/// Создать унифицированный DI контейнер по умолчанию
+/// 
+/// ЗАМЕНЯЕТ все существующие DIContainer создания.
+/// Использует оптимизированные настройки для баланса производительности и функциональности.
+pub fn create_unified_container() -> UnifiedDIContainer {
+    UnifiedDIContainer::new()
+}
+
+/// Создать production-ready унифицированный контейнер
+/// 
+/// Оптимизирован для высокой нагрузки с увеличенными кэшами и timeouts.
+pub fn create_production_container() -> UnifiedDIContainer {
+    UnifiedDIContainer::production()
+}
+
+/// Создать development унифицированный контейнер  
+/// 
+/// Включает дополнительную отладочную информацию и валидацию.
+pub fn create_development_container() -> UnifiedDIContainer {
+    UnifiedDIContainer::development()
+}
+
+/// Создать minimal унифицированный контейнер для тестов
+/// 
+/// Отключает метрики и валидацию для максимальной производительности в тестах.
+pub fn create_test_container() -> UnifiedDIContainer {
+    UnifiedDIContainer::minimal()
 }
 
 #[cfg(test)]

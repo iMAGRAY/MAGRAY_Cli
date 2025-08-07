@@ -29,7 +29,7 @@ async fn test_promotion_engine() -> Result<()> {
         },
         ai_config: AiConfig::default(),
         health_config: memory::HealthConfig::default(),
-        cache_config: memory::CacheConfigType::Lru(memory::CacheConfig::default()),
+        cache_config: memory::CacheConfig::default(),
         resource_config: memory::ResourceConfig::default(),
         #[allow(deprecated)]
         max_vectors: 1_000_000,
@@ -153,7 +153,7 @@ async fn test_layer_ttl_expiration() -> Result<()> {
         },
         ai_config: AiConfig::default(),
         health_config: memory::HealthConfig::default(),
-        cache_config: memory::CacheConfigType::Lru(memory::CacheConfig::default()),
+        cache_config: memory::CacheConfig::default(),
         resource_config: memory::ResourceConfig::default(),
         #[allow(deprecated)]
         max_vectors: 1_000_000,

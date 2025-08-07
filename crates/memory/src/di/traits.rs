@@ -118,6 +118,7 @@ pub struct DIPerformanceMetrics {
     pub total_resolution_time: Duration,
     pub cache_hits: u64,
     pub cache_misses: u64,
+    pub error_count: u64,
     pub type_metrics: std::collections::HashMap<TypeId, TypeMetrics>,
     pub dependency_depth: u32,
 }
@@ -129,9 +130,57 @@ impl Default for DIPerformanceMetrics {
             total_resolution_time: Duration::from_nanos(0),
             cache_hits: 0,
             cache_misses: 0,
+            error_count: 0,
             type_metrics: std::collections::HashMap::new(),
             dependency_depth: 0,
         }
+    }
+}
+
+impl DIPerformanceMetrics {
+    /// Рассчитать процент попаданий в кэш
+    pub fn cache_hit_rate(&self) -> f64 {
+        let total = self.cache_hits + self.cache_misses;
+        if total > 0 {
+            (self.cache_hits as f64 / total as f64) * 100.0
+        } else {
+            0.0
+        }
+    }
+
+    /// Получить среднее время разрешения в микросекундах
+    pub fn avg_resolve_time_us(&self) -> f64 {
+        if self.total_resolutions > 0 {
+            let avg_duration = self.total_resolution_time / self.total_resolutions as u32;
+            avg_duration.as_nanos() as f64 / 1000.0
+        } else {
+            0.0
+        }
+    }
+
+    /// Получить топ N самых медленных типов
+    pub fn slowest_types(&self, limit: usize) -> Vec<(TypeId, TypeMetrics)> {
+        let mut types: Vec<_> = self.type_metrics
+            .iter()
+            .map(|(&type_id, metrics)| (type_id, metrics.clone()))
+            .collect();
+        
+        // Сортируем по среднему времени (от медленнее к быстрее)
+        types.sort_by(|a, b| b.1.average_time.cmp(&a.1.average_time));
+        
+        types.into_iter().take(limit).collect()
+    }
+
+    /// Добавить поля total_resolves и factory_creates для обратной совместимости
+    /// (они отображаются на существующие поля)
+    pub fn total_resolves(&self) -> u64 {
+        self.total_resolutions
+    }
+
+    pub fn factory_creates(&self) -> u64 {
+        // factory_creates можно приблизительно оценить как количество cache misses
+        // (поскольку cache miss означает что нужно создать новый экземпляр)
+        self.cache_misses
     }
 }
 
@@ -143,6 +192,7 @@ pub struct TypeMetrics {
     pub cache_hits: u64,
     pub average_time: Duration,
     pub last_resolution: Option<std::time::Instant>,
+    pub error_count: u64,
 }
 
 impl TypeMetrics {
@@ -153,6 +203,7 @@ impl TypeMetrics {
             cache_hits: 0,
             average_time: Duration::from_nanos(0),
             last_resolution: None,
+            error_count: 0,
         }
     }
 }

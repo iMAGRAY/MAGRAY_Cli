@@ -102,3 +102,23 @@ impl Default for PromotionConfig {
         }
     }
 }
+
+impl PromotionConfig {
+    pub fn production() -> Self {
+        Self {
+            interact_ttl_hours: 48,
+            insights_ttl_days: 365,
+            promote_threshold: 0.85,
+            decay_factor: 0.95,
+        }
+    }
+
+    pub fn minimal() -> Self {
+        Self {
+            interact_ttl_hours: 6,
+            insights_ttl_days: 7,
+            promote_threshold: 0.7,
+            decay_factor: 0.8,
+        }
+    }
+}

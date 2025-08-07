@@ -20,6 +20,7 @@ use crate::{
 };
 
 /// Production-ready координатор для работы с embeddings
+// NOTE: Debug trait не реализован из-за зависимостей без Debug
 pub struct EmbeddingCoordinator {
     /// GPU batch processor для получения embeddings
     gpu_processor: Arc<GpuBatchProcessor>,

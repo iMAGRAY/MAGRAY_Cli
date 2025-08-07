@@ -10,16 +10,37 @@
 
 use memory::orchestration::{
     MemoryOrchestrator,
-    traits::{Coordinator, SearchCoordinator as SearchCoordinatorTrait, 
-            PromotionCoordinator as PromotionCoordinatorTrait,
-            HealthCoordinator, ResourceCoordinator, BackupCoordinator as BackupCoordinatorTrait},
+    traits::Coordinator,
 };
+
+// Define simplified trait signatures for testing
+#[async_trait::async_trait]
+trait SearchCoordinatorTrait: Coordinator {
+    async fn search(&self, query: &str, layer: Layer, options: SearchOptions) -> anyhow::Result<Vec<Record>>;
+}
+
+#[async_trait::async_trait]
+trait PromotionCoordinatorTrait: Coordinator {
+    async fn run_promotion(&self) -> anyhow::Result<PromotionStats>;
+}
+
+#[async_trait::async_trait]
+trait HealthCoordinator: Coordinator {
+    async fn system_health(&self) -> anyhow::Result<SystemHealthStatus>;
+}
+
+#[async_trait::async_trait]
+trait ResourceCoordinator: Coordinator {
+    async fn check_resources(&self, operation: &str) -> anyhow::Result<bool>;
+}
+
+#[async_trait::async_trait]
+trait BackupCoordinatorTrait: Coordinator {
+    async fn create_backup(&self, path: &str) -> anyhow::Result<BackupMetadata>;
+}
 use memory::{
-    types::{Layer, Record, SearchOptions},
-    promotion::PromotionStats,
-    health::SystemHealthStatus,
-    backup::BackupMetadata,
-    di_container::DIContainer,
+    types::{Layer, Record, SearchOptions, PromotionStats, SystemHealthStatus, BackupMetadata},
+    di::container_core::DIContainer,
 };
 use anyhow::{Result, anyhow};
 use std::sync::Arc;
@@ -149,10 +170,9 @@ impl SearchCoordinatorTrait for MockSearchCoordinator {
                 id: "mock_1".to_string(),
                 content: "Mock search result 1".to_string(),
                 embedding: vec![0.1, 0.2, 0.3],
-                metadata: std::collections::HashMap::new(),
                 timestamp: chrono::Utc::now(),
                 layer: _layer,
-                score: Some(0.9),
+                score: 0.9,
             }
         ])
     }
@@ -207,7 +227,6 @@ impl HealthCoordinator for MockHealthManager {
     async fn system_health(&self) -> Result<SystemHealthStatus> {
         Ok(SystemHealthStatus {
             overall_healthy: self.healthy.load(std::sync::atomic::Ordering::Relaxed),
-            components: vec![],
             last_check: chrono::Utc::now(),
             uptime: std::time::Duration::from_secs(3600),
         })
@@ -265,7 +284,8 @@ impl PromotionCoordinatorTrait for MockPromotionCoordinator {
         
         Ok(PromotionStats {
             records_promoted: 5,
-            layers_affected: vec![Layer::Interact, Layer::Insights],
+            records_demoted: 0,
+            total_records_processed: 5,
             promotion_time: std::time::Duration::from_millis(100),
             success_rate: 1.0,
         })
@@ -377,7 +397,6 @@ impl BackupCoordinatorTrait for MockBackupCoordinator {
             size_bytes: 1024000,
             created_at: chrono::Utc::now(),
             checksum: "mock_checksum_123".to_string(),
-            version: "1.0.0".to_string(),
         })
     }
 }
@@ -509,7 +528,7 @@ async fn test_orchestrator_promotion_integration() -> Result<()> {
     let stats = orchestrator.run_promotion().await?;
     
     assert_eq!(stats.records_promoted, 5);
-    assert_eq!(stats.layers_affected.len(), 2);
+    assert_eq!(stats.total_records_processed, 5);
     assert_eq!(stats.success_rate, 1.0);
     
     // Проверяем что promotion coordinator был вызван

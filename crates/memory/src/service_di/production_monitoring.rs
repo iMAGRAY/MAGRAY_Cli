@@ -13,6 +13,7 @@ use tracing::{debug, info, warn, error};
 use tokio::sync::RwLock;
 
 use crate::orchestration::{HealthManager, ResourceController};
+use crate::orchestration::traits::HealthCoordinator;
 
 /// Production метрики системы
 #[derive(Debug, Default, Clone)]
@@ -70,6 +71,11 @@ impl ProductionMetricsCollector {
         Self {
             metrics: ProductionMetrics::default(),
         }
+    }
+
+    /// Alias for new() для совместимости
+    pub fn new_production() -> Self {
+        Self::new()
     }
 }
 

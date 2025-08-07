@@ -50,6 +50,30 @@ impl Default for StreamingConfig {
     }
 }
 
+impl StreamingConfig {
+    pub fn production() -> Self {
+        Self {
+            max_concurrent_sessions: 500,
+            buffer_size: 100,
+            flush_timeout_ms: 500,
+            max_message_size: 2 * 1024 * 1024, // 2MB
+            enable_auto_promotion: true,
+            promotion_interval_sec: 15,
+        }
+    }
+
+    pub fn minimal() -> Self {
+        Self {
+            max_concurrent_sessions: 10,
+            buffer_size: 10,
+            flush_timeout_ms: 2000,
+            max_message_size: 512 * 1024, // 512KB
+            enable_auto_promotion: false,
+            promotion_interval_sec: 60,
+        }
+    }
+}
+
 /// Активная streaming session
 #[derive(Debug)]
 struct StreamingSession {

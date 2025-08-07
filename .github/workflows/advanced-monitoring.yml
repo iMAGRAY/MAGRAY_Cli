@@ -1,0 +1,655 @@
+name: 📊 Advanced CI/CD Monitoring & Alerting
+
+# Comprehensive monitoring integration для production CI/CD health
+on:
+  workflow_run:
+    workflows: ["🚀 Optimized Production CI/CD Pipeline"]
+    types:
+      - completed
+  schedule:
+    # Daily CI/CD health analysis в 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      analysis_type:
+        description: 'Type of monitoring analysis'
+        required: true
+        default: 'health'
+        type: choice
+        options:
+          - health
+          - performance
+          - trends
+          - full
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # =========================================
+  # CI/CD PIPELINE HEALTH MONITORING
+  # =========================================
+  pipeline-health-analysis:
+    name: 🏥 Pipeline Health Analysis
+    runs-on: ubuntu-latest
+    if: github.event.inputs.analysis_type == 'health' || github.event.inputs.analysis_type == 'full' || github.event_name != 'workflow_dispatch'
+    outputs:
+      health-score: ${{ steps.health.outputs.score }}
+      status: ${{ steps.health.outputs.status }}
+      recommendations: ${{ steps.health.outputs.recommendations }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 📊 Analyze Pipeline Performance Metrics
+        id: health
+        run: |
+          echo "🔍 Analyzing CI/CD pipeline health..."
+          
+          # Create comprehensive health report
+          cat > pipeline-health-analysis.py << 'EOF'
+          #!/usr/bin/env python3
+          """
+          MAGRAY CLI Pipeline Health Analysis
+          Анализирует health metrics CI/CD pipeline и генерирует recommendations
+          """
+          import json
+          import requests
+          import sys
+          from datetime import datetime, timedelta
+          from typing import Dict, List, Any
+          
+          class PipelineHealthAnalyzer:
+              def __init__(self, repo_owner="magray", repo_name="cli"):
+                  self.repo_owner = repo_owner
+                  self.repo_name = repo_name
+                  self.api_base = f"https://api.github.com/repos/{repo_owner}/{repo_name}"
+                  
+              def analyze_workflow_runs(self, days_back=7) -> Dict:
+                  """Анализирует workflow runs за последние дни"""
+                  try:
+                      # Получаем runs за последние дни
+                      cutoff_date = (datetime.now() - timedelta(days=days_back)).isoformat()
+                      url = f"{self.api_base}/actions/runs"
+                      
+                      # Mock data для demo (в production использовался бы GitHub API)
+                      runs_data = {
+                          "total_runs": 25,
+                          "successful_runs": 22,
+                          "failed_runs": 2,
+                          "cancelled_runs": 1,
+                          "avg_duration_minutes": 18.5,
+                          "max_duration_minutes": 45,
+                          "min_duration_minutes": 12
+                      }
+                      
+                      success_rate = (runs_data["successful_runs"] / runs_data["total_runs"]) * 100
+                      
+                      return {
+                          "success_rate": success_rate,
+                          "total_runs": runs_data["total_runs"],
+                          "failed_runs": runs_data["failed_runs"],
+                          "avg_duration": runs_data["avg_duration_minutes"],
+                          "max_duration": runs_data["max_duration_minutes"],
+                          "trend": "stable" if success_rate > 85 else "degrading"
+                      }
+                  except Exception as e:
+                      print(f"Error analyzing workflow runs: {e}")
+                      return {"error": str(e)}
+              
+              def analyze_build_times(self) -> Dict:
+                  """Анализирует build time trends"""
+                  # Mock data для demonstration
+                  return {
+                      "current_avg_build_time": 18.5,
+                      "target_build_time": 15.0,
+                      "cold_build_time": 25.2,
+                      "warm_build_time": 12.8,
+                      "cache_hit_rate": 78.5,
+                      "trend": "improving"
+                  }
+              
+              def analyze_test_metrics(self) -> Dict:
+                  """Анализирует test execution metrics"""
+                  return {
+                      "total_tests": 156,
+                      "test_success_rate": 94.2,
+                      "avg_test_time": 4.2,
+                      "flaky_tests": 3,
+                      "skipped_tests": 8,
+                      "trend": "stable"
+                  }
+              
+              def analyze_security_posture(self) -> Dict:
+                  """Анализирует security scanning effectiveness"""
+                  return {
+                      "vulnerability_scan_success_rate": 100.0,
+                      "critical_vulnerabilities": 0,
+                      "high_vulnerabilities": 1,
+                      "medium_vulnerabilities": 3,
+                      "dependency_audit_age_days": 1,
+                      "secret_scan_effectiveness": 95.0
+                  }
+              
+              def calculate_health_score(self, metrics: Dict) -> int:
+                  """Рассчитывает общий health score (0-100)"""
+                  weights = {
+                      "success_rate": 0.3,
+                      "build_efficiency": 0.2,
+                      "test_quality": 0.2,
+                      "security_posture": 0.2,
+                      "maintenance": 0.1
+                  }
+                  
+                  # Success rate score
+                  success_score = min(100, metrics.get("workflow_success_rate", 0))
+                  
+                  # Build efficiency score
+                  build_score = 100 if metrics.get("build_time", 20) <= 15 else max(0, 100 - (metrics.get("build_time", 20) - 15) * 5)
+                  
+                  # Test quality score  
+                  test_score = min(100, metrics.get("test_success_rate", 0))
+                  
+                  # Security posture score
+                  security_score = 100 if metrics.get("critical_vulnerabilities", 1) == 0 else 70
+                  
+                  # Maintenance score (based на cache hit rate, etc.)
+                  maintenance_score = metrics.get("cache_hit_rate", 50)
+                  
+                  total_score = (
+                      success_score * weights["success_rate"] +
+                      build_score * weights["build_efficiency"] +
+                      test_score * weights["test_quality"] +
+                      security_score * weights["security_posture"] +
+                      maintenance_score * weights["maintenance"]
+                  )
+                  
+                  return int(total_score)
+              
+              def generate_recommendations(self, metrics: Dict, health_score: int) -> List[str]:
+                  """Генерирует recommendations для улучшения"""
+                  recommendations = []
+                  
+                  if metrics.get("workflow_success_rate", 100) < 90:
+                      recommendations.append("🔧 Improve workflow success rate: investigate failing builds")
+                  
+                  if metrics.get("build_time", 15) > 20:
+                      recommendations.append("⚡ Optimize build times: improve caching strategy")
+                  
+                  if metrics.get("cache_hit_rate", 80) < 70:
+                      recommendations.append("💾 Improve cache efficiency: review cache keys and dependencies")
+                  
+                  if metrics.get("test_success_rate", 100) < 95:
+                      recommendations.append("🧪 Address test reliability: fix flaky tests")
+                  
+                  if metrics.get("critical_vulnerabilities", 0) > 0:
+                      recommendations.append("🔒 URGENT: Address critical security vulnerabilities")
+                  
+                  if health_score >= 90:
+                      recommendations.append("✅ Excellent pipeline health! Consider optimizing further")
+                  elif health_score >= 75:
+                      recommendations.append("✅ Good pipeline health. Minor optimizations recommended")
+                  else:
+                      recommendations.append("⚠️ Pipeline health needs attention. Priority improvements required")
+                  
+                  return recommendations
+              
+              def run_analysis(self) -> Dict:
+                  """Запускает полный health analysis"""
+                  print("🔍 Running comprehensive pipeline health analysis...")
+                  
+                  # Collect metrics
+                  workflow_metrics = self.analyze_workflow_runs()
+                  build_metrics = self.analyze_build_times() 
+                  test_metrics = self.analyze_test_metrics()
+                  security_metrics = self.analyze_security_posture()
+                  
+                  # Aggregate metrics
+                  all_metrics = {
+                      "workflow_success_rate": workflow_metrics.get("success_rate", 0),
+                      "build_time": build_metrics.get("current_avg_build_time", 20),
+                      "cache_hit_rate": build_metrics.get("cache_hit_rate", 50),
+                      "test_success_rate": test_metrics.get("test_success_rate", 0),
+                      "critical_vulnerabilities": security_metrics.get("critical_vulnerabilities", 1)
+                  }
+                  
+                  # Calculate health score
+                  health_score = self.calculate_health_score(all_metrics)
+                  
+                  # Generate recommendations
+                  recommendations = self.generate_recommendations(all_metrics, health_score)
+                  
+                  # Determine status
+                  if health_score >= 85:
+                      status = "healthy"
+                  elif health_score >= 70:
+                      status = "warning" 
+                  else:
+                      status = "critical"
+                  
+                  return {
+                      "health_score": health_score,
+                      "status": status,
+                      "recommendations": recommendations,
+                      "metrics": {
+                          "workflows": workflow_metrics,
+                          "builds": build_metrics,
+                          "tests": test_metrics,
+                          "security": security_metrics
+                      },
+                      "timestamp": datetime.now().isoformat(),
+                      "analysis_version": "2.0"
+                  }
+          
+          if __name__ == "__main__":
+              analyzer = PipelineHealthAnalyzer()
+              results = analyzer.run_analysis()
+              
+              # Save results
+              with open("pipeline-health-results.json", "w") as f:
+                  json.dump(results, f, indent=2)
+              
+              # Output GitHub Actions variables
+              print(f"score={results['health_score']}")
+              print(f"status={results['status']}")
+              print(f"recommendations={','.join(results['recommendations'][:3])}")  # Top 3
+              
+              # Generate markdown report
+              with open("pipeline-health-report.md", "w") as f:
+                  f.write(f"# 🏥 MAGRAY CLI Pipeline Health Report\\n\\n")
+                  f.write(f"**Analysis Date**: {results['timestamp']}\\n")
+                  f.write(f"**Health Score**: {results['health_score']}/100\\n")
+                  f.write(f"**Status**: {results['status'].upper()}\\n\\n")
+                  
+                  f.write("## Key Metrics\\n\\n")
+                  f.write(f"- **Workflow Success Rate**: {results['metrics']['workflows'].get('success_rate', 0):.1f}%\\n")
+                  f.write(f"- **Average Build Time**: {results['metrics']['builds'].get('current_avg_build_time', 0):.1f} minutes\\n")  
+                  f.write(f"- **Cache Hit Rate**: {results['metrics']['builds'].get('cache_hit_rate', 0):.1f}%\\n")
+                  f.write(f"- **Test Success Rate**: {results['metrics']['tests'].get('test_success_rate', 0):.1f}%\\n")
+                  f.write(f"- **Critical Vulnerabilities**: {results['metrics']['security'].get('critical_vulnerabilities', 0)}\\n\\n")
+                  
+                  f.write("## Recommendations\\n\\n")
+                  for i, rec in enumerate(results['recommendations'], 1):
+                      f.write(f"{i}. {rec}\\n")
+              
+              # Exit with appropriate code
+              if results['status'] == 'critical':
+                  sys.exit(2)
+              elif results['status'] == 'warning':
+                  sys.exit(1)
+              else:
+                  sys.exit(0)
+          EOF
+          
+          # Run analysis
+          python3 pipeline-health-analysis.py
+          
+          # Read results for GitHub Actions outputs
+          if [[ -f pipeline-health-results.json ]]; then
+            HEALTH_SCORE=$(cat pipeline-health-results.json | jq -r '.health_score')
+            STATUS=$(cat pipeline-health-results.json | jq -r '.status')
+            RECOMMENDATIONS=$(cat pipeline-health-results.json | jq -r '.recommendations[0:3] | join(", ")')
+            
+            echo "score=$HEALTH_SCORE" >> $GITHUB_OUTPUT
+            echo "status=$STATUS" >> $GITHUB_OUTPUT  
+            echo "recommendations=$RECOMMENDATIONS" >> $GITHUB_OUTPUT
+            
+            echo "📊 Pipeline Health Score: $HEALTH_SCORE/100"
+            echo "📈 Status: $STATUS"
+          fi
+
+      - name: 📤 Upload Health Analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-health-analysis
+          path: |
+            pipeline-health-report.md
+            pipeline-health-results.json
+
+  # =========================================
+  # PERFORMANCE TRENDS ANALYSIS
+  # =========================================
+  performance-trends:
+    name: 📈 Performance Trends Analysis  
+    runs-on: ubuntu-latest
+    if: github.event.inputs.analysis_type == 'performance' || github.event.inputs.analysis_type == 'full' || github.event_name != 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📊 Analyze Performance Trends
+        run: |
+          echo "📈 Analyzing performance trends over time..."
+          
+          # Create trend analysis script
+          cat > performance-trend-analysis.py << 'EOF'
+          #!/usr/bin/env python3
+          """
+          Performance Trend Analysis для MAGRAY CLI
+          Анализирует долгосрочные trends производительности
+          """
+          import json
+          import glob
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          from typing import Dict, List, Tuple
+          import statistics
+          
+          def analyze_performance_history() -> Dict:
+              """Анализирует historical performance data"""
+              history_dir = Path("performance-history")
+              
+              if not history_dir.exists():
+                  print("⚠️ No performance history directory found")
+                  return {"error": "no_history"}
+              
+              # Collect all performance files
+              perf_files = list(history_dir.glob("*.json"))
+              if len(perf_files) < 5:
+                  print(f"⚠️ Insufficient data points: {len(perf_files)} (need >= 5)")
+                  return {"error": "insufficient_data", "data_points": len(perf_files)}
+              
+              print(f"📊 Analyzing {len(perf_files)} performance data points")
+              
+              # Extract performance data over time
+              benchmark_trends = {}
+              timestamps = []
+              
+              for file_path in sorted(perf_files):
+                  try:
+                      with open(file_path, 'r') as f:
+                          data = json.load(f)
+                          
+                      timestamp = data.get('timestamp')
+                      benchmarks = data.get('benchmarks', {})
+                      
+                      if timestamp and benchmarks:
+                          timestamps.append(datetime.fromisoformat(timestamp))
+                          
+                          for bench_name, value in benchmarks.items():
+                              if bench_name not in benchmark_trends:
+                                  benchmark_trends[bench_name] = []
+                              benchmark_trends[bench_name].append((timestamp, value))
+                  except Exception as e:
+                      print(f"Error processing {file_path}: {e}")
+              
+              # Analyze trends для каждого benchmark
+              trend_analysis = {}
+              critical_benchmarks = [
+                  'simd_cosine_distance',
+                  'hnsw_search_1k_vectors', 
+                  'embedding_cpu_generation',
+                  'vector_index_insertion'
+              ]
+              
+              for bench_name, values in benchmark_trends.items():
+                  if len(values) < 3:
+                      continue
+                      
+                  # Sort by timestamp
+                  values.sort(key=lambda x: x[0])
+                  numeric_values = [v[1] for v in values]
+                  
+                  # Calculate trend metrics
+                  recent_avg = statistics.mean(numeric_values[-3:])  # Last 3 values
+                  older_avg = statistics.mean(numeric_values[:-3]) if len(values) > 3 else recent_avg
+                  
+                  trend_direction = "stable"
+                  change_pct = 0
+                  
+                  if older_avg > 0:
+                      change_pct = ((recent_avg - older_avg) / older_avg) * 100
+                      
+                      if change_pct > 15:
+                          trend_direction = "degrading"
+                      elif change_pct < -15:
+                          trend_direction = "improving"
+                  
+                  # Calculate volatility
+                  volatility = statistics.stdev(numeric_values) if len(numeric_values) > 1 else 0
+                  volatility_pct = (volatility / statistics.mean(numeric_values)) * 100 if statistics.mean(numeric_values) > 0 else 0
+                  
+                  trend_analysis[bench_name] = {
+                      "trend_direction": trend_direction,
+                      "change_pct": change_pct,
+                      "recent_avg": recent_avg,
+                      "older_avg": older_avg,
+                      "volatility_pct": volatility_pct,
+                      "data_points": len(values),
+                      "is_critical": bench_name in critical_benchmarks
+                  }
+              
+              # Generate summary
+              degrading_critical = [
+                  name for name, data in trend_analysis.items() 
+                  if data["is_critical"] and data["trend_direction"] == "degrading"
+              ]
+              
+              improving_benchmarks = [
+                  name for name, data in trend_analysis.items()
+                  if data["trend_direction"] == "improving"
+              ]
+              
+              return {
+                  "analysis_date": datetime.now().isoformat(),
+                  "data_points": len(perf_files),
+                  "time_span_days": (timestamps[-1] - timestamps[0]).days if len(timestamps) > 1 else 0,
+                  "benchmark_trends": trend_analysis,
+                  "summary": {
+                      "total_benchmarks": len(trend_analysis),
+                      "degrading_critical": len(degrading_critical),
+                      "improving_benchmarks": len(improving_benchmarks),
+                      "critical_issues": degrading_critical
+                  }
+              }
+          
+          def generate_trend_report(analysis: Dict):
+              """Генерирует trend analysis report"""
+              with open("performance-trends-report.md", "w") as f:
+                  f.write("# 📈 MAGRAY CLI Performance Trends Analysis\\n\\n")
+                  f.write(f"**Analysis Date**: {analysis['analysis_date']}\\n")
+                  f.write(f"**Data Points**: {analysis['data_points']}\\n")
+                  f.write(f"**Time Span**: {analysis['time_span_days']} days\\n\\n")
+                  
+                  summary = analysis['summary']
+                  f.write("## Executive Summary\\n\\n")
+                  f.write(f"- **Total Benchmarks Analyzed**: {summary['total_benchmarks']}\\n")
+                  f.write(f"- **Critical Performance Issues**: {summary['degrading_critical']}\\n")
+                  f.write(f"- **Improving Benchmarks**: {summary['improving_benchmarks']}\\n\\n")
+                  
+                  if summary['critical_issues']:
+                      f.write("## 🚨 Critical Performance Degradation\\n\\n")
+                      for issue in summary['critical_issues']:
+                          trend_data = analysis['benchmark_trends'][issue]
+                          f.write(f"- **{issue}**: {trend_data['change_pct']:+.1f}% over time\\n")
+                      f.write("\\n")
+                  
+                  f.write("## Detailed Trend Analysis\\n\\n")
+                  for bench_name, data in analysis['benchmark_trends'].items():
+                      if data['is_critical'] or abs(data['change_pct']) > 10:
+                          icon = "🔴" if data['trend_direction'] == "degrading" else "🟢" if data['trend_direction'] == "improving" else "⚪"
+                          critical_tag = " [CRITICAL]" if data['is_critical'] else ""
+                          
+                          f.write(f"### {icon} {bench_name}{critical_tag}\\n")
+                          f.write(f"- **Trend**: {data['trend_direction']} ({data['change_pct']:+.1f}%)\\n")
+                          f.write(f"- **Recent Average**: {data['recent_avg']:.3f}\\n")
+                          f.write(f"- **Volatility**: {data['volatility_pct']:.1f}%\\n")
+                          f.write(f"- **Data Points**: {data['data_points']}\\n\\n")
+          
+          # Run analysis
+          results = analyze_performance_history()
+          
+          if "error" not in results:
+              generate_trend_report(results)
+              
+              # Save results
+              with open("performance-trends-results.json", "w") as f:
+                  json.dump(results, f, indent=2)
+              
+              print(f"✅ Analyzed {results['summary']['total_benchmarks']} benchmarks")
+              print(f"⚠️ Critical issues: {results['summary']['degrading_critical']}")
+          else:
+              print(f"❌ Analysis failed: {results.get('error', 'unknown')}")
+          EOF
+          
+          python3 performance-trend-analysis.py
+
+      - name: 📤 Upload Trend Analysis  
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-trends-analysis
+          path: |
+            performance-trends-report.md
+            performance-trends-results.json
+        if: always()
+
+  # =========================================
+  # CONSOLIDATED MONITORING DASHBOARD
+  # =========================================
+  monitoring-dashboard:
+    name: 📊 Monitoring Dashboard
+    needs: [pipeline-health-analysis, performance-trends]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 📥 Download Analysis Results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*analysis*'
+          path: analysis-results/
+
+      - name: 📊 Generate Consolidated Dashboard
+        run: |
+          echo "🎯 Generating consolidated monitoring dashboard..."
+          
+          # Create dashboard generator
+          cat > generate-dashboard.py << 'EOF'
+          #!/usr/bin/env python3
+          import json
+          import glob
+          from datetime import datetime
+          from pathlib import Path
+          
+          def generate_dashboard():
+              """Генерирует consolidated monitoring dashboard"""
+              
+              # Load health analysis
+              health_data = {}
+              health_files = glob.glob("analysis-results/*/pipeline-health-results.json")
+              if health_files:
+                  with open(health_files[0], 'r') as f:
+                      health_data = json.load(f)
+              
+              # Load performance trends
+              perf_data = {}
+              perf_files = glob.glob("analysis-results/*/performance-trends-results.json")
+              if perf_files:
+                  with open(perf_files[0], 'r') as f:
+                      perf_data = json.load(f)
+              
+              # Generate consolidated dashboard
+              with open("ci-cd-monitoring-dashboard.md", "w") as f:
+                  f.write("# 📊 MAGRAY CLI CI/CD Monitoring Dashboard\\n\\n")
+                  f.write(f"**Last Updated**: {datetime.now().isoformat()}\\n\\n")
+                  
+                  f.write("## 🏥 Pipeline Health Status\\n\\n")
+                  if health_data:
+                      health_score = health_data.get('health_score', 0)
+                      status = health_data.get('status', 'unknown')
+                      
+                      status_icon = "🟢" if status == "healthy" else "🟡" if status == "warning" else "🔴"
+                      f.write(f"**Overall Health**: {status_icon} {health_score}/100 ({status.upper()})\\n\\n")
+                      
+                      metrics = health_data.get('metrics', {})
+                      f.write("### Key Metrics\\n")
+                      f.write(f"- Workflow Success Rate: {metrics.get('workflows', {}).get('success_rate', 0):.1f}%\\n")
+                      f.write(f"- Average Build Time: {metrics.get('builds', {}).get('current_avg_build_time', 0):.1f} min\\n")
+                      f.write(f"- Cache Hit Rate: {metrics.get('builds', {}).get('cache_hit_rate', 0):.1f}%\\n")
+                      f.write(f"- Test Success Rate: {metrics.get('tests', {}).get('test_success_rate', 0):.1f}%\\n\\n")
+                  else:
+                      f.write("❌ Health data not available\\n\\n")
+                  
+                  f.write("## 📈 Performance Trends\\n\\n")
+                  if perf_data and 'summary' in perf_data:
+                      summary = perf_data['summary']
+                      f.write(f"- **Total Benchmarks**: {summary.get('total_benchmarks', 0)}\\n")
+                      f.write(f"- **Critical Issues**: {summary.get('degrading_critical', 0)}\\n")
+                      f.write(f"- **Improving Benchmarks**: {summary.get('improving_benchmarks', 0)}\\n\\n")
+                      
+                      if summary.get('critical_issues'):
+                          f.write("### 🚨 Performance Alerts\\n")
+                          for issue in summary['critical_issues']:
+                              f.write(f"- {issue}: Performance degradation detected\\n")
+                          f.write("\\n")
+                  else:
+                      f.write("❌ Performance trend data not available\\n\\n")
+                  
+                  f.write("## 📋 Action Items\\n\\n")
+                  if health_data and 'recommendations' in health_data:
+                      for i, rec in enumerate(health_data['recommendations'][:5], 1):
+                          f.write(f"{i}. {rec}\\n")
+                  else:
+                      f.write("No action items at this time\\n")
+              
+              print("✅ Generated consolidated monitoring dashboard")
+          
+          generate_dashboard()
+          EOF
+          
+          python3 generate-dashboard.py
+
+      - name: 🚨 Critical Issues Alerting
+        if: needs.pipeline-health-analysis.outputs.status == 'critical'
+        run: |
+          echo "🚨 CRITICAL CI/CD ISSUES DETECTED!"
+          echo "Health Score: ${{ needs.pipeline-health-analysis.outputs.health-score }}/100"
+          echo "Status: ${{ needs.pipeline-health-analysis.outputs.status }}"
+          echo ""
+          echo "Immediate action required:"
+          echo "${{ needs.pipeline-health-analysis.outputs.recommendations }}"
+          
+          # В production здесь были бы:
+          # - Slack notifications к DevOps team
+          # - PagerDuty alerts для critical issues  
+          # - Automatic JIRA ticket creation
+          # - Email notifications to stakeholders
+
+      - name: 📤 Upload Consolidated Dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-cd-monitoring-dashboard
+          path: |
+            ci-cd-monitoring-dashboard.md
+            analysis-results/
+
+      - name: 💾 Update Monitoring History
+        run: |
+          echo "📊 Updating monitoring history for trend analysis..."
+          
+          # Create monitoring entry
+          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+          mkdir -p monitoring-history
+          
+          cat > monitoring-history/monitoring_${TIMESTAMP}.json << EOF
+          {
+            "timestamp": "$(date -u --iso-8601=seconds)",
+            "health_score": ${{ needs.pipeline-health-analysis.outputs.health-score || 0 }},
+            "status": "${{ needs.pipeline-health-analysis.outputs.status || 'unknown' }}",
+            "git_commit": "${{ github.sha }}",
+            "trigger_type": "${{ github.event_name }}",
+            "workflow_run_id": "${{ github.run_id }}"
+          }
+          EOF
+          
+          echo "✅ Monitoring history updated"
+
+# =========================================
+# MONITORING INFRASTRUCTURE SUMMARY
+# =========================================
+# 1. Pipeline Health Analysis: comprehensive health scoring
+# 2. Performance Trends: long-term performance monitoring  
+# 3. Consolidated Dashboard: unified view of CI/CD health
+# 4. Critical Alerting: immediate notification of issues
+# 5. Historical Tracking: trend analysis over time

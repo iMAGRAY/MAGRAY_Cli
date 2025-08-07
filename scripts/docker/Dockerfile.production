@@ -1,0 +1,171 @@
+# =========================================
+# PRODUCTION-OPTIMIZED MULTI-STAGE DOCKERFILE
+# =========================================
+# Оптимизированный для размера и безопасности production build
+
+# Stage 1: Dependency builder с aggressive caching
+FROM rust:1.75-slim AS deps-builder
+LABEL stage=deps-builder
+
+# Установка system dependencies в один слой
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    build-essential \
+    curl \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создание dummy project для dependency caching
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir crates && \
+    for crate in ai cli common llm memory router tools todo; do \
+        mkdir -p crates/$crate/src && \
+        echo "fn main() {}" > crates/$crate/src/main.rs && \
+        echo 'fn main() { println!("Hello, world!"); }' > crates/$crate/src/lib.rs; \
+    done
+
+# Dependency build с maximum caching
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+ENV CARGO_HOME=/usr/local/cargo
+ENV CARGO_TARGET_DIR=/app/target
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --features cpu && \
+    rm -rf crates/*/src
+
+# Stage 2: Application builder
+FROM rust:1.75-slim AS app-builder  
+LABEL stage=app-builder
+
+# System dependencies with UPX для binary compression
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    build-essential \
+    upx-ucl \
+    binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy dependency artifacts from deps-builder
+COPY --from=deps-builder /usr/local/cargo /usr/local/cargo
+COPY --from=deps-builder /app/target /app/target
+
+# Copy source code
+COPY . .
+
+# Enhanced production build с size optimization для ~16MB target
+ENV RUSTFLAGS="-C target-cpu=generic -C opt-level=3 -C lto=fat -C codegen-units=1 -C panic=abort -C strip=symbols"
+ENV CARGO_TARGET_DIR=/app/target
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --features cpu,minimal --bin magray && \
+    strip /app/target/release/magray && \
+    upx --best --lzma /app/target/release/magray 2>/dev/null || echo "UPX not available, skipping compression"
+
+# Stage 3: ONNX Runtime installer (cached layer)
+FROM debian:bookworm-slim AS onnx-runtime
+LABEL stage=onnx-runtime
+
+RUN apt-get update && apt-get install -y wget ca-certificates && \
+    wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-x64-1.16.3.tgz && \
+    tar xzf onnxruntime-linux-x64-1.16.3.tgz && \
+    mv onnxruntime-linux-x64-1.16.3 /opt/onnxruntime && \
+    rm onnxruntime-linux-x64-1.16.3.tgz && \
+    apt-get remove -y wget && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+# Stage 4: Final production image
+FROM debian:bookworm-slim AS production
+LABEL maintainer="MAGRAY Team" \
+      version="1.0" \
+      description="MAGRAY CLI - Production AI Assistant"
+
+# Security: создание non-root user
+RUN groupadd -g 1000 magray && \
+    useradd -u 1000 -g magray -m -s /bin/bash magray
+
+# Minimal runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* \
+    && rm -rf /var/tmp/*
+
+# Copy ONNX Runtime
+COPY --from=onnx-runtime /opt/onnxruntime /opt/onnxruntime
+ENV ORT_LIB_LOCATION=/opt/onnxruntime/lib
+ENV LD_LIBRARY_PATH=/opt/onnxruntime/lib:$LD_LIBRARY_PATH
+
+# Copy application binary
+COPY --from=app-builder /app/target/release/magray /usr/local/bin/magray
+
+# Enhanced security hardening
+RUN chmod +x /usr/local/bin/magray && \
+    mkdir -p /app/data /app/logs /app/cache && \
+    chown -R magray:magray /app && \
+    # Security: remove unnecessary packages для minimal attack surface
+    apt-get autoremove -y && \
+    # Security: file permission hardening
+    chmod 750 /app && \
+    chmod 640 /opt/onnxruntime/lib/* && \
+    # Security: system hardening
+    echo 'magray ALL=(NONE) NOPASSWD: /usr/local/bin/magray' >> /etc/sudoers.d/magray || true && \
+    # Binary size verification для security
+    BINARY_SIZE=$(stat -c%s /usr/local/bin/magray) && \
+    BINARY_SIZE_MB=$((BINARY_SIZE / 1024 / 1024)) && \
+    echo "Final binary size: ${BINARY_SIZE_MB}MB" && \
+    if [ $BINARY_SIZE_MB -gt 25 ]; then \
+        echo "WARNING: Binary size exceeds 25MB target" && exit 1; \
+    fi
+
+# Health check script
+COPY scripts/docker/healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh
+
+# Environment configuration
+ENV MAGRAY_DATA_DIR=/app/data \
+    MAGRAY_LOG_LEVEL=info \
+    MAGRAY_CACHE_DIR=/app/cache \
+    MAGRAY_LOG_FORMAT=json \
+    RUST_LOG=magray=info
+
+# Security settings
+USER magray
+WORKDIR /app
+
+# Health check с intelligent retry logic
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD /usr/local/bin/healthcheck.sh
+
+# Expose metrics port (если потребуется)
+EXPOSE 8080
+
+# Default command
+ENTRYPOINT ["/usr/local/bin/magray"]
+CMD ["--help"]
+
+# Build metadata для traceability
+ARG BUILD_DATE
+ARG VCS_REF
+LABEL org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.revision=$VCS_REF \
+      org.opencontainers.image.source="https://github.com/magray/cli" \
+      org.opencontainers.image.title="MAGRAY CLI" \
+      org.opencontainers.image.description="Production-ready AI assistant CLI" \
+      org.opencontainers.image.vendor="MAGRAY Team"
+
+# Security scanner metadata
+LABEL security.scan.enabled="true" \
+      security.vulnerability.policy="critical"

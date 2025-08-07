@@ -37,6 +37,28 @@ impl Default for BatchConfig {
     }
 }
 
+impl BatchConfig {
+    pub fn production() -> Self {
+        Self {
+            max_batch_size: 5000, // Большие батчи для производительности
+            flush_interval: Duration::from_secs(2), // Более быстрая обработка
+            worker_threads: 8, // Больше потоков для production
+            async_flush: true,
+            max_queue_size: 50, // Больше очередь для peak loads
+        }
+    }
+
+    pub fn minimal() -> Self {
+        Self {
+            max_batch_size: 100, // Маленькие батчи
+            flush_interval: Duration::from_secs(10), // Реже flush для экономии ресурсов
+            worker_threads: 1, // Минимум потоков
+            async_flush: false, // Синхронная обработка для простоты
+            max_queue_size: 2, // Минимальная очередь
+        }
+    }
+}
+
 /// Statistics for batch operations
 #[derive(Debug, Default, Clone)]
 pub struct BatchStats {

@@ -128,8 +128,8 @@ impl MemoryServiceConfig {
         }
 
         // Проверяем AI конфигурацию
-        if self.ai_config.embedding.model_path.is_empty() {
-            return Err(anyhow::anyhow!("Не указан путь к embedding модели"));
+        if self.ai_config.embedding.model_name.is_empty() {
+            return Err(anyhow::anyhow!("Не указано имя embedding модели"));
         }
 
         // Проверяем batch конфигурацию

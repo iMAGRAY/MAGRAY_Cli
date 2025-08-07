@@ -1,0 +1,28 @@
+[package]
+name = "domain"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Core dependencies - ONLY pure Rust, no external system dependencies
+anyhow.workspace = true
+serde.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+
+# IMPORTANT: Domain layer должен быть независим от:
+# - Database systems (no sqlx, rusqlite, sled)
+# - Network (no reqwest, tokio for async only)
+# - File system (no tempfile, walkdir)
+# - External AI services (no ort, tokenizers)
+# - Infrastructure concerns (no tracing beyond basic logging)
+
+tokio = { workspace = true, features = ["macros"] }  # For async traits only
+async-trait.workspace = true
+
+[dev-dependencies]
+# Testing infrastructure
+proptest.workspace = true
+criterion.workspace = true
+fake.workspace = true

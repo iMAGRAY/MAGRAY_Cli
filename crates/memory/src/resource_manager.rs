@@ -53,6 +53,40 @@ impl Default for ResourceConfig {
     }
 }
 
+impl ResourceConfig {
+    pub fn production() -> Self {
+        Self {
+            base_max_vectors: 500_000,           // 500K minimum 
+            base_cache_size_bytes: 1024 * 1024 * 1024, // 1GB minimum
+            
+            scaling_max_vectors: 50_000_000,     // 50M maximum для production
+            scaling_max_cache_bytes: 16 * 1024 * 1024 * 1024, // 16GB maximum
+            
+            target_memory_usage_percent: 70,     // Более агрессивное использование
+            critical_memory_usage_percent: 90,   // Выше порог для production
+            
+            monitoring_interval: Duration::from_secs(15), // Более частый мониторинг
+            scaling_cooldown: Duration::from_secs(120),   // Быстрее scaling
+        }
+    }
+
+    pub fn minimal() -> Self {
+        Self {
+            base_max_vectors: 10_000,            // 10K minimum
+            base_cache_size_bytes: 64 * 1024 * 1024, // 64MB minimum
+            
+            scaling_max_vectors: 100_000,        // Ограничений максимум
+            scaling_max_cache_bytes: 256 * 1024 * 1024, // 256MB maximum
+            
+            target_memory_usage_percent: 40,     // Консервативное использование
+            critical_memory_usage_percent: 70,   // Низкий критический порог
+            
+            monitoring_interval: Duration::from_secs(60), // Редкий мониторинг
+            scaling_cooldown: Duration::from_secs(600),   // Медленный scaling
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CurrentLimits {
     pub max_vectors: usize,

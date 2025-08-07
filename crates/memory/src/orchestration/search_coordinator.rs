@@ -22,6 +22,7 @@ use crate::{
 };
 
 /// Production-ready координатор поиска с sub-5ms HNSW векторным поиском
+// NOTE: Debug trait не реализован из-за зависимостей без Debug
 pub struct SearchCoordinator {
     store: Arc<VectorStore>,
     embedding_coordinator: Arc<EmbeddingCoordinator>,

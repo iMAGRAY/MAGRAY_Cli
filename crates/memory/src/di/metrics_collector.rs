@@ -55,6 +55,7 @@ struct TypeMetricsImpl {
     total_time: Duration,
     cache_hits: u64,
     last_resolution: Option<Instant>,
+    error_count: u64,
 }
 
 impl TypeMetricsImpl {
@@ -64,6 +65,7 @@ impl TypeMetricsImpl {
             total_time: Duration::from_nanos(0),
             cache_hits: 0,
             last_resolution: None,
+            error_count: 0,
         }
     }
 
@@ -91,6 +93,7 @@ impl TypeMetricsImpl {
             cache_hits: self.cache_hits,
             average_time: self.average_time(),
             last_resolution: self.last_resolution,
+            error_count: self.error_count,
         }
     }
 }
@@ -290,6 +293,7 @@ impl MetricsReporter for MetricsReporterImpl {
             total_resolution_time: timing_stats.total_resolution_time,
             cache_hits: self.counters.cache_hits.load(Ordering::Relaxed),
             cache_misses: self.counters.cache_misses.load(Ordering::Relaxed),
+            error_count: 0, // TODO: реализовать отслеживание ошибок
             type_metrics,
             dependency_depth: 0, // Эта метрика требует дополнительного отслеживания
         }

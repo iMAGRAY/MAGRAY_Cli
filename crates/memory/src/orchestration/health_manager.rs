@@ -14,6 +14,7 @@ use crate::{
 };
 
 /// Production-ready менеджер здоровья системы с comprehensive monitoring
+// NOTE: Debug trait не реализован из-за HealthMonitor без Debug
 pub struct HealthManager {
     health_monitor: Arc<HealthMonitor>,
     ready: std::sync::atomic::AtomicBool,

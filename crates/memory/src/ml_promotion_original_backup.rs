@@ -133,6 +133,34 @@ impl Default for MLPromotionConfig {
     }
 }
 
+impl MLPromotionConfig {
+    pub fn production() -> Self {
+        Self {
+            min_access_threshold: 5,
+            temporal_weight: 0.25,
+            semantic_weight: 0.45,
+            usage_weight: 0.3,
+            promotion_threshold: 0.8,
+            ml_batch_size: 64,
+            training_interval_hours: 12,
+            use_gpu_for_ml: true,
+        }
+    }
+
+    pub fn minimal() -> Self {
+        Self {
+            min_access_threshold: 1,
+            temporal_weight: 0.4,
+            semantic_weight: 0.3,
+            usage_weight: 0.3,
+            promotion_threshold: 0.6,
+            ml_batch_size: 16,
+            training_interval_hours: 48,
+            use_gpu_for_ml: false,
+        }
+    }
+}
+
 /// ML модель для предсказания важности записей
 #[derive(Debug)]
 pub struct PromotionModel {

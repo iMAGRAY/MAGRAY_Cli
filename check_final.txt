@@ -1,0 +1,609 @@
+﻿cargo :     Checking memory v0.1.0 (C:\Users\1\Documents\GitHub\MAGRAY_Cli\crates\memory)
+строка:1 знак:1
++ cargo check --workspace 2>&1 | Tee-Object -FilePath check_final.txt
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Checking me...\crates\memory):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: unused import: `Duration`
+ --> crates\memory\src\di\lifetime_manager.rs:6:12
+  |
+6 |     time::{Duration, Instant},
+  |            ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `MetricsReporter` and `TypeMetrics`
+  --> crates\memory\src\di\lifetime_manager.rs:11:48
+   |
+11 | use super::traits::{Lifetime, LifetimeManager, MetricsReporter, TypeMetrics};
+   |                                                ^^^^^^^^^^^^^^^  ^^^^^^^^^^^
+
+warning: unused imports: `DIRegistrar`, `DIResolver`, `DependencyValidator`, `LifetimeManager`, `MetricsReporter`, `Typ
+eMetrics`, `create_custom_container`, `create_default_container`, and `create_minimal_container`
+  --> crates\memory\src\di_container.rs:19:55
+   |
+19 |     Lifetime, DIContainerStats, DIPerformanceMetrics, TypeMetrics,
+   |                                                       ^^^^^^^^^^^
+20 |     DIResolver, DIRegistrar, LifetimeManager, DependencyValidator, MetricsReporter,
+   |     ^^^^^^^^^^  ^^^^^^^^^^^  ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+21 |     create_default_container, create_minimal_container, create_custom_container,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::di::container_builder::DIContainer as LegacyDIContainer`
+  --> crates\memory\src\di_container.rs:25:9
+   |
+25 | pub use crate::di::container_builder::DIContainer as LegacyDIContainer;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::di::dependency_validator::DependencyGraph`
+  --> crates\memory\src\di_container.rs:26:9
+   |
+26 | pub use crate::di::dependency_validator::DependencyGraph;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `run_health_check` found for struct `Arc<HealthManager>` in the current scope
+   --> crates\memory\src\service_di\production_monitoring.rs:237:45
+    |
+237 |                     if let Err(e) = manager.run_health_check().await {
+    |                                             ^^^^^^^^^^^^^^^^ method not found in `Arc<HealthManager>`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `HealthCoordinator` which provides `run_health_check` is implemented but not in scope; perhaps you want to 
+import it
+    |
+6   + use crate::orchestration::traits::HealthCoordinator;
+    |
+
+error[E0599]: no method named `system_health` found for reference `&Arc<HealthManager>` in the current scope
+   --> crates\memory\src\service_di\production_monitoring.rs:289:34
+    |
+289 |             match health_manager.system_health().await {
+    |                                  ^^^^^^^^^^^^^ method not found in `&Arc<HealthManager>`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `HealthCoordinator` which provides `system_health` is implemented but not in scope; perhaps you want to imp
+ort it
+    |
+6   + use crate::orchestration::traits::HealthCoordinator;
+    |
+
+error[E0599]: no method named `get_embedding` found for reference `&Arc<embedding_coordinator::EmbeddingCoordinator>` i
+n the current scope
+   --> crates\memory\src\service_di\operation_executor.rs:174:35
+    |
+174 |             embedding_coordinator.get_embedding(text).await
+    |                                   ^^^^^^^^^^^^^
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `EmbeddingCoordinator` which provides `get_embedding` is implemented but not in scope; perhaps you want to 
+import it
+    |
+7   + use crate::orchestration::traits::EmbeddingCoordinator;
+    |
+help: there is a method `get_embeddings` with a similar name
+    |
+174 |             embedding_coordinator.get_embeddings(text).await
+    |                                                +
+
+error[E0599]: no method named `get_stats` found for struct `Arc<Arc<BatchOperationManager>>` in the current scope
+   --> crates\memory\src\service_di\operation_executor.rs:560:30
+    |
+560 |             Ok(batch_manager.get_stats().await?)
+    |                              ^^^^^^^^^
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+note: `MetricsReporter` defines an item `get_stats`, perhaps you need to implement it
+   --> crates\memory\src\di\traits.rs:76:1
+    |
+76  | pub trait MetricsReporter: Send + Sync {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: there is a method `stats` with a similar name
+    |
+560 -             Ok(batch_manager.get_stats().await?)
+560 +             Ok(batch_manager.stats().await?)
+    |
+
+error[E0308]: mismatched types
+   --> crates\memory\src\service_di_refactored.rs:83:34
+    |
+83  |             .with_health_manager(coordinators.health_manager.clone())
+    |              ------------------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Arc<HealthManager>`, found `Option
+<Arc<HealthManager>>`
+    |              |
+    |              arguments to this method are incorrect
+    |
+    = note: expected struct `Arc<_>`
+                 found enum `std::option::Option<Arc<_>>`
+note: method defined here
+   --> crates\memory\src\service_di\production_monitoring.rs:140:12
+    |
+140 |     pub fn with_health_manager(mut self, health_manager: Arc<HealthManager>) -> Self {
+    |            ^^^^^^^^^^^^^^^^^^^           ----------------------------------
+help: consider using `Option::expect` to unwrap the `std::option::Option<Arc<HealthManager>>` value, panicking if the v
+alue is an `Option::None`
+    |
+83  |             .with_health_manager(coordinators.health_manager.clone().expect("REASON"))
+    |                                                                     +++++++++++++++++
+
+error[E0308]: mismatched types
+   --> crates\memory\src\service_di_refactored.rs:84:39
+    |
+84  |             .with_resource_controller(coordinators.resource_controller.clone());
+    |              ------------------------ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Arc<ResourceController>`
+, found `Option<Arc<ResourceController>>`
+    |              |
+    |              arguments to this method are incorrect
+    |
+    = note: expected struct `Arc<_>`
+                 found enum `std::option::Option<Arc<_>>`
+note: method defined here
+   --> crates\memory\src\service_di\production_monitoring.rs:145:12
+    |
+145 |     pub fn with_resource_controller(mut self, resource_controller: Arc<ResourceController>) -> Self {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^           --------------------------------------------
+help: consider using `Option::expect` to unwrap the `std::option::Option<Arc<ResourceController>>` value, panicking if 
+the value is an `Option::None`
+    |
+84  |             .with_resource_controller(coordinators.resource_controller.clone().expect("REASON"));
+    |                                                                               +++++++++++++++++
+
+error[E0599]: no method named `system_health` found for reference `&Arc<HealthManager>` in the current scope
+   --> crates\memory\src\service_di_refactored.rs:254:28
+    |
+254 |             health_manager.system_health().await
+    |                            ^^^^^^^^^^^^^ method not found in `&Arc<HealthManager>`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `HealthCoordinator` which provides `system_health` is implemented but not in scope; perhaps you want to imp
+ort it
+    |
+7   + use crate::orchestration::traits::HealthCoordinator;
+    |
+
+error[E0599]: no method named `cache_stats` found for reference `&Arc<embedding_coordinator::EmbeddingCoordinator>` in 
+the current scope
+   --> crates\memory\src\service_di_refactored.rs:261:35
+    |
+261 |             embedding_coordinator.cache_stats().await
+    |                                   ^^^^^^^^^^^ method not found in `&Arc<embedding_coordinator::EmbeddingCoordinat
+or>`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `EmbeddingCoordinator` which provides `cache_stats` is implemented but not in scope; perhaps you want to im
+port it
+    |
+7   + use crate::orchestration::traits::EmbeddingCoordinator;
+    |
+
+error[E0609]: no field `total_types` on type `DIContainerStats`
+  --> crates\memory\src\di_memory_config.rs:59:33
+   |
+59 |               container.stats().total_types);
+   |                                 ^^^^^^^^^^^ unknown field
+   |
+   = note: available fields are: `registered_factories`, `cached_singletons`, `total_resolutions`, `cache_hits`, `valid
+ation_errors`
+
+error[E0609]: no field `total_types` on type `DIContainerStats`
+  --> crates\memory\src\di_memory_config.rs:85:33
+   |
+85 |               container.stats().total_types);
+   |                                 ^^^^^^^^^^^ unknown field
+   |
+   = note: available fields are: `registered_factories`, `cached_singletons`, `total_resolutions`, `cache_hits`, `valid
+ation_errors`
+
+error[E0308]: mismatched types
+   --> crates\memory\src\di_memory_config.rs:493:64
+    |
+493 |                 Ok(Arc::new(MemoryOrchestrator::from_container(container)?))
+    |                             ---------------------------------- ^^^^^^^^^ expected `&DIContainer`, found `&Contain
+erCore`
+    |                             |
+    |                             arguments to this function are incorrect
+    |
+    = note: expected reference `&DIContainer`
+               found reference `&ContainerCore`
+note: associated function defined here
+   --> crates\memory\src\orchestration\memory_orchestrator.rs:211:12
+    |
+211 |     pub fn from_container(container: &crate::di_container::DIContainer) -> Result<Self> {
+    |            ^^^^^^^^^^^^^^ --------------------------------------------
+
+error[E0599]: no function or associated item named `production` found for struct `PromotionConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:70:41
+   |
+70 |             promotion: PromotionConfig::production(),
+   |                                         ^^^^^^^^^^ function or associated item not found in `PromotionConfig`
+   |
+  ::: crates\memory\src\types.rs:88:1
+   |
+88 | pub struct PromotionConfig {
+   | -------------------------- function or associated item `production` not found for this struct
+
+error[E0599]: no function or associated item named `production` found for struct `MLPromotionConfig` in the current sco
+pe
+   --> crates\memory\src\service_di\service_config.rs:71:51
+    |
+71  |             ml_promotion: Some(MLPromotionConfig::production()),
+    |                                                   ^^^^^^^^^^ function or associated item not found in `MLPromotio
+nConfig`
+    |
+   ::: crates\memory\src\ml_promotion.rs:102:1
+    |
+102 | pub struct MLPromotionConfig {
+    | ---------------------------- function or associated item `production` not found for this struct
+
+error[E0599]: no function or associated item named `production` found for struct `StreamingConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:72:53
+   |
+72 |             streaming_config: Some(StreamingConfig::production()),
+   |                                                     ^^^^^^^^^^ function or associated item not found in `Streaming
+Config`
+   |
+  ::: crates\memory\src\streaming.rs:25:1
+   |
+25 | pub struct StreamingConfig {
+   | -------------------------- function or associated item `production` not found for this struct
+
+error[E0599]: no function or associated item named `production` found for struct `AiConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:73:34
+   |
+73 |             ai_config: AiConfig::production(),
+   |                                  ^^^^^^^^^^ function or associated item not found in `AiConfig`
+
+error[E0599]: no function or associated item named `production` found for struct `CacheConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:74:44
+   |
+74 |             cache_config: CacheConfigType::production(),
+   |                                            ^^^^^^^^^^ function or associated item not found in `CacheConfig`
+   |
+  ::: crates\memory\src\cache_lru.rs:22:1
+   |
+22 | pub struct CacheConfig {
+   | ---------------------- function or associated item `production` not found for this struct
+
+error[E0599]: no function or associated item named `production` found for struct `HealthMonitorConfig` in the current s
+cope
+   --> crates\memory\src\service_di\service_config.rs:76:49
+    |
+76  |             health_config: HealthMonitorConfig::production(),
+    |                                                 ^^^^^^^^^^ function or associated item not found in `HealthMonito
+rConfig`
+    |
+   ::: crates\memory\src\health.rs:118:1
+    |
+118 | pub struct HealthMonitorConfig {
+    | ------------------------------ function or associated item `production` not found for this struct
+
+error[E0599]: no function or associated item named `production` found for struct `ResourceConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:77:46
+   |
+77 |             resource_config: ResourceConfig::production(),
+   |                                              ^^^^^^^^^^ function or associated item not found in `ResourceConfig`
+   |
+  ::: crates\memory\src\resource_manager.rs:18:1
+   |
+18 | pub struct ResourceConfig {
+   | ------------------------- function or associated item `production` not found for this struct
+
+error[E0599]: no function or associated item named `production` found for struct `NotificationConfig` in the current sc
+ope
+  --> crates\memory\src\service_di\service_config.rs:78:54
+   |
+78 |             notification_config: NotificationConfig::production(),
+   |                                                      ^^^^^^^^^^ function or associated item not found in `Notifica
+tionConfig`
+   |
+  ::: crates\memory\src\notifications.rs:42:1
+   |
+42 | pub struct NotificationConfig {
+   | ----------------------------- function or associated item `production` not found for this struct
+
+error[E0599]: no function or associated item named `production` found for struct `BatchConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:79:40
+   |
+79 |             batch_config: BatchConfig::production(),
+   |                                        ^^^^^^^^^^ function or associated item not found in `BatchConfig`
+   |
+  ::: crates\memory\src\batch_manager.rs:15:1
+   |
+15 | pub struct BatchConfig {
+   | ---------------------- function or associated item `production` not found for this struct
+
+error[E0599]: no function or associated item named `minimal` found for struct `PromotionConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:90:41
+   |
+90 |             promotion: PromotionConfig::minimal(),
+   |                                         ^^^^^^^ function or associated item not found in `PromotionConfig`
+   |
+  ::: crates\memory\src\types.rs:88:1
+   |
+88 | pub struct PromotionConfig {
+   | -------------------------- function or associated item `minimal` not found for this struct
+
+error[E0599]: no function or associated item named `minimal` found for struct `AiConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:93:34
+   |
+93 |             ai_config: AiConfig::minimal(),
+   |                                  ^^^^^^^ function or associated item not found in `AiConfig`
+
+error[E0599]: no function or associated item named `minimal` found for struct `CacheConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:94:44
+   |
+94 |             cache_config: CacheConfigType::minimal(),
+   |                                            ^^^^^^^ function or associated item not found in `CacheConfig`
+   |
+  ::: crates\memory\src\cache_lru.rs:22:1
+   |
+22 | pub struct CacheConfig {
+   | ---------------------- function or associated item `minimal` not found for this struct
+
+error[E0599]: no function or associated item named `minimal` found for struct `HealthMonitorConfig` in the current scop
+e
+   --> crates\memory\src\service_di\service_config.rs:96:49
+    |
+96  |             health_config: HealthMonitorConfig::minimal(),
+    |                                                 ^^^^^^^ function or associated item not found in `HealthMonitorCo
+nfig`
+    |
+   ::: crates\memory\src\health.rs:118:1
+    |
+118 | pub struct HealthMonitorConfig {
+    | ------------------------------ function or associated item `minimal` not found for this struct
+
+error[E0599]: no function or associated item named `minimal` found for struct `ResourceConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:97:46
+   |
+97 |             resource_config: ResourceConfig::minimal(),
+   |                                              ^^^^^^^ function or associated item not found in `ResourceConfig`
+   |
+  ::: crates\memory\src\resource_manager.rs:18:1
+   |
+18 | pub struct ResourceConfig {
+   | ------------------------- function or associated item `minimal` not found for this struct
+
+error[E0599]: no function or associated item named `minimal` found for struct `NotificationConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:98:54
+   |
+98 |             notification_config: NotificationConfig::minimal(),
+   |                                                      ^^^^^^^ function or associated item not found in `Notificatio
+nConfig`
+   |
+  ::: crates\memory\src\notifications.rs:42:1
+   |
+42 | pub struct NotificationConfig {
+   | ----------------------------- function or associated item `minimal` not found for this struct
+
+error[E0599]: no function or associated item named `minimal` found for struct `BatchConfig` in the current scope
+  --> crates\memory\src\service_di\service_config.rs:99:40
+   |
+99 |             batch_config: BatchConfig::minimal(),
+   |                                        ^^^^^^^ function or associated item not found in `BatchConfig`
+   |
+  ::: crates\memory\src\batch_manager.rs:15:1
+   |
+15 | pub struct BatchConfig {
+   | ---------------------- function or associated item `minimal` not found for this struct
+
+error[E0609]: no field `model_path` on type `EmbeddingConfig`
+   --> crates\memory\src\service_di\service_config.rs:131:37
+    |
+131 |         if self.ai_config.embedding.model_path.is_empty() {
+    |                                     ^^^^^^^^^^ unknown field
+    |
+help: a field with a similar name exists
+    |
+131 -         if self.ai_config.embedding.model_path.is_empty() {
+131 +         if self.ai_config.embedding.model_name.is_empty() {
+    |
+
+error[E0599]: no function or associated item named `production` found for struct `MLPromotionConfig` in the current sco
+pe
+   --> crates\memory\src\service_di\service_config.rs:202:60
+    |
+202 |         self.config.ml_promotion = Some(MLPromotionConfig::production());
+    |                                                            ^^^^^^^^^^ function or associated item not found in `M
+LPromotionConfig`
+    |
+   ::: crates\memory\src\ml_promotion.rs:102:1
+    |
+102 | pub struct MLPromotionConfig {
+    | ---------------------------- function or associated item `production` not found for this struct
+
+error[E0599]: no function or associated item named `production` found for struct `StreamingConfig` in the current scope
+   --> crates\memory\src\service_di\service_config.rs:203:62
+    |
+203 |         self.config.streaming_config = Some(StreamingConfig::production());
+    |                                                              ^^^^^^^^^^ function or associated item not found in 
+`StreamingConfig`
+    |
+   ::: crates\memory\src\streaming.rs:25:1
+    |
+25  | pub struct StreamingConfig {
+    | -------------------------- function or associated item `production` not found for this struct
+
+error[E0277]: `embedding_coordinator::EmbeddingCoordinator` doesn't implement `Debug`
+  --> crates\memory\src\service_di\coordinator_factory.rs:37:5
+   |
+35 | #[derive(Debug)]
+   |          ----- in this derive macro expansion
+36 | pub struct OrchestrationCoordinators {
+37 |     pub embedding_coordinator: Option<Arc<EmbeddingCoordinatorImpl>>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `emb
+edding_coordinator::EmbeddingCoordinator`
+   |
+   = note: add `#[derive(Debug)]` to `embedding_coordinator::EmbeddingCoordinator` or manually `impl Debug for embeddin
+g_coordinator::EmbeddingCoordinator`
+   = help: the trait `Debug` is implemented for `std::option::Option<T>`
+
+error[E0277]: `search_coordinator::SearchCoordinator` doesn't implement `Debug`
+  --> crates\memory\src\service_di\coordinator_factory.rs:38:5
+   |
+35 | #[derive(Debug)]
+   |          ----- in this derive macro expansion
+...
+38 |     pub search_coordinator: Option<Arc<SearchCoordinatorImpl>>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `search_co
+ordinator::SearchCoordinator`
+   |
+   = note: add `#[derive(Debug)]` to `search_coordinator::SearchCoordinator` or manually `impl Debug for search_coordin
+ator::SearchCoordinator`
+   = help: the trait `Debug` is implemented for `std::option::Option<T>`
+
+error[E0277]: `HealthManager` doesn't implement `Debug`
+  --> crates\memory\src\service_di\coordinator_factory.rs:39:5
+   |
+35 | #[derive(Debug)]
+   |          ----- in this derive macro expansion
+...
+39 |     pub health_manager: Option<Arc<HealthManager>>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `HealthManager`
+   |
+   = note: add `#[derive(Debug)]` to `HealthManager` or manually `impl Debug for HealthManager`
+   = help: the trait `Debug` is implemented for `std::option::Option<T>`
+
+error[E0277]: `ResourceController` doesn't implement `Debug`
+  --> crates\memory\src\service_di\coordinator_factory.rs:40:5
+   |
+35 | #[derive(Debug)]
+   |          ----- in this derive macro expansion
+...
+40 |     pub resource_controller: Option<Arc<ResourceController>>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `ResourceCon
+troller`
+   |
+   = note: add `#[derive(Debug)]` to `ResourceController` or manually `impl Debug for ResourceController`
+   = help: the trait `Debug` is implemented for `std::option::Option<T>`
+help: consider annotating `ResourceController` with `#[derive(Debug)]`
+  --> crates\memory\src\orchestration\resource_controller.rs:17:1
+   |
+17 + #[derive(Debug)]
+18 | pub struct ResourceController {
+   |
+
+error[E0599]: no method named `search` found for reference `&Arc<search_coordinator::SearchCoordinator>` in the current
+ scope
+   --> crates\memory\src\service_di\operation_executor.rs:274:40
+    |
+274 |                     search_coordinator.search(query, layer, options.clone())
+    |                                        ^^^^^^ method not found in `&Arc<search_coordinator::SearchCoordinator>`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `SearchCoordinator` which provides `search` is implemented but not in scope; perhaps you want to import it
+    |
+7   + use crate::orchestration::traits::SearchCoordinator;
+    |
+
+error[E0308]: mismatched types
+   --> crates\memory\src\service_di\operation_executor.rs:497:9
+    |
+497 |         store.delete_by_id(id, layer).await
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Result<(), Error>`, found `Result<bool, Error>`
+    |
+    = note: expected enum `Result<(), _>`
+               found enum `Result<bool, _>`
+
+error[E0599]: no method named `get_performance_metrics` found for struct `Arc<DIContainer>` in the current scope
+   --> crates\memory\src\service_di_refactored.rs:378:24
+    |
+378 |         self.container.get_performance_metrics()
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+note: `MetricsReporter` defines an item `get_performance_metrics`, perhaps you need to implement it
+   --> crates\memory\src\di\traits.rs:76:1
+    |
+76  | pub trait MetricsReporter: Send + Sync {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: there is a method `performance_metrics` with a similar name
+    |
+378 -         self.container.get_performance_metrics()
+378 +         self.container.performance_metrics()
+    |
+
+error[E0599]: no method named `get_performance_report` found for struct `Arc<DIContainer>` in the current scope
+   --> crates\memory\src\service_di_refactored.rs:383:24
+    |
+383 |         self.container.get_performance_report()
+    |                        ^^^^^^^^^^^^^^^^^^^^^^ method not found in `Arc<DIContainer>`
+
+error[E0599]: no method named `reset_performance_metrics` found for struct `Arc<DIContainer>` in the current scope
+   --> crates\memory\src\service_di_refactored.rs:388:24
+    |
+388 |         self.container.reset_performance_metrics()
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `performance_metrics` with a similar name
+    |
+388 -         self.container.reset_performance_metrics()
+388 +         self.container.performance_metrics()
+    |
+
+error[E0609]: no field `total_types` on type `DIContainerStats`
+   --> crates\memory\src\services\monitoring_service.rs:237:21
+    |
+237 |         if di_stats.total_types == 0 {
+    |                     ^^^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `registered_factories`, `cached_singletons`, `total_resolutions`, `cache_hits`, `vali
+dation_errors`
+
+error[E0609]: no field `total_types` on type `DIContainerStats`
+   --> crates\memory\src\services\monitoring_service.rs:313:49
+    |
+313 |         info!("🔧 DI зависимостей: {}", di_stats.total_types);
+    |                                                  ^^^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `registered_factories`, `cached_singletons`, `total_resolutions`, `cache_hits`, `vali
+dation_errors`
+
+error[E0599]: no method named `get_performance_metrics` found for struct `Arc<DIContainer>` in the current scope
+   --> crates\memory\src\services\refactored_di_memory_service.rs:417:24
+    |
+417 |         self.container.get_performance_metrics()
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+note: `MetricsReporter` defines an item `get_performance_metrics`, perhaps you need to implement it
+   --> crates\memory\src\di\traits.rs:76:1
+    |
+76  | pub trait MetricsReporter: Send + Sync {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: there is a method `performance_metrics` with a similar name
+    |
+417 -         self.container.get_performance_metrics()
+417 +         self.container.performance_metrics()
+    |
+
+error[E0599]: no method named `get_performance_report` found for struct `Arc<DIContainer>` in the current scope
+   --> crates\memory\src\services\refactored_di_memory_service.rs:422:24
+    |
+422 |         self.container.get_performance_report()
+    |                        ^^^^^^^^^^^^^^^^^^^^^^ method not found in `Arc<DIContainer>`
+
+error[E0599]: no method named `reset_performance_metrics` found for struct `Arc<DIContainer>` in the current scope
+   --> crates\memory\src\services\refactored_di_memory_service.rs:427:24
+    |
+427 |         self.container.reset_performance_metrics()
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `performance_metrics` with a similar name
+    |
+427 -         self.container.reset_performance_metrics()
+427 +         self.container.performance_metrics()
+    |
+
+warning: unused variable: `dependency`
+   --> crates\memory\src\di\dependency_validator.rs:131:18
+    |
+131 |             for &dependency in deps {
+    |                  ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_dependency`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+Some errors have detailed explanations: E0277, E0308, E0599, E0609.
+For more information about an error, try `rustc --explain E0277`.
+warning: `memory` (lib) generated 6 warnings
+error: could not compile `memory` (lib) due to 44 previous errors; 6 warnings emitted

@@ -126,13 +126,19 @@ impl Default for DIContainerBuilder {
 /// Главный facade для DI контейнера
 /// Обеспечивает обратную совместимость с существующим API
 pub struct DIContainer {
-    core: ContainerCore,
+    core: Arc<ContainerCore>,
+}
+
+impl Clone for DIContainer {
+    fn clone(&self) -> Self {
+        Self { core: Arc::clone(&self.core) }
+    }
 }
 
 impl DIContainer {
     /// Создать новый контейнер с core компонентом
     pub(crate) fn new(core: ContainerCore) -> Self {
-        Self { core }
+        Self { core: Arc::new(core) }
     }
 
     /// Создать контейнер с настройками по умолчанию
@@ -143,6 +149,11 @@ impl DIContainer {
     /// Получить builder для создания кастомного контейнера
     pub fn builder() -> DIContainerBuilder {
         DIContainerBuilder::new()
+    }
+
+    /// Получить доступ к внутреннему ContainerCore
+    pub fn core(&self) -> &ContainerCore {
+        &*self.core
     }
 
     /// Зарегистрировать компонент с factory функцией
@@ -218,6 +229,16 @@ impl DIContainer {
     /// Получить детальные метрики производительности
     pub fn performance_metrics(&self) -> super::traits::DIPerformanceMetrics {
         self.core.performance_metrics()
+    }
+    
+    /// Получить краткий отчет о производительности в формате строки
+    pub fn get_performance_report(&self) -> String {
+        self.core.get_performance_report()
+    }
+    
+    /// Сбросить метрики производительности
+    pub fn reset_performance_metrics(&self) {
+        self.core.reset_performance_metrics();
     }
 }
 
