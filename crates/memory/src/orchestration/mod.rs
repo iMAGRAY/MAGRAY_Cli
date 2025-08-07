@@ -47,8 +47,8 @@ pub use circuit_breaker_manager::{
 
 // Lifecycle management
 pub use orchestration_lifecycle_manager::{
-    CoordinatorRegistry as LifecycleCoordinatorRegistry, LifecycleManager,
-    OrchestrationLifecycleManager,
+    CoordinatorRegistry as LifecycleCoordinatorRegistry,
+    LifecycleManager as OrchestrationLifecycleManagerTrait, OrchestrationLifecycleManager,
 };
 
 // Operation execution
@@ -71,10 +71,7 @@ pub use health_checker::{
 pub use lifecycle_manager::LifecycleManager;
 
 // Coordinator registry
-pub use coordinator_registry::{
-    CoordinatorRegistry, CoordinatorRegistryFactory, CoordinatorRegistryTrait, ReadinessStatus,
-    ValidationResult,
-};
+pub use coordinator_registry::{CoordinatorRegistry, ReadinessStatus};
 
 // Main facade (recommended entry point)
 pub use orchestration_facade::{MemoryOrchestrator, OrchestrationFacade};

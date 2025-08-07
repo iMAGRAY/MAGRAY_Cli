@@ -3,7 +3,7 @@ use crate::gpu_detector::{GpuDetector, GpuDevice};
 use crate::EmbeddingConfig;
 use anyhow::Result;
 #[cfg(not(feature = "gpu"))]
-use dummy_gpu::{GpuDetector, GpuDevice};
+use dummy_gpu::GpuDetector;
 use std::time::Instant;
 #[cfg(feature = "gpu")]
 use tracing::warn;

@@ -7,8 +7,8 @@ use crate::{
     health::SystemHealthStatus,
     orchestration::{
         circuit_breaker_manager::{CircuitBreakerManager, CircuitBreakerManagerTrait},
-        coordinator_registry::{CoordinatorRegistry, CoordinatorRegistryTrait},
-        metrics_collector::{MetricsCollector, MetricsCollectorTrait},
+        coordinator_registry::CoordinatorRegistry,
+        metrics_collector::MetricsCollector,
         operation_executor::OperationExecutor,
         orchestration_lifecycle_manager::{LifecycleManager, OrchestrationLifecycleManager},
     },
@@ -115,9 +115,9 @@ impl OrchestrationFacade {
     /// Production поиск (аналог оригинального search)
     pub async fn search(
         &self,
-        query: &str,
-        layer: Layer,
-        options: SearchOptions,
+        _query: &str,
+        _layer: Layer,
+        _options: SearchOptions,
     ) -> Result<Vec<Record>> {
         // Временно заглушка для исправления compile error
         // OperationExecutorTrait::execute_search(self.operation_executor.as_ref(), query, layer, options).await
@@ -125,7 +125,7 @@ impl OrchestrationFacade {
     }
 
     /// Production embedding (аналог оригинального get_embedding)
-    pub async fn get_embedding(&self, text: &str) -> Result<Vec<f32>> {
+    pub async fn get_embedding(&self, _text: &str) -> Result<Vec<f32>> {
         // Временно заглушка
         // OperationExecutorTrait::execute_embedding(self.operation_executor.as_ref(), text).await
         Ok(vec![])
@@ -139,7 +139,7 @@ impl OrchestrationFacade {
     }
 
     /// Production backup (аналог оригинального create_backup)
-    pub async fn create_backup(&self, path: &str) -> Result<BackupMetadata> {
+    pub async fn create_backup(&self, _path: &str) -> Result<BackupMetadata> {
         // Временно заглушка
         // OperationExecutorTrait::execute_backup(self.operation_executor.as_ref(), path).await
         Ok(crate::backup::BackupMetadata::default())

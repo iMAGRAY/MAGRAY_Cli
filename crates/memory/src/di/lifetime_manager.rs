@@ -4,11 +4,11 @@ use std::{
     any::{Any, TypeId},
     collections::HashMap,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Instant,
 };
 use tracing::debug;
 
-use super::traits::{Lifetime, LifetimeManager, MetricsReporter, TypeMetrics};
+use super::traits::{Lifetime, LifetimeManager};
 
 /// Реализация менеджера жизненного цикла компонентов
 /// Применяет принцип Single Responsibility (SRP)

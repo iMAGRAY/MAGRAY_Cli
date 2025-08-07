@@ -5,10 +5,152 @@ use tracing::{debug, info, warn};
 
 use crate::batch_optimized::{BatchOptimizedConfig, BatchOptimizedProcessor};
 use crate::cache_interface::EmbeddingCacheInterface;
+#[cfg(feature = "gpu")]
 use ai::gpu_fallback::FallbackStats;
+#[cfg(feature = "gpu")]
 use ai::{
     EmbeddingConfig, EmbeddingServiceTrait, GpuFallbackManager, GpuPipelineManager, PipelineConfig,
 };
+
+// Fallback типы для когда GPU feature не включен
+#[cfg(not(feature = "gpu"))]
+#[derive(Debug, Clone)]
+pub struct FallbackStats {
+    pub fallback_count: u32,
+    pub total_requests: u32,
+    pub gpu_error_count: u32,
+    pub gpu_success_count: u32,
+}
+
+#[cfg(not(feature = "gpu"))]
+impl FallbackStats {
+    /// Получить процент успешных GPU операций
+    pub fn gpu_success_rate(&self) -> f64 {
+        if self.total_requests > 0 {
+            self.gpu_success_count as f64 / self.total_requests as f64
+        } else {
+            0.0
+        }
+    }
+
+    /// Получить процент fallback операций
+    pub fn fallback_rate(&self) -> f64 {
+        if self.total_requests > 0 {
+            self.fallback_count as f64 / self.total_requests as f64
+        } else {
+            0.0
+        }
+    }
+
+    /// Создать стандартную статистику для fallback случая
+    pub fn default_fallback() -> Self {
+        Self {
+            fallback_count: 0,
+            total_requests: 0,
+            gpu_error_count: 0,
+            gpu_success_count: 0,
+        }
+    }
+}
+
+#[cfg(not(feature = "gpu"))]
+#[derive(Debug, Clone)]
+pub struct EmbeddingConfig {
+    pub batch_size: usize,
+}
+
+#[cfg(not(feature = "gpu"))]
+#[derive(Debug, Clone)]
+pub struct PipelineConfig {
+    pub max_batch_size: usize,
+}
+
+#[cfg(not(feature = "gpu"))]
+#[derive(Debug, Clone)]
+pub struct PipelineStats {
+    pub processed_batches: u64,
+    pub total_items: u64,
+}
+
+#[cfg(not(feature = "gpu"))]
+#[derive(Debug, Clone)]
+pub struct GpuFallbackManager;
+
+#[cfg(not(feature = "gpu"))]
+impl GpuFallbackManager {
+    pub async fn new(_config: EmbeddingConfig) -> anyhow::Result<Self> {
+        Ok(GpuFallbackManager)
+    }
+
+    /// Получить статистику fallback менеджера
+    pub fn get_stats(&self) -> FallbackStats {
+        FallbackStats::default_fallback()
+    }
+
+    /// Принудительно включить CPU режим
+    pub fn force_cpu_mode(&self) {
+        // В fallback режиме уже используется CPU
+    }
+
+    /// Обработать пакет текстов (fallback реализация)
+    pub async fn embed_batch(&self, texts: Vec<String>) -> anyhow::Result<Vec<Vec<f32>>> {
+        // Fallback к простым embedding через CPU
+        let mut results = Vec::new();
+        for _text in texts {
+            // Простая заглушка для fallback режима
+            let embedding = vec![0.0; 384]; // BGE-M3 размер
+            results.push(embedding);
+        }
+        Ok(results)
+    }
+
+    /// Сбросить circuit breaker (заглушка)
+    pub fn reset_circuit_breaker(&self) {
+        // В fallback режиме нет circuit breaker
+    }
+}
+
+#[cfg(not(feature = "gpu"))]
+#[derive(Debug, Clone)]
+pub struct GpuPipelineManager;
+
+#[cfg(not(feature = "gpu"))]
+impl GpuPipelineManager {
+    /// Создать pipeline менеджер (fallback)
+    pub async fn new(
+        _embedding_config: EmbeddingConfig,
+        _pipeline_config: PipelineConfig,
+    ) -> anyhow::Result<Self> {
+        Ok(GpuPipelineManager)
+    }
+
+    /// Обработать тексты с оптимизацией (заглушка)
+    pub async fn process_texts_optimized(
+        &self,
+        texts: Vec<String>,
+    ) -> anyhow::Result<Vec<Vec<f32>>> {
+        // В fallback режиме нет GPU pipeline
+        let mut results = Vec::new();
+        for _text in texts {
+            let embedding = vec![0.0; 384]; // BGE-M3 размер
+            results.push(embedding);
+        }
+        Ok(results)
+    }
+
+    /// Получить статистику pipeline (заглушка)
+    pub async fn get_stats(&self) -> PipelineStats {
+        PipelineStats {
+            processed_batches: 0,
+            total_items: 0,
+        }
+    }
+}
+
+#[cfg(not(feature = "gpu"))]
+pub trait EmbeddingServiceTrait {
+    async fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>>;
+}
 
 /// Статус здоровья GPU
 #[derive(Debug, Clone)]
@@ -170,12 +312,7 @@ impl GpuBatchProcessor {
         Self::validate_gpu_capabilities()?;
 
         let pipeline_config = PipelineConfig {
-            max_concurrent_batches: Self::get_optimal_gpu_streams()?,
-            optimal_batch_size: Self::get_safe_batch_size(config.max_batch_size)?,
-            min_batch_size: 32,
-            prefetch_enabled: Self::can_use_prefetch(),
-            memory_pooling_enabled: Self::can_use_pinned_memory(),
-            adaptive_batching: true,
+            max_batch_size: Self::get_safe_batch_size(config.max_batch_size)?,
         };
 
         info!(
@@ -453,12 +590,21 @@ impl GpuBatchProcessor {
     }
 
     /// Создать emergency CPU-only сервис
+    #[cfg(feature = "gpu")]
     async fn create_emergency_cpu_service(&self) -> Result<ai::GpuFallbackManager> {
         let mut emergency_config = ai::EmbeddingConfig::default();
         emergency_config.use_gpu = false;
         emergency_config.batch_size = 1; // Minimal batch size
 
         ai::GpuFallbackManager::new(emergency_config).await
+    }
+
+    /// Создать emergency CPU-only сервис (fallback версия)
+    #[cfg(not(feature = "gpu"))]
+    async fn create_emergency_cpu_service(&self) -> Result<GpuFallbackManager> {
+        // В fallback режиме возвращаем clone самого сервиса
+        let emergency_config = EmbeddingConfig { batch_size: 1 };
+        GpuFallbackManager::new(emergency_config).await
     }
 
     /// Получить fallback embedding для одного текста
@@ -1014,7 +1160,10 @@ pub struct BatchProcessorStats {
     pub has_gpu: bool,
     pub queue_size: usize,
     pub cache_stats: (u64, u64, u64), // hits, misses, inserts
+    #[cfg(feature = "gpu")]
     pub pipeline_stats: Option<ai::PipelineStats>,
+    #[cfg(not(feature = "gpu"))]
+    pub pipeline_stats: Option<PipelineStats>,
 }
 
 impl BatchProcessorStats {

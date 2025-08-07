@@ -453,7 +453,7 @@ impl ConfigurationLoader {
     /// Merge two configurations, with higher priority config overriding lower
     fn merge_configurations(
         &self,
-        base: UnifiedDIConfiguration,
+        _base: UnifiedDIConfiguration,
         override_config: UnifiedDIConfiguration,
     ) -> Result<UnifiedDIConfiguration> {
         // This is a simplified merge - in production, you'd want a more sophisticated merging strategy

@@ -27,7 +27,7 @@ use super::core_traits::*;
 use super::errors::{DIError, ValidationError};
 
 // Внешние зависимости для логирования
-use log::{debug, error, warn};
+use log::debug;
 
 /// === CORE CONTAINER IMPLEMENTATION ===
 /// Единственная корректная реализация DI контейнера в проекте

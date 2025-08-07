@@ -8,7 +8,7 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use super::traits::{DataProcessor, SemanticAnalyzer, TrainingExample, UsageTracker};
-use super::types::{AccessPattern, MLPromotionConfig, PromotionFeatures, SemanticContext};
+use super::types::{AccessPattern, PromotionFeatures};
 use crate::storage::VectorStore;
 use crate::types::{Layer, Record};
 

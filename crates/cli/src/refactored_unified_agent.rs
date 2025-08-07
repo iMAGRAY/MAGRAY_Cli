@@ -240,6 +240,7 @@ impl RefactoredUnifiedAgent {
                     );
 
                     // Пытаемся найти альтернативный handler (простая fallback логика)
+                    drop(_permit); // Освобождаем permit перед вызовом mutable метода
                     self.handle_circuit_breaker_fallback(context).await
                 } else {
                     // Выполняем запрос с защитой circuit breaker
@@ -338,7 +339,7 @@ impl RefactoredUnifiedAgent {
     }
 
     /// Получить общую статистику агента
-    pub async fn get_comprehensive_stats(&self) -> String {
+    pub async fn get_comprehensive_stats(&mut self) -> String {
         let mut stats = String::new();
 
         stats.push_str("=== RefactoredUnifiedAgent Comprehensive Stats ===\n\n");
@@ -465,7 +466,7 @@ impl RefactoredUnifiedAgent {
 
 #[async_trait]
 impl RequestProcessorTrait for RefactoredUnifiedAgent {
-    async fn process_user_request(&self, context: RequestContext) -> Result<ProcessingResult> {
+    async fn process_user_request(&self, _context: RequestContext) -> Result<ProcessingResult> {
         if !self.initialized {
             return Err(anyhow::anyhow!("RefactoredUnifiedAgent не инициализирован"));
         }

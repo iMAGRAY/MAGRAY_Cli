@@ -8,6 +8,7 @@ use std::time::Duration;
 /// в service implementations across все крейты
 
 /// Базовый trait для всех Service implementations
+#[allow(async_fn_in_trait)]
 pub trait BaseService: Send + Sync {
     /// Имя сервиса для логирования и отладки
     fn name(&self) -> &'static str;
@@ -29,6 +30,7 @@ pub trait BaseService: Send + Sync {
 }
 
 /// Trait для сервисов с конфигурацией
+#[allow(async_fn_in_trait)]
 pub trait ConfigurableService<T>: BaseService {
     /// Получить текущую конфигурацию
     fn config(&self) -> &T;
@@ -60,6 +62,7 @@ pub trait MetricsService: BaseService {
 }
 
 /// Trait для сервисов с circuit breaker защитой  
+#[allow(async_fn_in_trait)]
 pub trait CircuitBreakerService: BaseService {
     /// Выполнить операцию с circuit breaker защитой
     async fn execute_with_circuit_breaker<F, R, E>(&self, operation: F) -> Result<R, E>
@@ -79,6 +82,7 @@ pub enum CircuitBreakerState {
 }
 
 /// Trait для сервисов с retry логикой
+#[allow(async_fn_in_trait)]
 pub trait RetryableService: BaseService {
     /// Выполнить операцию с retry логикой
     async fn execute_with_retry<F, Fut, R, E>(&self, operation: F) -> Result<R, E>
@@ -113,6 +117,7 @@ impl Default for RetryConfig {
 }
 
 /// Trait для сервисов с lifecycle management
+#[allow(async_fn_in_trait)]
 pub trait LifecycleService: BaseService {
     /// Инициализация сервиса
     async fn initialize(&mut self) -> Result<(), crate::MagrayCoreError>;
@@ -355,6 +360,7 @@ pub enum LifecycleState {
 }
 
 /// Trait для координаторов сервисов
+#[allow(async_fn_in_trait)]
 pub trait ServiceCoordinator: BaseService {
     type Service: BaseService;
 
@@ -395,6 +401,7 @@ pub trait ServiceFactory<T>: Send + Sync {
 }
 
 /// Trait для сервисов с connection pooling
+#[allow(async_fn_in_trait)]
 pub trait PooledService: BaseService {
     type Connection: Send + Sync;
     type Error: std::error::Error + Send + Sync + 'static;
@@ -418,6 +425,7 @@ pub struct PoolStats {
 }
 
 /// Trait для кэширующих сервисов
+#[allow(async_fn_in_trait)]
 pub trait CacheService<K, V>: BaseService {
     /// Получить значение из кэша
     async fn get(&self, key: &K) -> Option<V>;

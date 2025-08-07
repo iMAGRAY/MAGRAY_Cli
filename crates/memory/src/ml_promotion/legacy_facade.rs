@@ -2,9 +2,9 @@
 //! с оригинальным MLPromotionEngine API из ml_promotion.rs
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use super::{
     create_development_coordinator, MLPromotionConfig, MLPromotionStats, PromotionCoordinator,

@@ -10,7 +10,7 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Once;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Global CPU feature detection results
 static INIT: Once = Once::new();

@@ -16,7 +16,7 @@ use crate::{
     DIContainerStats, DIPerformanceMetrics,
 };
 
-use super::{DIRegistrar, DIResolver, Lifetime, UnifiedDIContainer, UnifiedDIContainerBuilder};
+use super::{DIResolver, UnifiedDIContainer};
 
 /// Migration Facade - обеспечивает совместимость с legacy DIMemoryService API
 ///
@@ -214,7 +214,8 @@ impl DIMemoryServiceMigrationFacade {
         self.check_ready()?;
 
         if let Some(store) = self.container.try_resolve::<crate::storage::VectorStore>() {
-            store.delete_by_id(id, layer).await.map(|_| ())
+            let _deleted = store.delete_by_id(id, layer).await?;
+            Ok(())
         } else {
             Err(anyhow::anyhow!(
                 "VectorStore не зарегистрирован в контейнере"
@@ -223,7 +224,7 @@ impl DIMemoryServiceMigrationFacade {
     }
 
     /// Create backup - совместимость с legacy API
-    pub async fn create_backup(&self, path: &str) -> Result<BackupMetadata> {
+    pub async fn create_backup(&self, _path: &str) -> Result<BackupMetadata> {
         self.check_ready()?;
 
         // Возвращаем минимальный backup metadata для совместимости
@@ -359,7 +360,7 @@ impl DIMemoryServiceMigrationFacade {
 
     /// Зарегистрировать legacy компоненты для совместимости
     async fn register_legacy_components(
-        container: &UnifiedDIContainer,
+        _container: &UnifiedDIContainer,
         _config: &LegacyMemoryConfig,
     ) -> Result<()> {
         // Регистрируем необходимые компоненты по мере необходимости

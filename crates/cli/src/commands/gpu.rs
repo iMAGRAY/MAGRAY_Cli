@@ -1,10 +1,12 @@
 use ai::{
     auto_device_selector::{AutoDeviceSelector, SmartEmbeddingFactory},
-    gpu_detector::GpuDetector,
-    gpu_memory_pool::GPU_MEMORY_POOL,
     model_downloader::MODEL_DOWNLOADER,
-    tensorrt_cache::TENSORRT_CACHE,
     EmbeddingConfig,
+};
+
+#[cfg(feature = "gpu")]
+use ai::{
+    gpu_detector::GpuDetector, gpu_memory_pool::GPU_MEMORY_POOL, tensorrt_cache::TENSORRT_CACHE,
 };
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -92,26 +94,44 @@ impl GpuCommand {
 
     /// Показать информацию о GPU
     fn show_info(&self) -> Result<()> {
-        let detector = GpuDetector::detect();
-        detector.print_detailed_info();
+        #[cfg(feature = "gpu")]
+        {
+            let detector = GpuDetector::detect();
+            detector.print_detailed_info();
 
-        if !detector.available {
-            warn!("💡 Подсказка: для включения GPU поддержки:");
-            warn!("  1. Установите NVIDIA драйверы и CUDA Toolkit");
-            warn!("  2. Пересоберите с: cargo build --release --features gpu");
-            warn!("  3. Убедитесь что nvidia-smi доступна в PATH");
+            if !detector.available {
+                warn!("💡 Подсказка: для включения GPU поддержки:");
+                warn!("  1. Установите NVIDIA драйверы и CUDA Toolkit");
+                warn!("  2. Пересоберите с: cargo build --release --features gpu");
+                warn!("  3. Убедитесь что nvidia-smi доступна в PATH");
+            }
+
+            return Ok(());
         }
 
-        Ok(())
+        #[cfg(not(feature = "gpu"))]
+        {
+            warn!("GPU функциональность недоступна. Соберите с --features gpu");
+            return Ok(());
+        }
     }
 
     /// Запустить бенчмарк
     async fn run_benchmark(&self, batch_size: usize, compare: bool) -> Result<()> {
         info!("🏃 Запуск бенчмарка GPU с batch_size={}", batch_size);
 
-        let detector = GpuDetector::detect();
-        if !detector.available {
-            error!("❌ GPU не обнаружен! Используйте 'magray gpu info' для диагностики.");
+        #[cfg(feature = "gpu")]
+        {
+            let detector = GpuDetector::detect();
+            if !detector.available {
+                error!("❌ GPU не обнаружен! Используйте 'magray gpu info' для диагностики.");
+                return Ok(());
+            }
+        }
+
+        #[cfg(not(feature = "gpu"))]
+        {
+            warn!("GPU функциональность недоступна. Соберите с --features gpu");
             return Ok(());
         }
 
@@ -141,121 +161,155 @@ impl GpuCommand {
                 if decision.use_gpu { "GPU" } else { "CPU" }
             );
         } else {
-            // Только GPU тест
-            use ai::embeddings_gpu::GpuEmbeddingService;
-            use std::time::Instant;
+            #[cfg(feature = "gpu")]
+            {
+                // Только GPU тест
+                use ai::embeddings_gpu::GpuEmbeddingService;
+                use std::time::Instant;
 
-            info!("⏳ Загрузка модели...");
-            let service = GpuEmbeddingService::new(config).await?;
+                info!("⏳ Загрузка модели...");
+                let service = GpuEmbeddingService::new(config).await?;
 
-            // Прогрев
-            info!("🔥 Прогрев GPU...");
-            let warmup_batch = test_texts.iter().take(10).cloned().collect();
-            let _ = service.embed_batch(warmup_batch).await?;
+                // Прогрев
+                info!("🔥 Прогрев GPU...");
+                let warmup_batch = test_texts.iter().take(10).cloned().collect();
+                let _ = service.embed_batch(warmup_batch).await?;
 
-            // Бенчмарк
-            info!("⚡ Запуск бенчмарка...");
-            let start = Instant::now();
-            let embeddings = service.embed_batch(test_texts.clone()).await?;
-            let elapsed = start.elapsed();
+                // Бенчмарк
+                info!("⚡ Запуск бенчмарка...");
+                let start = Instant::now();
+                let embeddings = service.embed_batch(test_texts.clone()).await?;
+                let elapsed = start.elapsed();
 
-            // Результаты
-            info!("\n📈 Результаты бенчмарка GPU:");
-            info!("  - Обработано текстов: {}", batch_size);
-            info!("  - Время выполнения: {:.2} сек", elapsed.as_secs_f64());
-            info!(
-                "  - Скорость: {:.1} текстов/сек",
-                batch_size as f64 / elapsed.as_secs_f64()
-            );
-            info!(
-                "  - Среднее время: {:.2} мс/текст",
-                elapsed.as_millis() as f64 / batch_size as f64
-            );
-            info!("  - Размерность эмбеддингов: {}", embeddings[0].len());
+                // Результаты
+                info!("\n📈 Результаты бенчмарка GPU:");
+                info!("  - Обработано текстов: {}", batch_size);
+                info!("  - Время выполнения: {:.2} сек", elapsed.as_secs_f64());
+                info!(
+                    "  - Скорость: {:.1} текстов/сек",
+                    batch_size as f64 / elapsed.as_secs_f64()
+                );
+                info!(
+                    "  - Среднее время: {:.2} мс/текст",
+                    elapsed.as_millis() as f64 / batch_size as f64
+                );
+                info!("  - Размерность эмбеддингов: {}", embeddings[0].len());
 
-            // Метрики
-            service.print_metrics();
+                // Метрики
+                service.print_metrics();
+            }
+
+            #[cfg(not(feature = "gpu"))]
+            {
+                warn!("GPU функциональность недоступна. Соберите с --features gpu");
+            }
         }
 
         Ok(())
     }
 
     /// Управление кэшем
-    async fn handle_cache(&self, action: &CacheAction) -> Result<()> {
-        match action {
-            CacheAction::Stats => {
-                let stats = TENSORRT_CACHE.get_stats()?;
-                stats.print();
-            }
-            CacheAction::Clear => {
-                TENSORRT_CACHE.clear_cache()?;
-                info!("✅ Кэш TensorRT очищен");
-            }
-            CacheAction::Size => {
-                let stats = TENSORRT_CACHE.get_stats()?;
-                info!(
-                    "📦 Размер кэша TensorRT: {:.2} GB",
-                    stats.total_size as f64 / 1024.0 / 1024.0 / 1024.0
-                );
+    async fn handle_cache(&self, _action: &CacheAction) -> Result<()> {
+        #[cfg(feature = "gpu")]
+        {
+            match _action {
+                CacheAction::Stats => {
+                    let stats = TENSORRT_CACHE.get_stats()?;
+                    stats.print();
+                }
+                CacheAction::Clear => {
+                    TENSORRT_CACHE.clear_cache()?;
+                    info!("✅ Кэш TensorRT очищен");
+                }
+                CacheAction::Size => {
+                    let stats = TENSORRT_CACHE.get_stats()?;
+                    info!(
+                        "📦 Размер кэша TensorRT: {:.2} GB",
+                        stats.total_size as f64 / 1024.0 / 1024.0 / 1024.0
+                    );
+                }
             }
         }
+
+        #[cfg(not(feature = "gpu"))]
+        {
+            warn!("GPU функциональность недоступна. Соберите с --features gpu");
+        }
+
         Ok(())
     }
 
     /// Управление памятью
-    fn handle_memory(&self, action: &MemoryAction) -> Result<()> {
-        match action {
-            MemoryAction::Stats => {
-                let _ = GPU_MEMORY_POOL.print_stats();
-            }
-            MemoryAction::Clear => {
-                let _ = GPU_MEMORY_POOL.clear_unused();
-                info!("✅ Неиспользуемые буферы GPU очищены");
+    fn handle_memory(&self, _action: &MemoryAction) -> Result<()> {
+        #[cfg(feature = "gpu")]
+        {
+            match _action {
+                MemoryAction::Stats => {
+                    let _ = GPU_MEMORY_POOL.print_stats();
+                }
+                MemoryAction::Clear => {
+                    let _ = GPU_MEMORY_POOL.clear_unused();
+                    info!("✅ Неиспользуемые буферы GPU очищены");
+                }
             }
         }
+
+        #[cfg(not(feature = "gpu"))]
+        {
+            warn!("GPU функциональность недоступна. Соберите с --features gpu");
+        }
+
         Ok(())
     }
 
     /// Оптимизировать модель
-    async fn optimize_model(&self, model_name: &String) -> Result<()> {
-        info!("🔧 Оптимизация модели {} для текущего GPU...", model_name);
+    async fn optimize_model(&self, __model_name: &String) -> Result<()> {
+        #[cfg(feature = "gpu")]
+        {
+            info!("🔧 Оптимизация модели {} для текущего GPU...", __model_name);
 
-        let detector = GpuDetector::detect();
-        if !detector.available {
-            error!("❌ GPU не обнаружен!");
-            return Ok(());
+            let detector = GpuDetector::detect();
+            if !detector.available {
+                error!("❌ GPU не обнаружен!");
+                return Ok(());
+            }
+
+            // Загружаем модель если необходимо
+            info!("📥 Проверка наличия модели...");
+            let model_path = MODEL_DOWNLOADER.ensure_model(_model_name).await?;
+            info!("✅ Модель загружена: {:?}", model_path);
+
+            // Создаём оптимизированный сервис
+            let config = EmbeddingConfig {
+                model_name: _model_name.clone(),
+                use_gpu: true,
+                ..Default::default()
+            };
+
+            info!("🚀 Создание оптимизированного сервиса...");
+            let (service, decision) = SmartEmbeddingFactory::create_optimized(config).await?;
+
+            info!("✅ Модель оптимизирована!");
+            info!(
+                "  - Устройство: {}",
+                if decision.use_gpu { "GPU" } else { "CPU" }
+            );
+            info!("  - Batch size: {}", decision.recommended_batch_size);
+
+            // Тестовый запуск
+            info!("\n🧪 Тестовый запуск...");
+            let test_texts = vec!["Hello, world!".to_string()];
+            let start = std::time::Instant::now();
+            let _ = service.embed_batch(test_texts).await?;
+            let elapsed = start.elapsed();
+
+            info!("✅ Тест успешен! Время: {:.2} мс", elapsed.as_millis());
         }
 
-        // Загружаем модель если необходимо
-        info!("📥 Проверка наличия модели...");
-        let model_path = MODEL_DOWNLOADER.ensure_model(model_name).await?;
-        info!("✅ Модель загружена: {:?}", model_path);
-
-        // Создаём оптимизированный сервис
-        let config = EmbeddingConfig {
-            model_name: model_name.clone(),
-            use_gpu: true,
-            ..Default::default()
-        };
-
-        info!("🚀 Создание оптимизированного сервиса...");
-        let (service, decision) = SmartEmbeddingFactory::create_optimized(config).await?;
-
-        info!("✅ Модель оптимизирована!");
-        info!(
-            "  - Устройство: {}",
-            if decision.use_gpu { "GPU" } else { "CPU" }
-        );
-        info!("  - Batch size: {}", decision.recommended_batch_size);
-
-        // Тестовый запуск
-        info!("\n🧪 Тестовый запуск...");
-        let test_texts = vec!["Hello, world!".to_string()];
-        let start = std::time::Instant::now();
-        let _ = service.embed_batch(test_texts).await?;
-        let elapsed = start.elapsed();
-
-        info!("✅ Тест успешен! Время: {:.2} мс", elapsed.as_millis());
+        #[cfg(not(feature = "gpu"))]
+        {
+            warn!("GPU функциональность недоступна. Соберите с --features gpu");
+        }
 
         Ok(())
     }

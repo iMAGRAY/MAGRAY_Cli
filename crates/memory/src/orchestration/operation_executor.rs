@@ -220,7 +220,7 @@ impl OperationExecutor {
 
                 self.circuit_breaker.record_failure(operation_name).await;
 
-                let metrics = OperationMetrics {
+                let _metrics = OperationMetrics {
                     operation_type: operation_name.to_string(),
                     duration: operation_duration,
                     success: false,

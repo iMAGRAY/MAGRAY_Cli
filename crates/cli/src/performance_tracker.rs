@@ -4,7 +4,7 @@
 //! производительности с минимальным overhead.
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -17,11 +17,25 @@ pub struct OperationMetric {
     pub operation_id: String,
     pub component: String,
     pub operation_type: String,
+    #[serde(skip)]
     pub start_time: Instant,
+    #[serde(with = "duration_serde")]
     pub duration: Duration,
     pub success: bool,
     pub error_message: Option<String>,
     pub metadata: HashMap<String, String>,
+}
+
+mod duration_serde {
+    use serde::{Serialize, Serializer};
+    use std::time::Duration;
+
+    pub fn serialize<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        duration.as_millis().serialize(serializer)
+    }
 }
 
 /// Агрегированные метрики компонента
@@ -38,6 +52,7 @@ pub struct ComponentMetrics {
     pub p99_duration_ms: u64,
     pub operations_per_second: f64,
     pub error_rate: f64,
+    #[serde(skip)]
     pub last_operation_time: Option<Instant>,
 }
 
@@ -331,13 +346,13 @@ impl PerformanceTracker {
 
         // Агрегируем метрики по всем компонентам
         let mut total_operations = 0;
-        let mut total_successful = 0;
+        let mut _total_successful = 0;
         let mut total_failed = 0;
         let mut weighted_avg_duration = 0.0;
 
         for metrics in components.values() {
             total_operations += metrics.total_operations;
-            total_successful += metrics.successful_operations;
+            _total_successful += metrics.successful_operations;
             total_failed += metrics.failed_operations;
 
             // Взвешенное среднее по количеству операций

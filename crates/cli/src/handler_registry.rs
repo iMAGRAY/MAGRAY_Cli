@@ -508,11 +508,8 @@ impl<T: 'static> AsAny for T {
     }
 }
 
-impl AsAny for dyn HandlerSelectionStrategy + Send + Sync {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
+// Удаляем проблемную реализацию - она не нужна для dyn trait objects
+// вместо этого используем blanket implementation для конкретных типов
 
 /// Builder для HandlerRegistry
 pub struct HandlerRegistryBuilder {

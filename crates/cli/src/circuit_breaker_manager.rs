@@ -53,6 +53,7 @@ pub struct CircuitBreakerStats {
     pub success_count: u64,
     pub total_requests: u64,
     pub error_rate: f64,
+    #[serde(skip)]
     pub last_failure_time: Option<Instant>,
     pub trip_count: u64,
     pub recovery_attempts: u64,

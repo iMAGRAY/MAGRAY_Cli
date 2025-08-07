@@ -334,7 +334,7 @@ impl DIContainerConfiguration {
     }
 
     /// Объединить с другой конфигурацией (self имеет приоритет)
-    pub fn merge_with(mut self, other: DIContainerConfiguration) -> Self {
+    pub fn merge_with(mut self, _other: DIContainerConfiguration) -> Self {
         // При merge оставляем существующие значения, заполняем только пропущенные
         // В данном случае все поля обязательны, поэтому просто возвращаем self
         self

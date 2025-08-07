@@ -108,7 +108,7 @@ pub use errors::{
 pub use container_builder::{DIContainer, DIContainerBuilder};
 pub use container_core::ContainerCore;
 pub use dependency_validator::{DependencyGraph, DependencyGraphStats, DependencyValidatorImpl};
-pub use lifetime_manager::{ExtensibleLifetimeManager, LifetimeManagerImpl};
+pub use lifetime_manager::{ExtensibleLifetimeManager, LifetimeManagerImpl, LifetimeStrategy};
 pub use metrics_collector::{CompositeMetricsReporter, MetricsReporterImpl, TimingStatsReport};
 pub use migration_facade::{
     DIMemoryServiceFacadeCompatible, DIMemoryServiceMigrationBuilder,
@@ -147,7 +147,7 @@ pub use container_configuration::{
 // Уникальные exports из container_cache и configuration
 pub use container_cache::{CacheConfig, CacheStats};
 // DIContainerConfiguration уже импортируется выше в строке 145
-pub use dependency_validator::DependencyValidator;
+pub use traits::DependencyValidator;
 // LifetimeStrategy уже импортирован выше
 pub use optimized_unified_container::{
     ContainerPreset, OptimizedContainerBuilder, OptimizedUnifiedContainer,

@@ -17,7 +17,7 @@
 //! - ISP: Минимальные, сфокусированные интерфейсы  
 //! - DIP: Constructor Injection, зависимости от абстракций
 
-use crate::service_di_facade::MemoryServiceConfig;
+use crate::service_di::service_config::MemoryServiceConfig;
 use anyhow::{anyhow, Result};
 use parking_lot::RwLock;
 use std::{
@@ -34,7 +34,6 @@ use super::{
         DIContainerStats, DIPerformanceMetrics, DIRegistrar, DIResolver, Lifetime, TypeMetrics,
     },
 };
-use crate::service_di::service_config::MemoryServiceConfig;
 
 /// Factory function type для создания компонентов
 pub type ComponentFactory =
@@ -1074,7 +1073,6 @@ impl UnifiedMemoryConfigurator {
         config: &MemoryServiceConfig,
     ) -> Result<()> {
         use crate::storage::VectorStore;
-        use crate::types::{PromotionConfig, Record};
 
         // VectorStore
         let db_path = config.db_path.clone();
@@ -1083,7 +1081,7 @@ impl UnifiedMemoryConfigurator {
                 // TODO: VectorStore::new is async, need to refactor this
                 // For now, create a placeholder or use builder pattern
                 use std::path::PathBuf;
-                let db_path: PathBuf = db_path.clone();
+                let _db_path: PathBuf = db_path.clone();
                 // Временное решение - возвращаем заглушку
                 // В production нужно использовать async factory или builder
                 Err::<Arc<crate::storage::VectorStore>, _>(anyhow!(
@@ -1109,7 +1107,7 @@ impl UnifiedMemoryConfigurator {
         use crate::database_manager::DatabaseManager;
 
         // DatabaseManager
-        let db_path = config.db_path.clone();
+        let _db_path = config.db_path.clone();
         container.register(move |_| Ok(DatabaseManager::new()), Lifetime::Singleton)?;
 
         info!("✅ Storage layer configured");
@@ -1119,12 +1117,12 @@ impl UnifiedMemoryConfigurator {
     /// Настроить cache layer
     async fn configure_cache_layer(
         container: &UnifiedDIContainer,
-        config: &MemoryServiceConfig,
+        _config: &MemoryServiceConfig,
     ) -> Result<()> {
         use crate::cache_lru::EmbeddingCacheLRU;
 
         // Cache
-        let cache_config = config.cache_config.clone();
+        let cache_config = crate::cache_lru::CacheConfig::default(); // TODO: Convert from config.cache_config
         let cache_path = std::env::temp_dir().join("embedding_cache");
         container.register(
             move |_| {
@@ -1176,6 +1174,7 @@ impl UnifiedMemoryConfigurator {
                 let gpu_processor =
                     container.resolve::<crate::gpu_accelerated::GpuBatchProcessor>()?;
                 let cache = container.resolve::<crate::cache_lru::EmbeddingCacheLRU>()?;
+                let cache: Arc<dyn crate::cache_interface::EmbeddingCacheInterface> = cache;
                 Ok(EmbeddingCoordinator::new(gpu_processor, cache))
             },
             Lifetime::Singleton,

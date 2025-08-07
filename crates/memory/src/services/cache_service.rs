@@ -13,7 +13,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     cache_interface::EmbeddingCacheInterface,
-    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
+    di::unified_container::UnifiedDIContainer,
     services::{traits::CacheServiceTrait, CoordinatorServiceTrait},
 };
 

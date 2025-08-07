@@ -1,7 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use std::collections::HashMap;
 use tracing::{debug, info};
 

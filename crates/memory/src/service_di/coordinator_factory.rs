@@ -232,7 +232,7 @@ impl OrchestrationCoordinators {
 
     /// Проверить health всех координаторов
     pub async fn check_health(&self) -> Result<crate::health::SystemHealthStatus> {
-        if let Some(health_manager) = &self.health_manager {
+        if let Some(_health_manager) = &self.health_manager {
             // Временная заглушка - возвращаем default health status
             Ok(crate::health::SystemHealthStatus::default())
         } else {
@@ -257,7 +257,7 @@ impl OrchestrationCoordinators {
 
         // Получаем статистику от search координатора
         if let Some(search_coord) = &self.search_coordinator {
-            let stats = search_coord.metrics().await;
+            let _stats = search_coord.metrics().await;
             // В качестве заглушки добавляем базовые значения
             total_hits += 0;
             total_misses += 0;

@@ -9,9 +9,7 @@ use super::data_processor::{
 use super::metrics::{MLPromotionMetricsCollector, MetricsConfig};
 use super::rules_engine::{ConfigurableRulesEngine, RulesConfig};
 use super::traits::AlgorithmConfig;
-use super::traits::{
-    DataProcessor, PromotionAlgorithm, PromotionMetrics, PromotionRulesEngine, TrainingExample,
-};
+use super::traits::{DataProcessor, PromotionAlgorithm, PromotionMetrics, PromotionRulesEngine};
 use super::types::{MLPromotionConfig, MLPromotionStats, PromotionDecision, PromotionResults};
 use crate::storage::VectorStore;
 use crate::types::{Layer, Record};

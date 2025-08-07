@@ -517,7 +517,7 @@ pub mod factory_helpers {
 
     /// Validate что все необходимые зависимости доступны
     pub async fn validate_dependencies(
-        container: &UnifiedDIContainer,
+        _container: &UnifiedDIContainer,
         required_types: &[std::any::TypeId],
     ) -> FactoryResult<()> {
         for &_type_id in required_types {

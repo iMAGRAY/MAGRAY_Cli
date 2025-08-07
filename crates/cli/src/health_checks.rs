@@ -259,9 +259,15 @@ impl HealthCheck for GpuHealthCheck {
 
     async fn check(&self) -> Result<HealthCheckResult> {
         // Проверяем доступность GPU
+        #[cfg(feature = "gpu")]
         let gpu_info = ai::GpuInfo::detect();
+
+        #[cfg(not(feature = "gpu"))]
+        let _gpu_info: Option<()> = None;
+
         let mut metadata = HashMap::new();
 
+        #[cfg(feature = "gpu")]
         if gpu_info.available {
             let device_name = gpu_info.device_name.clone();
             metadata.insert("gpu_name".to_string(), device_name.clone().into());
@@ -289,6 +295,19 @@ impl HealthCheck for GpuHealthCheck {
                 component: self.name(),
                 status: HealthStatus::Degraded,
                 message: "No GPU detected, using CPU fallback".to_string(),
+                latency_ms: 0,
+                metadata,
+                timestamp: Utc::now(),
+            })
+        }
+
+        #[cfg(not(feature = "gpu"))]
+        {
+            metadata.insert("gpu_available".to_string(), false.into());
+            Ok(HealthCheckResult {
+                component: self.name(),
+                status: HealthStatus::Degraded,
+                message: "GPU functionality not compiled. Build with --features gpu".to_string(),
                 latency_ms: 0,
                 metadata,
                 timestamp: Utc::now(),

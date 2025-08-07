@@ -123,7 +123,7 @@ impl DependencyGraph {
         }
 
         for (dependent, deps) in &self.dependencies {
-            for &dependency in deps {
+            for &_dependency in deps {
                 if let Some(degree) = in_degree.get_mut(&dependent) {
                     *degree += 1;
                 } else {

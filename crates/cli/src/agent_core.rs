@@ -8,8 +8,6 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use tracing::{debug, info};
 
-use crate::agent_traits::{ProcessingResult, RequestContext, RequestProcessorTrait};
-
 /// Базовый трейт для всех компонентов агента
 #[async_trait]
 pub trait AgentComponent: Send + Sync {
@@ -30,6 +28,7 @@ pub trait AgentComponent: Send + Sync {
 }
 
 /// Статистика компонента
+#[derive(Clone)]
 pub struct ComponentStats {
     pub name: String,
     pub ready: bool,
@@ -84,8 +83,8 @@ impl AgentCore {
     }
 
     /// Получить мутабельный доступ к компоненту
-    pub fn get_component_mut(&mut self, name: &str) -> Option<&mut dyn AgentComponent> {
-        self.components.get_mut(name).map(|c| c.as_mut())
+    pub fn get_component_mut(&mut self, name: &str) -> Option<&mut Box<dyn AgentComponent>> {
+        self.components.get_mut(name)
     }
 
     /// Инициализация всех компонентов

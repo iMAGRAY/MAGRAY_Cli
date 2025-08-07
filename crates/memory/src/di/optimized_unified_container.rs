@@ -159,7 +159,7 @@ impl OptimizedUnifiedContainer {
     /// Get container statistics
     pub fn stats(&self) -> DIContainerStats {
         let core_stats = self.core.stats();
-        let cache_stats = self.cache.stats();
+        let _cache_stats = self.cache.stats();
 
         // Combine stats from both components using correct fields
         DIContainerStats {
