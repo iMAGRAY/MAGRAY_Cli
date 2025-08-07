@@ -6,9 +6,6 @@
 use anyhow::Result;
 use std::sync::Arc;
 
-// Re-export простых типов из simple_di
-pub use crate::simple_di::{DIContainer as UnifiedDIContainer, Lifetime};
-
 /// Заглушка для DIResolver trait
 pub trait DIResolver {
     fn resolve<T>(&self) -> Result<Arc<T>>
@@ -16,23 +13,44 @@ pub trait DIResolver {
         T: Send + Sync + 'static;
 }
 
+/// Минимальная Legacy конфигурация, ожидаемая CLI
+#[derive(Debug, Clone)]
+pub struct LegacyMemoryConfig {
+    pub health_enabled: bool,
+}
+
+impl Default for LegacyMemoryConfig {
+    fn default() -> Self {
+        Self { health_enabled: true }
+    }
+}
+
+/// Минимальный статус здоровья для совместимости в минимальной сборке
+#[derive(Debug, Clone, Default)]
+pub struct SystemHealthStatusStub {
+    pub healthy: bool,
+}
+
 /// Заглушка для DIMemoryService
 pub struct DIMemoryService;
 
 impl DIMemoryService {
-    pub fn new(_config: impl std::fmt::Debug) -> Self {
-        Self
+    pub async fn new(_config: LegacyMemoryConfig) -> Result<Self> {
+        Ok(Self)
+    }
+
+    pub async fn initialize(&self) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn check_health(&self) -> Result<SystemHealthStatusStub> {
+        Ok(SystemHealthStatusStub { healthy: true })
     }
 }
 
 // Traits module compatibility
 pub mod traits {
     pub use super::DIResolver;
-}
-
-// Unified container module compatibility
-pub mod unified_container {
-    pub use super::UnifiedDIContainer;
 }
 
 // Container core compatibility
@@ -55,7 +73,7 @@ impl TypeSafeResolver {
     }
 }
 
-// Memory configurator compatibility
+// Пустой конфигуратор (не используется в минимальной сборке)
 pub struct UnifiedMemoryConfigurator;
 
 impl UnifiedMemoryConfigurator {

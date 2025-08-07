@@ -1,7 +1,14 @@
 use crate::types::*;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
+#[cfg(not(feature = "minimal"))]
 use memory::Layer;
+#[cfg(feature = "minimal")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Layer {
+    ShortTerm,
+    LongTerm,
+}
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, Connection, OptionalExtension, Row};

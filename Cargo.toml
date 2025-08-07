@@ -105,3 +105,6 @@ features = ["cpu", "gpu", "minimal"]
 
 # Additional args for cargo test
 args = ["--", "--test-threads=1"]
+
+[patch.crates-io]
+# place for local patches if needed

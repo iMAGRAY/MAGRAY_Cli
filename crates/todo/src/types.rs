@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+#[cfg(not(feature = "minimal"))]
 use memory::{Layer, Record};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -266,4 +267,19 @@ pub struct TaskStats {
     pub done: usize,
     pub failed: usize,
     pub cancelled: usize,
+}
+
+#[cfg(feature = "minimal")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Layer {
+    ShortTerm,
+    LongTerm,
+}
+
+#[cfg(feature = "minimal")]
+#[derive(Debug, Clone)]
+pub struct Record {
+    pub id: uuid::Uuid,
+    pub text: String,
+    pub layer: Layer,
 }
