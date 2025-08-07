@@ -24,7 +24,7 @@ pub struct LifetimeManagerImpl {
 }
 
 #[derive(Debug, Default, Clone)]
-struct CacheStats {
+pub struct CacheStats {
     singleton_hits: u64,
     singleton_misses: u64,
     transient_creations: u64,
