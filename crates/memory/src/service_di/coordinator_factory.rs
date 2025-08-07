@@ -3,16 +3,16 @@
 //! Этот модуль отвечает ТОЛЬКО за создание и настройку orchestration координаторов.
 //! Применяет Factory pattern, Dependency Inversion и Open/Closed принципы.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 // Import traits для методов координаторов
 use crate::orchestration::traits::EmbeddingCoordinator as EmbeddingCoordinatorTrait;
 
 use crate::{
     cache_interface::EmbeddingCacheInterface,
-    di_container::DIContainer,
+    di::unified_container::UnifiedDIContainer as DIContainer,
     health::HealthMonitor,
     storage::VectorStore,
     gpu_accelerated::GpuBatchProcessor,
@@ -311,25 +311,37 @@ impl ProductionCoordinatorFactory {
         info!("🎯 Создание orchestration координаторов...");
 
         let embedding_coordinator = if self.create_embedding {
-            Some(self.create_embedding_coordinator(container).await?)
+            Some(self.create_embedding_coordinator(container).await
+                .with_context(|| "Ошибка создания EmbeddingCoordinator")?)
         } else {
             None
         };
         
-        let search_coordinator = if self.create_search && embedding_coordinator.is_some() {
-            Some(self.create_search_coordinator(container, embedding_coordinator.as_ref().unwrap()).await?)
+        let search_coordinator = if self.create_search {
+            match &embedding_coordinator {
+                Some(embedding_coord) => {
+                    Some(self.create_search_coordinator(container, embedding_coord).await
+                        .with_context(|| "Ошибка создания SearchCoordinator")?)
+                }
+                None => {
+                    warn!("⚠️ SearchCoordinator требует EmbeddingCoordinator, но он не создан");
+                    None
+                }
+            }
         } else {
             None
         };
         
         let health_manager = if self.create_health {
-            Some(self.create_health_manager(container).await?)
+            Some(self.create_health_manager(container).await
+                .with_context(|| "Ошибка создания HealthManager")?)
         } else {
             None
         };
         
         let resource_controller = if self.create_resources {
-            Some(self.create_resource_controller(container).await?)
+            Some(self.create_resource_controller(container).await
+                .with_context(|| "Ошибка создания ResourceController")?)
         } else {
             None
         };
@@ -347,11 +359,17 @@ impl ProductionCoordinatorFactory {
     }
 
     /// Создать координаторы (алиас для create_all_coordinators)
+    /// DEPRECATED: Используйте create_all_coordinators с явным DI container
     pub async fn create_coordinators(&self) -> Result<OrchestrationCoordinators> {
-        // Для facade мы создаем временный контейнер
-        // В реальном использовании контейнер будет передан извне
-        let container = crate::di_container::DIContainer::default_container()?;
+        warn!("⚠️ DEPRECATED: create_coordinators() создает временный контейнер. Используйте create_all_coordinators() с явным DI container");
+        
+        // Для facade мы создаем временный контейнер с proper error handling
+        // В реальном использовании контейнер должен передаваться извне
+        let container = crate::di_container::DIContainer::default_container()
+            .with_context(|| "Не удалось создать временный DI container для координаторов")?;
+            
         self.create_all_coordinators(&container).await
+            .with_context(|| "Ошибка создания координаторов с временным контейнером")
     }
 
     /// Конструктор с DI контейнером
@@ -366,30 +384,38 @@ impl ProductionCoordinatorFactory {
 }
 
 impl CoordinatorFactory for ProductionCoordinatorFactory {
-    /// Создать embedding coordinator
+    /// Создать embedding coordinator с proper error handling
     async fn create_embedding_coordinator(&self, container: &DIContainer) -> Result<Arc<EmbeddingCoordinator>> {
-        let gpu_processor = container.resolve::<GpuBatchProcessor>()?;
+        debug!("🔤 Начинаем создание EmbeddingCoordinator...");
         
-        // Создаем временный cache для демонстрации
+        let gpu_processor = container.resolve::<GpuBatchProcessor>()
+            .with_context(|| "Не удалось resolve GpuBatchProcessor из DI container")?;
+        
+        // Создаем cache с proper error handling
         let cache_path = std::env::temp_dir().join("embedding_cache");
-        let cache = Arc::new(crate::cache_lru::EmbeddingCacheLRU::new(
-            cache_path,
-            crate::cache_lru::CacheConfig::default()
-        )?) as Arc<dyn EmbeddingCacheInterface>;
+        let cache_config = crate::cache_lru::CacheConfig::default();
+        
+        let cache = Arc::new(
+            crate::cache_lru::EmbeddingCacheLRU::new(cache_path.clone(), cache_config)
+                .with_context(|| format!("Ошибка создания embedding cache по пути: {:?}", cache_path))?
+        ) as Arc<dyn EmbeddingCacheInterface>;
         
         let coordinator = Arc::new(EmbeddingCoordinator::new(gpu_processor, cache));
-        debug!("✅ EmbeddingCoordinator создан");
+        debug!("✅ EmbeddingCoordinator успешно создан");
         
         Ok(coordinator)
     }
 
-    /// Создать search coordinator  
+    /// Создать search coordinator с dependency validation
     async fn create_search_coordinator(
         &self, 
         container: &DIContainer, 
         embedding_coordinator: &Arc<EmbeddingCoordinator>
     ) -> Result<Arc<SearchCoordinator>> {
-        let store = container.resolve::<VectorStore>()?;
+        debug!("🔍 Начинаем создание SearchCoordinator...");
+        
+        let store = container.resolve::<VectorStore>()
+            .with_context(|| "Не удалось resolve VectorStore из DI container")?;
         
         let coordinator = Arc::new(SearchCoordinator::new_production(
             store,
@@ -397,27 +423,33 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
             64,  // max concurrent searches
             2000 // cache size
         ));
-        debug!("✅ SearchCoordinator создан");
         
+        debug!("✅ SearchCoordinator успешно создан с max_concurrent=64, cache_size=2000");
         Ok(coordinator)
     }
 
-    /// Создать health manager
+    /// Создать health manager с error handling
     async fn create_health_manager(&self, container: &DIContainer) -> Result<Arc<HealthManager>> {
-        let health_monitor = container.resolve::<HealthMonitor>()?;
+        debug!("🏥 Начинаем создание HealthManager...");
+        
+        let health_monitor = container.resolve::<HealthMonitor>()
+            .with_context(|| "Не удалось resolve HealthMonitor из DI container")?;
         
         let manager = Arc::new(HealthManager::new(health_monitor));
-        debug!("✅ HealthManager создан");
+        debug!("✅ HealthManager успешно создан");
         
         Ok(manager)
     }
 
-    /// Создать resource controller
+    /// Создать resource controller с validation
     async fn create_resource_controller(&self, container: &DIContainer) -> Result<Arc<ResourceController>> {
-        let resource_manager = container.resolve::<parking_lot::RwLock<crate::resource_manager::ResourceManager>>()?;
+        debug!("⚡ Начинаем создание ResourceController...");
+        
+        let resource_manager = container.resolve::<parking_lot::RwLock<crate::resource_manager::ResourceManager>>()
+            .with_context(|| "Не удалось resolve ResourceManager из DI container")?;
         
         let controller = Arc::new(ResourceController::new_production(resource_manager));
-        debug!("✅ ResourceController создан");
+        debug!("✅ ResourceController успешно создан");
         
         Ok(controller)
     }

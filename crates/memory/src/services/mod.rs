@@ -14,6 +14,8 @@ pub mod monitoring_service;
 pub mod cache_service;
 pub mod traits;
 pub mod service_factory;
+pub mod unified_factory;
+pub mod factory_traits;
 pub mod refactored_di_memory_service;
 
 // Re-export основных trait интерфейсов
@@ -34,6 +36,20 @@ pub use cache_service::CacheService;
 
 // Re-export service factory для DI интеграции
 pub use service_factory::{ServiceFactory, ServiceCollection, ServiceFactoryConfig};
+
+// Re-export unified factory architecture
+pub use unified_factory::{
+    UnifiedServiceFactory, UnifiedServiceCollection, UnifiedFactoryConfig, 
+    UnifiedFactoryConfigBuilder, UnifiedServiceStatistics
+};
+
+// Re-export factory traits для расширяемости
+pub use factory_traits::{
+    BaseFactory, CoreServiceFactory, CoordinatorFactory as CoordinatorFactoryTrait, 
+    ServiceCollectionFactory, SpecializedComponentFactory, TestFactory,
+    FactoryPreset, SpecializedFactoryConfig, SpecializedComponentAvailability,
+    FactoryError, FactoryResult
+};
 
 // Re-export refactored service
 pub use refactored_di_memory_service::{RefactoredDIMemoryService, RefactoredDIMemoryServiceBuilder};
