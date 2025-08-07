@@ -1072,7 +1072,7 @@ impl UnifiedMemoryConfigurator {
         container: &UnifiedDIContainer,
         config: &MemoryServiceConfig,
     ) -> Result<()> {
-        use crate::storage::VectorStore;
+        // use crate::storage::VectorStore;
 
         // VectorStore
         let db_path = config.db_path.clone();

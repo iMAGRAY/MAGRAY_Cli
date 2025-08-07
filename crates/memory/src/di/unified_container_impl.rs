@@ -27,7 +27,7 @@ use super::core_traits::*;
 use super::errors::{DIError, ValidationError};
 
 // Внешние зависимости для логирования
-use log::debug;
+// use log::debug;
 
 /// === CORE CONTAINER IMPLEMENTATION ===
 /// Единственная корректная реализация DI контейнера в проекте
@@ -86,6 +86,7 @@ pub struct ServiceResolverImpl {
 }
 
 /// Helper для связи с контейнером
+#[allow(dead_code)]
 struct ResolverContext<'a> {
     resolver: &'a ServiceResolverImpl,
     container: &'a UnifiedContainer,
@@ -114,6 +115,7 @@ impl TypeSafeResolver {
 
 /// === RESOLVER ADAPTER ===
 /// Адаптер для перехода между DynamicServiceResolver и ServiceResolver
+#[allow(dead_code)]
 struct ResolverAdapter<'a> {
     inner: &'a dyn DynamicServiceResolver,
 }
@@ -383,6 +385,7 @@ impl ServiceRegistryImpl {
         }
     }
 
+    #[allow(dead_code)]
     fn register_transient<T, F>(&self, factory: F) -> Result<(), DIError>
     where
         T: Send + Sync + 'static,

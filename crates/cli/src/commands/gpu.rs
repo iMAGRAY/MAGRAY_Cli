@@ -1,8 +1,4 @@
-use ai::{
-    auto_device_selector::{AutoDeviceSelector, SmartEmbeddingFactory},
-    model_downloader::MODEL_DOWNLOADER,
-    EmbeddingConfig,
-};
+use ai::{auto_device_selector::AutoDeviceSelector, EmbeddingConfig};
 
 #[cfg(feature = "gpu")]
 use ai::{
@@ -117,7 +113,7 @@ impl GpuCommand {
     }
 
     /// Запустить бенчмарк
-    async fn run_benchmark(&self, batch_size: usize, compare: bool) -> Result<()> {
+    async fn run_benchmark(&self, batch_size: usize, _compare: bool) -> Result<()> {
         info!("🏃 Запуск бенчмарка GPU с batch_size={}", batch_size);
 
         #[cfg(feature = "gpu")]
@@ -135,10 +131,10 @@ impl GpuCommand {
             return Ok(());
         }
 
-        // Генерируем тестовые данные
-        let test_texts: Vec<String> = (0..batch_size)
-            .map(|i| format!("This is test text number {i} for benchmarking embedding performance on our optimized service with GPU acceleration."))
-            .collect();
+        // Генерируем тестовые данные (закомментировано как недостижимый код)
+        // let _test_texts: Vec<String> = (0..batch_size)
+        //     .map(|i| format!("This is test text number {i} for benchmarking embedding performance on our optimized service with GPU acceleration."))
+        //     .collect();
 
         // Конфигурация
         let config = EmbeddingConfig {

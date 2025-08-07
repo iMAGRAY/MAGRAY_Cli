@@ -148,6 +148,7 @@ impl GpuPipelineManager {
 }
 
 #[cfg(not(feature = "gpu"))]
+#[allow(async_fn_in_trait)]
 pub trait EmbeddingServiceTrait {
     async fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>>;
 }

@@ -22,6 +22,7 @@ use crate::{
 use crate::orchestration::Coordinator;
 
 /// Trait для создания координаторов (Dependency Inversion)
+#[allow(async_fn_in_trait)]
 pub trait CoordinatorFactory {
     async fn create_embedding_coordinator(
         &self,

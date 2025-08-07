@@ -36,6 +36,7 @@ embeddings = ["ai/embeddings"]
 gpu-acceleration = []
 cuda = ["ai/cuda"]
 notifications = ["reqwest", "colored"]
+hot-reload = []
 
 [dependencies]
 anyhow.workspace = true
