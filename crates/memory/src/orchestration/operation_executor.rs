@@ -160,11 +160,10 @@ impl OperationExecutor {
         })?;
 
         let operation_start = Instant::now();
-        let mut circuit_breaker_triggered = false;
 
         // Проверяем circuit breaker
-        if !self.circuit_breaker.can_execute(operation_name).await {
-            circuit_breaker_triggered = true;
+        let circuit_breaker_triggered = !self.circuit_breaker.can_execute(operation_name).await;
+        if circuit_breaker_triggered {
             return Err(anyhow::anyhow!(
                 "{} временно недоступен (circuit breaker открыт)",
                 operation_name

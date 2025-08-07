@@ -66,6 +66,13 @@ pub mod unified_container_impl; // ЕДИНСТВЕННАЯ КОРРЕКТНАЯ
 // === Object Safety Solution ===
 pub mod object_safe_resolver; // Type-erased resolver для dyn compatibility
 
+// === НОВЫЕ ДЕКОМПОЗИРОВАННЫЕ МОДУЛИ ===
+pub mod container_metrics_impl;
+pub mod dependency_graph_validator; // Валидация циклических зависимостей
+pub mod memory_configurator; // Настройка memory компонентов в DI
+pub mod service_registry_impl; // Регистрация сервисов
+pub mod service_resolver_impl; // Разрешение зависимостей // Сбор метрик производительности
+
 // === Старые модули (deprecated) ===
 pub mod container_builder;
 pub mod container_core;
@@ -87,6 +94,7 @@ pub mod unified_config;
 // OPTIMIZED MODULAR ARCHITECTURE - разделение God Objects
 pub mod container_cache;
 pub mod container_configuration;
+pub mod container_factory;
 pub mod optimized_unified_container;
 
 // Re-export основных типов для удобства использования
@@ -152,6 +160,18 @@ pub use traits::DependencyValidator;
 pub use optimized_unified_container::{
     ContainerPreset, OptimizedContainerBuilder, OptimizedUnifiedContainer,
 };
+
+// NEW: Container Factory exports
+pub use container_factory::{ContainerBuilder, ContainerFactory, ContainerPreset as FactoryPreset};
+
+// NEW: Decomposed Module exports
+pub use container_metrics_impl::{ContainerMetricsImpl, MetricsConfig, TypeMetrics};
+pub use dependency_graph_validator::{
+    DependencyGraph, DependencyGraphStats, DependencyGraphValidator,
+};
+pub use memory_configurator::UnifiedMemoryConfigurator;
+pub use service_registry_impl::{FactoryInfo, RegistryConfig, RegistryStats, ServiceRegistryImpl};
+pub use service_resolver_impl::{ResolverConfig, ResolverMetrics, ServiceResolverImpl};
 
 // MIGRATION FACADES - для постепенного перехода
 pub use migration_facade::{

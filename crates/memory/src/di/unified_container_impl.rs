@@ -415,6 +415,7 @@ impl ServiceRegistryImpl {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn register_singleton<T, F>(&self, factory: F) -> Result<(), DIError>
     where
         T: Send + Sync + 'static,

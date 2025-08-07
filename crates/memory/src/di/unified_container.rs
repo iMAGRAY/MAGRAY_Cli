@@ -29,6 +29,9 @@ use std::{
 use tracing::{debug, error, info, warn};
 
 use super::{
+    container_cache::{CacheStats, ContainerCache},
+    container_configuration::ContainerConfiguration,
+    dependency_graph_validator::DependencyGraphValidator,
     object_safe_resolver::{ObjectSafeResolver, TypeSafeResolver},
     traits::{
         DIContainerStats, DIPerformanceMetrics, DIRegistrar, DIResolver, Lifetime, TypeMetrics,
@@ -48,20 +51,8 @@ struct ComponentRegistration {
     /// Имя типа для отладки
     type_name: String,
     /// Время регистрации
+    #[allow(dead_code)]
     registered_at: Instant,
-}
-
-/// Cache entry для singleton/scoped компонентов
-#[derive(Debug)]
-struct CacheEntry {
-    /// Экземпляр компонента
-    instance: Arc<dyn Any + Send + Sync>,
-    /// Время создания
-    created_at: Instant,
-    /// Количество обращений
-    access_count: u64,
-    /// Последнее время доступа
-    last_access: Instant,
 }
 
 /// Unified DI Container - единое решение для всего проекта
@@ -82,11 +73,11 @@ pub struct UnifiedDIContainer {
     /// Зарегистрированные компоненты
     registrations: RwLock<HashMap<TypeId, ComponentRegistration>>,
 
-    /// Cache для singleton и scoped экземпляров
-    instance_cache: RwLock<HashMap<TypeId, CacheEntry>>,
+    /// Cache manager для singleton и scoped экземпляров
+    cache_manager: ContainerCache,
 
-    /// Граф зависимостей для cycle detection
-    dependency_graph: RwLock<HashMap<TypeId, Vec<TypeId>>>,
+    /// Validator для cycle detection
+    dependency_validator: DependencyGraphValidator,
 
     /// Метрики производительности
     performance_metrics: RwLock<DIPerformanceMetrics>,
@@ -95,131 +86,9 @@ pub struct UnifiedDIContainer {
     configuration: ContainerConfiguration,
 }
 
-/// Конфигурация контейнера
-#[derive(Debug, Clone)]
-pub struct ContainerConfiguration {
-    /// Максимальный размер кэша singleton экземпляров
-    pub max_cache_size: usize,
-    /// Timeout для создания экземпляров
-    pub instance_creation_timeout: Duration,
-    /// Включить валидацию зависимостей
-    pub enable_dependency_validation: bool,
-    /// Включить сбор метрик производительности
-    pub enable_performance_metrics: bool,
-    /// Максимальная глубина зависимостей
-    pub max_dependency_depth: u32,
-    /// Cache cleanup interval
-    pub cache_cleanup_interval: Duration,
-}
+// ContainerConfiguration перенесена в отдельный модуль container_configuration.rs
 
-impl Default for ContainerConfiguration {
-    fn default() -> Self {
-        Self {
-            max_cache_size: 1000,
-            instance_creation_timeout: Duration::from_secs(30),
-            enable_dependency_validation: true,
-            enable_performance_metrics: true,
-            max_dependency_depth: 20,
-            cache_cleanup_interval: Duration::from_secs(300), // 5 minutes
-        }
-    }
-}
-
-impl ContainerConfiguration {
-    /// Production конфигурация с оптимизированными параметрами
-    pub fn production() -> Self {
-        Self {
-            max_cache_size: 5000,
-            instance_creation_timeout: Duration::from_secs(10),
-            enable_dependency_validation: true,
-            enable_performance_metrics: true,
-            max_dependency_depth: 15,
-            cache_cleanup_interval: Duration::from_secs(600), // 10 minutes
-        }
-    }
-
-    /// Development конфигурация с отладкой
-    pub fn development() -> Self {
-        Self {
-            max_cache_size: 500,
-            instance_creation_timeout: Duration::from_secs(60),
-            enable_dependency_validation: true,
-            enable_performance_metrics: true,
-            max_dependency_depth: 25,
-            cache_cleanup_interval: Duration::from_secs(180), // 3 minutes
-        }
-    }
-
-    /// Minimal конфигурация для тестов
-    pub fn minimal() -> Self {
-        Self {
-            max_cache_size: 100,
-            instance_creation_timeout: Duration::from_secs(5),
-            enable_dependency_validation: false,
-            enable_performance_metrics: false,
-            max_dependency_depth: 10,
-            cache_cleanup_interval: Duration::from_secs(60), // 1 minute
-        }
-    }
-}
-
-/// Container builder для пошагового создания
-pub struct UnifiedDIContainerBuilder {
-    configuration: ContainerConfiguration,
-}
-
-impl UnifiedDIContainerBuilder {
-    pub fn new() -> Self {
-        Self {
-            configuration: ContainerConfiguration::default(),
-        }
-    }
-
-    pub fn with_configuration(mut self, config: ContainerConfiguration) -> Self {
-        self.configuration = config;
-        self
-    }
-
-    pub fn with_max_cache_size(mut self, size: usize) -> Self {
-        self.configuration.max_cache_size = size;
-        self
-    }
-
-    pub fn with_instance_timeout(mut self, timeout: Duration) -> Self {
-        self.configuration.instance_creation_timeout = timeout;
-        self
-    }
-
-    pub fn enable_validation(mut self) -> Self {
-        self.configuration.enable_dependency_validation = true;
-        self
-    }
-
-    pub fn disable_validation(mut self) -> Self {
-        self.configuration.enable_dependency_validation = false;
-        self
-    }
-
-    pub fn enable_metrics(mut self) -> Self {
-        self.configuration.enable_performance_metrics = true;
-        self
-    }
-
-    pub fn disable_metrics(mut self) -> Self {
-        self.configuration.enable_performance_metrics = false;
-        self
-    }
-
-    pub fn build(self) -> UnifiedDIContainer {
-        UnifiedDIContainer::with_configuration(self.configuration)
-    }
-}
-
-impl Default for UnifiedDIContainerBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// UnifiedDIContainerBuilder перенесен в container_factory.rs
 
 impl UnifiedDIContainer {
     /// Создать контейнер с default конфигурацией
@@ -234,10 +103,23 @@ impl UnifiedDIContainer {
             config
         );
 
+        // Создаем cache manager с соответствующей конфигурацией
+        let cache_config = super::container_cache::CacheConfig {
+            max_size: config.max_cache_size,
+            max_age: Duration::from_secs(3600), // 1 час по умолчанию
+            max_idle_time: config.cache_cleanup_interval,
+            cleanup_interval: config.cache_cleanup_interval,
+        };
+        let cache_manager = ContainerCache::new(cache_config);
+
+        // Создаем dependency validator
+        let dependency_validator =
+            DependencyGraphValidator::new(config.enable_dependency_validation);
+
         Self {
             registrations: RwLock::new(HashMap::new()),
-            instance_cache: RwLock::new(HashMap::new()),
-            dependency_graph: RwLock::new(HashMap::new()),
+            cache_manager,
+            dependency_validator,
             performance_metrics: RwLock::new(DIPerformanceMetrics::default()),
             configuration: config,
         }
@@ -245,17 +127,17 @@ impl UnifiedDIContainer {
 
     /// Создать production-ready контейнер
     pub fn production() -> Self {
-        Self::with_configuration(ContainerConfiguration::production())
+        crate::di::container_factory::ContainerFactory::create_production()
     }
 
     /// Создать development контейнер
     pub fn development() -> Self {
-        Self::with_configuration(ContainerConfiguration::development())
+        crate::di::container_factory::ContainerFactory::create_development()
     }
 
     /// Создать minimal контейнер для тестов
     pub fn minimal() -> Self {
-        Self::with_configuration(ContainerConfiguration::minimal())
+        crate::di::container_factory::ContainerFactory::create_test()
     }
 
     /// Зарегистрировать компонент с factory функцией

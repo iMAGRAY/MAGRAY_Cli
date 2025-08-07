@@ -17,6 +17,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use crate::orchestration::traits::Coordinator;
+use common::{service_macros::CoordinatorMacroHelpers, service_traits::*, MagrayCoreError};
 
 /// Уровни здоровья компонентов
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -177,6 +178,37 @@ pub struct HealthChecker {
 
     /// TTL для кэша результатов
     cache_ttl: Duration,
+}
+
+impl CoordinatorMacroHelpers for HealthChecker {
+    async fn perform_coordinator_init(&self) -> anyhow::Result<()> {
+        info!("🚀 Инициализация HealthChecker");
+        self.active.store(true, Ordering::Relaxed);
+        Ok(())
+    }
+
+    async fn check_readiness(&self) -> bool {
+        self.active.load(Ordering::Relaxed)
+    }
+
+    async fn perform_health_check(&self) -> anyhow::Result<()> {
+        if !self.is_active() {
+            return Err(anyhow::anyhow!("HealthChecker не активен"));
+        }
+        Ok(())
+    }
+
+    async fn perform_coordinator_shutdown(&self) -> anyhow::Result<()> {
+        info!("🛑 Остановка HealthChecker");
+        self.active.store(false, Ordering::Relaxed);
+        self.clear_cache().await;
+        info!("✅ HealthChecker остановлен");
+        Ok(())
+    }
+
+    async fn collect_coordinator_metrics(&self) -> serde_json::Value {
+        self.get_health_checker_stats().await
+    }
 }
 
 impl HealthChecker {
@@ -494,15 +526,10 @@ impl HealthChecker {
         result
     }
 
-    /// Остановить HealthChecker
+    /// Остановить HealthChecker (legacy method, используйте perform_coordinator_shutdown)
+    #[deprecated(note = "Используйте coordinator shutdown из trait")]
     pub async fn shutdown(&self) {
-        info!("🛑 Остановка HealthChecker");
-        self.active.store(false, Ordering::Relaxed);
-
-        // Очищаем кэш
-        self.clear_cache().await;
-
-        info!("✅ HealthChecker остановлен");
+        let _ = self.perform_coordinator_shutdown().await;
     }
 
     /// Проверить активность checker'а
@@ -734,6 +761,9 @@ impl HealthChecker {
         cache.clear();
     }
 }
+
+// Применяем макрос для автоматической генерации Coordinator trait
+common::impl_coordinator!(HealthChecker, serde_json::Value);
 
 impl Default for HealthChecker {
     fn default() -> Self {

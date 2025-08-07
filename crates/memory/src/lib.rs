@@ -20,7 +20,7 @@ pub mod simd_optimized; // SIMD оптимизации для векторных
 pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance // FACADE для обратной совместимости
 
 // Re-export для обратной совместимости
-pub use di::{DIMemoryService, DIMemoryServiceBuilder};
+// pub use di::{DIMemoryService, DIMemoryServiceBuilder}; // ВРЕМЕННО ОТКЛЮЧЕНО
 pub use service_di::service_config::default_config;
 pub mod api;
 mod backup;
@@ -35,22 +35,37 @@ mod streaming;
 pub mod transaction;
 pub mod types;
 mod vector_index_hnswlib; // Critical for vector storage
-                          // Refactored Dependency Injection система (SOLID compliant)
-pub mod di; // Новая модульная архитектура
-            // Re-export главного API (из нового di модуля)
-pub use di::{
-    create_default_container,
-    // create_default_memory_config, // Не экспортируется
-    DIContainer,
-    DIContainerBuilder,
-    DIContainerStats,
-    DIPerformanceMetrics,
-    Lifetime,
-    // MemoryServiceConfig, // Не экспортируется
-    // Новый унифицированный API
-    UnifiedDIContainer,
-    UnifiedMemoryConfigurator,
+                          // НОВАЯ УПРОЩЕННАЯ DI СИСТЕМА (заменяет сложную di/ папку)
+pub mod simple_di;
+
+// COMPATIBILITY STUB для старой di системы
+pub mod di {
+    pub use crate::di_compatibility_stub::*;
+}
+
+// Подключаем заглушку совместимости
+mod di_compatibility_stub;
+
+// ОСНОВНОЙ DI API - используем упрощенную систему
+pub use simple_di::{
+    create_container, create_default_container, DIContainer, DIContainerBuilder, Lifetime,
 };
+
+// Legacy API types - заглушки для обратной совместимости
+#[derive(Debug, Default)]
+pub struct DIContainerStats {
+    pub total_resolutions: u64,
+    pub cache_hits: u64,
+    pub cache_misses: u64,
+}
+
+#[derive(Debug, Default)]
+pub struct DIPerformanceMetrics {
+    pub total_resolutions: u64,
+    pub average_resolution_time: std::time::Duration,
+    pub cache_hits: u64,
+    pub memory_usage: usize,
+}
 // Оркестрация системы памяти
 pub mod orchestration;
 // Специализированные сервисы (SOLID refactoring)

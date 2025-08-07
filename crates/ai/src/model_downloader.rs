@@ -141,7 +141,7 @@ impl ModelDownloader {
                 ],
                 total_size: 585_000_000,
             }),
-            
+
             "bge-reranker-v2-m3" | "bge-reranker-v2-m3_dynamic_int8_onnx" => Ok(ModelInfo {
                 name: model_name.to_string(),
                 files: vec![
@@ -166,7 +166,7 @@ impl ModelDownloader {
                 ],
                 total_size: 1_140_555_856,
             }),
-            
+
             "qwen3emb" => Ok(ModelInfo {
                 name: "qwen3emb".to_string(),
                 files: vec![
@@ -191,7 +191,7 @@ impl ModelDownloader {
                 ],
                 total_size: 0,
             }),
-            
+
             "qwen3_reranker" => Ok(ModelInfo {
                 name: "qwen3_reranker".to_string(),
                 files: vec![
@@ -216,7 +216,7 @@ impl ModelDownloader {
                 ],
                 total_size: 0,
             }),
-            
+
             _ => Err(anyhow::anyhow!("Неизвестная модель: {}", model_name)),
         }
     }

@@ -1,6 +1,7 @@
 pub mod comprehensive_errors;
 pub mod config_base;
 pub mod macros;
+pub mod service_macros;
 pub mod service_traits;
 pub mod structured_logging;
 

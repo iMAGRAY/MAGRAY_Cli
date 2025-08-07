@@ -34,39 +34,22 @@ use crate::{
     types::{Layer, Record, SearchOptions},
 };
 
-/// Production-ready главный оркестратор memory системы с полным lifecycle management
+/// Refactored MemoryOrchestrator - делегирует сложную логику специализированным компонентам
+/// Применяет принципы SOLID: SRP, DIP, OCP
 pub struct MemoryOrchestrator {
-    // === Координаторы ===
-    /// Координатор embeddings
-    pub embedding: Arc<EmbeddingCoordinatorImpl>,
-    /// Координатор поиска
-    pub search: Arc<SearchCoordinatorImpl>,
-    /// Менеджер здоровья
-    pub health: Arc<HealthManager>,
-    /// Координатор promotion
-    pub promotion: Arc<PromotionCoordinatorImpl>,
-    /// Контроллер ресурсов
-    pub resources: Arc<ResourceController>,
-    /// Координатор backup
-    pub backup: Arc<BackupCoordinatorImpl>,
+    // === Core Orchestrator (Single Responsibility) ===
+    orchestrator_core: crate::orchestration::orchestrator_core::OrchestratorCore,
 
-    // === Production Infrastructure ===
-    /// Состояние готовности orchestrator'а
-    ready: AtomicBool,
-    /// Время запуска системы
-    start_time: Instant,
-    /// Semaphore для ограничения concurrent операций
-    operation_limiter: Arc<Semaphore>,
-    /// Circuit breaker состояния для координаторов
-    circuit_breakers: Arc<RwLock<HashMap<String, CircuitBreakerState>>>,
-    /// Retry handlers для разных типов операций
-    retry_handlers: RetryHandlers,
-    /// Orchestration metrics
-    metrics: Arc<RwLock<OrchestrationMetrics>>,
-    /// Background tasks handles
-    background_tasks: Arc<RwLock<Vec<JoinHandle<()>>>>,
-    /// Emergency shutdown flag
-    emergency_shutdown: Arc<AtomicBool>,
+    // === Specialized Components (Composition over God Object) ===
+    /// Circuit breaker manager (extracted from original God Object)
+    circuit_breaker_manager:
+        Arc<crate::orchestration::circuit_breaker_manager::CircuitBreakerManager>,
+    /// Metrics collector (extracted from original God Object)
+    metrics_collector: Arc<crate::orchestration::metrics_collector::MetricsCollector>,
+    /// Operation executor (extracted from original God Object)
+    operation_executor: Arc<crate::orchestration::operation_executor::OperationExecutor>,
+    /// Background task manager (will be created separately)
+    background_task_manager: Arc<BackgroundTaskManager>,
 }
 
 /// Circuit breaker state для coordinator'а

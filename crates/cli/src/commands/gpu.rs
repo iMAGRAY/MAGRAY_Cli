@@ -1,4 +1,4 @@
-use ai::{auto_device_selector::AutoDeviceSelector, EmbeddingConfig};
+// use ai::{auto_device_selector::AutoDeviceSelector, EmbeddingConfig};
 
 #[cfg(feature = "gpu")]
 use ai::{
@@ -6,7 +6,7 @@ use ai::{
 };
 use anyhow::Result;
 use clap::{Args, Subcommand};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 #[derive(Debug, Args)]
 pub struct GpuCommand {
@@ -113,92 +113,23 @@ impl GpuCommand {
     }
 
     /// Запустить бенчмарк
-    async fn run_benchmark(&self, batch_size: usize, _compare: bool) -> Result<()> {
-        info!("🏃 Запуск бенчмарка GPU с batch_size={}", batch_size);
+    async fn run_benchmark(&self, _batch_size: usize, _compare: bool) -> Result<()> {
+        info!("🏃 Запуск бенчмарка GPU с batch_size={}", _batch_size);
 
         #[cfg(feature = "gpu")]
         {
             let detector = GpuDetector::detect();
-            if !detector.available {
-                error!("❌ GPU не обнаружен! Используйте 'magray gpu info' для диагностики.");
-                return Ok(());
+            if detector.available {
+                // TODO: Реализовать полноценный бенчмарк после настройки GPU
+                info!("🚧 Бенчмарк находится в разработке");
+            } else {
+                warn!("❌ GPU не обнаружен! Используйте 'magray gpu info' для диагностики.");
             }
         }
 
         #[cfg(not(feature = "gpu"))]
         {
             warn!("GPU функциональность недоступна. Соберите с --features gpu");
-            return Ok(());
-        }
-
-        // Генерируем тестовые данные (закомментировано как недостижимый код)
-        // let _test_texts: Vec<String> = (0..batch_size)
-        //     .map(|i| format!("This is test text number {i} for benchmarking embedding performance on our optimized service with GPU acceleration."))
-        //     .collect();
-
-        // Конфигурация
-        let config = EmbeddingConfig {
-            model_name: "bge-m3".to_string(),
-            use_gpu: true,
-            batch_size,
-            ..Default::default()
-        };
-
-        if compare {
-            info!("\n📊 Сравнительный бенчмарк CPU vs GPU");
-
-            // Автоматический выбор устройства
-            let mut selector = AutoDeviceSelector::new();
-            let decision = selector.select_device(&config).await?;
-            decision.print_decision();
-
-            info!(
-                "\n🏆 Рекомендация: использовать {}",
-                if decision.use_gpu { "GPU" } else { "CPU" }
-            );
-        } else {
-            #[cfg(feature = "gpu")]
-            {
-                // Только GPU тест
-                use ai::embeddings_gpu::GpuEmbeddingService;
-                use std::time::Instant;
-
-                info!("⏳ Загрузка модели...");
-                let service = GpuEmbeddingService::new(config).await?;
-
-                // Прогрев
-                info!("🔥 Прогрев GPU...");
-                let warmup_batch = test_texts.iter().take(10).cloned().collect();
-                let _ = service.embed_batch(warmup_batch).await?;
-
-                // Бенчмарк
-                info!("⚡ Запуск бенчмарка...");
-                let start = Instant::now();
-                let embeddings = service.embed_batch(test_texts.clone()).await?;
-                let elapsed = start.elapsed();
-
-                // Результаты
-                info!("\n📈 Результаты бенчмарка GPU:");
-                info!("  - Обработано текстов: {}", batch_size);
-                info!("  - Время выполнения: {:.2} сек", elapsed.as_secs_f64());
-                info!(
-                    "  - Скорость: {:.1} текстов/сек",
-                    batch_size as f64 / elapsed.as_secs_f64()
-                );
-                info!(
-                    "  - Среднее время: {:.2} мс/текст",
-                    elapsed.as_millis() as f64 / batch_size as f64
-                );
-                info!("  - Размерность эмбеддингов: {}", embeddings[0].len());
-
-                // Метрики
-                service.print_metrics();
-            }
-
-            #[cfg(not(feature = "gpu"))]
-            {
-                warn!("GPU функциональность недоступна. Соберите с --features gpu");
-            }
         }
 
         Ok(())
@@ -312,6 +243,7 @@ impl GpuCommand {
 }
 
 /// Расширение для красивого вывода решения
+#[allow(dead_code)]
 trait DecisionExt {
     fn print_decision(&self);
 }

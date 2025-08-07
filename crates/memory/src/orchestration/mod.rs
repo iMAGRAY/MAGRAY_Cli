@@ -11,6 +11,7 @@ mod search_coordinator;
 pub mod traits;
 
 // === SOLID-совместимая архитектура ===
+pub mod background_task_manager;
 pub mod circuit_breaker_manager;
 pub mod coordinator_registry;
 pub mod health_checker;
@@ -19,6 +20,7 @@ pub mod metrics_collector;
 pub mod operation_executor;
 pub mod orchestration_facade;
 pub mod orchestration_lifecycle_manager;
+pub mod orchestrator_core;
 
 // Legacy поддержка - оригинальный God Object (deprecated)
 mod memory_orchestrator;
@@ -75,6 +77,10 @@ pub use coordinator_registry::{CoordinatorRegistry, ReadinessStatus};
 
 // Main facade (recommended entry point)
 pub use orchestration_facade::{MemoryOrchestrator, OrchestrationFacade};
+
+// New SOLID components
+pub use background_task_manager::BackgroundTaskManager;
+pub use orchestrator_core::OrchestratorCore;
 
 // === Legacy Support (Deprecated) ===
 #[deprecated(

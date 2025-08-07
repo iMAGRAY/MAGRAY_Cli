@@ -191,6 +191,7 @@ impl RefactoredUnifiedAgent {
     }
 
     /// Обработка пользовательского запроса с полной декомпозицией
+    #[allow(dead_code)]
     async fn process_request_internal(
         &mut self,
         context: &RequestContext,
@@ -323,6 +324,7 @@ impl RefactoredUnifiedAgent {
     }
 
     /// Fallback обработка при блокировке circuit breaker
+    #[allow(dead_code)]
     async fn handle_circuit_breaker_fallback(
         &mut self,
         context: &RequestContext,

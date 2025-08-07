@@ -31,6 +31,7 @@ pub struct OrchestrationFacade {
     /// Lifecycle management
     lifecycle_manager: Arc<OrchestrationLifecycleManager>,
     /// Operation execution
+    #[allow(dead_code)]
     operation_executor: Arc<OperationExecutor>,
     /// Metrics collection
     metrics_collector: Arc<MetricsCollector>,

@@ -734,7 +734,9 @@ struct SystemConstraints {
     cpu_cores: usize,
     total_memory_mb: u64,
     available_disk_mb: u64,
+    #[allow(dead_code)]
     has_gpu: bool,
+    #[allow(dead_code)]
     has_simd: bool,
 }
 

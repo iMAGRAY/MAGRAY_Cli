@@ -34,6 +34,7 @@ pub struct DIMemoryServiceMigrationFacade {
     ready: std::sync::atomic::AtomicBool,
 
     /// Configuration для обратной совместимости
+    #[allow(dead_code)]
     legacy_config: LegacyMemoryConfig,
 }
 

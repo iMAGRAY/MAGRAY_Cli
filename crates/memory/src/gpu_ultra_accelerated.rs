@@ -43,9 +43,9 @@ impl GpuDevice {
 
     /// Check if GPU is capable of high-performance vector operations
     pub fn is_vector_optimized(&self) -> bool {
-        self.is_available && 
-        self.compute_capability.0 >= 7 && // Volta or newer
-        self.memory_total >= 8 * 1024 * 1024 * 1024 // At least 8GB VRAM
+        self.is_available
+            && self.compute_capability.0 >= 7 // Volta or newer
+            && self.memory_total >= 8 * 1024 * 1024 * 1024 // At least 8GB VRAM
     }
 
     /// Estimate maximum batch size based on available memory
