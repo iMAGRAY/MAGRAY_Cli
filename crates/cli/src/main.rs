@@ -19,7 +19,7 @@ mod status_tests;
 use cli::agent_traits::AgentResponse;
 use cli::agent_traits::{RequestContext, RequestProcessorTrait};
 use cli::unified_agent_v2::UnifiedAgentV2;
-use commands::{GpuCommand, MemoryCommand, ModelsCommand, ToolsCommand};
+use commands::{GpuCommand, MemoryCommand, ModelsCommand, ToolsCommand, SmartCommand};
 
 // Иконки для CLI интерфейса
 static ROBOT_ICON: AnimatedIcon = AnimatedIcon::new(&["[AI]", "[▲I]", "[●I]", "[♦I]"]);
@@ -78,11 +78,8 @@ enum Commands {
         /// Описание действия на естественном языке
         action: String,
     },
-    /// [★] Умный AI планировщик (анализ + планирование + выполнение)
-    Smart {
-        /// Сложная задача на естественном языке
-        task: String,
-    },
+    /// [★] Умный планировщик (без LLM на данном этапе)
+    Smart(SmartCommand),
     /// [🎮] Управление GPU ускорением
     Gpu(GpuCommand),
     /// [🧠] Управление системой памяти
@@ -138,10 +135,8 @@ async fn main() -> Result<()> {
             let response = process_agent_message(&agent, &action).await?;
             display_response(response).await;
         }
-        Some(Commands::Smart { task }) => {
-            let agent = create_unified_agent_v2().await?;
-            let response = process_agent_message(&agent, &task).await?;
-            display_response(response).await;
+        Some(Commands::Smart(cmd)) => {
+            cmd.execute().await?;
         }
         Some(Commands::Gpu(gpu_command)) => {
             gpu_command.execute().await?;

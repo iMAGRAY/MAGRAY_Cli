@@ -53,6 +53,7 @@ ai = { path = "../ai" }
 memory = { path = "../memory" }
 common = { path = "../common" }
 tools = { path = "../tools" }
+domain = { path = "../domain" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
