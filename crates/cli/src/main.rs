@@ -12,6 +12,7 @@ use tokio::time::sleep;
 mod commands;
 mod health_checks;
 mod progress;
+mod util;
 
 #[cfg(test)]
 mod status_tests;
@@ -19,7 +20,7 @@ mod status_tests;
 use cli::agent_traits::AgentResponse;
 use cli::agent_traits::{RequestContext, RequestProcessorTrait};
 use cli::unified_agent_v2::UnifiedAgentV2;
-use commands::{GpuCommand, MemoryCommand, ModelsCommand, ToolsCommand, SmartCommand};
+use commands::{GpuCommand, MemoryCommand, ModelsCommand, ToolsCommand, SmartCommand, TasksCommand};
 
 // Иконки для CLI интерфейса
 static ROBOT_ICON: AnimatedIcon = AnimatedIcon::new(&["[AI]", "[▲I]", "[●I]", "[♦I]"]);
@@ -88,6 +89,8 @@ enum Commands {
     Models(ModelsCommand),
     /// [🛠] Управление инструментами (включая MCP)
     Tools(ToolsCommand),
+    /// [☑] Управление задачами
+    Tasks(TasksCommand),
     /// [🏥] Проверка здоровья системы
     Health,
     /// [📊] Показать состояние системы
@@ -160,6 +163,9 @@ async fn main() -> Result<()> {
             cmd.execute().await?;
         }
         Some(Commands::Models(cmd)) => {
+            cmd.execute().await?;
+        }
+        Some(Commands::Tasks(cmd)) => {
             cmd.execute().await?;
         }
         Some(Commands::Status) => {

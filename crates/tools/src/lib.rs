@@ -77,9 +77,12 @@ impl ToolRegistry {
         registry.register("file_read", Box::new(file_ops::FileReader::new()));
         registry.register("file_write", Box::new(file_ops::FileWriter::new()));
         registry.register("dir_list", Box::new(file_ops::DirLister::new()));
+        registry.register("file_search", Box::new(file_ops::FileSearcher::new()));
         registry.register("git_status", Box::new(git_ops::GitStatus::new()));
         registry.register("git_commit", Box::new(git_ops::GitCommit::new()));
+        registry.register("git_diff", Box::new(git_ops::GitDiff::new()));
         registry.register("web_search", Box::new(web_ops::WebSearch::new()));
+        registry.register("web_fetch", Box::new(web_ops::WebFetch::new()));
         registry.register("shell_exec", Box::new(shell_ops::ShellExec::new()));
 
         registry
