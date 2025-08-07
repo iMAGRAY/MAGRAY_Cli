@@ -23,6 +23,9 @@ pub mod execution_pipeline;
 pub mod intelligent_selector;
 pub mod performance_monitor;
 
+// MCP integration
+pub mod mcp;
+
 // Базовые типы для системы инструментов
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolInput {
@@ -94,8 +97,18 @@ impl ToolRegistry {
         self.tools.values().map(|tool| tool.spec()).collect()
     }
 
-    // Удалены захардкоженные методы find_tool_for_query и execute_natural
-    // Теперь используем специализированные агенты в SmartRouter
+    /// Зарегистрировать MCP tool, проксирующий удалённый MCP сервер/процесс по stdio
+    pub fn register_mcp_tool(
+        &mut self,
+        name: &str,
+        cmd: String,
+        args: Vec<String>,
+        remote_tool: String,
+        description: String,
+    ) {
+        let tool = mcp::McpTool::new(cmd, args, remote_tool, description);
+        self.register(name, Box::new(tool));
+    }
 }
 
 impl Default for ToolRegistry {
