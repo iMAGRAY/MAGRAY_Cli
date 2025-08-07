@@ -5,6 +5,8 @@ use domain::orchestrator::{Executor, Goal, Orchestrator, Plan, Planner, StepResu
 use async_trait::async_trait;
 use tools::{Tool, ToolInput, ToolOutput, ToolRegistry};
 use std::collections::HashMap;
+use todo::{TodoService, Priority, TaskState, TodoItem, create_default_service};
+use std::path::PathBuf;
 
 #[derive(Debug)]
 struct SimplePlanner;
@@ -33,28 +35,58 @@ impl Executor for SimpleExecutor {
         let registry = ToolRegistry::new();
         let mut results = Vec::with_capacity(plan.steps.len());
 
+        // Инициализируем TodoService (локальная база в ~/.magray/tasks.db)
+        let db_path = default_tasks_db_path();
+        let todo_service: TodoService = create_default_service(&db_path).await?;
+
         for step in &plan.steps {
+            // Создаём задачу под шаг
+            let task = todo_service
+                .create_task(
+                    step.description.clone(),
+                    "Создано оркестратором MAGRAY".to_string(),
+                    Priority::Medium,
+                    vec!["smart".to_string()],
+                )
+                .await?;
+
+            // Выполняем шаг как инструмент
             let desc = step.description.clone();
             let output = execute_step(&registry, &desc, step.tool_hint.clone()).await;
 
+            // Обновляем состояние задачи
             match output {
-                Ok(out) => results.push(StepResult {
-                    step_id: step.id.clone(),
-                    status: StepStatus::Succeeded,
-                    output: Some(out.result.clone()),
-                    artifacts: vec![],
-                }),
-                Err(e) => results.push(StepResult {
-                    step_id: step.id.clone(),
-                    status: StepStatus::Failed { error: e.to_string() },
-                    output: None,
-                    artifacts: vec![],
-                }),
+                Ok(out) => {
+                    todo_service.update_state(&task.id, TaskState::Done).await?;
+                    results.push(StepResult {
+                        step_id: step.id.clone(),
+                        status: StepStatus::Succeeded,
+                        output: Some(out.result.clone()),
+                        artifacts: vec![],
+                    })
+                }
+                Err(e) => {
+                    todo_service.update_state(&task.id, TaskState::Failed).await?;
+                    results.push(StepResult {
+                        step_id: step.id.clone(),
+                        status: StepStatus::Failed { error: e.to_string() },
+                        output: None,
+                        artifacts: vec![],
+                    })
+                }
             }
         }
 
         Ok(results)
     }
+}
+
+fn default_tasks_db_path() -> PathBuf {
+    let mut dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    dir.push(".magray");
+    std::fs::create_dir_all(&dir).ok();
+    dir.push("tasks.db");
+    dir
 }
 
 struct SimpleOrchestrator<P: Planner, E: Executor> {
