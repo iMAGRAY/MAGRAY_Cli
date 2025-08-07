@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, CommandFactory};
 use common::init_structured_logging;
 use console::{style, Term};
 use indicatif::ProgressStyle;
@@ -19,7 +19,7 @@ mod status_tests;
 use cli::agent_traits::AgentResponse;
 use cli::agent_traits::{RequestContext, RequestProcessorTrait};
 use cli::unified_agent_v2::UnifiedAgentV2;
-use commands::{GpuCommand, MemoryCommand, ModelsCommand};
+use commands::{GpuCommand, MemoryCommand, ModelsCommand, ToolsCommand};
 
 // Иконки для CLI интерфейса
 static ROBOT_ICON: AnimatedIcon = AnimatedIcon::new(&["[AI]", "[▲I]", "[●I]", "[♦I]"]);
@@ -89,6 +89,8 @@ enum Commands {
     Memory(MemoryCommand),
     /// [📦] Управление моделями AI
     Models(ModelsCommand),
+    /// [🛠] Управление инструментами (включая MCP)
+    Tools(ToolsCommand),
     /// [🏥] Проверка здоровья системы
     Health,
     /// [📊] Показать состояние системы
@@ -174,9 +176,12 @@ async fn main() -> Result<()> {
         Some(Commands::Performance) => {
             show_performance_metrics().await?;
         }
+        Some(Commands::Tools(cmd)) => {
+            cmd.execute().await?;
+        }
         None => {
-            // По умолчанию запускаем интерактивный чат
-            handle_chat(None).await?;
+            // По умолчанию показываем помощь
+            println!("{}", Cli::command().render_long_help());
         }
     }
 
