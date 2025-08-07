@@ -29,7 +29,7 @@
 
 ## ⚠️ РЕАЛЬНОЕ СОСТОЯНИЕ ПРОЕКТА (ALPHA)
 
-**Автоматический анализ от 2025-08-07 20:56:01 UTC:**
+**Автоматический анализ от 2025-08-07 20:57:57 UTC:**
 
 ### 🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:
 - **Критических issues**: 117
@@ -40,7 +40,7 @@
 
 ### ❌ ЧТО НЕ РАБОТАЕТ:
 - **God Objects остаются**: 0 обнаружено
-- **Дублирование кода**: 987 случаев
+- **Дублирование кода**: 996 случаев
 - **Покрытие тестами**: 24.7% (74/300 модулей, tests: 506, mocks: 30)
 
 ### 📊 СТАТИСТИКА ПРОЕКТА:
@@ -145,7 +145,7 @@
 - **memory**: background_task_manager.rs, backup_coordinator.rs, coordinator_registry.rs, embedding_coordinator.rs, health_checker.rs, health_manager.rs, lifecycle_manager.rs, metrics_collector.rs, operation_executor.rs, orchestration_facade.rs, orchestration_lifecycle_manager.rs, orchestrator_core.rs, promotion_coordinator.rs, resource_controller.rs, search_coordinator.rs, traits.rs, lifecycle_manager.rs
 - todo/src/graph.rs
 
-...и еще 977 менее критичных дубликатов.
+...и еще 986 менее критичных дубликатов.
 **Серьезных дубликатов (>4 копий)**: 141
 
 
@@ -163,7 +163,7 @@
 
 # ТЕКУЩЕЕ СОСТОЯНИЕ ПРОЕКТА:
 
-*Last updated: 2025-08-07 20:56:01 UTC*
+*Last updated: 2025-08-07 20:57:57 UTC*
 *Status: ALPHA - не готов к production использованию*
 
 ## АВТОМАТИЧЕСКИ ОБНОВЛЯЕТСЯ ПРИ РЕДАКТИРОВАНИИ ФАЙЛОВ
@@ -203,16 +203,16 @@ graph TB
 
     %% Зависимости между крейтами
     AI -.->|uses| COMMON
-    APPLICATION -.->|uses| COMMON
     APPLICATION -.->|uses| DOMAIN
-    CLI -.->|uses| AI
-    CLI -.->|uses| COMMON
-    CLI -.->|uses| MEMORY
+    APPLICATION -.->|uses| COMMON
     CLI -.->|uses| ROUTER
+    CLI -.->|uses| COMMON
     CLI -.->|uses| TOOLS
     CLI -.->|uses| LLM
-    MEMORY -.->|uses| AI
+    CLI -.->|uses| AI
+    CLI -.->|uses| MEMORY
     MEMORY -.->|uses| COMMON
+    MEMORY -.->|uses| AI
     ROUTER -.->|uses| TOOLS
     ROUTER -.->|uses| LLM
     TODO -.->|uses| LLM
