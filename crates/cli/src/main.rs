@@ -108,8 +108,10 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Красивое приветствие
-    show_welcome_animation().await?;
+    // Красивое приветствие (в тестах можно отключить через MAGRAY_NO_ANIM)
+    if std::env::var("MAGRAY_NO_ANIM").is_err() {
+        show_welcome_animation().await?;
+    }
 
     match cli.command {
         Some(Commands::Chat { message }) => {
