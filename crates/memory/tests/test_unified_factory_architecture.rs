@@ -12,13 +12,12 @@ use std::sync::Arc;
 use tokio::time::Duration;
 
 use memory::{
+    di::unified_container::{ContainerConfiguration, UnifiedDIContainer},
     services::{
-        UnifiedServiceFactory, UnifiedFactoryConfig, UnifiedFactoryConfigBuilder,
-        UnifiedServiceCollection, FactoryPreset, SpecializedFactoryConfig,
-        BaseFactory, CoreServiceFactory, SpecializedComponentFactory,
-        FactoryError, FactoryResult
+        BaseFactory, CoreServiceFactory, FactoryError, FactoryPreset, FactoryResult,
+        SpecializedComponentFactory, SpecializedFactoryConfig, UnifiedFactoryConfig,
+        UnifiedFactoryConfigBuilder, UnifiedServiceCollection, UnifiedServiceFactory,
     },
-    di::unified_container::{UnifiedDIContainer, ContainerConfiguration},
 };
 
 /// Helper function для создания test DI container
@@ -29,7 +28,7 @@ fn create_test_container() -> Result<Arc<UnifiedDIContainer>> {
         enable_cycle_detection: true,
         enable_performance_metrics: true,
     };
-    
+
     let container = UnifiedDIContainer::new(config)?;
     Ok(Arc::new(container))
 }
@@ -38,19 +37,19 @@ fn create_test_container() -> Result<Arc<UnifiedDIContainer>> {
 #[tokio::test]
 async fn test_unified_service_factory_creation() -> Result<()> {
     let container = create_test_container()?;
-    
+
     // Test creation с default конфигурацией
     let factory = UnifiedServiceFactory::new(container.clone());
-    
+
     // Test creation с custom конфигурацией
     let custom_config = UnifiedFactoryConfig::production();
     let production_factory = UnifiedServiceFactory::with_config(container.clone(), custom_config);
-    
+
     // Test preset factories
     let dev_factory = UnifiedServiceFactory::development(container.clone());
     let test_factory = UnifiedServiceFactory::test(container.clone());
     let minimal_factory = UnifiedServiceFactory::minimal(container.clone());
-    
+
     assert!(true, "Все factory configurations созданы успешно");
     Ok(())
 }
@@ -209,7 +208,7 @@ fn test_specialized_factory_config() {
     assert_eq!(minimal_config.max_concurrent_operations, 16);
     assert_eq!(minimal_config.cache_size, 500);
 
-    // Test configuration  
+    // Test configuration
     let test_config = SpecializedFactoryConfig::test();
     assert!(!test_config.enable_embedding);
     assert!(!test_config.enable_search);
@@ -259,40 +258,40 @@ fn test_factory_error_types() {
 async fn test_unified_service_collection_mock() -> Result<()> {
     // Мы не можем полностью протестировать без реальных сервисов,
     // но можем проверить что структуры правильно собираются
-    
+
     let container = create_test_container()?;
     let factory = UnifiedServiceFactory::test(container.clone());
-    
+
     // В test configuration координаторы отключены,
     // поэтому мы проверяем только основную логику
     assert!(true, "Test configuration factory создан");
-    
+
     Ok(())
 }
 
-/// Test factory trait compliance 
+/// Test factory trait compliance
 #[test]
 fn test_factory_traits_interface_segregation() {
     // Проверяем что traits правильно сегрегированы по функциональности
-    
+
     // BaseFactory должен быть минимальным интерфейсом
     fn accepts_base_factory<T: BaseFactory>(_factory: T) {}
-    
+
     // CoreServiceFactory расширяет BaseFactory для core services
     fn accepts_core_service_factory<T: CoreServiceFactory>(_factory: T) {}
-    
+
     // CoordinatorFactory специализирован для координаторов
     fn accepts_coordinator_factory<T: memory::services::CoordinatorFactoryTrait>(_factory: T) {}
-    
+
     // ServiceCollectionFactory для создания коллекций
     fn accepts_service_collection_factory<T: ServiceCollectionFactory>(_factory: T) {}
-    
+
     // SpecializedComponentFactory для специализированных компонентов
     fn accepts_specialized_factory<T: SpecializedComponentFactory>(_factory: T) {}
-    
+
     // TestFactory для тестовых doubles
     fn accepts_test_factory<T: TestFactory>(_factory: T) {}
-    
+
     assert!(true, "Все factory trait интерфейсы корректно определены");
 }
 
@@ -300,16 +299,16 @@ fn test_factory_traits_interface_segregation() {
 #[test]
 fn test_dependency_inversion_compliance() {
     // Проверяем что factory зависят от абстракций, а не от конкретных типов
-    
+
     // UnifiedServiceFactory зависит от UnifiedDIContainer (абстракция)
     let container = create_test_container().unwrap();
     let _factory = UnifiedServiceFactory::new(container);
-    
+
     // Factory принимают конфигурации как параметры (dependency injection)
     let config = UnifiedFactoryConfig::production();
     let container2 = create_test_container().unwrap();
     let _factory2 = UnifiedServiceFactory::with_config(container2, config);
-    
+
     assert!(true, "Dependency Inversion принцип соблюден");
 }
 
@@ -317,18 +316,21 @@ fn test_dependency_inversion_compliance() {
 #[test]
 fn test_single_responsibility_principle() {
     // Каждый компонент должен иметь единственную ответственность
-    
+
     // UnifiedServiceFactory - создание и управление сервисами
     // UnifiedFactoryConfig - конфигурация factory
     // UnifiedFactoryConfigBuilder - построение конфигурации
     // SpecializedFactoryConfig - конфигурация специализированных компонентов
     // FactoryPreset - предустановленные конфигурации
-    
+
     let _config = UnifiedFactoryConfig::default(); // Только конфигурация
     let _builder = UnifiedFactoryConfig::custom(); // Только построение
     let _specialized = SpecializedFactoryConfig::production(); // Только специализированная конфигурация
-    let _preset = FactoryPreset::Production { max_performance: true, enable_monitoring: true }; // Только preset
-    
+    let _preset = FactoryPreset::Production {
+        max_performance: true,
+        enable_monitoring: true,
+    }; // Только preset
+
     assert!(true, "Single Responsibility принцип соблюден");
 }
 
@@ -336,29 +338,32 @@ fn test_single_responsibility_principle() {
 #[test]
 fn test_open_closed_principle() {
     // Система должна быть открыта для расширения, закрыта для модификации
-    
+
     // Новые типы factory можно добавить через trait implementations
     struct CustomTestFactory;
-    
+
     // Мы можем реализовать BaseFactory для кастомных типов без изменения существующего кода
     // (в реальной реализации это было бы полноценная implementation)
-    
-    assert!(true, "Open/Closed принцип поддерживается через trait system");
+
+    assert!(
+        true,
+        "Open/Closed принцип поддерживается через trait system"
+    );
 }
 
 /// Test liskov substitution principle
 #[test]
 fn test_liskov_substitution_principle() {
     // Все implementations trait должны быть взаимозаменяемы
-    
+
     // Разные конфигурации должны работать с одним и тем же factory
     let container = create_test_container().unwrap();
-    
+
     let _factory1 = UnifiedServiceFactory::production(container.clone());
     let _factory2 = UnifiedServiceFactory::development(container.clone());
     let _factory3 = UnifiedServiceFactory::test(container.clone());
     let _factory4 = UnifiedServiceFactory::minimal(container.clone());
-    
+
     // Все эти factory имеют одинаковый интерфейс и могут заменять друг друга
     assert!(true, "Liskov Substitution принцип соблюден");
 }
@@ -368,26 +373,26 @@ fn test_liskov_substitution_principle() {
 async fn test_factory_integration_workflow() -> Result<()> {
     // Полный workflow создания и использования factory
     let container = create_test_container()?;
-    
+
     // 1. Создаем factory с production конфигурацией
     let factory = UnifiedServiceFactory::production(container.clone());
-    
+
     // 2. В реальной ситуации мы бы создали все сервисы
     // let services = factory.create_all_services().await?;
-    
+
     // 3. И инициализировали их
     // services.initialize_all_services().await?;
-    
+
     // 4. И получили бы статистику
     // let stats = services.get_comprehensive_statistics().await?;
-    
+
     // 5. И выполнили graceful shutdown
     // services.shutdown_all_services().await?;
-    
+
     // Поскольку у нас нет полностью функциональных сервисов в тестах,
     // мы проверяем что основная логика работает
     assert!(true, "Integration workflow протестирован");
-    
+
     Ok(())
 }
 
@@ -395,24 +400,31 @@ async fn test_factory_integration_workflow() -> Result<()> {
 #[tokio::test]
 async fn test_factory_creation_performance() -> Result<()> {
     use std::time::Instant;
-    
+
     let container = create_test_container()?;
-    
+
     // Измеряем время создания factory
     let start = Instant::now();
-    
+
     for _ in 0..100 {
         let _factory = UnifiedServiceFactory::new(container.clone());
     }
-    
+
     let duration = start.elapsed();
-    
+
     // Factory creation должен быть очень быстрым (< 1ms per factory)
-    assert!(duration.as_millis() < 100, "Factory creation слишком медленный: {:?}", duration);
-    
-    println!("✅ 100 factory созданы за {:?} ({:.2}μs per factory)", 
-             duration, duration.as_micros() as f64 / 100.0);
-    
+    assert!(
+        duration.as_millis() < 100,
+        "Factory creation слишком медленный: {:?}",
+        duration
+    );
+
+    println!(
+        "✅ 100 factory созданы за {:?} ({:.2}μs per factory)",
+        duration,
+        duration.as_micros() as f64 / 100.0
+    );
+
     Ok(())
 }
 
@@ -420,39 +432,42 @@ async fn test_factory_creation_performance() -> Result<()> {
 #[test]
 fn test_factory_memory_usage() {
     let container = create_test_container().unwrap();
-    
+
     // Создаем много factory и проверяем что они не занимают много памяти
     let mut factories = Vec::new();
-    
+
     for _ in 0..1000 {
         factories.push(UnifiedServiceFactory::new(container.clone()));
     }
-    
+
     // Factory должны быть легковесными структурами
     assert_eq!(factories.len(), 1000);
-    
+
     println!("✅ 1000 factory созданы без проблем с памятью");
 }
 
 /// Error resilience test
-#[tokio::test] 
+#[tokio::test]
 async fn test_factory_error_resilience() -> Result<()> {
     // Тестируем устойчивость к ошибкам
-    
+
     // Test с невалидным контейнером
     let invalid_config = ContainerConfiguration {
-        max_cache_size: 0, // Invalid
+        max_cache_size: 0,                            // Invalid
         resolution_timeout: Duration::from_millis(1), // Too short
         enable_cycle_detection: true,
         enable_performance_metrics: true,
     };
-    
+
     // Должно либо создаться с default значениями, либо вернуть ошибку
     let result = UnifiedDIContainer::new(invalid_config);
     match result {
         Ok(_) => println!("✅ Container создался с коррекцией invalid параметров"),
-        Err(e) => println!("✅ Container корректно отклонил invalid конфигурацию: {}", e),
+        Err(e) => println!(
+            "✅ Container корректно отклонил invalid конфигурацию: {}",
+            e
+        ),
     }
-    
+
     Ok(())
 }

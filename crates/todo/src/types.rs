@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
+use memory::{Layer, Record};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use memory::{Record, Layer};
 
 /// Современная замена для deprecated MemRef
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,7 +58,7 @@ impl std::fmt::Display for TaskState {
 
 impl std::str::FromStr for TaskState {
     type Err = anyhow::Error;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "planned" => Ok(TaskState::Planned),
@@ -101,34 +101,34 @@ pub struct TodoItem {
     pub description: String,
     pub state: TaskState,
     pub priority: Priority,
-    
+
     // Метаданные
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub started_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub due_date: Option<DateTime<Utc>>,
-    
+
     // Связи
     pub parent_id: Option<Uuid>,
     pub depends_on: Vec<Uuid>,
     pub blocks: Vec<Uuid>,
-    
+
     // Контекст из Memory
     pub context_refs: Vec<MemoryReference>,
-    
+
     // Результаты выполнения
     pub artifacts: Vec<MemoryReference>,
-    
+
     // AI метаданные
     pub auto_generated: bool,
     pub confidence: f32,
     pub reasoning: Option<String>,
-    
+
     // Подсказки для выполнения
     pub tool_hint: Option<String>,
     pub tool_params: Option<HashMap<String, String>>,
-    
+
     // Дополнительные метаданные
     pub tags: Vec<String>,
     pub metadata: HashMap<String, serde_json::Value>,

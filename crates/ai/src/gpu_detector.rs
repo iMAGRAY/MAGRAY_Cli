@@ -1,7 +1,7 @@
-﻿use std::process::Command;
-use std::str;
 use serde::{Deserialize, Serialize};
-use tracing::{info, debug};
+use std::process::Command;
+use std::str;
+use tracing::{debug, info};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GpuDetector {
@@ -27,10 +27,8 @@ impl GpuDetector {
     /// Определить доступные GPU через nvidia-smi
     pub fn detect() -> Self {
         // Проверяем наличие nvidia-smi
-        let nvidia_smi_check = Command::new("nvidia-smi")
-            .arg("--query")
-            .output();
-            
+        let nvidia_smi_check = Command::new("nvidia-smi").arg("--query").output();
+
         match nvidia_smi_check {
             Ok(output) if output.status.success() => {
                 info!("✅ nvidia-smi доступен, определяем GPU...");
@@ -42,7 +40,7 @@ impl GpuDetector {
             }
         }
     }
-    
+
     /// Определить NVIDIA GPU через nvidia-smi
     fn detect_nvidia_gpus() -> Self {
         let mut detector = Self {
@@ -51,17 +49,20 @@ impl GpuDetector {
             cuda_version: String::from("N/A"),
             driver_version: String::from("N/A"),
         };
-        
+
         // Получаем версию драйвера
         if let Ok(output) = Command::new("nvidia-smi")
-            .args(["--query-gpu=driver_version", "--format=csv,noheader,nounits"])
+            .args([
+                "--query-gpu=driver_version",
+                "--format=csv,noheader,nounits",
+            ])
             .output()
         {
             if let Ok(driver) = str::from_utf8(&output.stdout) {
                 detector.driver_version = driver.trim().to_string();
             }
         }
-        
+
         // Получаем информацию о GPU
         let gpu_query = Command::new("nvidia-smi")
             .args([
@@ -69,7 +70,7 @@ impl GpuDetector {
                 "--format=csv,noheader,nounits"
             ])
             .output();
-            
+
         if let Ok(output) = gpu_query {
             if output.status.success() {
                 if let Ok(gpu_info) = str::from_utf8(&output.stdout) {
@@ -81,18 +82,15 @@ impl GpuDetector {
                 }
             }
         }
-        
+
         // Получаем версию CUDA
-        if let Ok(output) = Command::new("nvcc")
-            .arg("--version")
-            .output()
-        {
+        if let Ok(output) = Command::new("nvcc").arg("--version").output() {
             if let Ok(version_str) = str::from_utf8(&output.stdout) {
-                if let Some(cuda_line) = version_str.lines()
-                    .find(|line| line.contains("release"))
-                {
+                if let Some(cuda_line) = version_str.lines().find(|line| line.contains("release")) {
                     if let Some(version) = cuda_line.split("release").nth(1) {
-                        detector.cuda_version = version.split(',').next()
+                        detector.cuda_version = version
+                            .split(',')
+                            .next()
                             .unwrap_or("N/A")
                             .trim()
                             .to_string();
@@ -100,21 +98,24 @@ impl GpuDetector {
                 }
             }
         }
-        
+
         detector.available = !detector.devices.is_empty();
-        
+
         if detector.available {
             info!("🎮 Найдено {} GPU устройств", detector.devices.len());
-            info!("🔧 Драйвер: {}, CUDA: {}", detector.driver_version, detector.cuda_version);
+            info!(
+                "🔧 Драйвер: {}, CUDA: {}",
+                detector.driver_version, detector.cuda_version
+            );
         }
-        
+
         detector
     }
-    
+
     /// Парсить строку с информацией о GPU
     fn parse_gpu_line(line: &str) -> Option<GpuDevice> {
         let parts: Vec<&str> = line.split(',').map(|s| s.trim()).collect();
-        
+
         if parts.len() >= 8 {
             Some(GpuDevice {
                 index: parts[0].parse().unwrap_or(0),
@@ -130,7 +131,7 @@ impl GpuDetector {
             None
         }
     }
-    
+
     /// Создать заглушку когда GPU недоступен
     fn not_available() -> Self {
         Self {
@@ -140,7 +141,7 @@ impl GpuDetector {
             driver_version: String::from("N/A"),
         }
     }
-    
+
     /// Выбрать лучший GPU по свободной памяти
     pub fn select_best_device(&self) -> Option<u32> {
         self.devices
@@ -148,33 +149,36 @@ impl GpuDetector {
             .max_by_key(|d| d.free_memory_mb)
             .map(|d| d.index)
     }
-    
+
     /// Получить общую свободную память на всех GPU
     pub fn total_free_memory_mb(&self) -> u64 {
         self.devices.iter().map(|d| d.free_memory_mb).sum()
     }
-    
+
     /// Проверить достаточно ли памяти для модели
     pub fn has_sufficient_memory(&self, required_mb: u64) -> bool {
         self.devices.iter().any(|d| d.free_memory_mb >= required_mb)
     }
-    
+
     /// Вывести подробную информацию о GPU
     pub fn print_detailed_info(&self) {
         if !self.available {
             info!("❌ GPU не обнаружен или не доступен");
             return;
         }
-        
+
         info!("🎮 GPU информация:");
         info!("  🔧 Драйвер: {}", self.driver_version);
         info!("  🔧 CUDA: {}", self.cuda_version);
-        
+
         for device in &self.devices {
             info!("  📊 GPU {}: {}", device.index, device.name);
             info!("    - Compute capability: {}", device.compute_capability);
-            info!("    - Память: {}/{} MB", device.free_memory_mb, device.total_memory_mb);
-            
+            info!(
+                "    - Память: {}/{} MB",
+                device.free_memory_mb, device.total_memory_mb
+            );
+
             if let Some(temp) = device.temperature_c {
                 info!("    - Температура: {}°C", temp);
             }
@@ -202,20 +206,20 @@ impl GpuOptimalParams {
     pub fn calculate(available_memory_mb: u64, model_size_mb: u64) -> Self {
         // Оставляем 20% памяти для системы
         let usable_memory_mb = (available_memory_mb as f64 * 0.8) as u64;
-        
+
         // Размер одного элемента в батче (приблизительно)
         let item_size_mb = 10; // 10MB на один элемент (embeddings + промежуточные тензоры)
-        
+
         // Максимальный размер батча
         let max_batch_size = ((usable_memory_mb - model_size_mb) / item_size_mb).max(1) as usize;
-        
+
         // Оптимальный размер батча (степень двойки для лучшей производительности)
         let optimal_batch_size = (1..=10)
             .map(|i| 1 << i) // 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024
             .filter(|&size| size <= max_batch_size)
             .next_back()
             .unwrap_or(1);
-            
+
         Self {
             batch_size: optimal_batch_size,
             max_sequence_length: if usable_memory_mb > 4000 { 512 } else { 256 },
@@ -228,14 +232,14 @@ impl GpuOptimalParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_gpu_detection() {
         let detector = GpuDetector::detect();
         println!("GPU available: {}", detector.available);
         detector.print_detailed_info();
     }
-    
+
     #[test]
     fn test_optimal_params() {
         let params = GpuOptimalParams::calculate(8000, 1500);

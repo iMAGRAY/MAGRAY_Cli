@@ -3,12 +3,37 @@ name = "llm"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = ["cpu"]
+
+# Minimal build - mock providers only  
+minimal = []
+
+# CPU build - full API provider support
+cpu = [
+    "anthropic",
+    "openai", 
+    "groq",
+    "azure",
+    "local"
+]
+
+# GPU build - same as CPU but with potential GPU-aware local models
+gpu = ["cpu"]
+
+# Individual LLM providers
+anthropic = ["reqwest"]
+openai = ["reqwest"] 
+groq = ["reqwest"]
+azure = ["reqwest"]
+local = []
+
 [dependencies]
 tokio = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, optional = true }
 tracing = { workspace = true }
 dotenv = { workspace = true }
 async-trait = "0.1.74"

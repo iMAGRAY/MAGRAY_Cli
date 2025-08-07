@@ -1,4 +1,4 @@
-﻿use std::fmt;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum AiError {
@@ -64,6 +64,7 @@ impl From<anyhow::Error> for AiError {
     }
 }
 
+#[cfg(feature = "onnx")]
 impl From<ndarray::ShapeError> for AiError {
     fn from(e: ndarray::ShapeError) -> Self {
         AiError::ValidationError(format!("Array shape error: {e}"))

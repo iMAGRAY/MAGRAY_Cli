@@ -1,6 +1,6 @@
-﻿use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
 use crate::LlmClient;
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntentDecision {
@@ -18,9 +18,10 @@ impl IntentAnalyzerAgent {
     pub fn new(llm: LlmClient) -> Self {
         Self { llm }
     }
-    
+
     pub async fn analyze_intent(&self, user_query: &str) -> Result<IntentDecision> {
-        let prompt = format!(r#"Ты - эксперт по анализу намерений пользователя. Определи, требует ли запрос использования инструментов или достаточно обычного чата.
+        let prompt = format!(
+            r#"Ты - эксперт по анализу намерений пользователя. Определи, требует ли запрос использования инструментов или достаточно обычного чата.
 
 ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{user_query}"
 
@@ -65,19 +66,20 @@ Git операции:
     "action_type": "tools",
     "confidence": 0.9,
     "reasoning": "пользователь просит создать файл"
-}}"#);
+}}"#
+        );
 
         let response = self.llm.chat_simple(&prompt).await?;
         self.parse_intent_decision(&response)
     }
-    
+
     fn parse_intent_decision(&self, response: &str) -> Result<IntentDecision> {
         let cleaned_response = response.trim();
-        
+
         if let Some(json_start) = cleaned_response.find('{') {
             if let Some(json_end) = cleaned_response.rfind('}') {
                 let json_str = &cleaned_response[json_start..=json_end];
-                
+
                 match serde_json::from_str::<IntentDecision>(json_str) {
                     Ok(decision) => return Ok(decision),
                     Err(e) => {
@@ -88,10 +90,10 @@ Git операции:
                 }
             }
         }
-        
+
         Err(anyhow!("Не найден валидный JSON в ответе: {}", response))
     }
-    
+
     fn fix_json_format(&self, json_str: &str) -> String {
         json_str
             .replace("'", "\"")

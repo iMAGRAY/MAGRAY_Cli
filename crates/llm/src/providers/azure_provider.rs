@@ -1,13 +1,13 @@
 use super::{
-    LlmProvider, LlmRequest, LlmResponse, ProviderCapabilities, ProviderHealth, ProviderId, 
-    TokenUsage, LatencyClass,
+    LatencyClass, LlmProvider, LlmRequest, LlmResponse, ProviderCapabilities, ProviderHealth,
+    ProviderId, TokenUsage,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 
 #[derive(Debug, Clone)]
 pub struct AzureProvider {
@@ -24,12 +24,12 @@ impl AzureProvider {
         if endpoint.is_empty() || api_key.is_empty() {
             return Err(anyhow!("Azure endpoint and API key cannot be empty"));
         }
-        
+
         let client = Client::builder()
             .timeout(Duration::from_secs(60))
             .build()
             .map_err(|e| anyhow!("Failed to create HTTP client: {}", e))?;
-            
+
         Ok(Self {
             endpoint,
             api_key,
@@ -38,7 +38,7 @@ impl AzureProvider {
             timeout: Duration::from_secs(60),
         })
     }
-    
+
     /// Get model-specific capabilities (similar to OpenAI)
     fn get_model_capabilities(&self) -> ProviderCapabilities {
         // Azure OpenAI models have similar capabilities to OpenAI
@@ -75,7 +75,7 @@ impl AzureProvider {
                 cost_per_1k_output: 0.01,
                 latency_class: LatencyClass::Standard,
                 reliability_score: 0.96,
-            }
+            },
         }
     }
 }
@@ -85,14 +85,14 @@ impl LlmProvider for AzureProvider {
     fn id(&self) -> ProviderId {
         ProviderId::new("azure", &self.model)
     }
-    
+
     fn capabilities(&self) -> ProviderCapabilities {
         self.get_model_capabilities()
     }
-    
+
     async fn health_check(&self) -> Result<ProviderHealth> {
         let start_time = Instant::now();
-        
+
         let test_request = AzureRequest {
             messages: vec![AzureMessage {
                 role: "user".to_string(),
@@ -101,24 +101,31 @@ impl LlmProvider for AzureProvider {
             max_tokens: Some(1),
             temperature: Some(0.0),
         };
-        
-        let url = format!("{}/openai/deployments/{}/chat/completions?api-version=2023-12-01-preview", 
-            self.endpoint.trim_end_matches('/'), self.model);
-        
-        let response = self.client
+
+        let url = format!(
+            "{}/openai/deployments/{}/chat/completions?api-version=2023-12-01-preview",
+            self.endpoint.trim_end_matches('/'),
+            self.model
+        );
+
+        let response = self
+            .client
             .post(&url)
             .header("api-key", &self.api_key)
             .header("Content-Type", "application/json")
             .json(&test_request)
             .send()
             .await;
-            
+
         match response {
             Ok(resp) => {
                 let elapsed = start_time.elapsed();
                 if resp.status().is_success() {
                     if elapsed > Duration::from_secs(10) {
-                        info!("Azure health check: DEGRADED (slow response: {:?})", elapsed);
+                        info!(
+                            "Azure health check: DEGRADED (slow response: {:?})",
+                            elapsed
+                        );
                         Ok(ProviderHealth::Degraded)
                     } else {
                         debug!("Azure health check: HEALTHY ({:?})", elapsed);
@@ -135,57 +142,66 @@ impl LlmProvider for AzureProvider {
             }
         }
     }
-    
+
     async fn complete(&self, request: LlmRequest) -> Result<LlmResponse> {
         let start_time = Instant::now();
-        
+
         self.validate_request(&request)?;
-        
+
         let mut messages = Vec::new();
-        
+
         if let Some(system_prompt) = &request.system_prompt {
             messages.push(AzureMessage {
                 role: "system".to_string(),
                 content: system_prompt.clone(),
             });
         }
-        
+
         messages.push(AzureMessage {
             role: "user".to_string(),
             content: request.prompt.clone(),
         });
-        
+
         let azure_request = AzureRequest {
             messages,
             max_tokens: request.max_tokens,
             temperature: request.temperature,
         };
-        
-        let url = format!("{}/openai/deployments/{}/chat/completions?api-version=2023-12-01-preview", 
-            self.endpoint.trim_end_matches('/'), self.model);
-        
-        info!("🚀 Sending request to Azure: {}", request.prompt.chars().take(50).collect::<String>());
-        
-        let response = self.client
+
+        let url = format!(
+            "{}/openai/deployments/{}/chat/completions?api-version=2023-12-01-preview",
+            self.endpoint.trim_end_matches('/'),
+            self.model
+        );
+
+        info!(
+            "🚀 Sending request to Azure: {}",
+            request.prompt.chars().take(50).collect::<String>()
+        );
+
+        let response = self
+            .client
             .post(&url)
             .header("api-key", &self.api_key)
             .header("Content-Type", "application/json")
             .json(&azure_request)
             .send()
             .await?;
-            
+
         if !response.status().is_success() {
             let error_text = response.text().await?;
             error!("Azure API error: {}", error_text);
             return Err(anyhow!("Azure API error: {}", error_text));
         }
-        
+
         let azure_response: AzureResponse = response.json().await?;
         let elapsed = start_time.elapsed();
-        
-        let choice = azure_response.choices.first()
+
+        let choice = azure_response
+            .choices
+            .first()
             .ok_or_else(|| anyhow!("Empty response from Azure"))?;
-            
+
         let usage = if let Some(usage) = azure_response.usage {
             TokenUsage::new(usage.prompt_tokens, usage.completion_tokens)
         } else {
@@ -193,9 +209,12 @@ impl LlmProvider for AzureProvider {
             let completion_tokens = choice.message.content.len() as u32 / 4;
             TokenUsage::new(prompt_tokens, completion_tokens)
         };
-        
-        info!("✅ Received response from Azure ({:?}): {} tokens", elapsed, usage.total_tokens);
-        
+
+        info!(
+            "✅ Received response from Azure ({:?}): {} tokens",
+            elapsed, usage.total_tokens
+        );
+
         Ok(LlmResponse {
             content: choice.message.content.clone(),
             usage,

@@ -1,10 +1,6 @@
 use common::{
-    StructuredLogEntry, 
-    ExecutionContext, 
-    PerformanceMetrics,
-    OperationTimer,
-    RequestContext,
-    LoggingConfig,
+    ExecutionContext, LoggingConfig, OperationTimer, PerformanceMetrics, RequestContext,
+    StructuredLogEntry,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -13,7 +9,7 @@ use std::time::Duration;
 #[test]
 fn test_execution_context_default() {
     let context = ExecutionContext::default();
-    
+
     assert!(context.request_id.is_none());
     assert!(context.user_id.is_none());
     assert!(!context.app_version.is_empty());
@@ -32,7 +28,7 @@ fn test_execution_context_with_all_fields() {
         pid: 9999,
         thread_id: "test-thread".to_string(),
     };
-    
+
     // Test serialization
     let json = serde_json::to_value(&context).unwrap();
     assert_eq!(json["request_id"], "req-abc123");
@@ -53,7 +49,7 @@ fn test_performance_metrics_serialization() {
         cache_hits: Some(150),
         cache_misses: Some(10),
     };
-    
+
     let json = serde_json::to_string(&metrics).unwrap();
     assert!(json.contains("\"duration_ms\":1500"));
     assert!(json.contains("\"cpu_usage_percent\":87.3"));
@@ -70,10 +66,10 @@ fn test_performance_metrics_minimal() {
         cache_hits: None,
         cache_misses: None,
     };
-    
+
     let json = serde_json::to_value(&metrics).unwrap();
     assert_eq!(json["duration_ms"], 100);
-    
+
     // Optional fields should not be present when None
     assert!(json.get("memory_used_bytes").is_none());
     assert!(json.get("cpu_usage_percent").is_none());
@@ -83,14 +79,23 @@ fn test_performance_metrics_minimal() {
 #[test]
 fn test_structured_log_entry_with_complex_fields() {
     let mut fields = HashMap::new();
-    fields.insert("string_field".to_string(), Value::String("test_value".to_string()));
-    fields.insert("number_field".to_string(), Value::Number(serde_json::Number::from(42)));
+    fields.insert(
+        "string_field".to_string(),
+        Value::String("test_value".to_string()),
+    );
+    fields.insert(
+        "number_field".to_string(),
+        Value::Number(serde_json::Number::from(42)),
+    );
     fields.insert("bool_field".to_string(), Value::Bool(true));
-    fields.insert("array_field".to_string(), Value::Array(vec![
-        Value::String("item1".to_string()),
-        Value::String("item2".to_string())
-    ]));
-    
+    fields.insert(
+        "array_field".to_string(),
+        Value::Array(vec![
+            Value::String("item1".to_string()),
+            Value::String("item2".to_string()),
+        ]),
+    );
+
     let entry = StructuredLogEntry {
         timestamp: "2024-12-01T10:30:00Z".to_string(),
         level: "DEBUG".to_string(),
@@ -100,10 +105,16 @@ fn test_structured_log_entry_with_complex_fields() {
         context: None,
         performance: None,
     };
-    
+
     assert_eq!(entry.fields.len(), 4);
-    assert_eq!(entry.fields["string_field"], Value::String("test_value".to_string()));
-    assert_eq!(entry.fields["number_field"], Value::Number(serde_json::Number::from(42)));
+    assert_eq!(
+        entry.fields["string_field"],
+        Value::String("test_value".to_string())
+    );
+    assert_eq!(
+        entry.fields["number_field"],
+        Value::Number(serde_json::Number::from(42))
+    );
     assert_eq!(entry.fields["bool_field"], Value::Bool(true));
 }
 
@@ -111,13 +122,13 @@ fn test_structured_log_entry_with_complex_fields() {
 fn test_operation_timer_multiple_operations() {
     let timer1 = OperationTimer::new("operation_1");
     let timer2 = OperationTimer::new("operation_2");
-    
+
     std::thread::sleep(Duration::from_millis(5));
     let metrics1 = timer1.finish();
-    
+
     std::thread::sleep(Duration::from_millis(10));
     let metrics2 = timer2.finish();
-    
+
     assert!(metrics1.duration_ms >= 5);
     assert!(metrics2.duration_ms >= 15); // Should include both sleeps
 }
@@ -126,7 +137,7 @@ fn test_operation_timer_multiple_operations() {
 fn test_operation_timer_zero_duration() {
     let timer = OperationTimer::new("instant_operation");
     let metrics = timer.finish();
-    
+
     // Should handle near-zero durations gracefully
     // u64 is always >= 0, so just check that it's a valid value
     assert!(metrics.duration_ms < 1000); // Should be less than 1 second for instant operation
@@ -135,7 +146,7 @@ fn test_operation_timer_zero_duration() {
 #[test]
 fn test_request_context_empty_metadata() {
     let context = RequestContext::new("req-empty");
-    
+
     assert_eq!(context.request_id(), "req-empty");
     assert!(context.user_id().is_none());
     assert!(context.metadata().is_empty());
@@ -149,7 +160,7 @@ fn test_request_context_chain_methods() {
         .with_user("user-456") // Should override previous user
         .with_metadata("step", "2") // Should override previous step
         .with_metadata("final", "true");
-    
+
     assert_eq!(context.user_id(), Some("user-456"));
     assert_eq!(context.metadata().get("step"), Some(&"2".to_string()));
     assert_eq!(context.metadata().get("final"), Some(&"true".to_string()));
@@ -159,18 +170,18 @@ fn test_request_context_chain_methods() {
 #[test]
 fn test_logging_config_builder_pattern() {
     let mut config = LoggingConfig::new();
-    
+
     // Test initial state
     assert!(!config.json_output());
     assert_eq!(config.level(), "info");
-    
+
     // Test chaining
     config = config
         .with_json_output(true)
         .with_level("trace")
         .with_pretty_print(false)
         .with_json_output(false); // Should override
-    
+
     assert!(!config.json_output());
     assert_eq!(config.level(), "trace");
 }
@@ -178,7 +189,7 @@ fn test_logging_config_builder_pattern() {
 #[test]
 fn test_logging_config_default_values() {
     let config = LoggingConfig::default();
-    
+
     assert!(!config.json_output());
     assert_eq!(config.level(), "info");
     // Test that default is equivalent to new()
@@ -197,7 +208,7 @@ fn test_structured_log_entry_full_context() {
         pid: 12345,
         thread_id: "full-thread".to_string(),
     };
-    
+
     let performance = PerformanceMetrics {
         duration_ms: 250,
         memory_used_bytes: Some(1024),
@@ -206,10 +217,13 @@ fn test_structured_log_entry_full_context() {
         cache_hits: Some(20),
         cache_misses: Some(3),
     };
-    
+
     let mut fields = HashMap::new();
-    fields.insert("operation".to_string(), Value::String("full_test".to_string()));
-    
+    fields.insert(
+        "operation".to_string(),
+        Value::String("full_test".to_string()),
+    );
+
     let entry = StructuredLogEntry {
         timestamp: "2024-12-01T12:00:00Z".to_string(),
         level: "INFO".to_string(),
@@ -219,7 +233,7 @@ fn test_structured_log_entry_full_context() {
         context: Some(context),
         performance: Some(performance),
     };
-    
+
     // Test serialization of full entry
     let json = serde_json::to_string(&entry).unwrap();
     assert!(json.contains("full-req"));
@@ -238,7 +252,7 @@ fn test_structured_log_entry_partial_context() {
         pid: 54321,
         thread_id: "partial-thread".to_string(),
     };
-    
+
     let entry = StructuredLogEntry {
         timestamp: chrono::Utc::now().to_rfc3339(),
         level: "WARN".to_string(),
@@ -248,7 +262,7 @@ fn test_structured_log_entry_partial_context() {
         context: Some(context),
         performance: None,
     };
-    
+
     assert!(entry.context.is_some());
     let ctx = entry.context.unwrap();
     assert!(ctx.request_id.is_none());
@@ -258,7 +272,7 @@ fn test_structured_log_entry_partial_context() {
 #[test]
 fn test_operation_timer_callback_with_error() {
     let timer = OperationTimer::new("error_test");
-    
+
     // Test that callback receives correct metrics
     let result = timer.finish_with(|metrics| {
         if metrics.duration_ms > 0 {
@@ -267,7 +281,7 @@ fn test_operation_timer_callback_with_error() {
             Err("duration too short")
         }
     });
-    
+
     // Should return the result from callback
     assert!(result.is_ok() || result.is_err()); // Either is valid
 }
@@ -275,14 +289,14 @@ fn test_operation_timer_callback_with_error() {
 #[test]
 fn test_performance_metrics_edge_cases() {
     let metrics = PerformanceMetrics {
-        duration_ms: 0, // Zero duration
-        memory_used_bytes: Some(0), // Zero memory
+        duration_ms: 0,               // Zero duration
+        memory_used_bytes: Some(0),   // Zero memory
         cpu_usage_percent: Some(0.0), // Zero CPU
-        io_operations: Some(0), // Zero IO
-        cache_hits: Some(0), // Zero hits
-        cache_misses: Some(0), // Zero misses
+        io_operations: Some(0),       // Zero IO
+        cache_hits: Some(0),          // Zero hits
+        cache_misses: Some(0),        // Zero misses
     };
-    
+
     let json = serde_json::to_value(&metrics).unwrap();
     assert_eq!(json["duration_ms"], 0);
     assert_eq!(json["cpu_usage_percent"], 0.0);
@@ -294,10 +308,13 @@ fn test_request_context_special_characters() {
     let context = RequestContext::new("req-!@#$%^&*()")
         .with_user("user-Ñüñéz")
         .with_metadata("special", "¡Hola, Wörld! 你好 🌍");
-    
+
     assert_eq!(context.request_id(), "req-!@#$%^&*()");
     assert_eq!(context.user_id(), Some("user-Ñüñéz"));
-    assert_eq!(context.metadata().get("special"), Some(&"¡Hola, Wörld! 你好 🌍".to_string()));
+    assert_eq!(
+        context.metadata().get("special"),
+        Some(&"¡Hola, Wörld! 你好 🌍".to_string())
+    );
 }
 
 #[test]
@@ -306,7 +323,7 @@ fn test_logging_config_invalid_levels() {
         .with_level("invalid_level")
         .with_level("DEBUG") // Should work
         .with_level(""); // Edge case
-    
+
     // Should handle gracefully - exact behavior depends on implementation
     assert!(!config.level().is_empty() || config.level().is_empty());
 }

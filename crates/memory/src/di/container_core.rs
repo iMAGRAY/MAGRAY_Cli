@@ -1,16 +1,21 @@
 use anyhow::{anyhow, Result};
+use parking_lot::RwLock;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
     sync::Arc,
 };
-use parking_lot::RwLock;
 use tracing::{debug, warn};
 
-use super::traits::{Lifetime, LifetimeManager, DependencyValidator, MetricsReporter};
+use super::{
+    object_safe_resolver::ObjectSafeResolver,
+    traits::{DependencyValidator, Lifetime, LifetimeManager, MetricsReporter},
+};
 
 /// Тип factory функции для создания компонентов
-pub type Factory = Box<dyn Fn(&ContainerCore) -> Result<Arc<dyn Any + Send + Sync>> + Send + Sync>;
+pub type Factory = Box<
+    dyn Fn(&ContainerCore) -> Result<Arc<dyn Any + Send + Sync + 'static>> + Send + Sync + 'static,
+>;
 
 /// Основной DI контейнер, применяющий принципы SOLID
 /// SRP: Отвечает только за регистрацию и разрешение зависимостей
@@ -64,8 +69,9 @@ impl ContainerCore {
     {
         let dependent_id = TypeId::of::<TDependent>();
         let dependency_id = TypeId::of::<TDependency>();
-        
-        self.dependency_validator.add_dependency(dependent_id, dependency_id)
+
+        self.dependency_validator
+            .add_dependency(dependent_id, dependency_id)
     }
 
     /// Валидировать все зависимости
@@ -88,11 +94,11 @@ impl ContainerCore {
             let mut type_names = self.type_names.write();
             type_names.clear();
         }
-        
+
         self.lifetime_manager.clear_caches();
         self.dependency_validator.clear();
         self.metrics_reporter.clear_metrics();
-        
+
         debug!("Container cleared");
     }
 
@@ -105,7 +111,7 @@ impl ContainerCore {
     pub fn performance_metrics(&self) -> super::traits::DIPerformanceMetrics {
         self.metrics_reporter.get_performance_metrics()
     }
-    
+
     /// Получить краткий отчет о производительности в формате строки
     pub fn get_performance_report(&self) -> String {
         let metrics = self.performance_metrics();
@@ -125,13 +131,15 @@ impl ContainerCore {
             },
             metrics.error_count,
             if metrics.total_resolutions > 0 {
-                (metrics.total_resolutions - metrics.error_count) as f64 / metrics.total_resolutions as f64 * 100.0
+                (metrics.total_resolutions - metrics.error_count) as f64
+                    / metrics.total_resolutions as f64
+                    * 100.0
             } else {
                 100.0
             }
         )
     }
-    
+
     /// Сбросить метрики производительности
     pub fn reset_performance_metrics(&self) {
         self.metrics_reporter.clear_metrics();
@@ -147,36 +155,13 @@ impl ContainerCore {
         let type_id = TypeId::of::<T>();
         let type_name = self.get_type_name(type_id);
 
-        // Получаем factory и lifetime
-        let (factory, lifetime) = {
-            let factories = self.factories.read();
-            match factories.get(&type_id) {
-                Some((factory, lifetime)) => {
-                    // Клонируем factory для использования вне lock
-                    let factory: Factory = unsafe {
-                        std::mem::transmute_copy(factory)
-                    };
-                    (factory, *lifetime)
-                }
-                None => {
-                    return Err(anyhow!("Type {} is not registered", type_name));
-                }
-            }
-        };
+        // Проверяем наличие factory
+        if !self.factories.read().contains_key(&type_id) {
+            return Err(anyhow!("Type {} is not registered", type_name));
+        }
 
-        // Используем lifetime manager для получения экземпляра
-        let factory_closure = move || -> Result<Arc<dyn Any + Send + Sync>> {
-            factory(self)
-        };
-
-        let result: Arc<T> = self.lifetime_manager.get_instance(
-            type_id,
-            &factory_closure,
-            lifetime,
-        )?;
-
-        debug!("Resolved {} with {:?} lifetime", type_name, lifetime);
-        Ok(result)
+        // Используем resolve_with_lifetime для обработки
+        self.resolve_with_lifetime::<T>(type_id, Lifetime::Transient)
     }
 
     /// Попытаться разрешить зависимость
@@ -215,7 +200,8 @@ impl ContainerCore {
 
         let wrapped_factory: Factory = Box::new(move |resolver| {
             let instance = factory(resolver)?;
-            Ok(Arc::new(instance))
+            let arc_instance: Arc<dyn Any + Send + Sync + 'static> = Arc::new(instance);
+            Ok(arc_instance)
         });
 
         {
@@ -249,7 +235,8 @@ impl ContainerCore {
         // Для экземпляров создаём простую factory функцию
         let arc_instance = Arc::new(instance);
         let wrapped_factory: Factory = Box::new(move |_| {
-            Ok(arc_instance.clone())
+            let cloned: Arc<dyn Any + Send + Sync + 'static> = arc_instance.clone();
+            Ok(cloned)
         });
 
         {
@@ -270,3 +257,126 @@ impl ContainerCore {
     }
 }
 
+// Реализация DIResolver для ContainerCore
+impl super::traits::DIResolver for ContainerCore {
+    fn resolve<T>(&self) -> Result<Arc<T>>
+    where
+        T: Any + Send + Sync + 'static,
+    {
+        let type_id = TypeId::of::<T>();
+        let type_name = std::any::type_name::<T>();
+
+        // Поиск factory в контейнере
+        let lifetime = {
+            let factories = self.factories.read();
+            match factories.get(&type_id) {
+                Some((_factory, lifetime)) => *lifetime,
+                None => {
+                    return Err(anyhow!("Type {} is not registered", type_name));
+                }
+            }
+        };
+
+        self.resolve_with_lifetime::<T>(type_id, lifetime)
+    }
+
+    fn try_resolve<T>(&self) -> Option<Arc<T>>
+    where
+        T: Any + Send + Sync + 'static,
+    {
+        self.resolve().ok()
+    }
+
+    fn is_registered<T>(&self) -> bool
+    where
+        T: Any + Send + Sync + 'static,
+    {
+        let type_id = TypeId::of::<T>();
+        self.factories.read().contains_key(&type_id)
+    }
+}
+
+impl ContainerCore {
+    /// Resolve with specific lifetime handling
+    fn resolve_with_lifetime<T>(&self, type_id: TypeId, _lifetime: Lifetime) -> Result<Arc<T>>
+    where
+        T: Any + Send + Sync + 'static,
+    {
+        let type_name = std::any::type_name::<T>();
+
+        // Получаем factory из хранилища
+        let factories = self.factories.read();
+        match factories.get(&type_id) {
+            Some((factory_ref, _)) => {
+                // Создаем экземпляр через factory
+                let instance = factory_ref(self)?;
+                // Пытаемся привести к нужному типу
+                match instance.downcast::<T>() {
+                    Ok(typed_instance) => {
+                        debug!("Successfully resolved {}", type_name);
+                        Ok(typed_instance)
+                    }
+                    Err(_) => Err(anyhow!("Failed to downcast instance to type {}", type_name)),
+                }
+            }
+            None => Err(anyhow!("Type {} is not registered", type_name)),
+        }
+    }
+}
+
+/// Реализация ObjectSafeResolver для ContainerCore
+/// Это позволяет использовать ContainerCore с trait objects
+impl ObjectSafeResolver for ContainerCore {
+    fn resolve_by_type_id(&self, type_id: TypeId) -> Result<Arc<dyn Any + Send + Sync + 'static>> {
+        let factories = self.factories.read();
+        let type_names = self.type_names.read();
+
+        let type_name = type_names
+            .get(&type_id)
+            .map(|s| s.as_str())
+            .unwrap_or("Unknown");
+
+        match factories.get(&type_id) {
+            Some((factory, _lifetime)) => {
+                debug!("Resolving {} using object-safe resolver", type_name);
+                factory(self)
+            }
+            None => {
+                let registered: Vec<String> = type_names.values().cloned().collect();
+                Err(anyhow!(
+                    "Type {} is not registered. Available types: [{}]",
+                    type_name,
+                    registered.join(", ")
+                ))
+            }
+        }
+    }
+
+    fn try_resolve_by_type_id(
+        &self,
+        type_id: TypeId,
+    ) -> Option<Arc<dyn Any + Send + Sync + 'static>> {
+        let factories = self.factories.read();
+
+        if let Some((factory, _lifetime)) = factories.get(&type_id) {
+            factory(self).ok()
+        } else {
+            None
+        }
+    }
+
+    fn is_registered_by_type_id(&self, type_id: TypeId) -> bool {
+        let factories = self.factories.read();
+        factories.contains_key(&type_id)
+    }
+
+    fn get_registered_types(&self) -> Vec<TypeId> {
+        let factories = self.factories.read();
+        factories.keys().cloned().collect()
+    }
+
+    fn get_type_name(&self, type_id: TypeId) -> Option<String> {
+        let type_names = self.type_names.read();
+        type_names.get(&type_id).cloned()
+    }
+}

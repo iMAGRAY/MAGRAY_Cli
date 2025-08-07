@@ -1,12 +1,11 @@
 //! Comprehensive Error Handling System for MAGRAY CLI
-//! 
+//!
 //! This module provides a comprehensive error hierarchy and handling mechanisms
 //! to replace all critical .unwrap() calls throughout the codebase.
 
 use std::fmt;
 use std::sync::PoisonError;
 use thiserror::Error;
-
 
 /// Top-level error type for MAGRAY CLI applications
 #[derive(Debug, Error)]
@@ -28,6 +27,15 @@ pub enum MagrayCoreError {
 
     #[error("Network operation error: {0}")]
     Network(#[from] NetworkError),
+
+    #[error("Service operation timeout")]
+    Timeout,
+
+    #[error("Operation cancelled by user")]
+    OperationCancelled,
+
+    #[error("Serialization error: {0}")]
+    Serialization(String),
 
     #[error("File system error: {0}")]
     FileSystem(#[from] FileSystemError),
@@ -58,10 +66,18 @@ pub enum MemoryError {
     Database { operation: String, reason: String },
 
     #[error("Transaction failed: {transaction_id} - {reason}")]
-    Transaction { transaction_id: String, reason: String },
+    Transaction {
+        transaction_id: String,
+        reason: String,
+    },
 
-    #[error("Memory pool exhausted: requested {requested_bytes} bytes, available {available_bytes}")]
-    PoolExhausted { requested_bytes: usize, available_bytes: usize },
+    #[error(
+        "Memory pool exhausted: requested {requested_bytes} bytes, available {available_bytes}"
+    )]
+    PoolExhausted {
+        requested_bytes: usize,
+        available_bytes: usize,
+    },
 
     #[error("Lock contention: {resource} - {timeout_ms}ms timeout exceeded")]
     LockTimeout { resource: String, timeout_ms: u64 },
@@ -92,7 +108,11 @@ pub enum AIError {
     MemoryPool { pool_type: String, reason: String },
 
     #[error("Device fallback triggered: {from_device} -> {to_device} - {reason}")]
-    DeviceFallback { from_device: String, to_device: String, reason: String },
+    DeviceFallback {
+        from_device: String,
+        to_device: String,
+        reason: String,
+    },
 
     #[error("Model compatibility error: expected {expected}, got {actual}")]
     ModelCompatibility { expected: String, actual: String },
@@ -108,13 +128,19 @@ pub enum LLMError {
     Authentication { provider: String, reason: String },
 
     #[error("Rate limit exceeded: {provider} - retry after {retry_after_seconds}s")]
-    RateLimit { provider: String, retry_after_seconds: u64 },
+    RateLimit {
+        provider: String,
+        retry_after_seconds: u64,
+    },
 
     #[error("Response parsing failed: {reason}")]
     ResponseParsing { reason: String },
 
     #[error("Context length exceeded: {requested} > {max_allowed}")]
-    ContextLength { requested: usize, max_allowed: usize },
+    ContextLength {
+        requested: usize,
+        max_allowed: usize,
+    },
 
     #[error("Model not available: {model_name} - {reason}")]
     ModelUnavailable { model_name: String, reason: String },
@@ -127,19 +153,31 @@ pub enum LLMError {
 #[derive(Debug, Error)]
 pub enum ResourceError {
     #[error("Memory exhausted: requested {requested_mb}MB, available {available_mb}MB")]
-    MemoryExhausted { requested_mb: usize, available_mb: usize },
+    MemoryExhausted {
+        requested_mb: usize,
+        available_mb: usize,
+    },
 
     #[error("CPU overload: current load {current_percent}% > threshold {threshold_percent}%")]
-    CPUOverload { current_percent: f64, threshold_percent: f64 },
+    CPUOverload {
+        current_percent: f64,
+        threshold_percent: f64,
+    },
 
     #[error("GPU memory exhausted: requested {requested_mb}MB, available {available_mb}MB")]
-    GPUMemoryExhausted { requested_mb: usize, available_mb: usize },
+    GPUMemoryExhausted {
+        requested_mb: usize,
+        available_mb: usize,
+    },
 
     #[error("Disk space insufficient: required {required_mb}MB, available {available_mb}MB")]
     DiskSpaceInsufficient { required_mb: u64, available_mb: u64 },
 
     #[error("Thread pool exhausted: {active_threads}/{max_threads} threads")]
-    ThreadPoolExhausted { active_threads: usize, max_threads: usize },
+    ThreadPoolExhausted {
+        active_threads: usize,
+        max_threads: usize,
+    },
 
     #[error("Resource lock poisoned: {resource} - {details}")]
     LockPoisoned { resource: String, details: String },
@@ -152,7 +190,11 @@ pub enum ConfigError {
     MissingRequired { config_key: String },
 
     #[error("Invalid config value: {config_key} = '{value}' - {reason}")]
-    InvalidValue { config_key: String, value: String, reason: String },
+    InvalidValue {
+        config_key: String,
+        value: String,
+        reason: String,
+    },
 
     #[error("Config file not found: {file_path}")]
     FileNotFound { file_path: String },
@@ -174,7 +216,10 @@ pub enum NetworkError {
     Connection { endpoint: String, reason: String },
 
     #[error("Timeout: {operation} - {timeout_seconds}s")]
-    Timeout { operation: String, timeout_seconds: u64 },
+    Timeout {
+        operation: String,
+        timeout_seconds: u64,
+    },
 
     #[error("DNS resolution failed: {hostname} - {reason}")]
     DNSResolution { hostname: String, reason: String },
@@ -205,7 +250,11 @@ pub enum FileSystemError {
     LockFile { path: String, reason: String },
 
     #[error("IO error: {operation} on {path} - {reason}")]
-    IO { operation: String, path: String, reason: String },
+    IO {
+        operation: String,
+        path: String,
+        reason: String,
+    },
 }
 
 /// Critical system errors that may require shutdown
@@ -221,7 +270,10 @@ pub enum CriticalError {
     DataCorruption { component: String, details: String },
 
     #[error("Security breach detected: {incident_type} - {details}")]
-    SecurityBreach { incident_type: String, details: String },
+    SecurityBreach {
+        incident_type: String,
+        details: String,
+    },
 
     #[error("Unrecoverable error: {reason}")]
     Unrecoverable { reason: String },
@@ -242,7 +294,10 @@ pub type CriticalResult<T> = Result<T, CriticalError>;
 #[derive(Debug, Clone)]
 pub enum RecoveryStrategy {
     /// Retry the operation with exponential backoff
-    Retry { max_attempts: u32, base_delay_ms: u64 },
+    Retry {
+        max_attempts: u32,
+        base_delay_ms: u64,
+    },
     /// Fallback to alternative approach
     Fallback { alternative: String },
     /// Graceful degradation
@@ -367,7 +422,11 @@ impl<T, E: fmt::Debug> SafeUnwrap<T> for Result<T, E> {
         match self {
             Ok(value) => value,
             Err(e) => {
-                tracing::warn!("Result unwrap failed in {}: {:?}, using default", context, e);
+                tracing::warn!(
+                    "Result unwrap failed in {}: {:?}, using default",
+                    context,
+                    e
+                );
                 default
             }
         }
@@ -380,9 +439,11 @@ mod tests {
 
     #[test]
     fn test_error_hierarchy() {
-        let memory_err = MemoryError::VectorStore { reason: "test".to_string() };
+        let memory_err = MemoryError::VectorStore {
+            reason: "test".to_string(),
+        };
         let core_err = MagrayCoreError::Memory(memory_err);
-        
+
         assert!(format!("{}", core_err).contains("Memory system error"));
     }
 
@@ -396,9 +457,12 @@ mod tests {
     #[test]
     fn test_error_context() {
         let ctx = ErrorContext::new("insert", "vector_store")
-            .with_recovery(RecoveryStrategy::Retry { max_attempts: 3, base_delay_ms: 100 })
+            .with_recovery(RecoveryStrategy::Retry {
+                max_attempts: 3,
+                base_delay_ms: 100,
+            })
             .with_user_message("Vector insertion failed");
-        
+
         assert_eq!(ctx.operation, "insert");
         assert_eq!(ctx.component, "vector_store");
         assert!(ctx.user_facing_message.is_some());

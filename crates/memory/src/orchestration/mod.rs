@@ -1,22 +1,24 @@
 // Модуль orchestration для координации компонентов memory системы
 // Применяет SOLID принципы через декомпозицию на специализированные модули
 
-pub mod traits;
-mod retry_handler;
+mod backup_coordinator;
 mod embedding_coordinator;
-mod search_coordinator;
 mod health_manager;
 mod promotion_coordinator;
 mod resource_controller;
-mod backup_coordinator;
+mod retry_handler;
+mod search_coordinator;
+pub mod traits;
 
 // === SOLID-совместимая архитектура ===
 pub mod circuit_breaker_manager;
-pub mod orchestration_lifecycle_manager;
-pub mod operation_executor;
-pub mod metrics_collector;
 pub mod coordinator_registry;
+pub mod health_checker;
+pub mod lifecycle_manager;
+pub mod metrics_collector;
+pub mod operation_executor;
 pub mod orchestration_facade;
+pub mod orchestration_lifecycle_manager;
 
 // Legacy поддержка - оригинальный God Object (deprecated)
 mod memory_orchestrator;
@@ -27,49 +29,59 @@ mod memory_orchestrator;
 pub use traits::Coordinator;
 
 // Core coordinator implementations
-pub use retry_handler::{RetryHandler, RetryPolicy, RetryResult};
+pub use backup_coordinator::BackupCoordinator;
 pub use embedding_coordinator::EmbeddingCoordinator;
-pub use search_coordinator::SearchCoordinator;
 pub use health_manager::HealthManager;
 pub use promotion_coordinator::PromotionCoordinator;
 pub use resource_controller::ResourceController;
-pub use backup_coordinator::BackupCoordinator;
+pub use retry_handler::{RetryHandler, RetryPolicy, RetryResult};
+pub use search_coordinator::SearchCoordinator;
 
 // === NEW SOLID Architecture (Recommended) ===
 
 // Circuit breaker management
 pub use circuit_breaker_manager::{
-    CircuitBreakerManager, CircuitBreakerManagerTrait,
-    CircuitBreakerConfig, CircuitBreakerStatistics, CircuitBreakerStatus
+    CircuitBreakerConfig, CircuitBreakerManager, CircuitBreakerManagerTrait,
+    CircuitBreakerStatistics, CircuitBreakerStatus,
 };
 
 // Lifecycle management
 pub use orchestration_lifecycle_manager::{
-    OrchestrationLifecycleManager, LifecycleManager,
-    CoordinatorRegistry as LifecycleCoordinatorRegistry
+    CoordinatorRegistry as LifecycleCoordinatorRegistry, LifecycleManager,
+    OrchestrationLifecycleManager,
 };
 
 // Operation execution
 pub use operation_executor::{
-    OperationExecutor, OperationExecutorTrait,
-    OperationMetrics, CoordinatorDependencies
+    CoordinatorDependencies, OperationExecutor, OperationExecutorTrait, OperationMetrics,
 };
 
 // Metrics collection
 pub use metrics_collector::{
-    MetricsCollector, MetricsCollectorTrait,
-    OrchestrationMetrics, PerformanceMetrics, AvailabilityMetrics
+    CircuitBreakerMetric, CircuitBreakerStatus as MetricsCircuitBreakerStatus, CoordinatorMetrics,
+    MetricType, MetricsCollector, OrchestrationMetrics, TimestampedMetric,
 };
+
+// Health checking
+pub use health_checker::{
+    HealthCheckConfig, HealthChecker, HealthLevel, HealthStatus, SystemDiagnostics,
+};
+
+// Lifecycle management
+pub use lifecycle_manager::LifecycleManager;
 
 // Coordinator registry
 pub use coordinator_registry::{
-    CoordinatorRegistry, CoordinatorRegistryTrait, CoordinatorRegistryFactory,
-    ReadinessStatus, ValidationResult
+    CoordinatorRegistry, CoordinatorRegistryFactory, CoordinatorRegistryTrait, ReadinessStatus,
+    ValidationResult,
 };
 
 // Main facade (recommended entry point)
-pub use orchestration_facade::{OrchestrationFacade, MemoryOrchestrator};
+pub use orchestration_facade::{MemoryOrchestrator, OrchestrationFacade};
 
 // === Legacy Support (Deprecated) ===
-#[deprecated(since = "0.1.0", note = "Use OrchestrationFacade instead - provides same API with better architecture")]
+#[deprecated(
+    since = "0.1.0",
+    note = "Use OrchestrationFacade instead - provides same API with better architecture"
+)]
 pub use memory_orchestrator::MemoryOrchestrator as LegacyMemoryOrchestrator;

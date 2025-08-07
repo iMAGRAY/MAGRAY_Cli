@@ -1,11 +1,11 @@
 use anyhow::{anyhow, Result};
+use parking_lot::RwLock;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
 };
-use parking_lot::RwLock;
 use tracing::debug;
 
 use super::traits::{Lifetime, LifetimeManager, MetricsReporter, TypeMetrics};
@@ -74,7 +74,7 @@ impl LifetimeManagerImpl {
 
         // Создаём новый экземпляр
         let instance = factory()?;
-        
+
         // Пытаемся downcasting для проверки типа
         let typed_instance = instance
             .clone()
@@ -106,7 +106,7 @@ impl LifetimeManagerImpl {
         T: Any + Send + Sync + 'static,
     {
         let instance = factory()?;
-        
+
         let typed_instance = instance
             .downcast::<T>()
             .map_err(|_| anyhow!("Failed to downcast to target type"))?;
@@ -154,7 +154,7 @@ impl LifetimeManager for LifetimeManagerImpl {
         T: Any + Send + Sync + 'static,
     {
         let start_time = Instant::now();
-        
+
         let result = match lifetime {
             Lifetime::Singleton => self.handle_singleton::<T>(type_id, factory),
             Lifetime::Transient => self.handle_transient::<T>(factory),
@@ -162,7 +162,10 @@ impl LifetimeManager for LifetimeManagerImpl {
         };
 
         let duration = start_time.elapsed();
-        debug!("Instance resolution took {:?} for {:?} lifetime", duration, lifetime);
+        debug!(
+            "Instance resolution took {:?} for {:?} lifetime",
+            duration, lifetime
+        );
 
         result
     }
@@ -180,7 +183,7 @@ impl LifetimeManager for LifetimeManagerImpl {
             let mut stats = self.cache_stats.write();
             stats.total_cache_clears += 1;
         }
-        
+
         debug!("All lifetime caches cleared");
     }
 
@@ -193,7 +196,7 @@ impl LifetimeManager for LifetimeManagerImpl {
             let mut scoped = self.scoped.write();
             scoped.remove(&type_id);
         }
-        
+
         debug!("Cache cleared for type {:?}", type_id);
     }
 }
@@ -280,7 +283,7 @@ impl LifetimeManager for ExtensibleLifetimeManager {
 
     fn clear_caches(&self) {
         self.core_manager.clear_caches();
-        
+
         // Очищаем кэши custom strategies
         let strategies = self.custom_strategies.read();
         for strategy in strategies.values() {
@@ -312,15 +315,15 @@ mod tests {
         let manager = LifetimeManagerImpl::new();
         let type_id = TypeId::of::<TestService>();
 
-        let factory = || -> Result<Arc<dyn Any + Send + Sync>> {
-            Ok(Arc::new(TestService::new()))
-        };
+        let factory = || -> Result<Arc<dyn Any + Send + Sync>> { Ok(Arc::new(TestService::new())) };
 
         // Первый запрос - должен создать экземпляр
-        let instance1 = manager.get_instance::<TestService>(type_id, &factory, Lifetime::Singleton)?;
-        
+        let instance1 =
+            manager.get_instance::<TestService>(type_id, &factory, Lifetime::Singleton)?;
+
         // Второй запрос - должен вернуть тот же экземпляр
-        let instance2 = manager.get_instance::<TestService>(type_id, &factory, Lifetime::Singleton)?;
+        let instance2 =
+            manager.get_instance::<TestService>(type_id, &factory, Lifetime::Singleton)?;
 
         // Проверяем, что это тот же экземпляр (по адресу)
         assert!(Arc::ptr_eq(&instance1, &instance2));
@@ -337,13 +340,13 @@ mod tests {
         let manager = LifetimeManagerImpl::new();
         let type_id = TypeId::of::<TestService>();
 
-        let factory = || -> Result<Arc<dyn Any + Send + Sync>> {
-            Ok(Arc::new(TestService::new()))
-        };
+        let factory = || -> Result<Arc<dyn Any + Send + Sync>> { Ok(Arc::new(TestService::new())) };
 
         // Два запроса transient должны создать разные экземпляры
-        let instance1 = manager.get_instance::<TestService>(type_id, &factory, Lifetime::Transient)?;
-        let instance2 = manager.get_instance::<TestService>(type_id, &factory, Lifetime::Transient)?;
+        let instance1 =
+            manager.get_instance::<TestService>(type_id, &factory, Lifetime::Transient)?;
+        let instance2 =
+            manager.get_instance::<TestService>(type_id, &factory, Lifetime::Transient)?;
 
         // Проверяем, что это разные экземпляры
         assert!(!Arc::ptr_eq(&instance1, &instance2));
@@ -359,18 +362,18 @@ mod tests {
         let manager = LifetimeManagerImpl::new();
         let type_id = TypeId::of::<TestService>();
 
-        let factory = || -> Result<Arc<dyn Any + Send + Sync>> {
-            Ok(Arc::new(TestService::new()))
-        };
+        let factory = || -> Result<Arc<dyn Any + Send + Sync>> { Ok(Arc::new(TestService::new())) };
 
         // Создаём singleton
-        let _instance1 = manager.get_instance::<TestService>(type_id, &factory, Lifetime::Singleton)?;
-        
+        let _instance1 =
+            manager.get_instance::<TestService>(type_id, &factory, Lifetime::Singleton)?;
+
         // Очищаем кэш
         manager.clear_caches();
-        
+
         // Следующий запрос должен создать новый экземпляр
-        let _instance2 = manager.get_instance::<TestService>(type_id, &factory, Lifetime::Singleton)?;
+        let _instance2 =
+            manager.get_instance::<TestService>(type_id, &factory, Lifetime::Singleton)?;
 
         let stats = manager.get_cache_stats();
         assert_eq!(stats.singleton_misses, 2); // Два промаха из-за очистки кэша

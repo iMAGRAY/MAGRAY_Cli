@@ -1,11 +1,8 @@
 use anyhow::Result;
-use memory::{
-    DIMemoryService, Layer, Record, SearchOptions, 
-    default_config, MemoryServiceConfig
-};
+use chrono::Utc;
+use memory::{default_config, DIMemoryService, Layer, MemoryServiceConfig, Record, SearchOptions};
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
 /// Пример лучших практик использования DIMemoryService
 
@@ -21,7 +18,7 @@ async fn main() -> Result<()> {
     // 1. Правильная конфигурация сервиса
     println!("1. Настройка конфигурации...");
     let config = create_optimized_config()?;
-    
+
     // 2. Создание сервиса с обработкой ошибок
     println!("2. Создание DI Memory Service...");
     let service = match DIMemoryService::new(config).await {
@@ -82,24 +79,24 @@ async fn main() -> Result<()> {
 /// Создание оптимизированной конфигурации
 fn create_optimized_config() -> Result<MemoryServiceConfig> {
     let mut config = default_config()?;
-    
+
     // Оптимизация для production
-    config.promotion.interact_ttl = 3600;  // 1 час для взаимодействий
-    config.promotion.insights_ttl = 86400 * 7;  // 1 неделя для инсайтов
-    config.promotion.promotion_threshold = 0.7;  // Порог для продвижения
-    
+    config.promotion.interact_ttl = 3600; // 1 час для взаимодействий
+    config.promotion.insights_ttl = 86400 * 7; // 1 неделя для инсайтов
+    config.promotion.promotion_threshold = 0.7; // Порог для продвижения
+
     // Настройка кэша
     use memory::CacheConfig;
     config.cache_config = CacheConfig::production();
-    
+
     // Настройка здоровья системы
     config.health_config.check_interval_seconds = 60;
     config.health_config.enable_auto_recovery = true;
-    
+
     // Batch конфигурация для производительности
     config.batch_config.max_batch_size = 100;
     config.batch_config.batch_timeout_ms = 50;
-    
+
     Ok(config)
 }
 
@@ -169,13 +166,16 @@ async fn demo_efficient_search(service: &Arc<DIMemoryService>) -> Result<()> {
         layers: vec![Layer::Interact, Layer::Insights],
     };
 
-    let results = service.search("async programming", Layer::Interact, options).await?;
-    
+    let results = service
+        .search("async programming", Layer::Interact, options)
+        .await?;
+
     println!("   Найдено {} результатов:", results.len());
     for (i, record) in results.iter().enumerate() {
-        println!("   {}. [{}] {} (score: {:.3})", 
-            i + 1, 
-            record.layer, 
+        println!(
+            "   {}. [{}] {} (score: {:.3})",
+            i + 1,
+            record.layer,
             &record.text[..50.min(record.text.len())],
             record.score
         );
@@ -187,12 +187,15 @@ async fn demo_efficient_search(service: &Arc<DIMemoryService>) -> Result<()> {
 /// Анализ производительности
 async fn demo_performance_analysis(service: &Arc<DIMemoryService>) -> Result<()> {
     let metrics = service.get_performance_metrics();
-    
+
     println!("   📊 Метрики производительности:");
     println!("      • Всего операций resolve: {}", metrics.total_resolves);
     println!("      • Cache hit rate: {:.1}%", metrics.cache_hit_rate());
-    println!("      • Средняя скорость resolve: {:.1}μs", metrics.avg_resolve_time_us());
-    
+    println!(
+        "      • Средняя скорость resolve: {:.1}μs",
+        metrics.avg_resolve_time_us()
+    );
+
     // Показываем детальный отчет
     println!("\n   📈 Детальный отчет:");
     let report = service.get_performance_report();
@@ -207,11 +210,17 @@ async fn demo_performance_analysis(service: &Arc<DIMemoryService>) -> Result<()>
 async fn demo_memory_management(service: &Arc<DIMemoryService>) -> Result<()> {
     // Запускаем promotion cycle
     let stats = service.run_promotion().await?;
-    
+
     println!("   🔄 Результаты promotion:");
-    println!("      • Interact → Insights: {}", stats.interact_to_insights);
+    println!(
+        "      • Interact → Insights: {}",
+        stats.interact_to_insights
+    );
     println!("      • Insights → Assets: {}", stats.insights_to_assets);
-    println!("      • Удалено устаревших: {} + {}", stats.expired_interact, stats.expired_insights);
+    println!(
+        "      • Удалено устаревших: {} + {}",
+        stats.expired_interact, stats.expired_insights
+    );
     println!("      • Время выполнения: {}ms", stats.total_time_ms);
 
     // Получаем общую статистику
@@ -229,21 +238,27 @@ async fn demo_memory_management(service: &Arc<DIMemoryService>) -> Result<()> {
 /// Мониторинг здоровья
 async fn demo_health_monitoring(service: &Arc<DIMemoryService>) -> Result<()> {
     let health = service.check_health().await?;
-    
+
     let status_icon = match health.overall_status {
         memory::health::HealthStatus::Healthy => "✅",
         memory::health::HealthStatus::Degraded => "⚠️",
         memory::health::HealthStatus::Unhealthy => "❌",
         memory::health::HealthStatus::Down => "💀",
     };
-    
-    println!("   {} Общий статус: {:?}", status_icon, health.overall_status);
+
+    println!(
+        "   {} Общий статус: {:?}",
+        status_icon, health.overall_status
+    );
     println!("   ⏱️  Uptime: {} секунд", health.uptime_seconds);
-    
+
     if !health.active_alerts.is_empty() {
         println!("   ⚠️  Активные алерты:");
         for alert in &health.active_alerts {
-            println!("      • [{:?}] {}: {}", alert.severity, alert.title, alert.description);
+            println!(
+                "      • [{:?}] {}: {}",
+                alert.severity, alert.title, alert.description
+            );
         }
     }
 
@@ -254,13 +269,15 @@ async fn demo_health_monitoring(service: &Arc<DIMemoryService>) -> Result<()> {
 async fn demo_batch_operations(service: &Arc<DIMemoryService>) -> Result<()> {
     // Создаем batch записей
     let batch_records: Vec<Record> = (0..5)
-        .map(|i| create_record(
-            &format!("Batch record {}: test data for performance", i),
-            Layer::Interact,
-            "batch-test",
-            vec!["batch", "test"],
-            "batch-demo",
-        ))
+        .map(|i| {
+            create_record(
+                &format!("Batch record {}: test data for performance", i),
+                Layer::Interact,
+                "batch-test",
+                vec!["batch", "test"],
+                "batch-demo",
+            )
+        })
         .collect();
 
     // Вставляем по одной для демонстрации
@@ -270,7 +287,7 @@ async fn demo_batch_operations(service: &Arc<DIMemoryService>) -> Result<()> {
         service.insert(record).await?;
     }
     let elapsed = start.elapsed();
-    
+
     println!("   ✅ Вставлено 5 записей за {:?}", elapsed);
     println!("   ⚡ Среднее время на запись: {:?}", elapsed / 5);
 

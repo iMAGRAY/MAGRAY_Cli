@@ -60,17 +60,17 @@ impl ResourceUsage {
         if self.memory_mb > limits.max_memory_mb {
             return false;
         }
-        
+
         if self.execution_time > limits.max_execution_time {
             return false;
         }
-        
+
         if let Some(max_disk) = limits.max_disk_usage_mb {
             if (self.disk_read_mb + self.disk_write_mb) > max_disk {
                 return false;
             }
         }
-        
+
         true
     }
 }
@@ -92,25 +92,25 @@ impl ResourceMonitor {
             limits,
         }
     }
-    
+
     pub async fn record_usage(&self, usage: ResourceUsage) {
         let mut history = self.usage_history.lock().await;
         history.push((SystemTime::now(), usage));
-        
+
         // Keep only recent history (last 1000 entries)
         if history.len() > 1000 {
             history.drain(0..100);
         }
     }
-    
+
     pub async fn get_current_total_usage(&self) -> ResourceUsage {
         let allocations = self.allocations.read().await;
-        
+
         // In a real implementation, this would query actual system usage
         // For now, we estimate based on allocations
         let total_memory: u64 = allocations.values().map(|a| a.memory_mb).sum();
         let total_cores: u32 = allocations.values().map(|a| a.cpu_cores).sum();
-        
+
         ResourceUsage {
             memory_mb: total_memory,
             cpu_percent: (total_cores as f32 / num_cpus::get() as f32) * 100.0,
@@ -121,7 +121,7 @@ impl ResourceMonitor {
             execution_time: Duration::default(),
         }
     }
-    
+
     pub async fn get_usage_history(&self, last_n: usize) -> Vec<(SystemTime, ResourceUsage)> {
         let history = self.usage_history.lock().await;
         history.iter().rev().take(last_n).cloned().collect()
@@ -149,11 +149,13 @@ impl ResourceManager {
         let semaphores = ResourceSemaphores {
             memory_semaphore: Arc::new(Semaphore::new(limits.max_memory_mb as usize)),
             cpu_semaphore: Arc::new(Semaphore::new(limits.max_cpu_cores as usize)),
-            concurrent_executions: Arc::new(Semaphore::new(limits.max_concurrent_allocations as usize)),
+            concurrent_executions: Arc::new(Semaphore::new(
+                limits.max_concurrent_allocations as usize,
+            )),
         };
-        
+
         let monitor = ResourceMonitor::new(limits.clone());
-        
+
         Self {
             limits: limits.clone(),
             monitor,
@@ -161,7 +163,7 @@ impl ResourceManager {
             semaphores,
         }
     }
-    
+
     /// Allocate resources for tool execution
     pub async fn allocate_resources(
         &self,
@@ -173,34 +175,45 @@ impl ResourceManager {
     ) -> Result<ResourceGuard> {
         // Check if requests are within individual limits
         if requested_memory > self.limits.max_memory_mb {
-            return Err(anyhow!("Requested memory ({} MB) exceeds limit ({} MB)", 
-                requested_memory, self.limits.max_memory_mb));
+            return Err(anyhow!(
+                "Requested memory ({} MB) exceeds limit ({} MB)",
+                requested_memory,
+                self.limits.max_memory_mb
+            ));
         }
-        
+
         if requested_cores > self.limits.max_cpu_cores {
-            return Err(anyhow!("Requested CPU cores ({}) exceeds limit ({})", 
-                requested_cores, self.limits.max_cpu_cores));
+            return Err(anyhow!(
+                "Requested CPU cores ({}) exceeds limit ({})",
+                requested_cores,
+                self.limits.max_cpu_cores
+            ));
         }
-        
-        info!("🔒 Allocating resources: {} MB memory, {} CPU cores for tool: {}", 
-              requested_memory, requested_cores, tool_id);
-        
+
+        info!(
+            "🔒 Allocating resources: {} MB memory, {} CPU cores for tool: {}",
+            requested_memory, requested_cores, tool_id
+        );
+
         // Acquire semaphores (this will block if resources aren't available)
         let _concurrent_permit = Arc::clone(&self.semaphores.concurrent_executions)
-            .acquire_owned().await
+            .acquire_owned()
+            .await
             .map_err(|_| anyhow!("Failed to acquire concurrent execution permit"))?;
-            
+
         let _memory_permits = Arc::clone(&self.semaphores.memory_semaphore)
-            .acquire_many_owned(requested_memory as u32).await
+            .acquire_many_owned(requested_memory as u32)
+            .await
             .map_err(|_| anyhow!("Failed to acquire memory permits"))?;
-            
+
         let _cpu_permits = Arc::clone(&self.semaphores.cpu_semaphore)
-            .acquire_many_owned(requested_cores).await
+            .acquire_many_owned(requested_cores)
+            .await
             .map_err(|_| anyhow!("Failed to acquire CPU permits"))?;
-        
+
         let allocation_id = format!("{}_{}", tool_id, Self::current_timestamp());
         let expires_at = execution_timeout.map(|timeout| SystemTime::now() + timeout);
-        
+
         let allocation = ResourceAllocation {
             allocation_id: allocation_id.clone(),
             tool_id: tool_id.to_string(),
@@ -210,15 +223,15 @@ impl ResourceManager {
             allocated_at: SystemTime::now(),
             expires_at,
         };
-        
+
         // Store allocation
         {
             let mut allocations = self.allocations.write().await;
             allocations.insert(allocation_id.clone(), allocation.clone());
         }
-        
+
         debug!("✅ Resources allocated: {}", allocation_id);
-        
+
         // Create resource guard that will clean up on drop
         Ok(ResourceGuard {
             allocation_id: allocation_id.clone(),
@@ -238,60 +251,70 @@ impl ResourceManager {
             cpu_cores: requested_cores,
         })
     }
-    
+
     /// Get current resource usage statistics
     pub async fn get_resource_stats(&self) -> ResourceStats {
         let allocations = self.allocations.read().await;
         let current_usage = self.monitor.get_current_total_usage().await;
-        
+
         ResourceStats {
             total_allocations: allocations.len(),
             total_memory_allocated: allocations.values().map(|a| a.memory_mb).sum(),
             total_cpu_cores_allocated: allocations.values().map(|a| a.cpu_cores).sum(),
             current_usage: current_usage.clone(),
-            available_memory: self.limits.max_memory_mb.saturating_sub(current_usage.memory_mb),
-            available_cpu_cores: self.limits.max_cpu_cores.saturating_sub(
-                allocations.values().map(|a| a.cpu_cores).sum()
-            ),
+            available_memory: self
+                .limits
+                .max_memory_mb
+                .saturating_sub(current_usage.memory_mb),
+            available_cpu_cores: self
+                .limits
+                .max_cpu_cores
+                .saturating_sub(allocations.values().map(|a| a.cpu_cores).sum()),
             limits: self.limits.clone(),
         }
     }
-    
+
     /// Clean up expired allocations
     pub async fn cleanup_expired_allocations(&self) {
         let current_time = SystemTime::now();
         let mut allocations = self.allocations.write().await;
-        
+
         let expired_keys: Vec<_> = allocations
             .iter()
             .filter(|(_, allocation)| {
-                allocation.expires_at
+                allocation
+                    .expires_at
                     .map(|expires| current_time > expires)
                     .unwrap_or(false)
             })
             .map(|(key, _)| key.clone())
             .collect();
-        
+
         for key in expired_keys {
             if let Some(allocation) = allocations.remove(&key) {
-                warn!("🧹 Cleaned up expired resource allocation: {} for tool: {}", 
-                      key, allocation.tool_id);
+                warn!(
+                    "🧹 Cleaned up expired resource allocation: {} for tool: {}",
+                    key, allocation.tool_id
+                );
             }
         }
     }
-    
+
     /// Force release resources for a specific allocation
     pub async fn force_release(&self, allocation_id: &str) -> Result<()> {
         let mut allocations = self.allocations.write().await;
-        
+
         if let Some(_allocation) = allocations.remove(allocation_id) {
-            info!("🔓 Force released resources for allocation: {}", allocation_id);
+            info!(
+                "🔓 Force released resources for allocation: {}",
+                allocation_id
+            );
             Ok(())
         } else {
             Err(anyhow!("Allocation not found: {}", allocation_id))
         }
     }
-    
+
     fn current_timestamp() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -314,11 +337,13 @@ pub struct ResourceStats {
 
 impl ResourceStats {
     pub fn utilization_percent(&self) -> (f32, f32) {
-        let memory_util = (self.total_memory_allocated as f32 / self.limits.max_memory_mb as f32) * 100.0;
-        let cpu_util = (self.total_cpu_cores_allocated as f32 / self.limits.max_cpu_cores as f32) * 100.0;
+        let memory_util =
+            (self.total_memory_allocated as f32 / self.limits.max_memory_mb as f32) * 100.0;
+        let cpu_util =
+            (self.total_cpu_cores_allocated as f32 / self.limits.max_cpu_cores as f32) * 100.0;
         (memory_util, cpu_util)
     }
-    
+
     pub fn is_under_pressure(&self) -> bool {
         let (memory_util, cpu_util) = self.utilization_percent();
         memory_util > 80.0 || cpu_util > 80.0
@@ -350,31 +375,37 @@ impl ResourceGuard {
     pub fn allocation_id(&self) -> &str {
         &self.allocation_id
     }
-    
+
     pub fn memory_mb(&self) -> u64 {
         self.memory_mb
     }
-    
+
     pub fn cpu_cores(&self) -> u32 {
         self.cpu_cores
     }
-    
+
     /// Record current resource usage for monitoring
     pub async fn record_usage(&self, usage: ResourceUsage) {
         // In a real implementation, this would update monitoring data
-        debug!("📊 Recording usage for allocation {}: {:?}", self.allocation_id, usage);
+        debug!(
+            "📊 Recording usage for allocation {}: {:?}",
+            self.allocation_id, usage
+        );
     }
 }
 
 impl Drop for ResourceGuard {
     fn drop(&mut self) {
-        debug!("🔓 Releasing resources for allocation: {}", self.allocation_id);
-        
+        debug!(
+            "🔓 Releasing resources for allocation: {}",
+            self.allocation_id
+        );
+
         // Resources are automatically released when semaphore permits are dropped
         // But we still need to clean up the allocation record
         let allocation_id = self.allocation_id.clone();
         let allocations = Arc::clone(&self.resource_manager.allocations);
-        
+
         // Spawn cleanup task (non-blocking)
         tokio::spawn(async move {
             let mut allocs = allocations.write().await;
@@ -386,7 +417,7 @@ impl Drop for ResourceGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_resource_allocation() {
         let limits = ResourceLimits {
@@ -397,21 +428,23 @@ mod tests {
             max_disk_usage_mb: None,
             max_network_bandwidth_mbps: None,
         };
-        
+
         let manager = ResourceManager::new(limits);
-        
+
         // Test successful allocation
-        let guard = manager.allocate_resources("test_tool", "session1", 512, 2, None).await;
+        let guard = manager
+            .allocate_resources("test_tool", "session1", 512, 2, None)
+            .await;
         assert!(guard.is_ok());
-        
+
         let _guard = guard.unwrap();
-        
+
         // Test resource stats
         let stats = manager.get_resource_stats().await;
         assert_eq!(stats.total_memory_allocated, 512);
         assert_eq!(stats.total_cpu_cores_allocated, 2);
     }
-    
+
     #[tokio::test]
     async fn test_resource_limits() {
         let limits = ResourceLimits {
@@ -422,15 +455,19 @@ mod tests {
             max_disk_usage_mb: None,
             max_network_bandwidth_mbps: None,
         };
-        
+
         let manager = ResourceManager::new(limits);
-        
+
         // Test exceeding memory limit
-        let result = manager.allocate_resources("test_tool", "session1", 2048, 1, None).await;
+        let result = manager
+            .allocate_resources("test_tool", "session1", 2048, 1, None)
+            .await;
         assert!(result.is_err());
-        
-        // Test exceeding CPU limit  
-        let result = manager.allocate_resources("test_tool", "session1", 512, 4, None).await;
+
+        // Test exceeding CPU limit
+        let result = manager
+            .allocate_resources("test_tool", "session1", 512, 4, None)
+            .await;
         assert!(result.is_err());
     }
 }

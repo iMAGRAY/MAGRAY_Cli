@@ -9,9 +9,42 @@ path = "src/main.rs"
 
 [features]
 default = ["cpu"]
-cpu = ["ai/cpu"]  # CPU-only mode 
-gpu = ["ai/gpu", "memory/gpu"]  # GPU acceleration
-minimal = ["ai/minimal"]  # Minimal build for CI/containers
+
+# Minimal build - basic CLI functionality only
+minimal = [
+    "llm/minimal", 
+    "memory/minimal", 
+    "tools/minimal"
+]
+
+# CPU build - full functionality without GPU
+cpu = [
+    "ai/cpu", 
+    "memory/cpu", 
+    "llm/cpu", 
+    "tools/cpu",
+    "embeddings",
+    "reranking"
+]
+
+# GPU build - full functionality with CUDA/TensorRT support  
+gpu = [
+    "cpu",
+    "ai/gpu", 
+    "memory/gpu", 
+    "llm/gpu",
+    "tools/gpu",
+    "cuda",
+    "tensorrt",
+    "gpu-acceleration"
+]
+
+# Individual feature flags
+embeddings = ["ai/embeddings"]
+reranking = ["ai/reranking"] 
+cuda = ["ai/cuda", "memory/cuda"]
+tensorrt = ["ai/tensorrt"]
+gpu-acceleration = ["memory/gpu-acceleration"]
 
 [dependencies]
 llm = { path = "../llm" }

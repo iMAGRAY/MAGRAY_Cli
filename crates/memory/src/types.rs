@@ -4,9 +4,9 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum Layer {
-    Interact,   // L1 - hot context (24h TTL)
-    Insights,   // L2 - distilled knowledge (90d TTL)
-    Assets,     // L3 - cold artifacts (permanent)
+    Interact, // L1 - hot context (24h TTL)
+    Insights, // L2 - distilled knowledge (90d TTL)
+    Assets,   // L3 - cold artifacts (permanent)
 }
 
 impl Layer {
@@ -15,6 +15,14 @@ impl Layer {
             Layer::Interact => "interact",
             Layer::Insights => "insights",
             Layer::Assets => "assets",
+        }
+    }
+
+    pub fn ttl_days(&self) -> Option<u64> {
+        match self {
+            Layer::Interact => Some(1),  // 24h
+            Layer::Insights => Some(90), // 90 days
+            Layer::Assets => None,       // permanent
         }
     }
 
@@ -84,7 +92,7 @@ impl Default for SearchOptions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PromotionConfig {
     pub interact_ttl_hours: u64,
     pub insights_ttl_days: u64,

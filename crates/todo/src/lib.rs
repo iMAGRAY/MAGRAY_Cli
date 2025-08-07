@@ -1,31 +1,31 @@
 use anyhow::Result;
 use std::path::Path;
 
-pub mod types;
-pub mod store;
 pub mod graph;
-pub mod store_v2;
 pub mod service_v2;
+pub mod store;
+pub mod store_v2;
+pub mod types;
 
 // Экспортируем v2 как основную версию
-pub use service_v2::{TodoServiceV2 as TodoService, TodoEventStream};
+pub use service_v2::{TodoEventStream, TodoServiceV2 as TodoService};
 pub use types::*;
 
 // Экспортируем для обратной совместимости
-pub use store::TodoStore;
 pub use graph::DependencyGraphV2 as DependencyGraph;
+pub use store::TodoStore;
 
 /// Создать оптимизированный TodoService
-/// 
+///
 /// # Параметры
 /// - `db_path` - путь к файлу базы данных SQLite
 /// - `pool_size` - размер пула соединений (рекомендуется 4-8)
 /// - `cache_size` - размер LRU кэша для задач (рекомендуется 100-1000)
-/// 
+///
 /// # Пример
 /// ```no_run
 /// use todo::create_service;
-/// 
+///
 /// #[tokio::main]
 /// async fn main() -> anyhow::Result<()> {
 ///     let service = create_service("tasks.db", 4, 100).await?;
@@ -61,42 +61,48 @@ pub async fn create_default_service<P: AsRef<Path>>(db_path: P) -> Result<TodoSe
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    
+
     #[tokio::test]
     async fn test_service_creation() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        
+
         let service = create_default_service(&db_path).await.unwrap();
-        
+
         // Создаем задачу
-        let task = service.create_task(
-            "Test task".to_string(),
-            "Test description".to_string(),
-            Priority::Medium,
-            vec!["test".to_string()],
-        ).await.unwrap();
-        
+        let task = service
+            .create_task(
+                "Test task".to_string(),
+                "Test description".to_string(),
+                Priority::Medium,
+                vec!["test".to_string()],
+            )
+            .await
+            .unwrap();
+
         assert_eq!(task.title, "Test task");
         assert_eq!(task.state, TaskState::Ready);
     }
-    
+
     #[tokio::test]
     async fn test_event_system() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        
+
         let service = create_service(&db_path, 2, 50).await.unwrap();
         let events = service.subscribe();
-        
+
         // Создаем задачу
-        let task = service.create_task(
-            "Event test".to_string(),
-            "Testing events".to_string(),
-            Priority::High,
-            vec![],
-        ).await.unwrap();
-        
+        let task = service
+            .create_task(
+                "Event test".to_string(),
+                "Testing events".to_string(),
+                Priority::High,
+                vec![],
+            )
+            .await
+            .unwrap();
+
         // Должны получить событие о создании
         if let Some(event) = events.next().await {
             match event {

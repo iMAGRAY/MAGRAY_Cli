@@ -1,7 +1,7 @@
-﻿use anyhow::{Result, anyhow};
+use crate::LlmClient;
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::LlmClient;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParameterExtraction {
@@ -19,16 +19,17 @@ impl ParameterExtractorAgent {
     pub fn new(llm: LlmClient) -> Self {
         Self { llm }
     }
-    
+
     pub async fn extract_parameters(
-        &self, 
-        user_query: &str, 
+        &self,
+        user_query: &str,
         tool_name: &str,
-        required_params: &[String]
+        required_params: &[String],
     ) -> Result<ParameterExtraction> {
         let params_list = required_params.join(", ");
-        
-        let prompt = format!(r#"Ты - эксперт по извлечению параметров. Проанализируй запрос пользователя и извлеки все необходимые параметры для инструмента.
+
+        let prompt = format!(
+            r#"Ты - эксперт по извлечению параметров. Проанализируй запрос пользователя и извлеки все необходимые параметры для инструмента.
 
 ИНСТРУМЕНТ: {tool_name}
 ТРЕБУЕМЫЕ ПАРАМЕТРЫ: {params_list}
@@ -89,19 +90,20 @@ web_search:
     "parameters": {{"param1": "value1", "param2": "value2"}},
     "confidence": 0.9,
     "missing_params": ["param3"]
-}}"#);
+}}"#
+        );
 
         let response = self.llm.chat_simple(&prompt).await?;
         self.parse_parameter_extraction(&response)
     }
-    
+
     fn parse_parameter_extraction(&self, response: &str) -> Result<ParameterExtraction> {
         let cleaned_response = response.trim();
-        
+
         if let Some(json_start) = cleaned_response.find('{') {
             if let Some(json_end) = cleaned_response.rfind('}') {
                 let json_str = &cleaned_response[json_start..=json_end];
-                
+
                 match serde_json::from_str::<ParameterExtraction>(json_str) {
                     Ok(extraction) => return Ok(extraction),
                     Err(e) => {
@@ -112,10 +114,10 @@ web_search:
                 }
             }
         }
-        
+
         Err(anyhow!("Не найден валидный JSON в ответе: {}", response))
     }
-    
+
     fn fix_json_format(&self, json_str: &str) -> String {
         json_str
             .replace("'", "\"")

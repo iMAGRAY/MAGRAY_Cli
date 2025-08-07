@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use common::init_structured_logging;
 use console::{style, Term};
 use indicatif::ProgressStyle;
 use llm::LlmClient;
@@ -7,7 +8,6 @@ use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
-use common::init_structured_logging;
 
 mod commands;
 mod health_checks;
@@ -17,10 +17,9 @@ mod progress;
 mod status_tests;
 
 use cli::agent_traits::AgentResponse;
+use cli::agent_traits::{RequestContext, RequestProcessorTrait};
 use cli::unified_agent_v2::UnifiedAgentV2;
-use cli::agent_traits::{RequestProcessorTrait, RequestContext};
 use commands::{GpuCommand, MemoryCommand, ModelsCommand};
-
 
 // Иконки для CLI интерфейса
 static ROBOT_ICON: AnimatedIcon = AnimatedIcon::new(&["[AI]", "[▲I]", "[●I]", "[♦I]"]);
@@ -35,7 +34,7 @@ impl AnimatedIcon {
     const fn new(frames: &'static [&'static str]) -> Self {
         Self { frames }
     }
-    
+
     fn get_frame(&self, index: usize) -> &'static str {
         self.frames[index % self.frames.len()]
     }
@@ -152,12 +151,16 @@ async fn main() -> Result<()> {
             // Инициализируем сервисы для health check
             let llm_client = LlmClient::from_env().ok().map(Arc::new);
             // Создаем базовую конфигурацию памяти для health check
-            let memory_service = if let Ok(config) = memory::default_config() {
-                memory::DIMemoryService::new(config).await.ok().map(Arc::new)
+            let memory_service = if let Ok(_config) = memory::default_config() {
+                let legacy_config = memory::di::LegacyMemoryConfig::default();
+                memory::DIMemoryService::new(legacy_config)
+                    .await
+                    .ok()
+                    .map(Arc::new)
             } else {
                 None
             };
-            
+
             health_checks::run_health_checks(llm_client, memory_service).await?;
         }
         Some(Commands::Memory(cmd)) => {
@@ -186,7 +189,7 @@ async fn main() -> Result<()> {
 
 async fn show_welcome_animation() -> Result<()> {
     let term = Term::stdout();
-    
+
     // Анимация загрузки
     let spinner = indicatif::ProgressBar::new_spinner();
     spinner.set_style(
@@ -196,11 +199,11 @@ async fn show_welcome_animation() -> Result<()> {
             .unwrap_or_else(|e| {
                 eprintln!("Warning: Failed to create spinner template: {}", e);
                 ProgressStyle::default_spinner()
-            })
+            }),
     );
-    
+
     spinner.set_message("Инициализация MAGRAY CLI...");
-    
+
     // Красивая анимация инициализации
     let messages = [
         "Загрузка нейронных сетей...",
@@ -209,39 +212,70 @@ async fn show_welcome_animation() -> Result<()> {
         "Настройка языковой модели...",
         "Готов к работе!",
     ];
-    
+
     for msg in messages.iter() {
         spinner.set_message(*msg);
         sleep(Duration::from_millis(400)).await;
     }
-    
+
     spinner.finish_and_clear();
-    
+
     // Красивый заголовок
     term.clear_screen()?;
     println!();
-    println!("{}", style("  ███╗   ███╗ █████╗  ██████╗ ██████╗  █████╗ ██╗   ██╗").cyan().bold());
-    println!("{}", style("  ████╗ ████║██╔══██╗██╔════╝ ██╔══██╗██╔══██╗╚██╗ ██╔╝").cyan().bold());
-    println!("{}", style("  ██╔████╔██║███████║██║  ███╗██████╔╝███████║ ╚████╔╝ ").cyan().bold());
-    println!("{}", style("  ██║╚██╔╝██║██╔══██║██║   ██║██╔══██╗██╔══██║  ╚██╔╝  ").cyan().bold());
-    println!("{}", style("  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║  ██║██║  ██║   ██║   ").cyan().bold());
-    println!("{}", style("  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ").cyan().bold());
+    println!(
+        "{}",
+        style("  ███╗   ███╗ █████╗  ██████╗ ██████╗  █████╗ ██╗   ██╗")
+            .cyan()
+            .bold()
+    );
+    println!(
+        "{}",
+        style("  ████╗ ████║██╔══██╗██╔════╝ ██╔══██╗██╔══██╗╚██╗ ██╔╝")
+            .cyan()
+            .bold()
+    );
+    println!(
+        "{}",
+        style("  ██╔████╔██║███████║██║  ███╗██████╔╝███████║ ╚████╔╝ ")
+            .cyan()
+            .bold()
+    );
+    println!(
+        "{}",
+        style("  ██║╚██╔╝██║██╔══██║██║   ██║██╔══██╗██╔══██║  ╚██╔╝  ")
+            .cyan()
+            .bold()
+    );
+    println!(
+        "{}",
+        style("  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║  ██║██║  ██║   ██║   ")
+            .cyan()
+            .bold()
+    );
+    println!(
+        "{}",
+        style("  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ")
+            .cyan()
+            .bold()
+    );
     println!();
-    println!("       {} {}", 
+    println!(
+        "       {} {}",
         style("Интеллектуальный CLI агент").bright().bold(),
         style("v0.1.0").dim()
     );
     println!("       {}", style("Powered by AI • Made with Rust").dim());
     println!();
-    
+
     Ok(())
 }
 
 async fn handle_chat(message: Option<String>) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
-    
+
     let _term = Term::stdout();
-    
+
     // Проверяем, есть ли входные данные из pipe/stdin
     let mut stdin_message = None;
     if message.is_none() {
@@ -253,16 +287,22 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
                 Ok(0) => None, // Нет данных
                 Ok(_) => {
                     let trimmed = input.trim();
-                    if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
                 }
                 Err(_) => None, // Ошибка чтения
             }
-        }).join() {
+        })
+        .join()
+        {
             Ok(result) => stdin_message = result,
             Err(_) => {} // Паника в треде
         }
     }
-    
+
     // Инициализация LLM клиента с анимацией
     let spinner = indicatif::ProgressBar::new_spinner();
     spinner.set_style(
@@ -272,34 +312,38 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
             .unwrap_or_else(|e| {
                 eprintln!("Warning: Failed to create LLM spinner template: {}", e);
                 ProgressStyle::default_spinner()
-            })
+            }),
     );
     spinner.set_message("Подключение к нейронной сети...");
-    
+
     let _llm_client = match LlmClient::from_env() {
         Ok(client) => {
             spinner.finish_with_message("[✓] Подключено к LLM!");
             sleep(Duration::from_millis(500)).await;
             spinner.finish_and_clear();
             client
-        },
+        }
         Err(e) => {
             spinner.finish_with_message("[✗] Ошибка подключения!");
             println!();
-            println!("{} {}", 
-                style("Ошибка:").red().bold(), 
+            println!(
+                "{} {}",
+                style("Ошибка:").red().bold(),
                 style(format!("{e}")).red()
             );
             println!();
-            println!("{} Создайте файл .env с настройками:", 
+            println!(
+                "{} Создайте файл .env с настройками:",
                 style("[i] Решение:").yellow().bold()
             );
-            println!("   {} {}", 
-                style("$").green(), 
+            println!(
+                "   {} {}",
+                style("$").green(),
                 style("cp .env.example .env").cyan()
             );
-            println!("   {} {}", 
-                style("#").dim(), 
+            println!(
+                "   {} {}",
+                style("#").dim(),
                 style("Отредактируйте .env и укажите ваш API ключ").dim()
             );
             return Err(e);
@@ -311,12 +355,16 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     let agent = match timeout(TokioDuration::from_secs(30), agent_future).await {
         Ok(Ok(agent)) => agent,
         Ok(Err(e)) => return Err(e),
-        Err(_) => return Err(anyhow::anyhow!("Agent initialization timeout after 30 seconds")),
+        Err(_) => {
+            return Err(anyhow::anyhow!(
+                "Agent initialization timeout after 30 seconds"
+            ))
+        }
     };
 
     // Определяем, какое сообщение обрабатывать
     let final_message = message.or(stdin_message);
-    
+
     if let Some(msg) = final_message {
         // Одиночное сообщение (из аргументов или stdin)
         process_single_message(&agent, &msg).await?;
@@ -330,44 +378,52 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
 
 async fn process_single_message(agent: &UnifiedAgentV2, message: &str) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
-    
+
     // Защита от зависания с таймаутом 60 секунд
     let process_future = process_agent_message(agent, message);
     let response = match timeout(TokioDuration::from_secs(60), process_future).await {
         Ok(Ok(response)) => response,
         Ok(Err(e)) => return Err(e),
         Err(_) => {
-            println!("{} Message processing timeout after 60 seconds", 
-                style("[⚠]").yellow().bold());
+            println!(
+                "{} Message processing timeout after 60 seconds",
+                style("[⚠]").yellow().bold()
+            );
             return Err(anyhow::anyhow!("Message processing timeout"));
         }
     };
-    
+
     display_response(response).await;
     Ok(())
 }
 
 async fn run_interactive_chat(agent: &UnifiedAgentV2) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
-    
-    println!("{} {}", 
-        style("[★]").green().bold(), 
-        style("Добро пожаловать в интерактивный режим!").bright().bold()
+
+    println!(
+        "{} {}",
+        style("[★]").green().bold(),
+        style("Добро пожаловать в интерактивный режим!")
+            .bright()
+            .bold()
     );
-    println!("{} {}", 
-        style("[►]").cyan(), 
+    println!(
+        "{} {}",
+        style("[►]").cyan(),
         style("Напишите ваше сообщение или").dim()
     );
-    println!("{} {} {}", 
+    println!(
+        "{} {} {}",
         style("   ").dim(),
-        style("'exit'").yellow().bold(), 
+        style("'exit'").yellow().bold(),
         style("для выхода").dim()
     );
     println!();
 
     loop {
         // Красивый промпт
-        print!("{} {} ", 
+        print!(
+            "{} {} ",
             style(USER_ICON).bright().green(),
             style("Вы:").bright().bold()
         );
@@ -381,7 +437,7 @@ async fn run_interactive_chat(agent: &UnifiedAgentV2) -> Result<()> {
                 Err(e) => Err(e),
             }
         });
-        
+
         let input = match timeout(TokioDuration::from_secs(300), input_future).await {
             Ok(Ok(Ok(input))) => input.trim().to_string(),
             Ok(Ok(Err(e))) => {
@@ -393,8 +449,10 @@ async fn run_interactive_chat(agent: &UnifiedAgentV2) -> Result<()> {
                 continue;
             }
             Err(_) => {
-                println!("{} Input timeout after 5 minutes - exiting", 
-                    style("[⚠]").yellow().bold());
+                println!(
+                    "{} Input timeout after 5 minutes - exiting",
+                    style("[⚠]").yellow().bold()
+                );
                 break;
             }
         };
@@ -413,21 +471,22 @@ async fn run_interactive_chat(agent: &UnifiedAgentV2) -> Result<()> {
         let response = match timeout(TokioDuration::from_secs(60), process_future).await {
             Ok(Ok(response)) => response,
             Ok(Err(e)) => {
-                println!("{} Processing error: {}", 
-                    style("[✗]").red().bold(), e);
+                println!("{} Processing error: {}", style("[✗]").red().bold(), e);
                 continue;
             }
             Err(_) => {
-                println!("{} Message processing timeout after 60 seconds", 
-                    style("[⚠]").yellow().bold());
+                println!(
+                    "{} Message processing timeout after 60 seconds",
+                    style("[⚠]").yellow().bold()
+                );
                 continue;
             }
         };
-        
+
         display_response(response).await;
         println!();
     }
-    
+
     Ok(())
 }
 
@@ -456,11 +515,12 @@ async fn display_response(response: AgentResponse) {
 
 async fn display_chat_response(text: &str) {
     // Анимация печати ответа
-    print!("{} {} ", 
+    print!(
+        "{} {} ",
         style(ROBOT_ICON.get_frame(0)).bright().blue(),
         style("AI:").bright().green().bold()
     );
-    
+
     // Эффект печатания
     for char in text.chars() {
         print!("{}", style(char).bright());
@@ -471,12 +531,6 @@ async fn display_chat_response(text: &str) {
     }
     println!();
 }
-
-
-
-
-
-
 
 /// Создание и инициализация UnifiedAgentV2
 async fn create_unified_agent_v2() -> Result<UnifiedAgentV2> {
@@ -492,9 +546,9 @@ async fn process_agent_message(agent: &UnifiedAgentV2, message: &str) -> Result<
         session_id: "main_session".to_string(),
         metadata: std::collections::HashMap::new(),
     };
-    
+
     let result = agent.process_user_request(context).await?;
-    
+
     // result.response уже является AgentResponse
     Ok(result.response)
 }
@@ -508,58 +562,65 @@ async fn show_goodbye_animation() -> Result<()> {
             .unwrap_or_else(|e| {
                 eprintln!("Warning: Failed to create goodbye spinner template: {}", e);
                 ProgressStyle::default_spinner()
-            })
+            }),
     );
-    
+
     let goodbye_messages = [
         "Сохраняю сессию...",
         "Закрываю соединения...",
         "Очищаю память...",
         "До свидания!",
     ];
-    
+
     for msg in goodbye_messages.iter() {
         spinner.set_message(*msg);
         sleep(Duration::from_millis(300)).await;
     }
-    
+
     spinner.finish_and_clear();
-    
+
     println!();
-    println!("{} {}", 
+    println!(
+        "{} {}",
         style("[★]").bright().yellow(),
-        style("Спасибо за использование MAGRAY CLI!").bright().bold()
+        style("Спасибо за использование MAGRAY CLI!")
+            .bright()
+            .bold()
     );
-    println!("{} {}", 
+    println!(
+        "{} {}",
         style("[►]").cyan(),
         style("Увидимся в следующий раз!").cyan()
     );
     println!();
-    
+
     Ok(())
 }
 
 async fn show_system_status() -> Result<()> {
-    use memory::{DIMemoryService as MemoryService};
-    use std::sync::Arc;
     use colored::Colorize;
-    use tracing::{warn, info};
-    
+    use memory::DIMemoryService as MemoryService;
+    use std::sync::Arc;
+    use tracing::{info, warn};
+
     let spinner = progress::ProgressBuilder::fast("Checking system status...");
-    
+
     // Безопасная проверка состояния памяти с graceful fallback
     let memory_status = match memory::default_config() {
         Ok(mut config) => {
             info!("🔧 Trying to initialize memory service with fallback protection");
-            
+
             // Отключаем GPU для status команды если есть проблемы
             config.ai_config.embedding.use_gpu = false;
-            
-            match tokio::time::timeout(Duration::from_secs(10), MemoryService::new(config)).await {
+
+            let legacy_config = memory::di::LegacyMemoryConfig::default();
+            match tokio::time::timeout(Duration::from_secs(10), MemoryService::new(legacy_config))
+                .await
+            {
                 Ok(Ok(service)) => {
                     info!("✅ Memory service initialized successfully");
                     let service = Arc::new(service);
-                    
+
                     // Используем DIMemoryService напрямую чтобы избежать вложенных runtime
                     let stats = service.get_stats().await;
                     let health_status = match service.check_health().await {
@@ -574,7 +635,7 @@ async fn show_system_status() -> Result<()> {
                             "degraded"
                         }
                     };
-                    
+
                     // Получаем статистику кэша
                     let total = stats.cache_hits + stats.cache_misses;
                     let hit_rate = if total > 0 {
@@ -582,7 +643,7 @@ async fn show_system_status() -> Result<()> {
                     } else {
                         0.0
                     };
-                    
+
                     Some((health_status.to_string(), 0, hit_rate as f32))
                 }
                 Ok(Err(e)) => {
@@ -600,7 +661,7 @@ async fn show_system_status() -> Result<()> {
             Some(("config-error".to_string(), 0, 0.0))
         }
     };
-    
+
     // Проверяем LLM соединение
     let llm_status = match LlmClient::from_env() {
         Ok(_client) => {
@@ -609,13 +670,13 @@ async fn show_system_status() -> Result<()> {
         }
         Err(_) => "Not configured",
     };
-    
+
     spinner.finish_success(Some("System status checked!"));
-    
+
     // Выводим статус
     println!("{}", style("=== MAGRAY System Status ===").bold().cyan());
     println!();
-    
+
     // LLM Status
     let llm_icon = match llm_status {
         "Connected" => "✓".green(),
@@ -623,7 +684,7 @@ async fn show_system_status() -> Result<()> {
         _ => "✗".red(),
     };
     println!("{} {}: {}", llm_icon, "LLM Service".bold(), llm_status);
-    
+
     // Memory Status с улучшенной диагностикой
     if let Some((health, record_count, hit_rate)) = memory_status {
         let (memory_icon, status_msg) = match health.as_str() {
@@ -635,51 +696,67 @@ async fn show_system_status() -> Result<()> {
             "config-error" => ("✗".red(), "Configuration error".to_string()),
             _ => ("?".cyan(), format!("Unknown ({health})")),
         };
-        
+
         if record_count > 0 || hit_rate > 0.0 {
-            println!("{} {}: {} ({} records, {:.1}% cache hit)", 
-                     memory_icon, "Memory Service".bold(), status_msg, record_count, hit_rate * 100.0);
+            println!(
+                "{} {}: {} ({} records, {:.1}% cache hit)",
+                memory_icon,
+                "Memory Service".bold(),
+                status_msg,
+                record_count,
+                hit_rate * 100.0
+            );
         } else {
-            println!("{} {}: {}", memory_icon, "Memory Service".bold(), status_msg);
+            println!(
+                "{} {}: {}",
+                memory_icon,
+                "Memory Service".bold(),
+                status_msg
+            );
         }
     } else {
         println!("{} {}: Not available", "✗".red(), "Memory Service".bold());
     }
-    
+
     // Binary info
     let binary_size = std::env::current_exe()
         .and_then(|path| path.metadata())
         .map(|meta| meta.len())
         .unwrap_or(0);
-    
+
     let version = env!("CARGO_PKG_VERSION");
-    println!("{} {}: v{} ({:.1} MB)", 
-             "ℹ".blue(), "Binary".bold(), version, binary_size as f64 / (1024.0 * 1024.0));
-    
+    println!(
+        "{} {}: v{} ({:.1} MB)",
+        "ℹ".blue(),
+        "Binary".bold(),
+        version,
+        binary_size as f64 / (1024.0 * 1024.0)
+    );
+
     // Environment
     let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     println!("{} {}: {}", "ℹ".blue(), "Log Level".bold(), log_level);
-    
+
     println!();
-    
+
     Ok(())
 }
 
 async fn show_llm_status() -> Result<()> {
     use colored::Colorize;
     use tracing::info;
-    
+
     let spinner = progress::ProgressBuilder::fast("Проверка статуса LLM провайдеров...");
-    
+
     info!("🤖 Проверка статуса LLM системы");
-    
+
     // Пытаемся создать multi-provider клиент
     let client_result = LlmClient::from_env_multi();
-    
+
     match client_result {
         Ok(client) => {
             spinner.finish_success(Some("Multi-provider система доступна!"));
-            
+
             if let Some(status_report) = client.get_status_report().await {
                 println!("\n{}", status_report);
             } else {
@@ -688,15 +765,18 @@ async fn show_llm_status() -> Result<()> {
         }
         Err(e) => {
             spinner.finish_success(Some("Fallback к single-provider режиму"));
-            
+
             match LlmClient::from_env() {
                 Ok(_single_client) => {
                     println!("\n🔧 Single Provider Mode");
-                    println!("{} LLM провайдер настроен и готов к работе", "✓".green().bold());
+                    println!(
+                        "{} LLM провайдер настроен и готов к работе",
+                        "✓".green().bold()
+                    );
                     println!();
                     println!("💡 Для активации multi-provider режима настройте:");
                     println!("  • OPENAI_API_KEY=your_openai_key");
-                    println!("  • ANTHROPIC_API_KEY=your_anthropic_key");  
+                    println!("  • ANTHROPIC_API_KEY=your_anthropic_key");
                     println!("  • GROQ_API_KEY=your_groq_key");
                     println!("  • OLLAMA_URL=http://localhost:11434");
                     println!("  • LMSTUDIO_URL=http://localhost:1234");
@@ -713,7 +793,7 @@ async fn show_llm_status() -> Result<()> {
             }
         }
     }
-    
+
     println!();
     Ok(())
 }
@@ -721,11 +801,11 @@ async fn show_llm_status() -> Result<()> {
 async fn show_performance_metrics() -> Result<()> {
     use colored::Colorize;
     use tracing::info;
-    
+
     let spinner = progress::ProgressBuilder::fast("Collecting performance metrics...");
-    
+
     info!("📈 Initializing UnifiedAgent for performance metrics");
-    
+
     // Создаем UnifiedAgent для доступа к DI системе
     let agent = match create_unified_agent_v2().await {
         Ok(agent) => {
@@ -738,25 +818,28 @@ async fn show_performance_metrics() -> Result<()> {
             return Ok(());
         }
     };
-    
+
     spinner.finish_success(Some("Performance metrics collected!"));
-    
+
     // Выводим performance отчет
-    println!("{}", style("=== MAGRAY Performance Metrics ===").bold().cyan());
+    println!(
+        "{}",
+        style("=== MAGRAY Performance Metrics ===").bold().cyan()
+    );
     println!();
-    
+
     // Получаем подробную статистику через новый API
     let detailed_stats = agent.get_detailed_stats().await;
     println!("{}", detailed_stats);
-    
+
     // Используем стандартную заглушку для metrics (так как старые methods не существуют)
     // В будущем можно добавить специальный метод для получения performance метрик
     let mock_metrics = memory::DIPerformanceMetrics::default();
-    
+
     if mock_metrics.total_resolutions > 0 {
         println!();
         println!("{}", style("=== Detailed Analysis ===").bold().yellow());
-        
+
         // Анализ эффективности кэширования
         let cache_efficiency = match mock_metrics.cache_hit_rate() {
             rate if rate >= 80.0 => ("Excellent".green(), "🚀"),
@@ -764,9 +847,13 @@ async fn show_performance_metrics() -> Result<()> {
             rate if rate >= 40.0 => ("Fair".yellow(), "⚠️"),
             _ => ("Poor".red(), "🐌"),
         };
-        println!("{} Cache Efficiency: {} ({:.1}%)", 
-                 cache_efficiency.1, cache_efficiency.0, mock_metrics.cache_hit_rate());
-        
+        println!(
+            "{} Cache Efficiency: {} ({:.1}%)",
+            cache_efficiency.1,
+            cache_efficiency.0,
+            mock_metrics.cache_hit_rate()
+        );
+
         // Анализ скорости разрешения зависимостей
         let speed_analysis = match mock_metrics.avg_resolve_time_us() {
             time if time < 10.0 => ("Blazing Fast".green(), "⚡"),
@@ -775,9 +862,13 @@ async fn show_performance_metrics() -> Result<()> {
             time if time < 1000.0 => ("Slow".yellow(), "⚠️"),
             _ => ("Very Slow".red(), "🐌"),
         };
-        println!("{} Resolve Speed: {} ({:.1}μs avg)", 
-                 speed_analysis.1, speed_analysis.0, mock_metrics.avg_resolve_time_us());
-        
+        println!(
+            "{} Resolve Speed: {} ({:.1}μs avg)",
+            speed_analysis.1,
+            speed_analysis.0,
+            mock_metrics.avg_resolve_time_us()
+        );
+
         // Показываем проблемные типы если есть
         let slowest_types = mock_metrics.slowest_types(3);
         if !slowest_types.is_empty() {
@@ -786,16 +877,23 @@ async fn show_performance_metrics() -> Result<()> {
             for (i, (type_id, type_metrics)) in slowest_types.iter().enumerate() {
                 let short_name = format!("TypeId({:?})", type_id);
                 let avg_time = type_metrics.average_time.as_nanos() as f64 / 1000.0;
-                println!("  {}. {} - {:.1}μs ({} resolves)", 
-                         i + 1, short_name, avg_time, type_metrics.resolutions);
+                println!(
+                    "  {}. {} - {:.1}μs ({} resolves)",
+                    i + 1,
+                    short_name,
+                    avg_time,
+                    type_metrics.resolutions
+                );
             }
         }
-        
+
         // Показываем ошибки если есть
-        let total_errors: u64 = mock_metrics.type_metrics.values()
+        let total_errors: u64 = mock_metrics
+            .type_metrics
+            .values()
             .map(|tm| tm.error_count)
             .sum();
-        
+
         if total_errors > 0 {
             println!();
             println!("{} {} Total Errors Found", "❌".red(), total_errors);
@@ -806,37 +904,54 @@ async fn show_performance_metrics() -> Result<()> {
                 }
             }
         }
-        
+
         // Рекомендации по оптимизации
         println!();
-        println!("{}", style("=== Optimization Recommendations ===").bold().green());
-        
+        println!(
+            "{}",
+            style("=== Optimization Recommendations ===").bold().green()
+        );
+
         if mock_metrics.cache_hit_rate() < 50.0 {
-            println!("{} Consider using more Singleton lifetimes for frequently accessed services", "💡".yellow());
+            println!(
+                "{} Consider using more Singleton lifetimes for frequently accessed services",
+                "💡".yellow()
+            );
         }
-        
+
         if mock_metrics.avg_resolve_time_us() > 100.0 {
-            println!("{} Some dependencies are slow to create - consider pre-initialization", "💡".yellow());
+            println!(
+                "{} Some dependencies are slow to create - consider pre-initialization",
+                "💡".yellow()
+            );
         }
-        
+
         if total_errors > 0 {
-            println!("{} Fix dependency registration errors to improve system stability", "💡".red());
+            println!(
+                "{} Fix dependency registration errors to improve system stability",
+                "💡".red()
+            );
         }
-        
+
         if mock_metrics.factory_creates() as f64 / mock_metrics.total_resolves() as f64 > 0.7 {
-            println!("{} High factory creation rate - consider more singleton services", "💡".yellow());
+            println!(
+                "{} High factory creation rate - consider more singleton services",
+                "💡".yellow()
+            );
         }
-        
+
         println!();
-        println!("{} Use 'magray performance' again to track improvements", "ℹ️".blue());
-        
+        println!(
+            "{} Use 'magray performance' again to track improvements",
+            "ℹ️".blue()
+        );
     } else {
         println!();
         println!("{} No performance data available yet.", "ℹ️".blue());
         println!("  Try running some commands first to generate metrics.");
     }
-    
+
     println!();
-    
+
     Ok(())
 }

@@ -1,8 +1,8 @@
 //! Refactored Dependency Injection system следующий принципам SOLID
-//! 
+//!
 //! Этот модуль демонстрирует правильную декомпозицию God Object (di_container.rs)
 //! с применением всех принципов SOLID:
-//! 
+//!
 //! - **SRP (Single Responsibility)**: Каждый модуль имеет единственную ответственность
 //! - **OCP (Open/Closed)**: Система расширяется через traits без изменения существующего кода
 //! - **LSP (Liskov Substitution)**: Все реализации traits взаимозаменяемы
@@ -10,7 +10,7 @@
 //! - **DIP (Dependency Inversion)**: Зависимости инжектируются через abstractions
 //!
 //! ## Архитектура модулей:
-//! 
+//!
 //! ```text
 //! di/
 //! ├── traits.rs              - Trait абстракции (ISP, DIP)
@@ -28,7 +28,12 @@
 //! - `ContainerCore`: только регистрация и разрешение
 //! - `LifetimeManager`: только управление жизненным циклом  
 //! - `DependencyValidator`: только валидация циклов
+//! - `MetricsCollector`: только сбор и агрегация метрик
+//! - `ConfigPresets`: только предустановленные конфигурации
 //! - `MetricsReporter`: только сбор и отчетность метрик
+//! - `ConfigLoader`: только загрузка конфигурационных файлов
+//! - `ContainerRegistry`: только регистрация и поиск контейнеров
+//! - `ServiceLocator`: только поиск и разрешение сервисов
 //!
 //! ### 2. Open/Closed Principle (OCP)  
 //! - `LifetimeStrategy` trait позволяет добавлять новые lifetime стратегии
@@ -50,37 +55,80 @@
 //! - Нет прямых зависимостей на concrete types
 //!
 //! ## Обратная совместимость:
-//! 
+//!
 //! Старый API через `DIContainer` facade полностью сохранен.
 //! Все существующие тесты и код продолжат работать без изменений.
 
-pub mod traits;
-pub mod container_core;
-pub mod lifetime_manager;
-pub mod dependency_validator;
-pub mod metrics_collector;
+// === НОВАЯ ЕДИНАЯ АРХИТЕКТУРА ===
+pub mod core_traits; // Single Source of Truth для всех DI abstractions
+pub mod unified_container_impl; // ЕДИНСТВЕННАЯ КОРРЕКТНАЯ РЕАЛИЗАЦИЯ DI Container
+
+// === Object Safety Solution ===
+pub mod object_safe_resolver; // Type-erased resolver для dyn compatibility
+
+// === Старые модули (deprecated) ===
 pub mod container_builder;
-pub mod unified_container;
+pub mod container_core;
+pub mod dependency_validator;
+pub mod errors;
+pub mod lifetime_manager;
+pub mod metrics_collector;
 pub mod migration_facade;
+pub mod traits;
+pub mod unified_container;
+
+// NEW UNIFIED CONFIGURATION SYSTEM - объединяет все разрозненные configs
+pub mod config_compatibility;
+pub mod config_loader;
+pub mod config_presets;
+pub mod config_validation;
+pub mod unified_config;
+
+// OPTIMIZED MODULAR ARCHITECTURE - разделение God Objects
+pub mod container_cache;
+pub mod container_configuration;
+pub mod optimized_unified_container;
 
 // Re-export основных типов для удобства использования
 pub use traits::{
-    DIResolver, DIRegistrar, LifetimeManager, DependencyValidator, MetricsReporter,
-    Lifetime, DIContainerStats, DIPerformanceMetrics, TypeMetrics,
+    DIContainerStats, DIPerformanceMetrics, DIRegistrar, DIResolver, Lifetime, LifetimeManager,
+    MetricsReporter, TypeMetrics,
 };
 
-pub use container_core::ContainerCore;
-pub use lifetime_manager::{LifetimeManagerImpl, ExtensibleLifetimeManager, LifetimeStrategy};
-pub use dependency_validator::{DependencyValidatorImpl, DependencyGraph, DependencyGraphStats};
-pub use metrics_collector::{MetricsReporterImpl, CompositeMetricsReporter, TimingStatsReport};
-pub use container_builder::{DIContainer, DIContainerBuilder};
-pub use unified_container::{
-    UnifiedDIContainer, UnifiedDIContainerBuilder, ContainerConfiguration, ComponentFactory,
-    UnifiedMemoryConfigurator, MemoryServiceConfig, create_default_memory_config
+// Re-export Object Safety solution
+pub use object_safe_resolver::{
+    ObjectSafeResolver, ResolverDiagnostics, ServiceLocatorResolver, TypeSafeResolver,
 };
+
+// Re-export error types для всего DI кода
+pub use errors::{
+    CoordinatorError, DIContextExt, DIError, LifecycleError, MetricsError, ValidationError,
+};
+
+pub use container_builder::{DIContainer, DIContainerBuilder};
+pub use container_core::ContainerCore;
+pub use dependency_validator::{DependencyGraph, DependencyGraphStats, DependencyValidatorImpl};
+pub use lifetime_manager::{ExtensibleLifetimeManager, LifetimeManagerImpl};
+pub use metrics_collector::{CompositeMetricsReporter, MetricsReporterImpl, TimingStatsReport};
 pub use migration_facade::{
-    DIMemoryServiceMigrationFacade, DIMemoryServiceMigrationBuilder, LegacyMemoryConfig,
-    DIMemoryServiceOriginalCompatible, DIMemoryServiceRefactoredCompatible, DIMemoryServiceFacadeCompatible
+    DIMemoryServiceFacadeCompatible, DIMemoryServiceMigrationBuilder,
+    DIMemoryServiceMigrationFacade, DIMemoryServiceOriginalCompatible,
+    DIMemoryServiceRefactoredCompatible, LegacyMemoryConfig,
+};
+pub use unified_container::{
+    ComponentFactory, UnifiedDIContainer, UnifiedDIContainerBuilder, UnifiedMemoryConfigurator,
+};
+
+// NEW UNIFIED CONFIGURATION SYSTEM - re-exports
+pub use config_loader::{ConfigArgs, ConfigTemplateGenerator, ConfigurationLoader};
+pub use config_presets::{ConfigBuilder, ConfigPresets};
+pub use config_validation::ConfigurationValidator;
+pub use unified_config::{
+    AuthenticationConfig, ConfigurationMetadata, CoreSystemConfig, DatabaseConfig, Environment,
+    FeatureFlags, MemorySystemConfig, OrchestrationConfig, PerformanceConfig,
+    PerformanceThresholds, ProfilingConfig, RateLimitConfig, SecurityConfig,
+    UnifiedDIConfiguration, ValidationError as ConfigValidationError, ValidationReport,
+    ValidationWarning,
 };
 
 // Legacy compatibility - старый API остается доступным
@@ -89,11 +137,31 @@ pub use container_builder::DIContainer as DIContainerLegacy;
 // NEW UNIFIED API - заменяет все дублирования
 pub use unified_container::UnifiedDIContainer as DIContainerUnified;
 
+// OPTIMIZED MODULAR COMPONENTS - blazingly fast, separated concerns
+pub use container_cache::ContainerCache;
+pub use container_configuration::{
+    CacheConfiguration, DIConfigurationBuilder, DIContainerConfiguration, LogLevel,
+    MonitoringConfiguration, PerformanceConfiguration, ValidationConfiguration,
+};
+
+// Уникальные exports из container_cache и configuration
+pub use container_cache::{CacheConfig, CacheStats};
+// DIContainerConfiguration уже импортируется выше в строке 145
+pub use dependency_validator::DependencyValidator;
+// LifetimeStrategy уже импортирован выше
+pub use optimized_unified_container::{
+    ContainerPreset, OptimizedContainerBuilder, OptimizedUnifiedContainer,
+};
+
 // MIGRATION FACADES - для постепенного перехода
-pub use migration_facade::DIMemoryServiceMigrationFacade as DIMemoryServiceUnified;
+pub use migration_facade::{
+    DIMemoryServiceMigrationBuilder as DIMemoryServiceBuilder,
+    DIMemoryServiceMigrationFacade as DIMemoryServiceUnified,
+    DIMemoryServiceMigrationFacade as DIMemoryService,
+};
 
 /// Создать DI контейнер с настройками по умолчанию
-/// 
+///
 /// Это convenience функция для быстрого создания контейнера
 /// с включенными валидацией и метриками.
 pub fn create_default_container() -> anyhow::Result<DIContainer> {
@@ -101,7 +169,7 @@ pub fn create_default_container() -> anyhow::Result<DIContainer> {
 }
 
 /// Создать минимальный DI контейнер без валидации и метрик
-/// 
+///
 /// Полезно для production сценариев где нужна максимальная производительность
 /// и валидация уже была выполнена в development.
 pub fn create_minimal_container() -> anyhow::Result<DIContainer> {
@@ -112,7 +180,7 @@ pub fn create_minimal_container() -> anyhow::Result<DIContainer> {
 }
 
 /// Создать контейнер с custom конфигурацией компонентов
-/// 
+///
 /// Демонстрирует принцип Dependency Inversion - можно инжектировать
 /// любые реализации основных компонентов.
 pub fn create_custom_container(
@@ -120,44 +188,108 @@ pub fn create_custom_container(
     dependency_validator: std::sync::Arc<DependencyValidatorImpl>,
     metrics_reporter: std::sync::Arc<MetricsReporterImpl>,
 ) -> DIContainer {
-    let core = ContainerCore::new(
-        lifetime_manager,
-        dependency_validator,
-        metrics_reporter,
-    );
+    let core = ContainerCore::new(lifetime_manager, dependency_validator, metrics_reporter);
     DIContainer::new(core)
 }
 
 /// === NEW UNIFIED CONTAINER FACTORY FUNCTIONS ===
 
 /// Создать унифицированный DI контейнер по умолчанию
-/// 
+///
 /// ЗАМЕНЯЕТ все существующие DIContainer создания.
 /// Использует оптимизированные настройки для баланса производительности и функциональности.
 pub fn create_unified_container() -> UnifiedDIContainer {
     UnifiedDIContainer::new()
 }
 
-/// Создать production-ready унифицированный контейнер
-/// 
-/// Оптимизирован для высокой нагрузки с увеличенными кэшами и timeouts.
-pub fn create_production_container() -> UnifiedDIContainer {
-    UnifiedDIContainer::production()
+/// === UNIFIED CONFIGURATION FACTORY FUNCTIONS ===
+
+/// Загрузить конфигурацию используя auto-detection и environment variables
+///
+/// Автоматически определяет лучший preset на основе окружения и применяет
+/// все переопределения из environment variables.
+pub fn load_auto_configuration() -> anyhow::Result<UnifiedDIConfiguration> {
+    let loader = ConfigurationLoader::new();
+    loader.load()
 }
 
-/// Создать development унифицированный контейнер  
-/// 
-/// Включает дополнительную отладочную информацию и валидацию.
-pub fn create_development_container() -> UnifiedDIContainer {
-    UnifiedDIContainer::development()
+/// Загрузить конфигурацию из указанного файла
+///
+/// Поддерживает TOML, JSON и YAML форматы.
+/// Применяет environment variable overrides после загрузки.
+pub fn load_configuration_from_file<P: AsRef<std::path::Path>>(
+    path: P,
+) -> anyhow::Result<UnifiedDIConfiguration> {
+    let loader = ConfigurationLoader::new();
+    let mut config = loader.load_from_file(path)?;
+    config.apply_env_overrides()?;
+    Ok(config)
 }
 
-/// Создать minimal унифицированный контейнер для тестов
-/// 
-/// Отключает метрики и валидацию для максимальной производительности в тестах.
-pub fn create_test_container() -> UnifiedDIContainer {
-    UnifiedDIContainer::minimal()
+/// Создать конфигурацию с custom настройками
+///
+/// Удобный способ создания конфигурации с помощью builder pattern.
+pub fn build_custom_configuration() -> ConfigBuilder {
+    ConfigBuilder::new()
 }
+
+/// Валидировать конфигурацию и получить отчет
+///
+/// Выполняет comprehensive validation включая cross-component compatibility.
+pub fn validate_configuration(config: &UnifiedDIConfiguration) -> anyhow::Result<ValidationReport> {
+    let validator = ConfigurationValidator::new();
+    validator.validate(config)
+}
+
+/// Сгенерировать template конфигурационного файла
+///
+/// Полезно для создания базовых конфигурационных файлов.
+/// Поддерживаемые форматы: "toml", "json", "yaml"
+pub fn generate_config_template(format: &str, preset: Option<&str>) -> anyhow::Result<String> {
+    ConfigTemplateGenerator::generate_template(format, preset)
+}
+
+// === НОВЫЕ CORE TRAITS RE-EXPORTS (Single Source of Truth) ===
+pub use core_traits::{
+    // Builder interfaces
+    ContainerBuilder,
+    ContainerMetrics,
+    // Unified container interface
+    DIContainer as CoreDIContainer,
+    MetricsConfig,
+    // Performance metrics
+    ResolutionStats,
+    // Factory function type
+    ServiceFactory,
+    // Service locator (use sparingly!)
+    ServiceLocator,
+    // Core service interfaces
+    ServiceRegistry,
+    ServiceResolver,
+    ValidationConfig,
+};
+
+// === ЕДИНСТВЕННАЯ КОРРЕКТНАЯ РЕАЛИЗАЦИЯ ===
+pub use unified_container_impl::{
+    container_builder,
+    // Factory functions
+    create_container,
+    development_builder,
+    production_builder,
+    UnifiedContainer,
+    UnifiedContainerBuilder,
+};
+
+// Дублированные factory функции - оставляем только из unified_container_impl
+pub use unified_container_impl::{
+    create_development_container, create_production_container, create_test_container,
+};
+
+// === НОВЫЙ СТАНДАРТНЫЙ API (заменяет все дублирования) ===
+/// Стандартный DI контейнер для всего проекта
+pub type StandardContainer = UnifiedContainer;
+/// Стандартный builder для всего проекта  
+pub type StandardContainerBuilder = UnifiedContainerBuilder;
 
 #[cfg(test)]
 mod integration_tests {
@@ -195,10 +327,7 @@ mod integration_tests {
     fn test_default_container() -> Result<()> {
         let container = create_default_container()?;
 
-        container.register(
-            |_| Ok(TestService::new()),
-            Lifetime::Singleton,
-        )?;
+        container.register(|_| Ok(TestService::new()), Lifetime::Singleton)?;
 
         let service = container.resolve::<TestService>()?;
         assert_eq!(service.value, 42);
@@ -210,10 +339,7 @@ mod integration_tests {
     fn test_minimal_container() -> Result<()> {
         let container = create_minimal_container()?;
 
-        container.register(
-            |_| Ok(TestService::new()),
-            Lifetime::Singleton,
-        )?;
+        container.register(|_| Ok(TestService::new()), Lifetime::Singleton)?;
 
         let service = container.resolve::<TestService>()?;
         assert_eq!(service.value, 42);
@@ -233,16 +359,10 @@ mod integration_tests {
         let dependency_validator = Arc::new(DependencyValidatorImpl::new());
         let metrics_reporter = Arc::new(MetricsReporterImpl::new());
 
-        let container = create_custom_container(
-            lifetime_manager,
-            dependency_validator,
-            metrics_reporter,
-        );
+        let container =
+            create_custom_container(lifetime_manager, dependency_validator, metrics_reporter);
 
-        container.register(
-            |_| Ok(TestService::new()),
-            Lifetime::Singleton,
-        )?;
+        container.register(|_| Ok(TestService::new()), Lifetime::Singleton)?;
 
         let service = container.resolve::<TestService>()?;
         assert_eq!(service.value, 42);
@@ -255,10 +375,7 @@ mod integration_tests {
         let container = create_default_container()?;
 
         // Регистрируем базовый сервис
-        container.register(
-            |_| Ok(TestService::new()),
-            Lifetime::Singleton,
-        )?;
+        container.register(|_| Ok(TestService::new()), Lifetime::Singleton)?;
 
         // Регистрируем зависимый сервис
         container.register(
@@ -318,13 +435,10 @@ mod integration_tests {
         // Тестируем, что старый API все еще работает
         let container = DIContainerLegacy::default_container()?;
 
-        container.register(
-            |_| Ok(TestService::new()),
-            Lifetime::Singleton,
-        )?;
+        container.register(|_| Ok(TestService::new()), Lifetime::Singleton)?;
 
         assert!(container.is_registered::<TestService>());
-        
+
         let service = container.resolve::<TestService>()?;
         assert_eq!(service.value, 42);
 
@@ -334,7 +448,7 @@ mod integration_tests {
         Ok(())
     }
 
-    #[test] 
+    #[test]
     fn test_circular_dependency_detection() -> Result<()> {
         let container = create_default_container()?;
 
@@ -356,10 +470,7 @@ mod integration_tests {
     fn test_performance_metrics() -> Result<()> {
         let container = create_default_container()?;
 
-        container.register(
-            |_| Ok(TestService::new()),
-            Lifetime::Singleton,
-        )?;
+        container.register(|_| Ok(TestService::new()), Lifetime::Singleton)?;
 
         // Выполняем несколько разрешений
         for _ in 0..5 {

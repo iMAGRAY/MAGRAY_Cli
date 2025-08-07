@@ -1,11 +1,11 @@
-﻿use anyhow::{anyhow, Result};
-use clap::{Subcommand, Args};
-use memory::{Layer, UnifiedMemoryAPI, MemoryContext, create_di_memory_service};
+use crate::progress::ProgressBuilder;
+use anyhow::{anyhow, Result};
+use clap::{Args, Subcommand};
+use colored::*;
+use memory::{default_config, Layer, MemoryContext, RefactoredDIMemoryService, UnifiedMemoryAPI};
+use prettytable::{row, Table};
 use std::path::PathBuf;
 use std::sync::Arc;
-use colored::*;
-use prettytable::{Table, row};
-use crate::progress::ProgressBuilder;
 
 /// Команда для управления системой памяти
 #[derive(Debug, Args)]
@@ -30,15 +30,15 @@ enum MemorySubcommand {
     Search {
         /// Поисковый запрос
         query: String,
-        
+
         /// Слой для поиска (interact/insights/assets)
         #[arg(short, long)]
         layer: Option<String>,
-        
+
         /// Количество результатов
         #[arg(short = 'k', long, default_value = "10")]
         top_k: usize,
-        
+
         /// Минимальный score
         #[arg(short, long)]
         min_score: Option<f32>,
@@ -49,15 +49,15 @@ enum MemorySubcommand {
     Add {
         /// Текст для добавления
         text: String,
-        
+
         /// Слой (interact/insights/assets)
         #[arg(short, long, default_value = "interact")]
         layer: String,
-        
+
         /// Теги (разделённые запятой)
         #[arg(short, long)]
         tags: Option<String>,
-        
+
         /// Тип записи
         #[arg(short = 'k', long, default_value = "note")]
         kind: String,
@@ -101,18 +101,18 @@ enum MemorySubcommand {
     /// Оптимизировать память
     #[command(name = "optimize")]
     Optimize,
-    
+
     /// Управление лимитами памяти
     #[command(name = "limits")]
     Limits {
         /// Установить максимальное количество векторов
         #[arg(long)]
         max_vectors: Option<usize>,
-        
+
         /// Установить максимальный размер кэша в MB
         #[arg(long)]
         max_cache_mb: Option<usize>,
-        
+
         /// Показать текущие лимиты
         #[arg(short, long)]
         show: bool,
@@ -127,122 +127,149 @@ impl MemoryCommand {
 
 async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
     let _config = memory::default_config()?;
-    
+
     // Пытаемся создать DI сервис, fallback на legacy если не получается
-    let api = match create_di_memory_service().await {
+    let api = match RefactoredDIMemoryService::new(default_config()?).await {
         Ok(di_service) => {
             println!("✅ Используем новую DI архитектуру");
-            UnifiedMemoryAPI::new_di(Arc::new(di_service))
+            UnifiedMemoryAPI::new(Arc::new(di_service))
         }
         Err(e) => {
             println!("⚠️ Fallback на legacy архитектуру: {}", e);
-            return Err(anyhow!("Legacy MemoryService integration not implemented in current version"));
+            return Err(anyhow!(
+                "Legacy MemoryService integration not implemented in current version"
+            ));
         }
     };
-    
+
     match cmd {
         MemorySubcommand::Stats { detailed } => {
             show_memory_stats(&api, detailed).await?;
         }
-        
-        MemorySubcommand::Search { query, layer, top_k, min_score } => {
+
+        MemorySubcommand::Search {
+            query,
+            layer,
+            top_k,
+            min_score,
+        } => {
             search_memory(&api, &query, layer, top_k, min_score).await?;
         }
-        
-        MemorySubcommand::Add { text, layer, tags, kind } => {
+
+        MemorySubcommand::Add {
+            text,
+            layer,
+            tags,
+            kind,
+        } => {
             add_to_memory(&api, text, &layer, tags, &kind).await?;
         }
-        
+
         MemorySubcommand::Backup { name } => {
             create_backup(&api, name).await?;
         }
-        
+
         MemorySubcommand::Restore { backup_path } => {
             restore_backup(&api, backup_path).await?;
         }
-        
+
         MemorySubcommand::ListBackups => {
             list_backups(&api)?;
         }
-        
+
         MemorySubcommand::Promote => {
             run_promotion(&api).await?;
         }
-        
+
         MemorySubcommand::Health { detailed } => {
             check_health(&api, detailed).await?;
         }
-        
+
         MemorySubcommand::ClearCache => {
             clear_cache(&api).await?;
         }
-        
+
         MemorySubcommand::Optimize => {
             optimize_memory(&api).await?;
         }
-        
-        MemorySubcommand::Limits { max_vectors, max_cache_mb, show } => {
+
+        MemorySubcommand::Limits {
+            max_vectors,
+            max_cache_mb,
+            show,
+        } => {
             manage_limits(&api, max_vectors, max_cache_mb, show).await?;
         }
     }
-    
+
     Ok(())
 }
 
 async fn show_memory_stats(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()> {
     let stats = api.get_stats().await?;
-    
+
     println!("{}", "=== Memory System Statistics ===".bold().blue());
     println!();
-    
+
     // Основная статистика
     println!("{}: {}", "Total records".cyan(), stats.total_records);
-    println!("{}: {} ({:.1}%)", 
-        "Cache hit rate".cyan(), 
-        stats.cache_stats.hit_rate, 
+    println!(
+        "{}: {} ({:.1}%)",
+        "Cache hit rate".cyan(),
+        stats.cache_stats.hit_rate,
         stats.cache_stats.hit_rate * 100.0
     );
-    println!("{}: {} bytes", "Cache size".cyan(), stats.cache_stats.size_bytes);
-    
+    println!(
+        "{}: {} bytes",
+        "Cache size".cyan(),
+        stats.cache_stats.size_bytes
+    );
+
     // Статистика по слоям
     println!("\n{}", "Layer Statistics:".bold());
     let mut table = Table::new();
     table.add_row(row!["Layer", "Records", "Size (KB)", "Avg Access"]);
-    
+
     table.add_row(row![
         "Interact".yellow(),
         stats.interact_count,
         stats.interact_size / 1024,
         format!("{:.1}", stats.interact_avg_access)
     ]);
-    
+
     table.add_row(row![
         "Insights".green(),
         stats.insights_count,
         stats.insights_size / 1024,
         format!("{:.1}", stats.insights_avg_access)
     ]);
-    
+
     table.add_row(row![
         "Assets".blue(),
         stats.assets_count,
         stats.assets_size / 1024,
         format!("{:.1}", stats.assets_avg_access)
     ]);
-    
+
     table.printstd();
-    
+
     if detailed {
         // Детальная статистика через API
         println!("\n{}", "Performance Metrics:".bold());
-        
+
         // Показываем базовую статистику через API
         println!("{}: {}", "Total records".cyan(), stats.total_records);
-        println!("{}: {:.1}%", "Cache hit rate".cyan(), stats.cache_stats.hit_rate * 100.0);
-        
+        println!(
+            "{}: {:.1}%",
+            "Cache hit rate".cyan(),
+            stats.cache_stats.hit_rate * 100.0
+        );
+
         // Health статус
         let health = api.health_check().await?;
-        println!("\n{}: {}", "System health".bold(), 
+        println!(
+            "\n{}: {}",
+            "System health".bold(),
             match health.status {
                 "healthy" => "HEALTHY".green(),
                 "degraded" => "DEGRADED".yellow(),
@@ -251,21 +278,25 @@ async fn show_memory_stats(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()>
                 _ => health.status.normal(),
             }
         );
-        
+
         if health.alert_count > 0 {
-            println!("{}: {} active alerts", "Alerts".yellow(), health.alert_count);
+            println!(
+                "{}: {} active alerts",
+                "Alerts".yellow(),
+                health.alert_count
+            );
         }
     }
-    
+
     Ok(())
 }
 
 async fn search_memory(
-    api: &UnifiedMemoryAPI, 
-    query: &str, 
+    api: &UnifiedMemoryAPI,
+    query: &str,
     layer: Option<String>,
     top_k: usize,
-    _min_score: Option<f32>
+    _min_score: Option<f32>,
 ) -> Result<()> {
     let layers = if let Some(layer_str) = layer {
         let layer = match layer_str.as_str() {
@@ -278,36 +309,38 @@ async fn search_memory(
     } else {
         None
     };
-    
+
     let options = memory::api::SearchOptions {
         limit: Some(top_k),
         layers,
         ..Default::default()
     };
-    
+
     // Note: min_score filter is not available in current API
     // You can filter results after retrieval if needed
-    
+
     println!("{} '{}'...", "Searching for".cyan(), query.bold());
-    
+
     let results = api.recall(query, options).await?;
-    
+
     if results.is_empty() {
         println!("{}", "No results found.".yellow());
         return Ok(());
     }
-    
+
     println!("\n{} {} results:\n", "Found".green(), results.len());
-    
+
     for (i, result) in results.iter().enumerate() {
-        println!("{}: {} (score: {:.3})", 
+        println!(
+            "{}: {} (score: {:.3})",
             format!("{}.", i + 1).bold(),
             result.text.trim(),
             result.relevance_score
         );
-        
+
         // Показываем метаданные
-        println!("   {} {:?} | {} {} | {} {}",
+        println!(
+            "   {} {:?} | {} {} | {} {}",
             "Layer:".dimmed(),
             result.layer,
             "Kind:".dimmed(),
@@ -315,17 +348,18 @@ async fn search_memory(
             "Tags:".dimmed(),
             result.tags.join(", ")
         );
-        
-        println!("   {} {} | {} {}",
+
+        println!(
+            "   {} {} | {} {}",
             "Created:".dimmed(),
             result.created_at.format("%Y-%m-%d %H:%M"),
             "Access count:".dimmed(),
             result.access_count
         );
-        
+
         println!();
     }
-    
+
     Ok(())
 }
 
@@ -342,63 +376,80 @@ async fn add_to_memory(
         "assets" => Layer::Assets,
         _ => return Err(anyhow!("Invalid layer: {}", layer)),
     };
-    
+
     let mut context = MemoryContext::new(kind);
     context.layer = Some(layer);
-    
+
     if let Some(tags_str) = tags {
-        let tags: Vec<String> = tags_str.split(',')
+        let tags: Vec<String> = tags_str
+            .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
         context = context.with_tags(tags);
     }
-    
+
     let id = api.remember(text.clone(), context).await?;
-    
+
     println!("{} Record added successfully!", "✓".green());
     println!("{}: {}", "ID".cyan(), id);
     println!("{}: {:?}", "Layer".cyan(), layer);
-    
+
     Ok(())
 }
 
 async fn create_backup(api: &UnifiedMemoryAPI, name: Option<String>) -> Result<()> {
     let spinner = ProgressBuilder::backup("Creating memory backup...");
-    
+
     // Используем фиктивное имя для API
-    let backup_name = name.unwrap_or_else(|| format!("backup_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S")));
-    
+    let backup_name =
+        name.unwrap_or_else(|| format!("backup_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S")));
+
     // Попытка создать backup через API может не работать для всех реализаций
     match tokio::time::timeout(std::time::Duration::from_secs(30), async {
-        let _ = api.remember(
-            format!("Backup request: {}", backup_name),
-            memory::MemoryContext::new("backup").with_layer(memory::Layer::Assets)
-        ).await;
+        let _ = api
+            .remember(
+                format!("Backup request: {}", backup_name),
+                memory::MemoryContext::new("backup").with_layer(memory::Layer::Assets),
+            )
+            .await;
         Ok::<PathBuf, anyhow::Error>(std::path::PathBuf::from(backup_name))
-    }).await {
+    })
+    .await
+    {
         Ok(Ok(path)) => {
             spinner.finish_success(Some("Backup created successfully!"));
             println!("{}: {}", "Path".cyan(), path.display());
         }
         _ => {
-            spinner.finish_success(Some("Backup feature not fully implemented in current architecture"));
-            println!("{}", "Note: Backup functionality requires legacy API".yellow());
+            spinner.finish_success(Some(
+                "Backup feature not fully implemented in current architecture",
+            ));
+            println!(
+                "{}",
+                "Note: Backup functionality requires legacy API".yellow()
+            );
         }
     }
-    
+
     Ok(())
 }
 
 async fn restore_backup(_api: &UnifiedMemoryAPI, backup_path: PathBuf) -> Result<()> {
-    let file_name = backup_path.file_name().unwrap_or_default().to_string_lossy();
+    let file_name = backup_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy();
     let spinner = ProgressBuilder::backup(&format!("Restoring from backup: {file_name}"));
-    
+
     // Restore не реализован в DIMemoryService trait
     spinner.finish_success(Some("Restore feature not implemented"));
-    println!("{}", "Note: Restore functionality requires legacy API".yellow());
+    println!(
+        "{}",
+        "Note: Restore functionality requires legacy API".yellow()
+    );
     println!("{}: {}", "Requested file".cyan(), file_name);
-    
+
     Ok(())
 }
 
@@ -406,33 +457,50 @@ fn list_backups(_api: &UnifiedMemoryAPI) -> Result<()> {
     // List backups не доступен через trait
     println!("{}", "Available backups:".bold());
     println!("{}", "Note: Backup listing requires legacy API".yellow());
-    println!("{}", "No backups found (feature not implemented in current architecture)".dimmed());
-    
+    println!(
+        "{}",
+        "No backups found (feature not implemented in current architecture)".dimmed()
+    );
+
     Ok(())
 }
 
 async fn run_promotion(api: &UnifiedMemoryAPI) -> Result<()> {
     let spinner = ProgressBuilder::memory("Running memory promotion cycle...");
-    
+
     let result = api.optimize_memory().await?;
-    
+
     spinner.finish_success(Some("Promotion cycle completed!"));
-    println!("{}: {} records", "Interact → Insights".cyan(), result.promoted_to_insights);
-    println!("{}: {} records", "Insights → Assets".cyan(), result.promoted_to_assets);
-    println!("{}: {} records", "Expired".cyan(), result.expired_interact + result.expired_insights);
+    println!(
+        "{}: {} records",
+        "Interact → Insights".cyan(),
+        result.promoted_to_insights
+    );
+    println!(
+        "{}: {} records",
+        "Insights → Assets".cyan(),
+        result.promoted_to_assets
+    );
+    println!(
+        "{}: {} records",
+        "Expired".cyan(),
+        result.expired_interact + result.expired_insights
+    );
     println!("{}: {}ms", "Total time".cyan(), result.total_time_ms);
-    
+
     Ok(())
 }
 
 async fn check_health(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()> {
     if detailed {
         let health = api.full_health_check().await?;
-        
+
         println!("{}", "=== Memory System Health Check ===".bold().blue());
         println!();
-        
-        println!("{}: {}", "Overall status".bold(), 
+
+        println!(
+            "{}: {}",
+            "Overall status".bold(),
             match health.overall_status {
                 "healthy" => "HEALTHY".green(),
                 "warning" => "WARNING".yellow(),
@@ -440,7 +508,7 @@ async fn check_health(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()> {
                 _ => health.overall_status.normal(),
             }
         );
-        
+
         // Компоненты
         println!("\n{}", "Component Status:".bold());
         // Note: components field not available in DetailedHealth
@@ -450,7 +518,7 @@ async fn check_health(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()> {
         } else {
             println!("  {} {} alert(s) active", "⚠".yellow(), health.alerts.len());
         }
-        
+
         // Алерты
         if !health.alerts.is_empty() {
             println!("\n{}", "Alerts:".bold());
@@ -463,7 +531,7 @@ async fn check_health(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()> {
                 println!("  [{}] {} - {}", severity, alert.component, alert.message);
             }
         }
-        
+
         // Метрики
         if !health.metrics.is_empty() {
             println!("\n{}", "Key Metrics:".bold());
@@ -473,62 +541,91 @@ async fn check_health(api: &UnifiedMemoryAPI, detailed: bool) -> Result<()> {
         }
     } else {
         let health = api.health_check().await?;
-        
+
         let status_str = match health.status {
             "healthy" => "HEALTHY".green(),
             "warning" => "WARNING".yellow(),
             "critical" => "CRITICAL".red(),
             _ => health.status.normal(),
         };
-        
+
         println!("{}: {}", "Memory system status".bold(), status_str);
-        
+
         if health.alert_count > 0 {
             println!("\n{}:", "Issues found".yellow());
             println!("  • {} active alert(s)", health.alert_count);
         }
     }
-    
+
     Ok(())
 }
 
 async fn clear_cache(api: &UnifiedMemoryAPI) -> Result<()> {
     let spinner = ProgressBuilder::fast("Clearing embedding cache...");
-    
+
     // Clear cache через trait (может не работать для DIMemoryService)
     match tokio::time::timeout(std::time::Duration::from_secs(10), async {
         // Используем фиктивную операцию вместо прямого clear_cache
         // так как не все реализации это поддерживают
         let _ = api.get_stats().await;
         Ok::<(), anyhow::Error>(())
-    }).await {
+    })
+    .await
+    {
         Ok(_) => {
             spinner.finish_success(Some("Cache operation completed!"));
-            println!("{}", "Note: Cache clearing may not be fully supported in current architecture".yellow());
+            println!(
+                "{}",
+                "Note: Cache clearing may not be fully supported in current architecture".yellow()
+            );
         }
         Err(_) => {
             spinner.finish_success(Some("Cache clear timeout"));
         }
     }
-    
+
     Ok(())
 }
 
 async fn optimize_memory(api: &UnifiedMemoryAPI) -> Result<()> {
     let spinner = ProgressBuilder::memory("Optimizing memory system...");
-    
+
     let result = api.optimize_memory().await?;
-    
+
     spinner.finish_success(Some("Optimization completed!"));
-    println!("{}: {} records", "Promoted to insights".cyan(), result.promoted_to_insights);
-    println!("{}: {} records", "Promoted to assets".cyan(), result.promoted_to_assets);
-    println!("{}: {} records", "Expired (Interact)".cyan(), result.expired_interact);
-    println!("{}: {} records", "Expired (Insights)".cyan(), result.expired_insights);
+    println!(
+        "{}: {} records",
+        "Promoted to insights".cyan(),
+        result.promoted_to_insights
+    );
+    println!(
+        "{}: {} records",
+        "Promoted to assets".cyan(),
+        result.promoted_to_assets
+    );
+    println!(
+        "{}: {} records",
+        "Expired (Interact)".cyan(),
+        result.expired_interact
+    );
+    println!(
+        "{}: {} records",
+        "Expired (Insights)".cyan(),
+        result.expired_insights
+    );
     println!("{}: {}ms", "Total time".cyan(), result.total_time_ms);
-    println!("{}: {}ms", "Promotion time".cyan(), result.promotion_time_ms);
-    println!("{}: {}ms", "Index update time".cyan(), result.index_update_time_ms);
+    println!(
+        "{}: {}ms",
+        "Promotion time".cyan(),
+        result.promotion_time_ms
+    );
+    println!(
+        "{}: {}ms",
+        "Index update time".cyan(),
+        result.index_update_time_ms
+    );
     println!("{}: {}ms", "Cleanup time".cyan(), result.cleanup_time_ms);
-    
+
     Ok(())
 }
 
@@ -539,26 +636,32 @@ async fn manage_limits(
     show: bool,
 ) -> Result<()> {
     // Config не доступен через unified API, используем статистику
-    
+
     if show || (max_vectors.is_none() && max_cache_mb.is_none()) {
         println!("{}", "=== Memory System Limits ===".bold().blue());
         println!();
-        
+
         // Показываем текущие лимиты через API
-        println!("{}", "Configuration limits not directly accessible through unified API".yellow());
-        println!("{}", "To view detailed limits, check memory configuration file".dimmed());
-        
+        println!(
+            "{}",
+            "Configuration limits not directly accessible through unified API".yellow()
+        );
+        println!(
+            "{}",
+            "To view detailed limits, check memory configuration file".dimmed()
+        );
+
         // Показываем текущую статистику через API
         let stats = api.get_stats().await?;
-        
+
         println!("\n{}", "Current Usage:".bold());
         println!("{}: {}", "Total records".cyan(), stats.total_records);
-        
+
         println!("\n{}", "Usage by layer:".bold());
         for (layer_name, count) in &stats.layer_distribution {
             println!("  {}: {} records", layer_name.cyan(), count);
         }
-        
+
         // Показываем здоровье кэша
         let (hits, misses, size) = api.cache_stats();
         let hit_rate = if hits + misses > 0 {
@@ -566,37 +669,53 @@ async fn manage_limits(
         } else {
             0.0
         };
-        
+
         println!("\n{}", "Cache Statistics:".bold());
-        println!("{}: {:.1}% ({} hits, {} misses)", 
-            "Hit rate".cyan(), hit_rate, hits, misses);
+        println!(
+            "{}: {:.1}% ({} hits, {} misses)",
+            "Hit rate".cyan(),
+            hit_rate,
+            hits,
+            misses
+        );
         println!("{}: {} bytes", "Cache size".cyan(), size);
     }
-    
+
     // Обновляем лимиты если указаны
     if max_vectors.is_some() || max_cache_mb.is_some() {
         if let Some(new_max_vectors) = max_vectors {
-            println!("\n{} {} vectors...", 
-                "Setting max vectors to".yellow(), 
+            println!(
+                "\n{} {} vectors...",
+                "Setting max vectors to".yellow(),
                 new_max_vectors
             );
-            
+
             // TODO: Реализовать обновление лимитов в runtime
             // Это потребует добавления метода в MemoryService для обновления конфигурации
-            println!("{}", "Note: Runtime limit updates not yet implemented. Restart required.".yellow());
+            println!(
+                "{}",
+                "Note: Runtime limit updates not yet implemented. Restart required.".yellow()
+            );
         }
-        
+
         if let Some(new_max_cache_mb) = max_cache_mb {
-            println!("{} {} MB...", 
-                "Setting max cache size to".yellow(), 
+            println!(
+                "{} {} MB...",
+                "Setting max cache size to".yellow(),
                 new_max_cache_mb
             );
-            
-            println!("{}", "Note: Runtime limit updates not yet implemented. Restart required.".yellow());
+
+            println!(
+                "{}",
+                "Note: Runtime limit updates not yet implemented. Restart required.".yellow()
+            );
         }
-        
-        println!("\n{}", "To apply new limits, update your configuration and restart.".dimmed());
+
+        println!(
+            "\n{}",
+            "To apply new limits, update your configuration and restart.".dimmed()
+        );
     }
-    
+
     Ok(())
 }

@@ -1,5 +1,5 @@
-﻿//! Circuit Breaker Pattern Implementation
-//! 
+//! Circuit Breaker Pattern Implementation
+//!
 //! Реализует паттерн Circuit Breaker для защиты от каскадных сбоев
 
 use anyhow::Result;
@@ -77,28 +77,30 @@ impl BasicCircuitBreaker {
             name,
         }
     }
-    
+
     /// Создание с настройками по умолчанию
     pub fn with_defaults(name: String) -> Self {
         Self::new(
             name,
-            5,                              // 5 сбоев для открытия
-            Duration::from_secs(30),        // 30 секунд recovery timeout
-            3,                              // 3 успеха для закрытия
+            5,                       // 5 сбоев для открытия
+            Duration::from_secs(30), // 30 секунд recovery timeout
+            3,                       // 3 успеха для закрытия
         )
     }
-    
+
     /// Проверка и обновление состояния
     fn check_and_update_state(&self) -> CircuitBreakerState {
         let mut state = self.state.lock().unwrap();
         let mut metrics = self.metrics.lock().unwrap();
-        
+
         match *state {
             CircuitBreakerState::Closed => {
                 // Проверяем превышение порога сбоев
                 if metrics.failure_count >= self.failure_threshold {
-                    info!("CircuitBreaker '{}': переход в Open состояние (сбоев: {})", 
-                          self.name, metrics.failure_count);
+                    info!(
+                        "CircuitBreaker '{}': переход в Open состояние (сбоев: {})",
+                        self.name, metrics.failure_count
+                    );
                     *state = CircuitBreakerState::Open;
                     metrics.state_change_time = Instant::now();
                 }
@@ -106,7 +108,10 @@ impl BasicCircuitBreaker {
             CircuitBreakerState::Open => {
                 // Проверяем таймаут восстановления
                 if metrics.state_change_time.elapsed() >= self.recovery_timeout {
-                    info!("CircuitBreaker '{}': переход в HalfOpen состояние (timeout истек)", self.name);
+                    info!(
+                        "CircuitBreaker '{}': переход в HalfOpen состояние (timeout истек)",
+                        self.name
+                    );
                     *state = CircuitBreakerState::HalfOpen;
                     metrics.state_change_time = Instant::now();
                     // Сбрасываем счетчики для пробного периода
@@ -117,8 +122,10 @@ impl BasicCircuitBreaker {
             CircuitBreakerState::HalfOpen => {
                 // Проверяем достаточно ли успешных запросов для закрытия
                 if metrics.success_count >= self.success_threshold {
-                    info!("CircuitBreaker '{}': переход в Closed состояние (успехов: {})", 
-                          self.name, metrics.success_count);
+                    info!(
+                        "CircuitBreaker '{}': переход в Closed состояние (успехов: {})",
+                        self.name, metrics.success_count
+                    );
                     *state = CircuitBreakerState::Closed;
                     metrics.state_change_time = Instant::now();
                     // Полностью сбрасываем метрики
@@ -127,39 +134,48 @@ impl BasicCircuitBreaker {
                 }
                 // Если есть сбой в HalfOpen, сразу возвращаемся в Open
                 else if metrics.failure_count > 0 {
-                    warn!("CircuitBreaker '{}': возврат в Open состояние (сбой в HalfOpen)", self.name);
+                    warn!(
+                        "CircuitBreaker '{}': возврат в Open состояние (сбой в HalfOpen)",
+                        self.name
+                    );
                     *state = CircuitBreakerState::Open;
                     metrics.state_change_time = Instant::now();
                 }
             }
         }
-        
+
         state.clone()
     }
-    
+
     /// Записать успешное выполнение
     fn record_success(&self) {
         let mut metrics = self.metrics.lock().unwrap();
         metrics.success_count += 1;
         metrics.last_success_time = Some(Instant::now());
-        
-        debug!("CircuitBreaker '{}': записан успех (всего: {})", self.name, metrics.success_count);
+
+        debug!(
+            "CircuitBreaker '{}': записан успех (всего: {})",
+            self.name, metrics.success_count
+        );
     }
-    
+
     /// Записать сбой
     fn record_failure(&self) {
         let mut metrics = self.metrics.lock().unwrap();
         metrics.failure_count += 1;
         metrics.last_failure_time = Some(Instant::now());
-        
-        debug!("CircuitBreaker '{}': записан сбой (всего: {})", self.name, metrics.failure_count);
+
+        debug!(
+            "CircuitBreaker '{}': записан сбой (всего: {})",
+            self.name, metrics.failure_count
+        );
     }
-    
+
     /// Получить подробные метрики
     pub fn get_detailed_metrics(&self) -> String {
         let state = self.state.lock().unwrap();
         let metrics = self.metrics.lock().unwrap();
-        
+
         format!(
             "CircuitBreaker '{}' Metrics:\n\
              ├─ Состояние: {:?}\n\
@@ -183,7 +199,7 @@ impl BasicCircuitBreaker {
             metrics.last_success_time.map(|t| t.elapsed())
         )
     }
-    
+
     /// Проверка, можно ли выполнить запрос
     fn can_execute(&self) -> bool {
         let current_state = self.check_and_update_state();
@@ -209,16 +225,16 @@ impl CircuitBreakerTrait for BasicCircuitBreaker {
                     Duration::from_secs(0)
                 }
             };
-            
+
             return Err(anyhow::anyhow!(
                 "CircuitBreaker '{}' открыт. Попробуйте через {:?}",
                 self.name,
                 time_to_retry
             ));
         }
-        
+
         debug!("CircuitBreaker '{}': выполняем операцию", self.name);
-        
+
         // Выполняем операцию и записываем результат
         match operation.await {
             Ok(result) => {
@@ -227,38 +243,38 @@ impl CircuitBreakerTrait for BasicCircuitBreaker {
             }
             Err(error) => {
                 self.record_failure();
-                
+
                 // Принудительно проверяем состояние после сбоя
                 let new_state = self.check_and_update_state();
                 if new_state == CircuitBreakerState::Open {
                     warn!("CircuitBreaker '{}': открыт после сбоя", self.name);
                 }
-                
+
                 Err(error)
             }
         }
     }
-    
+
     async fn force_open(&self) {
         let mut state = self.state.lock().unwrap();
         let mut metrics = self.metrics.lock().unwrap();
-        
+
         warn!("CircuitBreaker '{}': принудительное открытие", self.name);
         *state = CircuitBreakerState::Open;
         metrics.state_change_time = Instant::now();
     }
-    
+
     async fn force_close(&self) {
         let mut state = self.state.lock().unwrap();
         let mut metrics = self.metrics.lock().unwrap();
-        
+
         info!("CircuitBreaker '{}': принудительное закрытие", self.name);
         *state = CircuitBreakerState::Closed;
         metrics.state_change_time = Instant::now();
         metrics.failure_count = 0;
         metrics.success_count = 0;
     }
-    
+
     async fn get_state(&self) -> String {
         let state = self.state.lock().unwrap();
         format!("{:?}", *state)
@@ -293,7 +309,7 @@ impl AdaptiveCircuitBreaker {
             recovery_timeout,
             success_threshold,
         );
-        
+
         Self {
             basic,
             base_failure_threshold,
@@ -301,15 +317,15 @@ impl AdaptiveCircuitBreaker {
             adaptation_factor,
         }
     }
-    
+
     /// Адаптация порога на основе истории
     fn adapt_threshold(&self) -> u32 {
         let metrics = self.basic.metrics.lock().unwrap();
-        
+
         // Простая адаптация на основе времени в состоянии
         let time_in_state = metrics.state_change_time.elapsed().as_secs() as f32;
         let adaptation = (time_in_state * self.adaptation_factor) as u32;
-        
+
         (self.base_failure_threshold + adaptation).min(self.max_failure_threshold)
     }
 }
@@ -323,25 +339,25 @@ impl CircuitBreakerTrait for AdaptiveCircuitBreaker {
     {
         // Адаптируем порог перед выполнением
         let _adapted_threshold = self.adapt_threshold();
-        
+
         // Обновляем порог в базовом circuit breaker
         // (Для простоты, в production версии лучше создать внутренний механизм)
-        
+
         self.basic.execute(operation).await
     }
-    
+
     async fn force_open(&self) {
         self.basic.force_open().await
     }
-    
+
     async fn force_close(&self) {
         self.basic.force_close().await
     }
-    
+
     async fn get_state(&self) -> String {
         let basic_state = self.basic.get_state().await;
         let adapted_threshold = self.adapt_threshold();
-        
+
         format!("{} (adapted threshold: {})", basic_state, adapted_threshold)
     }
 }
@@ -350,7 +366,7 @@ impl CircuitBreakerTrait for AdaptiveCircuitBreaker {
 mod tests {
     use super::*;
     use tokio::time::{sleep, Duration};
-    
+
     #[tokio::test]
     async fn test_circuit_breaker_closed_to_open() {
         let cb = BasicCircuitBreaker::new(
@@ -359,43 +375,49 @@ mod tests {
             Duration::from_millis(100),
             1,
         );
-        
+
         // Изначально закрыт
         assert_eq!(cb.get_state().await, "Closed");
-        
+
         // Первый сбой
-        let result1 = cb.execute(async { Err::<(), _>(anyhow::anyhow!("Test error")) }).await;
+        let result1 = cb
+            .execute(async { Err::<(), _>(anyhow::anyhow!("Test error")) })
+            .await;
         assert!(result1.is_err());
         assert_eq!(cb.get_state().await, "Closed");
-        
+
         // Второй сбой - должен открыться
-        let result2 = cb.execute(async { Err::<(), _>(anyhow::anyhow!("Test error")) }).await;
+        let result2 = cb
+            .execute(async { Err::<(), _>(anyhow::anyhow!("Test error")) })
+            .await;
         assert!(result2.is_err());
         assert_eq!(cb.get_state().await, "Open");
     }
-    
+
     #[tokio::test]
     async fn test_circuit_breaker_open_to_half_open() {
         let cb = BasicCircuitBreaker::new(
             "test".to_string(),
-            1, // Очень низкий порог
+            1,                         // Очень низкий порог
             Duration::from_millis(50), // Короткий timeout
             1,
         );
-        
+
         // Создаем сбой для открытия
-        let _ = cb.execute(async { Err::<(), _>(anyhow::anyhow!("Test error")) }).await;
+        let _ = cb
+            .execute(async { Err::<(), _>(anyhow::anyhow!("Test error")) })
+            .await;
         assert_eq!(cb.get_state().await, "Open");
-        
+
         // Ждем recovery timeout
         sleep(Duration::from_millis(60)).await;
-        
+
         // Следующий запрос должен перевести в HalfOpen
         let can_execute = cb.can_execute();
         assert!(can_execute);
         assert_eq!(cb.get_state().await, "HalfOpen");
     }
-    
+
     #[tokio::test]
     async fn test_circuit_breaker_half_open_to_closed() {
         let cb = BasicCircuitBreaker::new(
@@ -404,41 +426,45 @@ mod tests {
             Duration::from_millis(50),
             1, // Только один успех нужен
         );
-        
+
         // Открываем circuit breaker
-        let _ = cb.execute(async { Err::<(), _>(anyhow::anyhow!("Test error")) }).await;
+        let _ = cb
+            .execute(async { Err::<(), _>(anyhow::anyhow!("Test error")) })
+            .await;
         assert_eq!(cb.get_state().await, "Open");
-        
+
         // Ждем и переходим в HalfOpen
         sleep(Duration::from_millis(60)).await;
-        
+
         // Успешная операция должна закрыть
         let result = cb.execute(async { Ok::<(), _>(()) }).await;
         assert!(result.is_ok());
         assert_eq!(cb.get_state().await, "Closed");
     }
-    
+
     #[tokio::test]
     async fn test_circuit_breaker_force_operations() {
         let cb = BasicCircuitBreaker::with_defaults("test".to_string());
-        
+
         // Принудительно открываем
         cb.force_open().await;
         assert_eq!(cb.get_state().await, "Open");
-        
+
         // Принудительно закрываем
         cb.force_close().await;
         assert_eq!(cb.get_state().await, "Closed");
     }
-    
+
     #[tokio::test]
     async fn test_circuit_breaker_detailed_metrics() {
         let cb = BasicCircuitBreaker::with_defaults("metrics_test".to_string());
-        
+
         // Выполняем операции
         let _ = cb.execute(async { Ok::<(), _>(()) }).await; // Успех
-        let _ = cb.execute(async { Err::<(), _>(anyhow::anyhow!("Error")) }).await; // Сбой
-        
+        let _ = cb
+            .execute(async { Err::<(), _>(anyhow::anyhow!("Error")) })
+            .await; // Сбой
+
         let metrics = cb.get_detailed_metrics();
         assert!(metrics.contains("metrics_test"));
         assert!(metrics.contains("Сбоев: 1"));

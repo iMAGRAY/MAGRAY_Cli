@@ -1,5 +1,5 @@
-use tools::{ToolInput, ToolOutput, ToolSpec, ToolRegistry};
 use std::collections::HashMap;
+use tools::{ToolInput, ToolOutput, ToolRegistry, ToolSpec};
 
 #[test]
 fn test_tool_input_creation() {
@@ -44,7 +44,10 @@ fn test_tool_output_creation() {
 
     assert!(output.success);
     assert_eq!(output.result, "test result");
-    assert_eq!(output.formatted_output, Some("formatted test result".to_string()));
+    assert_eq!(
+        output.formatted_output,
+        Some("formatted test result".to_string())
+    );
     assert_eq!(output.metadata, metadata);
 }
 
@@ -83,10 +86,10 @@ fn test_tool_spec_creation() {
 fn test_tool_registry_creation() {
     let registry = ToolRegistry::new();
     let tools = registry.list_tools();
-    
+
     // Should have registered default tools
     assert!(!tools.is_empty());
-    
+
     // Check that basic tools are registered
     let tool_names: Vec<String> = tools.iter().map(|spec| spec.name.clone()).collect();
     assert!(tool_names.contains(&"file_read".to_string()));
@@ -100,7 +103,7 @@ fn test_tool_registry_creation() {
 fn test_tool_registry_default() {
     let registry = ToolRegistry::default();
     let tools = registry.list_tools();
-    
+
     // Default should be same as new()
     assert!(!tools.is_empty());
 }
@@ -108,10 +111,10 @@ fn test_tool_registry_default() {
 #[test]
 fn test_tool_registry_get_existing_tool() {
     let registry = ToolRegistry::new();
-    
+
     let file_read = registry.get("file_read");
     assert!(file_read.is_some());
-    
+
     let spec = file_read.unwrap().spec();
     assert_eq!(spec.name, "file_read");
 }
@@ -119,7 +122,7 @@ fn test_tool_registry_get_existing_tool() {
 #[test]
 fn test_tool_registry_get_nonexistent_tool() {
     let registry = ToolRegistry::new();
-    
+
     let result = registry.get("nonexistent_tool");
     assert!(result.is_none());
 }
@@ -128,7 +131,7 @@ fn test_tool_registry_get_nonexistent_tool() {
 fn test_tool_registry_list_tools_contains_specs() {
     let registry = ToolRegistry::new();
     let tools = registry.list_tools();
-    
+
     // Each tool should have a valid spec
     for spec in tools {
         assert!(!spec.name.is_empty());
@@ -141,12 +144,12 @@ fn test_tool_registry_list_tools_contains_specs() {
 fn test_tool_registry_all_tools_accessible() {
     let registry = ToolRegistry::new();
     let tools = registry.list_tools();
-    
+
     // Every tool in the list should be accessible via get()
     for spec in tools {
         let tool = registry.get(&spec.name);
         assert!(tool.is_some(), "Tool {} should be accessible", spec.name);
-        
+
         let retrieved_spec = tool.unwrap().spec();
         assert_eq!(retrieved_spec.name, spec.name);
     }
@@ -155,11 +158,11 @@ fn test_tool_registry_all_tools_accessible() {
 #[tokio::test]
 async fn test_tool_supports_natural_language() {
     let registry = ToolRegistry::new();
-    
+
     if let Some(tool) = registry.get("file_read") {
         assert!(tool.supports_natural_language());
     }
-    
+
     if let Some(tool) = registry.get("web_search") {
         assert!(tool.supports_natural_language());
     }
@@ -206,7 +209,7 @@ fn test_tool_spec_empty_examples() {
 #[test]
 fn test_tool_registry_has_git_tools() {
     let registry = ToolRegistry::new();
-    
+
     assert!(registry.get("git_status").is_some());
     assert!(registry.get("git_commit").is_some());
 }
@@ -214,7 +217,7 @@ fn test_tool_registry_has_git_tools() {
 #[test]
 fn test_tool_registry_has_file_tools() {
     let registry = ToolRegistry::new();
-    
+
     assert!(registry.get("file_read").is_some());
     assert!(registry.get("file_write").is_some());
     assert!(registry.get("dir_list").is_some());

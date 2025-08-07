@@ -3,12 +3,12 @@
 //! Entities содержат identity и business rules.
 //! Независимы от infrastructure concerns.
 
-mod memory_record;
 mod embedding_vector;
-mod search_query;
+mod memory_record;
 mod record_id;
+mod search_query;
 
-pub use memory_record::MemoryRecord;
 pub use embedding_vector::EmbeddingVector;
-pub use search_query::SearchQuery;
+pub use memory_record::MemoryRecord;
 pub use record_id::RecordId;
+pub use search_query::SearchQuery;

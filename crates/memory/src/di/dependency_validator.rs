@@ -1,11 +1,12 @@
 use anyhow::{anyhow, Result};
+use parking_lot::RwLock;
 use std::{
     any::TypeId,
     collections::{HashMap, HashSet, VecDeque},
 };
-use parking_lot::RwLock;
 use tracing::{debug, warn};
 
+use super::errors::ValidationError;
 use super::traits::DependencyValidator;
 
 /// Граф зависимостей для отслеживания связей между типами
@@ -52,13 +53,7 @@ impl DependencyGraph {
 
         for &node in self.dependencies.keys() {
             if !visited.contains(&node) {
-                self.dfs_find_cycles(
-                    node,
-                    &mut visited,
-                    &mut rec_stack,
-                    &mut path,
-                    &mut cycles,
-                );
+                self.dfs_find_cycles(node, &mut visited, &mut rec_stack, &mut path, &mut cycles);
             }
         }
 
@@ -118,7 +113,7 @@ impl DependencyGraph {
     pub fn topological_sort(&self) -> Result<Vec<TypeId>> {
         let mut result = Vec::new();
         let mut in_degree: HashMap<TypeId, usize> = HashMap::new();
-        
+
         // Вычисляем входящую степень для каждого узла
         for node in self.dependencies.keys() {
             in_degree.entry(*node).or_insert(0);
@@ -126,10 +121,18 @@ impl DependencyGraph {
         for node in self.dependents.keys() {
             in_degree.entry(*node).or_insert(0);
         }
-        
+
         for (dependent, deps) in &self.dependencies {
             for &dependency in deps {
-                *in_degree.get_mut(&dependent).unwrap() += 1;
+                if let Some(degree) = in_degree.get_mut(&dependent) {
+                    *degree += 1;
+                } else {
+                    // This should never happen if all nodes were properly initialized
+                    return Err(ValidationError::GraphCorrupted {
+                        details: format!("Dependency {:?} not found in in_degree map", dependent),
+                    }
+                    .into());
+                }
             }
         }
 
@@ -147,10 +150,19 @@ impl DependencyGraph {
             // Уменьшаем входящую степень соседних узлов
             if let Some(dependents) = self.dependents.get(&node) {
                 for &dependent in dependents {
-                    let degree = in_degree.get_mut(&dependent).unwrap();
-                    *degree -= 1;
-                    if *degree == 0 {
-                        queue.push_back(dependent);
+                    if let Some(degree) = in_degree.get_mut(&dependent) {
+                        *degree -= 1;
+                        if *degree == 0 {
+                            queue.push_back(dependent);
+                        }
+                    } else {
+                        return Err(ValidationError::GraphCorrupted {
+                            details: format!(
+                                "Dependent {:?} not found in in_degree map",
+                                dependent
+                            ),
+                        }
+                        .into());
                     }
                 }
             }
@@ -158,7 +170,9 @@ impl DependencyGraph {
 
         // Если не все узлы обработаны, значит есть циклы
         if result.len() != in_degree.len() {
-            Err(anyhow!("Graph contains cycles, topological sort impossible"))
+            Err(anyhow!(
+                "Graph contains cycles, topological sort impossible"
+            ))
         } else {
             Ok(result)
         }
@@ -180,18 +194,17 @@ impl DependencyGraph {
             all_nodes.len()
         };
 
-        let total_edges = self.dependencies
-            .values()
-            .map(|deps| deps.len())
-            .sum();
+        let total_edges = self.dependencies.values().map(|deps| deps.len()).sum();
 
-        let max_dependencies = self.dependencies
+        let max_dependencies = self
+            .dependencies
             .values()
             .map(|deps| deps.len())
             .max()
             .unwrap_or(0);
 
-        let max_dependents = self.dependents
+        let max_dependents = self
+            .dependents
             .values()
             .map(|deps| deps.len())
             .max()
@@ -253,7 +266,8 @@ impl DependencyValidatorImpl {
     /// Получить все зависимости для типа
     pub fn get_dependencies(&self, type_id: TypeId) -> Vec<TypeId> {
         let graph = self.graph.read();
-        graph.get_dependencies(type_id)
+        graph
+            .get_dependencies(type_id)
             .map(|deps| deps.iter().copied().collect())
             .unwrap_or_default()
     }
@@ -261,7 +275,8 @@ impl DependencyValidatorImpl {
     /// Получить все типы, зависящие от данного
     pub fn get_dependents(&self, type_id: TypeId) -> Vec<TypeId> {
         let graph = self.graph.read();
-        graph.get_dependents(type_id)
+        graph
+            .get_dependents(type_id)
             .map(|deps| deps.iter().copied().collect())
             .unwrap_or_default()
     }
@@ -285,25 +300,29 @@ impl DependencyValidator for DependencyValidatorImpl {
             let mut graph = self.graph.write();
             graph.add_dependency(dependent, dependency);
         }
-        
+
         // Инвалидируем кэш циклов
         self.invalidate_cycle_cache();
-        
+
         debug!("Added dependency: {:?} -> {:?}", dependent, dependency);
         Ok(())
     }
 
     fn validate(&self) -> Result<()> {
         let cycles = self.get_cycles();
-        
+
         if !cycles.is_empty() {
             let cycle_info = cycles
                 .iter()
                 .map(|cycle| format!("{:?}", cycle))
                 .collect::<Vec<_>>()
                 .join(", ");
-            
-            warn!("Found {} circular dependencies: {}", cycles.len(), cycle_info);
+
+            warn!(
+                "Found {} circular dependencies: {}",
+                cycles.len(),
+                cycle_info
+            );
             Err(anyhow!("Circular dependencies detected: {}", cycle_info))
         } else {
             debug!("Dependency validation passed - no cycles found");
@@ -340,13 +359,13 @@ impl DependencyValidator for DependencyValidatorImpl {
             let mut graph = self.graph.write();
             graph.clear();
         }
-        
+
         // Очищаем кэш
         {
             let mut cached_cycles = self.cached_cycles.write();
             *cached_cycles = None;
         }
-        
+
         debug!("Dependency validator cleared");
     }
 }
@@ -358,12 +377,12 @@ mod tests {
     #[test]
     fn test_dependency_graph_basic() {
         let mut graph = DependencyGraph::new();
-        
+
         let type_a = TypeId::of::<i32>();
         let type_b = TypeId::of::<String>();
-        
+
         graph.add_dependency(type_a, type_b);
-        
+
         assert!(graph.has_dependency(type_a, type_b));
         assert!(!graph.has_dependency(type_b, type_a));
     }
@@ -371,19 +390,19 @@ mod tests {
     #[test]
     fn test_cycle_detection() {
         let mut graph = DependencyGraph::new();
-        
+
         let type_a = TypeId::of::<i32>();
         let type_b = TypeId::of::<String>();
         let type_c = TypeId::of::<f64>();
-        
+
         // Создаём цикл: A -> B -> C -> A
         graph.add_dependency(type_a, type_b);
         graph.add_dependency(type_b, type_c);
         graph.add_dependency(type_c, type_a);
-        
+
         let cycles = graph.find_cycles();
         assert!(!cycles.is_empty());
-        
+
         // Проверяем, что найден цикл нужной длины
         assert!(cycles.iter().any(|cycle| cycle.len() >= 3));
     }
@@ -391,81 +410,90 @@ mod tests {
     #[test]
     fn test_topological_sort_acyclic() -> Result<()> {
         let mut graph = DependencyGraph::new();
-        
+
         let type_a = TypeId::of::<i32>();
         let type_b = TypeId::of::<String>();
         let type_c = TypeId::of::<f64>();
-        
+
         // Создаём ациклический граф: C -> B -> A
         graph.add_dependency(type_b, type_a);
         graph.add_dependency(type_c, type_b);
-        
+
         let sorted = graph.topological_sort()?;
-        
+
         // A должна быть перед B, B должна быть перед C в результате
-        let pos_a = sorted.iter().position(|&x| x == type_a).unwrap();
-        let pos_b = sorted.iter().position(|&x| x == type_b).unwrap();
-        let pos_c = sorted.iter().position(|&x| x == type_c).unwrap();
-        
+        let pos_a = sorted
+            .iter()
+            .position(|&x| x == type_a)
+            .expect("Type A should be present in sorted dependencies");
+        let pos_b = sorted
+            .iter()
+            .position(|&x| x == type_b)
+            .expect("Type B should be present in sorted dependencies");
+        let pos_c = sorted
+            .iter()
+            .position(|&x| x == type_c)
+            .expect("Type C should be present in sorted dependencies");
+
         assert!(pos_a < pos_b);
         assert!(pos_b < pos_c);
-        
+
         Ok(())
     }
 
     #[test]
     fn test_dependency_validator() -> Result<()> {
         let validator = DependencyValidatorImpl::new();
-        
+
         let type_a = TypeId::of::<i32>();
         let type_b = TypeId::of::<String>();
-        
+
         // Добавляем обычную зависимость
         validator.add_dependency(type_a, type_b)?;
-        
+
         // Валидация должна пройти
         assert!(validator.validate().is_ok());
-        
+
         // Добавляем циклическую зависимость
         validator.add_dependency(type_b, type_a)?;
-        
+
         // Теперь валидация должна провалиться
         assert!(validator.validate().is_err());
-        
+
         // Проверяем, что циклы найдены
         let cycles = validator.get_cycles();
         assert!(!cycles.is_empty());
-        
+
         Ok(())
     }
 
     #[test]
     fn test_validator_cache() -> Result<()> {
         let validator = DependencyValidatorImpl::new();
-        
+
         let type_a = TypeId::of::<i32>();
         let type_b = TypeId::of::<String>();
-        
+
         // Создаём цикл
         validator.add_dependency(type_a, type_b)?;
         validator.add_dependency(type_b, type_a)?;
-        
+
         // Первый вызов должен вычислить циклы
         let cycles1 = validator.get_cycles();
         assert!(!cycles1.is_empty());
-        
+
         // Второй вызов должен использовать кэш
         let cycles2 = validator.get_cycles();
         assert_eq!(cycles1.len(), cycles2.len());
-        
+
         // После добавления новой зависимости кэш должен инвалидироваться
         let type_c = TypeId::of::<f64>();
         validator.add_dependency(type_c, type_a)?;
-        
+
         let cycles3 = validator.get_cycles();
         // Теперь может быть больше циклов
         assert!(!cycles3.is_empty());
-        
+
         Ok(())
     }
 }

@@ -1,5 +1,11 @@
 use anyhow::Result;
-use std::{any::{Any, TypeId}, sync::Arc, time::Duration};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+    time::Duration,
+};
+
+use super::object_safe_resolver::ObjectSafeResolver;
 
 /// Основной trait для Dependency Injection контейнера
 /// Применяет принцип Interface Segregation (ISP)
@@ -27,7 +33,7 @@ pub trait DIRegistrar {
     fn register<T, F>(&self, factory: F, lifetime: Lifetime) -> Result<()>
     where
         T: Any + Send + Sync + 'static,
-        F: Fn(&dyn DIResolver) -> Result<T> + Send + Sync + 'static;
+        F: Fn(&dyn ObjectSafeResolver) -> Result<T> + Send + Sync + 'static;
 
     /// Зарегистрировать singleton экземпляр
     fn register_instance<T>(&self, instance: T) -> Result<()>
@@ -160,14 +166,15 @@ impl DIPerformanceMetrics {
 
     /// Получить топ N самых медленных типов
     pub fn slowest_types(&self, limit: usize) -> Vec<(TypeId, TypeMetrics)> {
-        let mut types: Vec<_> = self.type_metrics
+        let mut types: Vec<_> = self
+            .type_metrics
             .iter()
             .map(|(&type_id, metrics)| (type_id, metrics.clone()))
             .collect();
-        
+
         // Сортируем по среднему времени (от медленнее к быстрее)
         types.sort_by(|a, b| b.1.average_time.cmp(&a.1.average_time));
-        
+
         types.into_iter().take(limit).collect()
     }
 

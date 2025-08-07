@@ -1,9 +1,9 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{debug, info, warn};
 use sysinfo::System;
+use tracing::{debug, info, warn};
 
 /// Динамическое управление ресурсами памяти с автомасштабированием
 #[derive(Debug)]
@@ -14,21 +14,21 @@ pub struct ResourceManager {
     scaling_history: Arc<RwLock<Vec<ScalingEvent>>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ResourceConfig {
     /// Базовые лимиты - минимум который всегда доступен
     pub base_max_vectors: usize,
     pub base_cache_size_bytes: usize,
-    
+
     /// Пределы автомасштабирования
     pub scaling_max_vectors: usize,
     pub scaling_max_cache_bytes: usize,
-    
+
     /// Целевое использование системной памяти (%)
     pub target_memory_usage_percent: u8,
     /// Критический порог памяти (%)
     pub critical_memory_usage_percent: u8,
-    
+
     /// Интервал мониторинга
     pub monitoring_interval: Duration,
     /// Время для стабилизации перед масштабированием
@@ -38,17 +38,17 @@ pub struct ResourceConfig {
 impl Default for ResourceConfig {
     fn default() -> Self {
         Self {
-            base_max_vectors: 100_000,           // 100K minimum 
+            base_max_vectors: 100_000,                // 100K minimum
             base_cache_size_bytes: 256 * 1024 * 1024, // 256MB minimum
-            
-            scaling_max_vectors: 5_000_000,      // 5M maximum при хорошей памяти
+
+            scaling_max_vectors: 5_000_000, // 5M maximum при хорошей памяти
             scaling_max_cache_bytes: 4 * 1024 * 1024 * 1024, // 4GB maximum
-            
-            target_memory_usage_percent: 60,     // Целевое использование 60%
-            critical_memory_usage_percent: 85,   // Критический порог 85%
-            
+
+            target_memory_usage_percent: 60, // Целевое использование 60%
+            critical_memory_usage_percent: 85, // Критический порог 85%
+
             monitoring_interval: Duration::from_secs(30),
-            scaling_cooldown: Duration::from_secs(300),  // 5 минут
+            scaling_cooldown: Duration::from_secs(300), // 5 минут
         }
     }
 }
@@ -56,15 +56,15 @@ impl Default for ResourceConfig {
 impl ResourceConfig {
     pub fn production() -> Self {
         Self {
-            base_max_vectors: 500_000,           // 500K minimum 
+            base_max_vectors: 500_000,                 // 500K minimum
             base_cache_size_bytes: 1024 * 1024 * 1024, // 1GB minimum
-            
-            scaling_max_vectors: 50_000_000,     // 50M maximum для production
+
+            scaling_max_vectors: 50_000_000, // 50M maximum для production
             scaling_max_cache_bytes: 16 * 1024 * 1024 * 1024, // 16GB maximum
-            
-            target_memory_usage_percent: 70,     // Более агрессивное использование
-            critical_memory_usage_percent: 90,   // Выше порог для production
-            
+
+            target_memory_usage_percent: 70, // Более агрессивное использование
+            critical_memory_usage_percent: 90, // Выше порог для production
+
             monitoring_interval: Duration::from_secs(15), // Более частый мониторинг
             scaling_cooldown: Duration::from_secs(120),   // Быстрее scaling
         }
@@ -72,15 +72,15 @@ impl ResourceConfig {
 
     pub fn minimal() -> Self {
         Self {
-            base_max_vectors: 10_000,            // 10K minimum
+            base_max_vectors: 10_000,                // 10K minimum
             base_cache_size_bytes: 64 * 1024 * 1024, // 64MB minimum
-            
-            scaling_max_vectors: 100_000,        // Ограничений максимум
+
+            scaling_max_vectors: 100_000, // Ограничений максимум
             scaling_max_cache_bytes: 256 * 1024 * 1024, // 256MB maximum
-            
-            target_memory_usage_percent: 40,     // Консервативное использование
-            critical_memory_usage_percent: 70,   // Низкий критический порог
-            
+
+            target_memory_usage_percent: 40, // Консервативное использование
+            critical_memory_usage_percent: 70, // Низкий критический порог
+
             monitoring_interval: Duration::from_secs(60), // Редкий мониторинг
             scaling_cooldown: Duration::from_secs(600),   // Медленный scaling
         }
@@ -127,19 +127,25 @@ struct SystemMonitor {
 impl ResourceManager {
     pub fn new(config: ResourceConfig) -> Result<Self> {
         let system_monitor = SystemMonitor::new()?;
-        
+
         let initial_limits = CurrentLimits {
             max_vectors: config.base_max_vectors,
             cache_size_bytes: config.base_cache_size_bytes,
             last_scaled: Instant::now(),
             scaling_factor: 1.0,
         };
-        
+
         info!("🎯 ResourceManager initialized:");
-        info!("  System memory: {:.1} GB", system_monitor.total_memory_bytes as f64 / 1024.0 / 1024.0 / 1024.0);
-        info!("  Base limits: {} vectors, {} MB cache", 
-              initial_limits.max_vectors, initial_limits.cache_size_bytes / 1024 / 1024);
-        
+        info!(
+            "  System memory: {:.1} GB",
+            system_monitor.total_memory_bytes as f64 / 1024.0 / 1024.0 / 1024.0
+        );
+        info!(
+            "  Base limits: {} vectors, {} MB cache",
+            initial_limits.max_vectors,
+            initial_limits.cache_size_bytes / 1024 / 1024
+        );
+
         Ok(Self {
             config,
             current_limits: Arc::new(RwLock::new(initial_limits)),
@@ -147,26 +153,27 @@ impl ResourceManager {
             scaling_history: Arc::new(RwLock::new(Vec::new())),
         })
     }
-    
+
     /// Получить текущие лимиты
     pub fn get_current_limits(&self) -> CurrentLimits {
         self.current_limits.read().clone()
     }
-    
+
     /// Проверить и обновить лимиты на основе текущего состояния системы
     pub fn update_limits_if_needed(&mut self, current_usage: &ResourceUsage) -> Result<bool> {
         let memory_used_percent = self.system_monitor.get_memory_usage_percent()?;
-        
+
         let current_limits = self.current_limits.read().clone();
-        
+
         // Проверяем cooldown период
         if current_limits.last_scaled.elapsed() < self.config.scaling_cooldown {
             return Ok(false);
         }
-        
+
         // Определяем необходимость масштабирования
-        let scaling_decision = self.analyze_scaling_need(memory_used_percent, current_usage, &current_limits);
-        
+        let scaling_decision =
+            self.analyze_scaling_need(memory_used_percent, current_usage, &current_limits);
+
         if let Some((new_limits, trigger)) = scaling_decision {
             self.apply_scaling(current_limits, new_limits, trigger, memory_used_percent);
             Ok(true)
@@ -174,7 +181,7 @@ impl ResourceManager {
             Ok(false)
         }
     }
-    
+
     /// Анализирует необходимость масштабирования
     fn analyze_scaling_need(
         &self,
@@ -182,62 +189,75 @@ impl ResourceManager {
         usage: &ResourceUsage,
         current_limits: &CurrentLimits,
     ) -> Option<(CurrentLimits, ScalingTrigger)> {
-        
         // КРИТИЧЕСКАЯ ситуация - необходимо срочно уменьшить лимиты
         if memory_used_percent > self.config.critical_memory_usage_percent as f64 {
-            warn!("🚨 Critical memory usage: {:.1}%, scaling down aggressively", memory_used_percent);
+            warn!(
+                "🚨 Critical memory usage: {:.1}%, scaling down aggressively",
+                memory_used_percent
+            );
             let scale_factor = 0.7; // Уменьшаем на 30%
             return Some((
                 self.calculate_new_limits(current_limits, scale_factor),
-                ScalingTrigger::MemoryPressure
+                ScalingTrigger::MemoryPressure,
             ));
         }
-        
+
         // Высокое использование памяти - осторожное уменьшение
         if memory_used_percent > self.config.target_memory_usage_percent as f64 + 15.0 {
-            debug!("⚠️ High memory usage: {:.1}%, scaling down conservatively", memory_used_percent);
+            debug!(
+                "⚠️ High memory usage: {:.1}%, scaling down conservatively",
+                memory_used_percent
+            );
             let scale_factor = 0.85; // Уменьшаем на 15%
             return Some((
                 self.calculate_new_limits(current_limits, scale_factor),
-                ScalingTrigger::MemoryPressure
+                ScalingTrigger::MemoryPressure,
             ));
         }
-        
+
         // Низкое использование памяти И высокое использование индексов - можно увеличить
-        if memory_used_percent < self.config.target_memory_usage_percent as f64 - 10.0 
-           && usage.vector_usage_percent > 80.0 {
-            debug!("📈 Low memory usage {:.1}%, high vector usage {:.1}%, scaling up", 
-                   memory_used_percent, usage.vector_usage_percent);
+        if memory_used_percent < self.config.target_memory_usage_percent as f64 - 10.0
+            && usage.vector_usage_percent > 80.0
+        {
+            debug!(
+                "📈 Low memory usage {:.1}%, high vector usage {:.1}%, scaling up",
+                memory_used_percent, usage.vector_usage_percent
+            );
             let scale_factor = 1.3; // Увеличиваем на 30%
             return Some((
                 self.calculate_new_limits(current_limits, scale_factor),
-                ScalingTrigger::MemoryAvailable
+                ScalingTrigger::MemoryAvailable,
             ));
         }
-        
+
         // Быстрый рост использования - превентивное увеличение лимитов
-        if usage.vector_usage_percent > 90.0 && memory_used_percent < self.config.target_memory_usage_percent as f64 {
-            debug!("🚀 High vector usage {:.1}%, preemptive scaling up", usage.vector_usage_percent);
+        if usage.vector_usage_percent > 90.0
+            && memory_used_percent < self.config.target_memory_usage_percent as f64
+        {
+            debug!(
+                "🚀 High vector usage {:.1}%, preemptive scaling up",
+                usage.vector_usage_percent
+            );
             let scale_factor = 1.2; // Увеличиваем на 20%
             return Some((
                 self.calculate_new_limits(current_limits, scale_factor),
-                ScalingTrigger::UsageGrowth
+                ScalingTrigger::UsageGrowth,
             ));
         }
-        
+
         None
     }
-    
+
     /// Вычисляет новые лимиты с применением масштабирующего фактора
     fn calculate_new_limits(&self, current: &CurrentLimits, scale_factor: f64) -> CurrentLimits {
         let new_max_vectors = ((current.max_vectors as f64 * scale_factor) as usize)
             .max(self.config.base_max_vectors)
             .min(self.config.scaling_max_vectors);
-            
+
         let new_cache_size = ((current.cache_size_bytes as f64 * scale_factor) as usize)
             .max(self.config.base_cache_size_bytes)
             .min(self.config.scaling_max_cache_bytes);
-        
+
         CurrentLimits {
             max_vectors: new_max_vectors,
             cache_size_bytes: new_cache_size,
@@ -245,9 +265,15 @@ impl ResourceManager {
             scaling_factor: current.scaling_factor * scale_factor,
         }
     }
-    
+
     /// Применяет новые лимиты и записывает событие
-    fn apply_scaling(&self, old_limits: CurrentLimits, new_limits: CurrentLimits, trigger: ScalingTrigger, memory_percent: f64) {
+    fn apply_scaling(
+        &self,
+        old_limits: CurrentLimits,
+        new_limits: CurrentLimits,
+        trigger: ScalingTrigger,
+        memory_percent: f64,
+    ) {
         let scaling_event = ScalingEvent {
             timestamp: Instant::now(),
             old_limits: old_limits.clone(),
@@ -255,22 +281,28 @@ impl ResourceManager {
             trigger: trigger.clone(),
             system_memory_used_percent: memory_percent,
         };
-        
+
         info!("🔄 Resource scaling event: {:?}", trigger);
-        info!("  Vectors: {} -> {} ({:+.1}%)", 
-              old_limits.max_vectors, new_limits.max_vectors,
-              ((new_limits.max_vectors as f64 / old_limits.max_vectors as f64) - 1.0) * 100.0);
-        info!("  Cache: {:.1}MB -> {:.1}MB ({:+.1}%)", 
-              old_limits.cache_size_bytes as f64 / 1024.0 / 1024.0,
-              new_limits.cache_size_bytes as f64 / 1024.0 / 1024.0,
-              ((new_limits.cache_size_bytes as f64 / old_limits.cache_size_bytes as f64) - 1.0) * 100.0);
-        
+        info!(
+            "  Vectors: {} -> {} ({:+.1}%)",
+            old_limits.max_vectors,
+            new_limits.max_vectors,
+            ((new_limits.max_vectors as f64 / old_limits.max_vectors as f64) - 1.0) * 100.0
+        );
+        info!(
+            "  Cache: {:.1}MB -> {:.1}MB ({:+.1}%)",
+            old_limits.cache_size_bytes as f64 / 1024.0 / 1024.0,
+            new_limits.cache_size_bytes as f64 / 1024.0 / 1024.0,
+            ((new_limits.cache_size_bytes as f64 / old_limits.cache_size_bytes as f64) - 1.0)
+                * 100.0
+        );
+
         // Обновляем лимиты
         *self.current_limits.write() = new_limits;
-        
+
         // Записываем в историю
         self.scaling_history.write().push(scaling_event);
-        
+
         // Ограничиваем историю последними 100 событиями
         let mut history = self.scaling_history.write();
         if history.len() > 100 {
@@ -278,37 +310,49 @@ impl ResourceManager {
             history.drain(0..drain_count);
         }
     }
-    
+
     /// Принудительно устанавливает лимиты (для административного управления)
     pub fn set_limits_manual(&mut self, max_vectors: usize, cache_size_bytes: usize) -> Result<()> {
         let old_limits = self.current_limits.read().clone();
-        
+
         let new_limits = CurrentLimits {
-            max_vectors: max_vectors.max(self.config.base_max_vectors).min(self.config.scaling_max_vectors),
-            cache_size_bytes: cache_size_bytes.max(self.config.base_cache_size_bytes).min(self.config.scaling_max_cache_bytes),
+            max_vectors: max_vectors
+                .max(self.config.base_max_vectors)
+                .min(self.config.scaling_max_vectors),
+            cache_size_bytes: cache_size_bytes
+                .max(self.config.base_cache_size_bytes)
+                .min(self.config.scaling_max_cache_bytes),
             last_scaled: Instant::now(),
             scaling_factor: max_vectors as f64 / self.config.base_max_vectors as f64,
         };
-        
-        let memory_percent = self.system_monitor.get_memory_usage_percent().unwrap_or(0.0);
-        self.apply_scaling(old_limits, new_limits, ScalingTrigger::Manual, memory_percent);
-        
+
+        let memory_percent = self
+            .system_monitor
+            .get_memory_usage_percent()
+            .unwrap_or(0.0);
+        self.apply_scaling(
+            old_limits,
+            new_limits,
+            ScalingTrigger::Manual,
+            memory_percent,
+        );
+
         Ok(())
     }
-    
+
     /// Получить текущее использование ресурсов
     pub fn current_usage(&self) -> ResourceUsage {
         let limits = self.current_limits.read();
         // В реальной ситуации здесь бы был подсчет актуального использования
         // Пока возвращаем базовую статистику
         ResourceUsage::new(
-            50_000,  // current_vectors - пример
+            50_000, // current_vectors - пример
             limits.max_vectors,
             limits.cache_size_bytes / 2, // current_cache_size - пример 50% использования
             limits.cache_size_bytes,
         )
     }
-    
+
     /// Проверить есть ли давление на память
     pub fn is_memory_pressure(&mut self) -> bool {
         match self.system_monitor.get_memory_usage_percent() {
@@ -316,7 +360,7 @@ impl ResourceManager {
             Err(_) => false,
         }
     }
-    
+
     /// Адаптировать лимиты в зависимости от текущей ситуации
     pub fn adapt_limits(&mut self) {
         let current_usage = self.current_usage();
@@ -324,24 +368,38 @@ impl ResourceManager {
             warn!("Ошибка при адаптации лимитов: {}", e);
         }
     }
-    
+
     /// Применить новые лимиты принудительно
     pub fn apply_limits(&mut self, limits: ResourceLimits) {
-        info!("🔧 Применены новые лимиты: {} vectors, {:.1}MB cache", 
-              limits.max_vectors, limits.cache_size_bytes as f64 / 1024.0 / 1024.0);
+        info!(
+            "🔧 Применены новые лимиты: {} vectors, {:.1}MB cache",
+            limits.max_vectors,
+            limits.cache_size_bytes as f64 / 1024.0 / 1024.0
+        );
         *self.current_limits.write() = limits;
     }
     /// Получить статистику масштабирования
     pub fn get_scaling_stats(&self) -> ScalingStats {
         let history = self.scaling_history.read();
         let current = self.current_limits.read();
-        
+
         ScalingStats {
             total_scaling_events: history.len(),
             current_scaling_factor: current.scaling_factor,
             last_scaling_event: history.last().cloned(),
-            memory_pressure_events: history.iter().filter(|e| matches!(e.trigger, ScalingTrigger::MemoryPressure)).count(),
-            growth_events: history.iter().filter(|e| matches!(e.trigger, ScalingTrigger::MemoryAvailable | ScalingTrigger::UsageGrowth)).count(),
+            memory_pressure_events: history
+                .iter()
+                .filter(|e| matches!(e.trigger, ScalingTrigger::MemoryPressure))
+                .count(),
+            growth_events: history
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e.trigger,
+                        ScalingTrigger::MemoryAvailable | ScalingTrigger::UsageGrowth
+                    )
+                })
+                .count(),
         }
     }
 }
@@ -350,12 +408,14 @@ impl SystemMonitor {
     fn new() -> Result<Self> {
         let mut system = System::new_all();
         system.refresh_all();
-        
+
         let total_memory = system.total_memory() * 1024; // sysinfo returns KB, convert to bytes
-        
-        info!("💾 Real system monitoring initialized: {:.1} GB total memory", 
-              total_memory as f64 / 1024.0 / 1024.0 / 1024.0);
-        
+
+        info!(
+            "💾 Real system monitoring initialized: {:.1} GB total memory",
+            total_memory as f64 / 1024.0 / 1024.0 / 1024.0
+        );
+
         Ok(Self {
             system,
             total_memory_bytes: total_memory,
@@ -363,43 +423,46 @@ impl SystemMonitor {
             memory_samples: Vec::with_capacity(10),
         })
     }
-    
+
     fn get_memory_usage_percent(&mut self) -> Result<f64> {
         // Обновляем информацию о системе только если прошло время
         if self.last_check.elapsed() > Duration::from_secs(5) {
             self.system.refresh_memory();
             self.last_check = Instant::now();
         }
-        
+
         let used_memory = self.system.used_memory() * 1024; // KB to bytes
         let usage_percent = (used_memory as f64 / self.total_memory_bytes as f64) * 100.0;
-        
+
         // Сглаживание для предотвращения осцилляций
         self.memory_samples.push(usage_percent);
         if self.memory_samples.len() > 5 {
             self.memory_samples.remove(0);
         }
-        
+
         let avg_usage = self.memory_samples.iter().sum::<f64>() / self.memory_samples.len() as f64;
-        
-        debug!("💾 Memory usage: {:.1}% (used: {:.1} GB / total: {:.1} GB)", 
-               avg_usage, 
-               used_memory as f64 / 1024.0 / 1024.0 / 1024.0,
-               self.total_memory_bytes as f64 / 1024.0 / 1024.0 / 1024.0);
-        
+
+        debug!(
+            "💾 Memory usage: {:.1}% (used: {:.1} GB / total: {:.1} GB)",
+            avg_usage,
+            used_memory as f64 / 1024.0 / 1024.0 / 1024.0,
+            self.total_memory_bytes as f64 / 1024.0 / 1024.0 / 1024.0
+        );
+
         Ok(avg_usage)
     }
-    
+
     /// Получаем подробную статистику памяти
     #[allow(dead_code)]
     pub fn get_detailed_memory_info(&mut self) -> DetailedMemoryInfo {
         self.system.refresh_memory();
-        
+
         DetailedMemoryInfo {
             total_memory_bytes: self.total_memory_bytes,
             used_memory_bytes: self.system.used_memory() * 1024,
             available_memory_bytes: self.system.available_memory() * 1024,
-            usage_percent: (self.system.used_memory() as f64 / self.system.total_memory() as f64) * 100.0,
+            usage_percent: (self.system.used_memory() as f64 / self.system.total_memory() as f64)
+                * 100.0,
             swap_total_bytes: self.system.total_swap() * 1024,
             swap_used_bytes: self.system.used_swap() * 1024,
         }
@@ -427,7 +490,12 @@ pub struct ResourceUsage {
 }
 
 impl ResourceUsage {
-    pub fn new(current_vectors: usize, max_vectors: usize, current_cache_size: usize, max_cache_size: usize) -> Self {
+    pub fn new(
+        current_vectors: usize,
+        max_vectors: usize,
+        current_cache_size: usize,
+        max_cache_size: usize,
+    ) -> Self {
         Self {
             current_vectors,
             max_vectors,
@@ -451,29 +519,29 @@ pub struct ScalingStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_resource_manager_creation() {
         let config = ResourceConfig::default();
         let manager = ResourceManager::new(config).unwrap();
-        
+
         let limits = manager.get_current_limits();
         assert_eq!(limits.max_vectors, 100_000);
         assert!(limits.cache_size_bytes > 0);
     }
-    
+
     #[test]
     fn test_scaling_calculation() {
         let config = ResourceConfig::default();
         let manager = ResourceManager::new(config).unwrap();
-        
+
         let current = CurrentLimits {
             max_vectors: 100_000,
             cache_size_bytes: 256 * 1024 * 1024,
             last_scaled: Instant::now(),
             scaling_factor: 1.0,
         };
-        
+
         let scaled = manager.calculate_new_limits(&current, 1.5);
         assert_eq!(scaled.max_vectors, 150_000);
         assert_eq!(scaled.cache_size_bytes, 384 * 1024 * 1024);

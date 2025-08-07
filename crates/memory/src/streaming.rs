@@ -1,14 +1,13 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    DIMemoryService as MemoryService, Layer, Record,
-    types::SearchOptions,
+    services::RefactoredDIMemoryService as MemoryService, types::SearchOptions, Layer, Record,
 };
 
 /// Streaming API для real-time обработки embeddings
@@ -146,13 +145,9 @@ pub enum StreamingOperation {
         options: SearchOptions,
     },
     /// Batch операция
-    BatchInsert {
-        records: Vec<StreamingInsertRecord>,
-    },
+    BatchInsert { records: Vec<StreamingInsertRecord> },
     /// Управление session
-    SessionControl {
-        action: SessionAction,
-    },
+    SessionControl { action: SessionAction },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -245,7 +240,10 @@ impl StreamingMemoryAPI {
     /// Создать новый streaming API
     pub async fn new(service: Arc<MemoryService>, config: StreamingConfig) -> Result<Self> {
         info!("🌊 Инициализация Streaming Memory API");
-        info!("  - Max concurrent sessions: {}", config.max_concurrent_sessions);
+        info!(
+            "  - Max concurrent sessions: {}",
+            config.max_concurrent_sessions
+        );
         info!("  - Buffer size: {}", config.buffer_size);
         info!("  - Flush timeout: {}ms", config.flush_timeout_ms);
         info!("  - Auto promotion: {}", config.enable_auto_promotion);
@@ -305,8 +303,10 @@ impl StreamingMemoryAPI {
     pub async fn process_request(&self, request: StreamingRequest) -> Result<()> {
         let start_time = Instant::now();
 
-        debug!("📨 Processing streaming request: {} for session {}", 
-               request.request_id, request.session_id);
+        debug!(
+            "📨 Processing streaming request: {} for session {}",
+            request.request_id, request.session_id
+        );
 
         // Валидация размера сообщения
         let request_size = serde_json::to_string(&request)?.len();
@@ -315,9 +315,13 @@ impl StreamingMemoryAPI {
                 &request.request_id,
                 &request.session_id,
                 "MESSAGE_TOO_LARGE",
-                &format!("Message size {} exceeds limit {}", request_size, self.config.max_message_size),
+                &format!(
+                    "Message size {} exceeds limit {}",
+                    request_size, self.config.max_message_size
+                ),
                 start_time,
-            ).await?;
+            )
+            .await?;
             return Ok(());
         }
 
@@ -351,8 +355,10 @@ impl StreamingMemoryAPI {
 
         // Отправляем ответ
         let processing_time = start_time.elapsed().as_millis() as u64;
-        session.stats.avg_processing_time_ms = 
-            (session.stats.avg_processing_time_ms * (session.stats.total_requests - 1) as f64 + processing_time as f64) / session.stats.total_requests as f64;
+        session.stats.avg_processing_time_ms = (session.stats.avg_processing_time_ms
+            * (session.stats.total_requests - 1) as f64
+            + processing_time as f64)
+            / session.stats.total_requests as f64;
 
         let response = StreamingResponse {
             request_id: request.request_id,
@@ -376,8 +382,14 @@ impl StreamingMemoryAPI {
         session: &mut StreamingSession,
     ) -> Result<StreamingResult> {
         match operation {
-            StreamingOperation::Insert { text, layer, tags, project } => {
-                self.handle_insert(text, layer, tags, project, session).await
+            StreamingOperation::Insert {
+                text,
+                layer,
+                tags,
+                project,
+            } => {
+                self.handle_insert(text, layer, tags, project, session)
+                    .await
             }
             StreamingOperation::Search { query, options } => {
                 self.handle_search(query, options, session).await
@@ -454,7 +466,7 @@ impl StreamingMemoryAPI {
             tags: options.tags.clone(),
             project: options.project.clone(),
         };
-        
+
         let records = self.service.search(query, layer, search_options).await?;
         session.stats.total_searches += 1;
 
@@ -496,10 +508,15 @@ impl StreamingMemoryAPI {
                 id: Uuid::new_v4(),
                 text: insert_record.text.clone(),
                 embedding: vec![],
-                layer: insert_record.layer.unwrap_or(session.session_config.target_layer),
+                layer: insert_record
+                    .layer
+                    .unwrap_or(session.session_config.target_layer),
                 kind: "text".to_string(),
                 tags: insert_record.tags.clone(),
-                project: insert_record.project.clone().unwrap_or_else(|| "streaming".to_string()),
+                project: insert_record
+                    .project
+                    .clone()
+                    .unwrap_or_else(|| "streaming".to_string()),
                 session: session.id.clone(),
                 score: 0.5,
                 access_count: 1,
@@ -557,12 +574,10 @@ impl StreamingMemoryAPI {
                     stats: session.stats.clone(),
                 })
             }
-            SessionAction::Close => {
-                Ok(StreamingResult::Success {
-                    operation_id: "close".to_string(),
-                    details: serde_json::json!({"message": "Session will be closed"}),
-                })
-            }
+            SessionAction::Close => Ok(StreamingResult::Success {
+                operation_id: "close".to_string(),
+                details: serde_json::json!({"message": "Session will be closed"}),
+            }),
         }
     }
 
@@ -598,22 +613,24 @@ impl StreamingMemoryAPI {
     /// Закрыть session
     pub async fn close_session(&self, session_id: &str) -> Result<StreamingStats> {
         let mut sessions = self.sessions.write().await;
-        
+
         match sessions.remove(session_id) {
             Some(mut session) => {
                 session.stats.session_duration_sec = session.created_at.elapsed().as_secs();
-                info!("🔒 Closed streaming session: {} (duration: {}s)", 
-                      session_id, session.stats.session_duration_sec);
+                info!(
+                    "🔒 Closed streaming session: {} (duration: {}s)",
+                    session_id, session.stats.session_duration_sec
+                );
                 Ok(session.stats)
             }
-            None => Err(anyhow::anyhow!("Session not found: {}", session_id))
+            None => Err(anyhow::anyhow!("Session not found: {}", session_id)),
         }
     }
 
     /// Получить статистику всех sessions
     pub async fn get_global_stats(&self) -> Result<GlobalStreamingStats> {
         let sessions = self.sessions.read().await;
-        
+
         let mut stats = GlobalStreamingStats {
             active_sessions: sessions.len(),
             total_requests: 0,
@@ -632,7 +649,8 @@ impl StreamingMemoryAPI {
             stats.total_inserts += session.stats.total_inserts;
             stats.total_searches += session.stats.total_searches;
             stats.total_batch_operations += session.stats.total_batch_operations;
-            total_processing_time += session.stats.avg_processing_time_ms * session.stats.total_requests as f64;
+            total_processing_time +=
+                session.stats.avg_processing_time_ms * session.stats.total_requests as f64;
 
             match oldest_session_time {
                 None => oldest_session_time = Some(session.created_at),
@@ -666,21 +684,24 @@ impl StreamingMemoryAPI {
             let mut interval = tokio::time::interval(Duration::from_secs(60));
             loop {
                 interval.tick().await;
-                
+
                 let mut sessions = sessions_clone.write().await;
                 let mut to_remove = Vec::new();
-                
+
                 for (session_id, session) in sessions.iter() {
                     // Удаляем sessions неактивные более 1 часа
                     if session.last_activity.elapsed() > Duration::from_secs(3600) {
                         to_remove.push(session_id.clone());
                     }
                 }
-                
+
                 for session_id in to_remove {
                     if let Some(session) = sessions.remove(&session_id) {
-                        info!("🧹 Removed inactive session: {} (inactive for {}s)", 
-                              session_id, session.last_activity.elapsed().as_secs());
+                        info!(
+                            "🧹 Removed inactive session: {} (inactive for {}s)",
+                            session_id,
+                            session.last_activity.elapsed().as_secs()
+                        );
                     }
                 }
             }
@@ -690,16 +711,19 @@ impl StreamingMemoryAPI {
         if config.enable_auto_promotion {
             let service_for_promotion = Arc::clone(&service_clone);
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(Duration::from_secs(config.promotion_interval_sec));
+                let mut interval =
+                    tokio::time::interval(Duration::from_secs(config.promotion_interval_sec));
                 loop {
                     interval.tick().await;
-                    
+
                     // Используем standard promotion вместо ML для избежания Send проблем
                     match service_for_promotion.run_promotion_cycle().await {
                         Ok(stats) => {
                             if stats.interact_to_insights > 0 || stats.insights_to_assets > 0 {
-                                info!("🧠 Streaming auto-promotion: {} to Insights, {} to Assets", 
-                                      stats.interact_to_insights, stats.insights_to_assets);
+                                info!(
+                                    "🧠 Streaming auto-promotion: {} to Insights, {} to Assets",
+                                    stats.interact_to_insights, stats.insights_to_assets
+                                );
                             }
                         }
                         Err(e) => {

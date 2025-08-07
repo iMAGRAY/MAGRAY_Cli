@@ -24,17 +24,17 @@ pub struct PromotionFeatures {
     pub age_hours: f32,
     pub access_recency: f32,
     pub temporal_pattern_score: f32,
-    
+
     /// Usage features  
     pub access_count: f32,
     pub access_frequency: f32,
     pub session_importance: f32,
-    
+
     /// Semantic features
     pub semantic_importance: f32,
     pub keyword_density: f32,
     pub topic_relevance: f32,
-    
+
     /// Context features
     pub layer_affinity: f32,
     pub co_occurrence_score: f32,

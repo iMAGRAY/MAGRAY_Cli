@@ -11,6 +11,7 @@ serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
+async-trait.workspace = true
 
 # Logging
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "fmt"] }
@@ -21,3 +22,4 @@ uuid = { version = "1.4", features = ["v4", "serde"] }
 # Utils
 lazy_static = "1.4"
 num_cpus = "1.16"
+rand = "0.8"

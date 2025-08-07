@@ -2,12 +2,12 @@
 //!
 //! Coordinates complex search scenarios with business rules
 
+use crate::entities::{EmbeddingVector, MemoryRecord, SearchQuery};
+use crate::errors::DomainResult;
+use crate::repositories::{EmbeddingRepository, MemoryRepository, SearchRepository, SearchResults};
+use crate::value_objects::{LayerType, ScoreThreshold};
 use async_trait::async_trait;
 use std::sync::Arc;
-use crate::entities::{SearchQuery, MemoryRecord, EmbeddingVector};
-use crate::repositories::{SearchRepository, MemoryRepository, EmbeddingRepository, SearchResults, SearchMethod};
-use crate::value_objects::{LayerType, ScoreThreshold};
-use crate::errors::DomainResult;
 
 /// Domain service for search business operations
 pub struct SearchDomainService<S, M, E>
@@ -34,15 +34,18 @@ where
             embedding_repo,
         }
     }
-    
+
     /// Execute intelligent search with business logic
-    pub async fn search_with_intelligence(&self, mut query: SearchQuery) -> DomainResult<SearchResults> {
+    pub async fn search_with_intelligence(
+        &self,
+        mut query: SearchQuery,
+    ) -> DomainResult<SearchResults> {
         // Business validation
         query.validate()?;
-        
+
         // Apply business intelligence to query
         self.optimize_query(&mut query).await?;
-        
+
         // Execute search based on query characteristics
         let results = if query.is_simple() {
             self.search_repo.text_search(query).await?
@@ -54,11 +57,11 @@ where
         } else {
             self.search_repo.search(query).await?
         };
-        
+
         // Apply business post-processing
         self.post_process_results(results).await
     }
-    
+
     /// Search with automatic fallback strategies
     pub async fn search_with_fallback(&self, query: SearchQuery) -> DomainResult<SearchResults> {
         // Try smart search first
@@ -71,7 +74,7 @@ where
             }
         }
     }
-    
+
     /// Search within business context (project-aware)
     pub async fn context_aware_search(
         &self,
@@ -82,70 +85,77 @@ where
         // Get context-relevant records first
         let context_records = self.memory_repo.find_by_project(project).await?;
         let session_records = self.memory_repo.find_by_session(session).await?;
-        
+
         // Execute context search
-        let results = self.search_repo.context_search(query, project, session).await?;
-        
+        let results = self
+            .search_repo
+            .context_search(query, project, session)
+            .await?;
+
         // Boost results that match current context
-        self.boost_context_results(results, &context_records, &session_records).await
+        self.boost_context_results(results, &context_records, &session_records)
+            .await
     }
-    
+
     // Private helper methods
-    
+
     async fn optimize_query(&self, query: &mut SearchQuery) -> DomainResult<()> {
         // Business logic: optimize query based on patterns
         if query.target_layers().contains(&LayerType::Interact) && query.max_results() < 5 {
             // For hot data queries, get more results to ensure relevance
             *query = query.clone().with_max_results(10)?;
         }
-        
+
         // Adjust threshold based on query complexity
         if query.complexity_score() > 2.0 {
             // For complex queries, be more permissive
             *query = query.clone().with_score_threshold(ScoreThreshold::low());
         }
-        
+
         Ok(())
     }
-    
+
     async fn compute_query_vector(&self, _query: &SearchQuery) -> DomainResult<EmbeddingVector> {
         // This would normally call an embedding service
         // For now, return a placeholder that matches expected dimensions
         let expected_dims = self.embedding_repo.expected_dimensions();
         Ok(EmbeddingVector::zero(expected_dims))
     }
-    
+
     fn create_fallback_query(&self, original_query: SearchQuery) -> DomainResult<SearchQuery> {
         // Broaden search criteria for fallback
         let fallback = SearchQuery::new(original_query.query_text().to_string())?
             .with_layers(LayerType::all_layers())
             .with_score_threshold(ScoreThreshold::low())
             .with_max_results(original_query.max_results() * 2)?;
-        
+
         Ok(fallback)
     }
-    
-    async fn post_process_results(&self, mut results: SearchResults) -> DomainResult<SearchResults> {
+
+    async fn post_process_results(
+        &self,
+        mut results: SearchResults,
+    ) -> DomainResult<SearchResults> {
         // Apply business rules to search results
         for result_record in &mut results.records {
             // Update access count (business event)
             let record_id = result_record.record.id();
             let _ = self.memory_repo.find_by_id(record_id).await; // This would trigger access recording
         }
-        
+
         // Sort by business relevance (combination of similarity and business score)
-        results.records.sort_by(|a, b| {
-            b.relevance_score.partial_cmp(&a.relevance_score).unwrap()
-        });
-        
+        results
+            .records
+            .sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap());
+
         // Update ranks after sorting
         for (index, result_record) in results.records.iter_mut().enumerate() {
             result_record.rank = index + 1;
         }
-        
+
         Ok(results)
     }
-    
+
     async fn boost_context_results(
         &self,
         mut results: SearchResults,
@@ -159,7 +169,7 @@ where
                 result_record.relevance_score *= 1.2;
             }
         }
-        
+
         Ok(results)
     }
 }
@@ -187,11 +197,11 @@ where
     async fn search_with_intelligence(&self, query: SearchQuery) -> DomainResult<SearchResults> {
         self.search_with_intelligence(query).await
     }
-    
+
     async fn search_with_fallback(&self, query: SearchQuery) -> DomainResult<SearchResults> {
         self.search_with_fallback(query).await
     }
-    
+
     async fn context_aware_search(
         &self,
         query: SearchQuery,

@@ -1,19 +1,19 @@
 //! Production Monitoring Module - Single Responsibility для мониторинга
-//! 
+//!
 //! Этот модуль отвечает ТОЛЬКО за production мониторинг, метрики и health checks.
 //! Применяет Single Responsibility и Observer pattern.
 
 use anyhow::Result;
 use std::{
+    collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
-    collections::HashMap,
 };
-use tracing::{debug, info, warn, error};
 use tokio::sync::RwLock;
+use tracing::{debug, error, info, warn};
 
-use crate::orchestration::{HealthManager, ResourceController};
 use crate::orchestration::traits::HealthCoordinator;
+use crate::orchestration::{HealthManager, ResourceController};
 
 /// Production метрики системы
 #[derive(Debug, Default, Clone)]
@@ -82,20 +82,21 @@ impl ProductionMetricsCollector {
 impl MetricsCollector for ProductionMetricsCollector {
     fn record_operation(&mut self, duration: Duration, success: bool) {
         self.metrics.total_operations += 1;
-        
+
         if success {
             self.metrics.successful_operations += 1;
         } else {
             self.metrics.failed_operations += 1;
         }
-        
+
         // Exponential moving average для response time
         let duration_ms = duration.as_millis() as f64;
         let alpha = 0.1;
         if self.metrics.avg_response_time_ms == 0.0 {
             self.metrics.avg_response_time_ms = duration_ms;
         } else {
-            self.metrics.avg_response_time_ms = alpha * duration_ms + (1.0 - alpha) * self.metrics.avg_response_time_ms;
+            self.metrics.avg_response_time_ms =
+                alpha * duration_ms + (1.0 - alpha) * self.metrics.avg_response_time_ms;
         }
     }
 
@@ -148,7 +149,10 @@ impl ProductionMonitoringManager {
         self
     }
 
-    pub fn with_resource_controller(mut self, resource_controller: Arc<ResourceController>) -> Self {
+    pub fn with_resource_controller(
+        mut self,
+        resource_controller: Arc<ResourceController>,
+    ) -> Self {
         self.resource_controller = Some(resource_controller);
         self
     }
@@ -190,38 +194,41 @@ impl ProductionMonitoringManager {
     /// Запустить production мониторинг
     pub async fn start_production_monitoring(&self) -> Result<()> {
         info!("📊 Запуск production мониторинга...");
-        
+
         let metrics_collector = self.metrics_collector.clone();
         let monitoring_interval = self.monitoring_interval;
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(monitoring_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let collector = metrics_collector.read().await;
                 let metrics = collector.get_metrics();
-                
+
                 if metrics.total_operations > 0 {
                     let success_rate = metrics.success_rate();
-                    
-                    debug!("📊 Production метрики: операций={}, успех={}%, avg_response={}ms", 
-                           metrics.total_operations,
-                           success_rate,
-                           metrics.avg_response_time_ms);
-                    
+
+                    debug!(
+                        "📊 Production метрики: операций={}, успех={}%, avg_response={}ms",
+                        metrics.total_operations, success_rate, metrics.avg_response_time_ms
+                    );
+
                     if success_rate < 95.0 {
                         warn!("📉 Низкий success rate: {:.1}%", success_rate);
                     }
-                    
+
                     if metrics.avg_response_time_ms > 100.0 {
-                        warn!("⏱️ Высокое время отклика: {:.1}ms", metrics.avg_response_time_ms);
+                        warn!(
+                            "⏱️ Высокое время отклика: {:.1}ms",
+                            metrics.avg_response_time_ms
+                        );
                     }
                 }
             }
         });
-        
+
         debug!("📊 Production мониторинг запущен");
         Ok(())
     }
@@ -230,25 +237,25 @@ impl ProductionMonitoringManager {
     pub async fn start_health_monitoring(&self) -> Result<()> {
         if let Some(ref health_manager) = self.health_manager {
             info!("🚑 Запуск health мониторинга...");
-            
+
             let manager = health_manager.clone();
             let health_check_interval = self.health_check_interval;
-            
+
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(health_check_interval);
-                
+
                 loop {
                     interval.tick().await;
-                    
+
                     if let Err(e) = manager.run_health_check().await {
                         error!("❌ Health check не удался: {}", e);
                     }
                 }
             });
-            
+
             debug!("🚑 Health мониторинг запущен");
         }
-        
+
         Ok(())
     }
 
@@ -256,23 +263,23 @@ impl ProductionMonitoringManager {
     pub async fn start_resource_monitoring(&self) -> Result<()> {
         if let Some(ref resource_controller) = self.resource_controller {
             info!("💾 Запуск resource мониторинга и auto-scaling...");
-            
+
             // Запускаем auto-scaling monitoring
             resource_controller.start_autoscaling_monitoring().await?;
-            
+
             debug!("💾 Resource мониторинг запущен");
         }
-        
+
         Ok(())
     }
 
     /// Остановить все мониторинги
     pub async fn stop_all_monitoring(&self) -> Result<()> {
         info!("🛑 Остановка всех мониторингов...");
-        
+
         // В реальной реализации здесь бы были handles для остановки токio tasks
         // Пока просто логируем
-        
+
         debug!("✅ Все мониторинги остановлены");
         Ok(())
     }
@@ -286,14 +293,14 @@ impl ProductionMonitoringManager {
     /// Получить health score системы
     pub async fn get_system_health_score(&self) -> f64 {
         let metrics = self.get_metrics().await;
-        
+
         if !metrics.is_healthy() {
             return 0.5; // Средний health score при проблемах
         }
 
         if let Some(ref health_manager) = self.health_manager {
             match health_manager.system_health().await {
-                Ok(_) => 1.0, // Отличное здоровье
+                Ok(_) => 1.0,  // Отличное здоровье
                 Err(_) => 0.3, // Проблемы с health checks
             }
         } else {
@@ -305,7 +312,7 @@ impl ProductionMonitoringManager {
     pub async fn generate_system_report(&self) -> String {
         let metrics = self.get_metrics().await;
         let health_score = self.get_system_health_score().await;
-        
+
         format!(
             "=== PRODUCTION SYSTEM REPORT ===\n\
             📊 Операций всего: {}\n\
@@ -326,7 +333,11 @@ impl ProductionMonitoringManager {
             metrics.circuit_breaker_trips,
             metrics.peak_memory_usage,
             health_score,
-            if metrics.is_healthy() { "HEALTHY" } else { "DEGRADED" }
+            if metrics.is_healthy() {
+                "HEALTHY"
+            } else {
+                "DEGRADED"
+            }
         )
     }
 }
@@ -345,15 +356,15 @@ mod tests {
     fn test_production_metrics() {
         let mut metrics = ProductionMetrics::default();
         assert_eq!(metrics.success_rate(), 100.0);
-        
+
         metrics.total_operations = 100;
         metrics.successful_operations = 95;
         metrics.failed_operations = 5;
-        
+
         assert_eq!(metrics.success_rate(), 95.0);
         assert_eq!(metrics.failure_rate(), 5.0);
         assert!(metrics.is_healthy());
-        
+
         metrics.avg_response_time_ms = 150.0;
         assert!(!metrics.is_healthy()); // Response time too high
     }
@@ -361,10 +372,10 @@ mod tests {
     #[tokio::test]
     async fn test_metrics_collector() {
         let mut collector = ProductionMetricsCollector::new();
-        
+
         collector.record_operation(Duration::from_millis(50), true);
         collector.record_operation(Duration::from_millis(100), false);
-        
+
         let metrics = collector.get_metrics();
         assert_eq!(metrics.total_operations, 2);
         assert_eq!(metrics.successful_operations, 1);
@@ -372,18 +383,22 @@ mod tests {
         assert!(metrics.avg_response_time_ms > 0.0);
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_monitoring_manager_creation() {
         let manager = ProductionMonitoringManager::new();
-        
+
         // Test recording operations
-        manager.record_successful_operation(Duration::from_millis(25)).await;
-        manager.record_failed_operation(Duration::from_millis(75)).await;
-        
+        manager
+            .record_successful_operation(Duration::from_millis(25))
+            .await;
+        manager
+            .record_failed_operation(Duration::from_millis(75))
+            .await;
+
         let metrics = manager.get_metrics().await;
         assert_eq!(metrics.total_operations, 2);
         assert_eq!(metrics.success_rate(), 50.0);
-        
+
         // Test reset
         manager.reset_metrics().await;
         let reset_metrics = manager.get_metrics().await;
@@ -393,12 +408,14 @@ mod tests {
     #[tokio::test]
     async fn test_system_health_score() {
         let manager = ProductionMonitoringManager::new();
-        
+
         // Record some successful operations
         for _ in 0..10 {
-            manager.record_successful_operation(Duration::from_millis(20)).await;
+            manager
+                .record_successful_operation(Duration::from_millis(20))
+                .await;
         }
-        
+
         let health_score = manager.get_system_health_score().await;
         assert!(health_score >= 0.8); // Should be healthy without health manager
     }
@@ -406,10 +423,14 @@ mod tests {
     #[tokio::test]
     async fn test_system_report_generation() {
         let manager = ProductionMonitoringManager::new();
-        
-        manager.record_successful_operation(Duration::from_millis(30)).await;
-        manager.record_failed_operation(Duration::from_millis(90)).await;
-        
+
+        manager
+            .record_successful_operation(Duration::from_millis(30))
+            .await;
+        manager
+            .record_failed_operation(Duration::from_millis(90))
+            .await;
+
         let report = manager.generate_system_report().await;
         assert!(report.contains("PRODUCTION SYSTEM REPORT"));
         assert!(report.contains("Операций всего: 2"));

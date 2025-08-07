@@ -1,21 +1,17 @@
 //! Service Configuration Module - Single Responsibility для конфигурации
-//! 
+//!
 //! Этот модуль отвечает ТОЛЬКО за конфигурацию DIMemoryService.
 //! Применяет Single Responsibility и Dependency Inversion принципы.
 
-use anyhow::Result;
-use std::path::PathBuf;
 use ai::AiConfig;
+use anyhow::Result;
+use common::service_traits::ConfigurationProfile;
+use std::path::PathBuf;
 
 use crate::{
-    CacheConfigType,
-    types::PromotionConfig,
-    ml_promotion::MLPromotionConfig,
-    streaming::StreamingConfig,
-    health::HealthMonitorConfig,
-    resource_manager::ResourceConfig,
-    notifications::NotificationConfig,
-    batch_manager::BatchConfig,
+    batch_manager::BatchConfig, health::HealthMonitorConfig, ml_promotion::MLPromotionConfig,
+    notifications::NotificationConfig, resource_manager::ResourceConfig,
+    streaming::StreamingConfig, types::PromotionConfig, CacheConfigType,
 };
 
 /// Типы конфигурации Memory Service
@@ -35,7 +31,7 @@ pub trait ServiceConfigFactory {
 }
 
 /// Главная конфигурация Memory Service
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MemoryServiceConfig {
     pub db_path: PathBuf,
     pub cache_path: PathBuf,
@@ -63,7 +59,7 @@ impl MemoryServiceConfig {
         let cache_dir = dirs::cache_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine cache directory"))?
             .join("magray");
-        
+
         Ok(Self {
             db_path: cache_dir.join("memory.db"),
             cache_path: cache_dir.join("embeddings_cache"),
@@ -83,7 +79,7 @@ impl MemoryServiceConfig {
     /// Создать минимальную конфигурацию для тестов
     pub fn create_minimal() -> Result<Self> {
         let temp_dir = std::env::temp_dir().join("magray_test");
-        
+
         Ok(Self {
             db_path: temp_dir.join("test_memory.db"),
             cache_path: temp_dir.join("test_cache"),
@@ -103,11 +99,11 @@ impl MemoryServiceConfig {
     /// Создать CPU-only конфигурацию
     pub fn create_cpu_only() -> Result<Self> {
         let mut config = Self::create_production()?;
-        
+
         // Отключаем GPU acceleration
         config.ai_config.embedding.use_gpu = false;
         config.ai_config.reranking.use_gpu = false;
-        
+
         Ok(config)
     }
 
@@ -122,7 +118,7 @@ impl MemoryServiceConfig {
         if self.db_path.to_str().is_none() {
             return Err(anyhow::anyhow!("Некорректный путь к базе данных"));
         }
-        
+
         if self.cache_path.to_str().is_none() {
             return Err(anyhow::anyhow!("Некорректный путь к кешу"));
         }
@@ -240,7 +236,7 @@ mod tests {
         let config = MemoryServiceConfig::create_minimal()?;
         assert!(!config.health_enabled);
         assert!(config.ml_promotion.is_none());
-        
+
         let prod_config = MemoryServiceConfig::create_production()?;
         assert!(prod_config.health_enabled);
         assert!(prod_config.ml_promotion.is_some());
@@ -248,7 +244,7 @@ mod tests {
         Ok(())
     }
 
-    #[test] 
+    #[test]
     fn test_config_validation() -> Result<()> {
         let config = MemoryServiceConfig::create_minimal()?;
         config.validate()?;
@@ -272,7 +268,7 @@ mod tests {
     #[test]
     fn test_config_factory() -> Result<()> {
         let factory = DefaultServiceConfigFactory;
-        
+
         let min_config = factory.create_config(ServiceConfigType::Minimal)?;
         assert!(!min_config.health_enabled);
 

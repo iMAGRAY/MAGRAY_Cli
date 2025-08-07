@@ -1,72 +1,94 @@
 mod batch_manager;
 mod batch_optimized; // Ultra-optimized batch operations для 1000+ QPS
-mod cache_lru;
 mod cache_interface;
+mod cache_lru;
 mod cache_migration;
 pub mod fallback;
-pub mod hnsw_index; // Модульная HNSW архитектура
 pub mod health;
-// pub mod layers; // ВРЕМЕННО ОТКЛЮЧЕНО для бенчмарка - проблемы с sqlx
+pub mod hnsw_index; // Модульная HNSW архитектура
+                    // pub mod layers; // ВРЕМЕННО ОТКЛЮЧЕНО для бенчмарка - проблемы с sqlx
+pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 mod metrics;
+pub mod ml_promotion; // Декомпозированная ML promotion система (SOLID compliant)
 mod notifications;
 pub mod promotion;
-pub mod ml_promotion; // Декомпозированная ML promotion система (SOLID compliant)
-pub mod simd_optimized; // SIMD оптимизации для векторных операций
-pub mod simd_fixed; // Исправленная SIMD реализация для debugging
-pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance
-pub mod simd_feature_detection; // Advanced CPU feature detection и adaptive algorithm selection
-pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 pub mod service_di; // REFACTORED модули в service_di/
-pub mod service_di_facade; // FACADE для обратной совместимости
+pub mod service_di_facade;
+pub mod simd_feature_detection; // Advanced CPU feature detection и adaptive algorithm selection
+pub mod simd_fixed; // Исправленная SIMD реализация для debugging
+pub mod simd_optimized; // SIMD оптимизации для векторных операций
+pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance // FACADE для обратной совместимости
 
 // Re-export для обратной совместимости
-pub use service_di_facade::{DIMemoryService, DIMemoryServiceBuilder};
-pub mod storage;
-pub mod types;
-mod vector_index_hnswlib; // Critical for vector storage
-pub mod transaction;
-mod backup;
-pub mod migration;
+pub use di::{DIMemoryService, DIMemoryServiceBuilder};
+pub use service_di::service_config::default_config;
 pub mod api;
-mod streaming;
+mod backup;
+mod database_manager;
 mod flush_config;
 pub mod gpu_accelerated;
+pub mod migration;
 pub mod resource_manager;
 mod retry;
-mod database_manager;
-// Refactored Dependency Injection система (SOLID compliant)
+pub mod storage;
+mod streaming;
+pub mod transaction;
+pub mod types;
+mod vector_index_hnswlib; // Critical for vector storage
+                          // Refactored Dependency Injection система (SOLID compliant)
 pub mod di; // Новая модульная архитектура
-// Re-export главного API (из нового di модуля)
+            // Re-export главного API (из нового di модуля)
 pub use di::{
-    DIContainer, DIContainerBuilder, create_default_container, DIPerformanceMetrics, DIContainerStats, Lifetime,
+    create_default_container,
+    // create_default_memory_config, // Не экспортируется
+    DIContainer,
+    DIContainerBuilder,
+    DIContainerStats,
+    DIPerformanceMetrics,
+    Lifetime,
+    // MemoryServiceConfig, // Не экспортируется
     // Новый унифицированный API
-    UnifiedDIContainer, UnifiedMemoryConfigurator, MemoryServiceConfig, create_default_memory_config
+    UnifiedDIContainer,
+    UnifiedMemoryConfigurator,
 };
 // Оркестрация системы памяти
 pub mod orchestration;
 // Специализированные сервисы (SOLID refactoring)
 pub mod services;
-pub use batch_manager::{BatchOperationManager, BatchConfig, BatchOperationBuilder, BatchStats};
-pub use batch_optimized::{BatchOptimizedProcessor, BatchOptimizedConfig, BatchOptimizedStats, AlignedBatchVectors};
-pub use cache_lru::{EmbeddingCacheLRU as EmbeddingCache, CacheConfig as LruCacheConfig, CacheConfig};
+// Utility functions и error handling
+pub mod utils;
+pub use batch_manager::{BatchConfig, BatchOperationBuilder, BatchOperationManager, BatchStats};
+pub use batch_optimized::{
+    AlignedBatchVectors, BatchOptimizedConfig, BatchOptimizedProcessor, BatchOptimizedStats,
+};
+pub use cache_lru::{
+    CacheConfig as LruCacheConfig, CacheConfig, EmbeddingCacheLRU as EmbeddingCache,
+};
 
 // Cache configuration type for service - теперь только LRU
 pub type CacheConfigType = LruCacheConfig;
-pub use storage::VectorStore;
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 // Legacy MemoryService удален - используем DIMemoryService через unified_container
 pub use service_di::{BatchInsertResult, BatchSearchResult};
 
 // NEW: Refactored services based on SOLID principles
 pub use services::{
-    // Trait interfaces
-    CoreMemoryServiceTrait, CoordinatorServiceTrait, ResilienceServiceTrait, 
-    MonitoringServiceTrait, CacheServiceTrait,
+    CacheService,
+    CacheServiceTrait,
+    CoordinatorService,
+    CoordinatorServiceTrait,
     // Service implementations
-    CoreMemoryService, CoordinatorService, ResilienceService, 
-    MonitoringService, CacheService,
+    CoreMemoryService,
+    // Trait interfaces
+    CoreMemoryServiceTrait,
+    MonitoringService,
+    MonitoringServiceTrait,
+    ResilienceService,
+    ResilienceServiceTrait,
+    ServiceCollection,
     // Service factory and collections
-    ServiceFactory, ServiceCollection, ServiceFactoryConfig,
+    ServiceFactory,
+    ServiceFactoryConfig,
 };
 
 // NEW: Refactored DIMemoryService using SOLID composition instead of God Object
@@ -76,7 +98,7 @@ pub use services::{RefactoredDIMemoryService, RefactoredDIMemoryServiceBuilder};
 // pub use layers::{
 //     // Trait definitions
 //     StorageLayer, IndexLayer, QueryLayer, CacheLayer, LayerHealth,
-//     // Concrete implementations  
+//     // Concrete implementations
 //     LayeredMemoryBuilder, LayeredDIContainer,
 //     // Configuration types
 //     StorageConfig, IndexConfig, QueryConfig, CacheConfig,
@@ -85,39 +107,69 @@ pub use services::{RefactoredDIMemoryService, RefactoredDIMemoryServiceBuilder};
 //     LayerHealthStatus,
 // };
 // MemoryDIConfigurator moved to di/unified_container.rs
-pub use health::{HealthMonitor, HealthMonitorConfig as HealthConfig, ComponentType, AlertSeverity, SystemHealthStatus};
-pub use api::{UnifiedMemoryAPI, MemoryContext, SearchOptions as ApiSearchOptions, MemoryResult, OptimizationResult, SystemHealth, DetailedHealth, SystemStats, CacheStats, IndexSizes};
-pub use resource_manager::{ResourceManager, ResourceConfig};
-pub use notifications::{NotificationManager, NotificationManager as NotificationSystem};
+pub use api::{
+    CacheStats, DetailedHealth, IndexSizes, MemoryContext, MemoryResult, OptimizationResult,
+    SearchOptions as ApiSearchOptions, SystemHealth, SystemStats, UnifiedMemoryAPI,
+};
 pub use database_manager::DatabaseManager;
-pub use metrics::{MetricsCollector, MemoryMetrics, LatencyMetrics, LayerMetrics};
-pub use transaction::{Transaction, TransactionManager, TransactionGuard};
-pub use simd_optimized::{cosine_distance_auto, cosine_distance_memory_optimized, batch_cosine_distance_optimized, run_comprehensive_benchmark};
-pub use simd_fixed::{debug_simd_performance};
-pub use simd_ultra_optimized::{cosine_distance_ultra_optimized, AlignedVector, batch_cosine_distance_ultra, test_ultra_optimized_performance};
-pub use simd_feature_detection::{SimdLevel, CpuInfo, WorkloadProfile, AdaptiveAlgorithmSelector, AlgorithmStrategy, get_adaptive_selector, quick_cpu_info};
-pub use gpu_ultra_accelerated::{GpuDevice, GpuCosineProcessor, GpuDeviceManager, benchmark_gpu_vs_cpu};
+pub use gpu_ultra_accelerated::{
+    benchmark_gpu_vs_cpu, GpuCosineProcessor, GpuDevice, GpuDeviceManager,
+};
+pub use health::{
+    AlertSeverity, ComponentType, HealthMonitor, HealthMonitorConfig as HealthConfig,
+    SystemHealthStatus,
+};
+pub use metrics::{LatencyMetrics, LayerMetrics, MemoryMetrics, MetricsCollector};
+pub use notifications::{NotificationManager, NotificationManager as NotificationSystem};
+pub use resource_manager::{ResourceConfig, ResourceManager};
+pub use simd_feature_detection::{
+    get_adaptive_selector, quick_cpu_info, AdaptiveAlgorithmSelector, AlgorithmStrategy, CpuInfo,
+    SimdLevel, WorkloadProfile,
+};
+pub use simd_fixed::debug_simd_performance;
+pub use simd_optimized::{
+    batch_cosine_distance_optimized, cosine_distance_auto, cosine_distance_memory_optimized,
+    run_comprehensive_benchmark,
+};
+pub use simd_ultra_optimized::{
+    batch_cosine_distance_ultra, cosine_distance_ultra_optimized, test_ultra_optimized_performance,
+    AlignedVector,
+};
+pub use storage::VectorStore;
+pub use transaction::{Transaction, TransactionGuard, TransactionManager};
 
-/// Быстрое создание DI Memory Service с конфигурацией по умолчанию
-pub async fn create_di_memory_service() -> anyhow::Result<DIMemoryService> {
-    let config = default_config()?;
-    DIMemoryService::new(config).await
-}
+/// Быстрое создание DI Memory Service с конфигурацией по умолчанию - ВРЕМЕННО ОТКЛЮЧЕНО
+/// DIMemoryService не существует - используйте RefactoredDIMemoryService
+// pub async fn create_di_memory_service() -> anyhow::Result<DIMemoryService> {
+//     let config = service_di::service_config::default_config()?;
+//     DIMemoryService::new(config).await
+// }
 
 // Профессиональная HNSW реализация - единственная векторная реализация
-pub use vector_index_hnswlib::{VectorIndexHnswRs, HnswRsConfig, HnswRsStats};
+pub use vector_index_hnswlib::{HnswRsConfig, HnswRsStats, VectorIndexHnswRs};
 
 // HNSW index module exports
 pub use hnsw_index::{HnswConfig, HnswStats, VectorIndex};
 
 // ML-based promotion system
-pub use ml_promotion::{MLPromotionEngine, MLPromotionConfig, MLPromotionStats, PromotionFeatures, PromotionDecision, UsageTracker};
+pub use ml_promotion::{
+    MLPromotionConfig, MLPromotionEngine, MLPromotionStats, PromotionDecision, PromotionFeatures,
+    UsageTracker,
+};
 
 // Streaming API system
-pub use streaming::{StreamingMemoryAPI, StreamingConfig, StreamingRequest, StreamingResponse, StreamingOperation, StreamingResult, SessionConfig, StreamingPriority, GlobalStreamingStats, StreamingInsertRecord, SessionAction};
+pub use streaming::{
+    GlobalStreamingStats, SessionAction, SessionConfig, StreamingConfig, StreamingInsertRecord,
+    StreamingMemoryAPI, StreamingOperation, StreamingPriority, StreamingRequest, StreamingResponse,
+    StreamingResult,
+};
 
 // Re-export for backward compatibility
 pub use types::Layer as MemoryLayer;
+
+// Utility functions для улучшенного error handling
+// ВРЕМЕННО ОТКЛЮЧЕНО для исправления ошибок компиляции
+// pub use utils::{production_helpers, test_helpers, ErrorUtils};
 
 // Deprecated types removed in v0.3.0
 // Use Layer enum and Record struct instead

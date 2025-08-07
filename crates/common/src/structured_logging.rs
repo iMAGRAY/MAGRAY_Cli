@@ -1,12 +1,12 @@
-use serde::{Serialize, Deserialize};
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use tracing::{Level, Event, Subscriber};
-use tracing::field::{Field, Visit};
-use tracing_subscriber::{fmt, layer::SubscriberExt, Layer, EnvFilter, Registry};
-use tracing_subscriber::fmt::format::FmtSpan;
 use std::io::{self, Write};
-use chrono::Utc;
+use tracing::field::{Field, Visit};
+use tracing::{Event, Level, Subscriber};
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::{fmt, layer::SubscriberExt, EnvFilter, Layer, Registry};
 
 /// Структурированная запись лога в JSON формате
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,7 +94,7 @@ where
     fn on_event(&self, event: &Event<'_>, _ctx: tracing_subscriber::layer::Context<'_, S>) {
         let mut visitor = JsonVisitor::default();
         event.record(&mut visitor);
-        
+
         let level = match *event.metadata().level() {
             Level::ERROR => "ERROR",
             Level::WARN => "WARN",
@@ -102,9 +102,9 @@ where
             Level::DEBUG => "DEBUG",
             Level::TRACE => "TRACE",
         };
-        
+
         let performance = visitor.extract_performance_metrics();
-        
+
         let entry = StructuredLogEntry {
             timestamp: Utc::now().to_rfc3339(),
             level: level.to_string(),
@@ -114,7 +114,7 @@ where
             context: Some(ExecutionContext::default()),
             performance,
         };
-        
+
         if let Ok(json) = serde_json::to_string(&entry) {
             let _ = writeln!(io::stdout(), "{}", json);
         }
@@ -139,46 +139,36 @@ impl Visit for JsonVisitor {
             );
         }
     }
-    
+
     fn record_str(&mut self, field: &Field, value: &str) {
         if field.name() == "message" {
             self.message = Some(value.to_string());
         } else {
-            self.fields.insert(
-                field.name().to_string(),
-                Value::String(value.to_string()),
-            );
+            self.fields
+                .insert(field.name().to_string(), Value::String(value.to_string()));
         }
     }
-    
+
     fn record_i64(&mut self, field: &Field, value: i64) {
-        self.fields.insert(
-            field.name().to_string(),
-            Value::Number(value.into()),
-        );
+        self.fields
+            .insert(field.name().to_string(), Value::Number(value.into()));
     }
-    
+
     fn record_u64(&mut self, field: &Field, value: u64) {
-        self.fields.insert(
-            field.name().to_string(),
-            Value::Number(value.into()),
-        );
+        self.fields
+            .insert(field.name().to_string(), Value::Number(value.into()));
     }
-    
+
     fn record_f64(&mut self, field: &Field, value: f64) {
         if let Some(n) = serde_json::Number::from_f64(value) {
-            self.fields.insert(
-                field.name().to_string(),
-                Value::Number(n),
-            );
+            self.fields
+                .insert(field.name().to_string(), Value::Number(n));
         }
     }
-    
+
     fn record_bool(&mut self, field: &Field, value: bool) {
-        self.fields.insert(
-            field.name().to_string(),
-            Value::Bool(value),
-        );
+        self.fields
+            .insert(field.name().to_string(), Value::Bool(value));
     }
 }
 
@@ -187,7 +177,7 @@ impl JsonVisitor {
     fn extract_performance_metrics(&self) -> Option<PerformanceMetrics> {
         // Если нет duration_ms, то метрики не нужны
         let duration_ms = self.get_u64_field("duration_ms")?;
-        
+
         Some(PerformanceMetrics {
             duration_ms,
             cpu_usage_percent: self.get_f64_field("cpu_usage_percent").map(|v| v as f32),
@@ -197,15 +187,13 @@ impl JsonVisitor {
             cache_misses: self.get_u64_field("cache_misses"),
         })
     }
-    
+
     fn get_u64_field(&self, name: &str) -> Option<u64> {
-        self.fields.get(name)
-            .and_then(|v| v.as_u64())
+        self.fields.get(name).and_then(|v| v.as_u64())
     }
-    
+
     fn get_f64_field(&self, name: &str) -> Option<f64> {
-        self.fields.get(name)
-            .and_then(|v| v.as_f64())
+        self.fields.get(name).and_then(|v| v.as_f64())
     }
 }
 
@@ -240,12 +228,12 @@ impl LoggingConfig {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     pub fn with_json_output(mut self, json: bool) -> Self {
         self.json_output = json;
         self
     }
-    
+
     pub fn with_level(mut self, level: &str) -> Self {
         self.level = match level.to_lowercase().as_str() {
             "error" => Level::ERROR,
@@ -257,16 +245,16 @@ impl LoggingConfig {
         };
         self
     }
-    
+
     pub fn with_pretty_print(mut self, pretty: bool) -> Self {
         self.pretty_print = pretty;
         self
     }
-    
+
     pub fn json_output(&self) -> bool {
         self.json_output
     }
-    
+
     pub fn level(&self) -> &str {
         match self.level {
             Level::ERROR => "error",
@@ -282,15 +270,13 @@ impl LoggingConfig {
 pub fn init_structured_logging_with_config(config: LoggingConfig) -> anyhow::Result<()> {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(config.level.to_string()));
-    
+
     if config.json_output {
         // JSON формат для production
         let json_layer = JsonFormatter;
-        
-        let subscriber = Registry::default()
-            .with(env_filter)
-            .with(json_layer);
-            
+
+        let subscriber = Registry::default().with(env_filter).with(json_layer);
+
         tracing::subscriber::set_global_default(subscriber)?;
     } else {
         // Человекочитаемый формат для разработки
@@ -301,14 +287,12 @@ pub fn init_structured_logging_with_config(config: LoggingConfig) -> anyhow::Res
             .with_line_number(config.include_line_numbers)
             .with_ansi(config.color_output)
             .with_span_events(FmtSpan::CLOSE);
-            
-        let subscriber = Registry::default()
-            .with(env_filter)
-            .with(fmt_layer);
-            
+
+        let subscriber = Registry::default().with(env_filter).with(fmt_layer);
+
         tracing::subscriber::set_global_default(subscriber)?;
     }
-    
+
     Ok(())
 }
 
@@ -346,20 +330,20 @@ impl OperationTimer {
             fields: HashMap::new(),
         }
     }
-    
+
     pub fn add_field(&mut self, key: impl Into<String>, value: impl Serialize) {
         if let Ok(v) = serde_json::to_value(value) {
             self.fields.insert(key.into(), v);
         }
     }
-    
+
     pub fn elapsed(&self) -> std::time::Duration {
         self.start.elapsed()
     }
-    
+
     pub fn finish(self) -> PerformanceMetrics {
         let duration_ms = self.start.elapsed().as_millis() as u64;
-        
+
         tracing::info!(
             operation = %self.operation_name,
             duration_ms = duration_ms,
@@ -367,7 +351,7 @@ impl OperationTimer {
             fields = ?self.fields,
             "Operation completed"
         );
-        
+
         PerformanceMetrics {
             duration_ms,
             memory_used_bytes: None,
@@ -377,7 +361,7 @@ impl OperationTimer {
             cache_misses: None,
         }
     }
-    
+
     pub fn finish_with<T, F>(self, callback: F) -> T
     where
         F: FnOnce(PerformanceMetrics) -> T,
@@ -385,10 +369,10 @@ impl OperationTimer {
         let metrics = self.finish();
         callback(metrics)
     }
-    
+
     pub fn finish_with_result<T>(self, result: Result<T, impl std::fmt::Display>) {
         let duration_ms = self.start.elapsed().as_millis() as u64;
-        
+
         match result {
             Ok(_) => {
                 tracing::info!(
@@ -429,25 +413,25 @@ impl RequestContext {
             metadata: HashMap::new(),
         }
     }
-    
+
     pub fn with_user(mut self, user_id: impl Into<String>) -> Self {
         self.user_id = Some(user_id.into());
         self
     }
-    
+
     pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
         self
     }
-    
+
     pub fn request_id(&self) -> &str {
         &self.request_id
     }
-    
+
     pub fn user_id(&self) -> Option<&str> {
         self.user_id.as_deref()
     }
-    
+
     pub fn metadata(&self) -> &HashMap<String, String> {
         &self.metadata
     }
@@ -456,7 +440,7 @@ impl RequestContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_structured_log_entry_serialization() {
         let entry = StructuredLogEntry {
@@ -475,23 +459,23 @@ mod tests {
                 cache_misses: None,
             }),
         };
-        
+
         let json = serde_json::to_string_pretty(&entry).unwrap();
         assert!(json.contains("timestamp"));
         assert!(json.contains("INFO"));
         assert!(json.contains("Test message"));
         assert!(json.contains("duration_ms"));
     }
-    
+
     #[test]
     fn test_operation_timer() {
         let mut timer = OperationTimer::new("test_operation");
         timer.add_field("user_id", "12345");
         timer.add_field("items_count", 100);
-        
+
         // Симулируем работу
         std::thread::sleep(std::time::Duration::from_millis(10));
-        
+
         // Timer завершится и запишет лог при drop
         timer.finish();
     }

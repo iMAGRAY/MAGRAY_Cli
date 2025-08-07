@@ -3,12 +3,12 @@
 //! Value objects представляют business concepts без identity.
 //! Immutable по определению.
 
-mod layer_type;
-mod score_threshold;
 mod access_pattern;
+mod layer_type;
 mod promotion_criteria;
+mod score_threshold;
 
-pub use layer_type::LayerType;
-pub use score_threshold::ScoreThreshold;
 pub use access_pattern::AccessPattern;
+pub use layer_type::LayerType;
 pub use promotion_criteria::PromotionCriteria;
+pub use score_threshold::ScoreThreshold;

@@ -5,9 +5,37 @@ edition.workspace = true
 
 [features]
 default = ["cpu"]
-cpu = ["ai/cpu"]  # CPU-only memory operations
-gpu = ["ai/gpu"]  # GPU-accelerated embeddings  
-minimal = ["ai/minimal"]  # Minimal memory system
+
+# Minimal build - basic in-memory storage without persistence
+minimal = []
+
+# CPU build - full functionality without GPU acceleration
+cpu = [
+    "ai/cpu", 
+    "hnsw-index",
+    "persistence", 
+    "backup-restore",
+    "vector-search",
+    "embeddings"
+]
+
+# GPU build - full functionality with GPU acceleration
+gpu = [
+    "cpu",
+    "ai/gpu",
+    "gpu-acceleration",
+    "cuda"
+]
+
+# Individual memory features
+hnsw-index = ["hnsw_rs"]
+persistence = ["sled"]
+backup-restore = ["tar", "flate2"]
+vector-search = ["rayon", "num_cpus"]
+embeddings = ["ai/embeddings"]
+gpu-acceleration = []
+cuda = ["ai/cuda"]
+notifications = ["reqwest", "colored"]
 
 [dependencies]
 anyhow.workspace = true
@@ -15,9 +43,11 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+log.workspace = true
 async-trait.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+thiserror.workspace = true
 
 # AI services
 ai = { path = "../ai" }
@@ -25,61 +55,52 @@ ai = { path = "../ai" }
 # Common utilities
 common = { path = "../common" }
 
-# Embedding cache and storage
-sled = { version = "0.34", features = ["compression"] }
+# Embedding cache and storage (conditional)
+sled = { version = "0.34", features = ["compression"], optional = true }
 
-# Utilities
+# Utilities (always available)
 futures = "0.3"
 parking_lot = "0.12"
 bincode = "1.3"
 dirs = "5.0"
-
-# Vector search
-hnsw_rs = "0.3"
-num_cpus = "1.0"
-rayon = "1.8"
 rand = "0.8"
-
-# Fallback и graceful degradation
 sha2 = "0.10"
-
-# System monitoring
 sysinfo = "0.31"
-
-# Concurrent data structures
 crossbeam-channel = "0.5"
-
-# Notifications
-reqwest = { version = "0.12", features = ["json"] }
-colored = "2.0"
-
-# Backup/restore functionality
-tar = "0.4"
-flate2 = "1.0"
 tempfile = "3.0"
+
+# Vector search (conditional)
+hnsw_rs = { version = "0.3", optional = true }
+num_cpus = { version = "1.0", optional = true }
+rayon = { version = "1.8", optional = true }
+
+# Notifications (conditional)
+reqwest = { version = "0.12", features = ["json"], optional = true }
+colored = { version = "2.0", optional = true }
+
+# Backup/restore functionality (conditional)
+tar = { version = "0.4", optional = true }
+flate2 = { version = "1.0", optional = true }
+
+# Configuration serialization (needed by config_loader)
+toml = "0.8"
+serde_yaml = "0.9"
 
 # Test dependencies
 [dev-dependencies]
 tracing-subscriber.workspace = true
 criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
 llm = { path = "../llm" }
-ort = "2.0.0-rc.10"
-ndarray = "0.15"
-tokenizers = "0.20"
 clap = { version = "4.0", features = ["derive"] }
 rand_chacha = "0.3"
 tempfile = "3.0"
-tempdir = "0.3"
 rand = "0.8"
-fastrand = "2.0"
 futures = "0.3"
 
 # Additional test dependencies for comprehensive testing
 mockall = "0.12"
 proptest = "1.4"
 tokio-test = "0.4"
-once_cell = "1.19"
-test-log = "0.2"
 
 [[example]]
 name = "memory_demo"

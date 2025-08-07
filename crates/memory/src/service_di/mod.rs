@@ -1,64 +1,46 @@
 //! Service DI Module - Decomposed God Object
-//! 
+//!
 //! Этот модуль представляет декомпозированную архитектуру service_di.rs,
 //! разбитую на специализированные модули по принципам SOLID.
 
 // === Core Modules (SOLID-compliant) ===
-pub mod service_config;
-pub mod coordinator_factory;
-pub mod production_monitoring;
 pub mod circuit_breaker;
+pub mod coordinator_factory;
 pub mod lifecycle_manager;
 pub mod operation_executor;
+pub mod production_monitoring;
+pub mod service_config;
 // facade.rs удален - используется unified_container
 
 // === Re-exports для удобства ===
 pub use service_config::{
-    MemoryServiceConfig, 
-    MemoryServiceConfigBuilder, 
-    ServiceConfigType, 
-    ServiceConfigFactory,
-    DefaultServiceConfigFactory,
     default_config,
+    DefaultServiceConfigFactory,
     MemoryConfig, // Backward compatibility
+    MemoryServiceConfig,
+    MemoryServiceConfigBuilder,
+    ServiceConfigFactory,
+    ServiceConfigType,
 };
 
 pub use coordinator_factory::{
-    CoordinatorFactory,
-    OrchestrationCoordinators,
-    ProductionCoordinatorFactory,
+    CoordinatorFactory, OrchestrationCoordinators, ProductionCoordinatorFactory,
     TestCoordinatorFactory,
 };
 
 pub use production_monitoring::{
-    ProductionMetrics,
-    MetricsCollector,
-    ProductionMetricsCollector,
-    ProductionMonitoringManager,
+    MetricsCollector, ProductionMetrics, ProductionMetricsCollector, ProductionMonitoringManager,
 };
 
 pub use circuit_breaker::{
-    CircuitBreaker,
-    CircuitBreakerConfig,
-    CircuitBreakerState,
-    CircuitBreakerStats,
+    CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, CircuitBreakerStats,
 };
 
-pub use lifecycle_manager::{
-    LifecycleManager,
-    LifecycleConfig,
-    LifecycleState,
-    OperationStats,
-};
+pub use lifecycle_manager::{LifecycleConfig, LifecycleManager, LifecycleState, OperationStats};
 
 pub use operation_executor::{
-    OperationExecutor,
-    ProductionOperationExecutor,
-    SimpleOperationExecutor,
-    ExtendedOperationExecutor,
-    OperationConfig,
-    BatchInsertResult,
-    BatchSearchResult,
+    BatchInsertResult, BatchSearchResult, ExtendedOperationExecutor, OperationConfig,
+    OperationExecutor, ProductionOperationExecutor, SimpleOperationExecutor,
 };
 
 // === Main type alias для замены God Object ===
@@ -66,10 +48,8 @@ pub use operation_executor::{
 
 // === Backward Compatibility Types ===
 use crate::{
-    health::SystemHealthStatus,
+    batch_manager::BatchStats, gpu_accelerated::BatchProcessorStats, health::SystemHealthStatus,
     promotion::PromotionStats,
-    batch_manager::BatchStats,
-    gpu_accelerated::BatchProcessorStats,
 };
 
 /// Статистика всей memory системы (backward compatibility)

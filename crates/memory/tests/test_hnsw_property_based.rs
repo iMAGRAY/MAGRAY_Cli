@@ -1,5 +1,5 @@
 //! Property-based tests for HNSW vector search
-//! 
+//!
 //! Покрывает:
 //! - Invariants векторного поиска
 //! - Property-based testing с quickcheck
@@ -8,11 +8,12 @@
 //! - Search result consistency
 //! - Performance properties
 
-use memory::{
-    VectorIndexHnswRs, HnswRsConfig, // Правильные импорты из публичного API
-    types::{Layer, Record},
-};
 use anyhow::Result;
+use memory::{
+    types::{Layer, Record},
+    HnswRsConfig, // Правильные импорты из публичного API
+    VectorIndexHnswRs,
+};
 // Временно отключаем quickcheck, так как он не в dependencies
 // Заменим на обычные unit tests
 // HashMap не нужен после рефакторинга
@@ -29,18 +30,21 @@ enum TestResult {
 
 impl TestResult {
     fn from_bool(b: bool) -> Self {
-        if b { TestResult::Passed } else { TestResult::Failed }
+        if b {
+            TestResult::Passed
+        } else {
+            TestResult::Failed
+        }
     }
-    
+
     fn passed() -> Self {
         TestResult::Passed
     }
-    
+
     fn discard() -> Self {
         TestResult::Discard
     }
 }
-
 
 /// Генератор векторов для property-based тестирования
 #[derive(Clone, Debug)]
@@ -56,10 +60,10 @@ impl TestVector {
                 ((i as f32 + seed) * 0.1).sin().clamp(-1.0, 1.0)
             })
             .collect();
-        
+
         TestVector { values }
     }
-    
+
     fn random(size: usize) -> Self {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
@@ -89,7 +93,7 @@ impl TestRecord {
             1 => Layer::Insights,
             _ => Layer::Assets,
         };
-        
+
         TestRecord {
             id: id_str,
             content,
@@ -137,7 +141,7 @@ fn euclidean_distance(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() {
         return f32::INFINITY;
     }
-    
+
     a.iter()
         .zip(b.iter())
         .map(|(x, y)| (x - y).powi(2))
@@ -150,7 +154,7 @@ fn dot_product(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() {
         return 0.0;
     }
-    
+
     a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
 }
 
@@ -159,11 +163,11 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() {
         return 0.0;
     }
-    
+
     let dot = dot_product(a, b);
     let norm_a = a.iter().map(|x| x.powi(2)).sum::<f32>().sqrt();
     let norm_b = b.iter().map(|x| x.powi(2)).sum::<f32>().sqrt();
-    
+
     if norm_a == 0.0 || norm_b == 0.0 {
         0.0
     } else {
@@ -177,20 +181,23 @@ fn property_search_returns_valid_results() {
         if records.is_empty() || query_record.embedding.values.is_empty() {
             return TestResult::discard();
         }
-        
+
         // Проверяем что все векторы имеют одинаковую размерность
         let dimension = query_record.embedding.values.len();
-        if !records.iter().all(|r| r.embedding.values.len() == dimension) {
+        if !records
+            .iter()
+            .all(|r| r.embedding.values.len() == dimension)
+        {
             return TestResult::discard();
         }
-        
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let index = match create_test_index(dimension) {
                 Ok(idx) => idx,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             // Добавляем записи в индекс
             for (i, record) in records.iter().enumerate() {
                 let record_id = format!("record_{}", i);
@@ -198,18 +205,18 @@ fn property_search_returns_valid_results() {
                     return TestResult::discard();
                 }
             }
-            
+
             // build_index() не нужен в новой реализации
-            
+
             // Выполняем поиск
             let search_results = match index.search(&query_record.embedding.values, 10) {
                 Ok(results) => results,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             // Проверяем свойства результатов поиска
             let mut valid = true;
-            
+
             // 1. Все ID должны быть валидными
             for result in &search_results {
                 let index_str = result.0.strip_prefix("record_").unwrap_or("0");
@@ -223,26 +230,29 @@ fn property_search_returns_valid_results() {
                     break;
                 }
             }
-            
+
             // 2. Результаты должны быть отсортированы по релевантности (расстоянию)
             if search_results.len() > 1 {
                 for i in 0..search_results.len() - 1 {
                     // Извлекаем индексы из ID результатов
                     let idx1_str = search_results[i].0.strip_prefix("record_").unwrap_or("0");
-                    let idx2_str = search_results[i + 1].0.strip_prefix("record_").unwrap_or("0");
+                    let idx2_str = search_results[i + 1]
+                        .0
+                        .strip_prefix("record_")
+                        .unwrap_or("0");
                     let idx1: usize = idx1_str.parse().unwrap_or(0);
                     let idx2: usize = idx2_str.parse().unwrap_or(0);
-                    
+
                     if idx1 < records.len() && idx2 < records.len() {
                         let dist1 = euclidean_distance(
                             &query_record.embedding.values,
-                            &records[idx1].embedding.values
+                            &records[idx1].embedding.values,
                         );
                         let dist2 = euclidean_distance(
                             &query_record.embedding.values,
-                            &records[idx2].embedding.values
+                            &records[idx2].embedding.values,
                         );
-                        
+
                         // HNSW может не гарантировать строгий порядок, но должен быть приблизительно правильным
                         // Позволяем небольшую погрешность
                         if dist1 > dist2 * 1.5 {
@@ -252,16 +262,16 @@ fn property_search_returns_valid_results() {
                     }
                 }
             }
-            
+
             // 3. Количество результатов не должно превышать запрошенное
             if search_results.len() > 10 {
                 valid = false;
             }
-            
+
             TestResult::from_bool(valid)
         })
     }
-    
+
     // Простой unit test вместо quickcheck
     let records = vec![TestRecord::new(1, 128), TestRecord::new(2, 128)];
     let query = TestRecord::new(3, 128);
@@ -275,11 +285,11 @@ fn property_identical_vectors_have_zero_distance() {
         if vector.values.is_empty() || vector.values.len() > 512 {
             return TestResult::discard();
         }
-        
+
         let distance = euclidean_distance(&vector.values, &vector.values);
         TestResult::from_bool(distance < 1e-6) // Практически ноль
     }
-    
+
     // Простой unit test вместо quickcheck
     let vector = TestVector::new(128, 1.0);
     let result = test_identical_distance(vector);
@@ -292,13 +302,13 @@ fn property_distance_symmetry() {
         if a.values.is_empty() || b.values.is_empty() || a.values.len() != b.values.len() {
             return TestResult::discard();
         }
-        
+
         let dist_ab = euclidean_distance(&a.values, &b.values);
         let dist_ba = euclidean_distance(&b.values, &a.values);
-        
+
         TestResult::from_bool((dist_ab - dist_ba).abs() < 1e-6)
     }
-    
+
     // Простой unit test вместо quickcheck
     let a = TestVector::new(128, 1.0);
     let b = TestVector::new(128, 2.0);
@@ -309,19 +319,23 @@ fn property_distance_symmetry() {
 #[test]
 fn property_triangle_inequality() {
     fn test_triangle_inequality(a: TestVector, b: TestVector, c: TestVector) -> TestResult {
-        if a.values.is_empty() || b.values.is_empty() || c.values.is_empty() ||
-           a.values.len() != b.values.len() || b.values.len() != c.values.len() {
+        if a.values.is_empty()
+            || b.values.is_empty()
+            || c.values.is_empty()
+            || a.values.len() != b.values.len()
+            || b.values.len() != c.values.len()
+        {
             return TestResult::discard();
         }
-        
+
         let dist_ab = euclidean_distance(&a.values, &b.values);
         let dist_bc = euclidean_distance(&b.values, &c.values);
         let dist_ac = euclidean_distance(&a.values, &c.values);
-        
+
         // Triangle inequality: dist(a,c) <= dist(a,b) + dist(b,c)
         TestResult::from_bool(dist_ac <= dist_ab + dist_bc + 1e-6) // Small epsilon for floating point
     }
-    
+
     // Простой unit test вместо quickcheck
     let a = TestVector::new(128, 1.0);
     let b = TestVector::new(128, 2.0);
@@ -336,21 +350,21 @@ fn property_cosine_similarity_bounds() {
         if a.values.is_empty() || b.values.is_empty() || a.values.len() != b.values.len() {
             return TestResult::discard();
         }
-        
+
         // Фильтруем нулевые векторы
         let norm_a = a.values.iter().map(|x| x.powi(2)).sum::<f32>().sqrt();
         let norm_b = b.values.iter().map(|x| x.powi(2)).sum::<f32>().sqrt();
-        
+
         if norm_a < 1e-6 || norm_b < 1e-6 {
             return TestResult::discard();
         }
-        
+
         let similarity = cosine_similarity(&a.values, &b.values);
-        
+
         // Cosine similarity должна быть в диапазоне [-1, 1]
         TestResult::from_bool(similarity >= -1.0 - 1e-6 && similarity <= 1.0 + 1e-6)
     }
-    
+
     // Простой unit test вместо quickcheck
     let a = TestVector::new(128, 1.0);
     let b = TestVector::new(128, 2.0);
@@ -360,23 +374,31 @@ fn property_cosine_similarity_bounds() {
 
 #[test]
 fn property_search_consistency() {
-    fn test_search_consistency(records: Vec<TestRecord>, query: TestVector, k1: u8, k2: u8) -> TestResult {
+    fn test_search_consistency(
+        records: Vec<TestRecord>,
+        query: TestVector,
+        k1: u8,
+        k2: u8,
+    ) -> TestResult {
         if records.is_empty() || query.values.is_empty() || k1 == 0 || k2 == 0 || k1 > k2 {
             return TestResult::discard();
         }
-        
+
         let dimension = query.values.len();
-        if !records.iter().all(|r| r.embedding.values.len() == dimension) {
+        if !records
+            .iter()
+            .all(|r| r.embedding.values.len() == dimension)
+        {
             return TestResult::discard();
         }
-        
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let index = match create_test_index(dimension) {
                 Ok(idx) => idx,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             // Добавляем записи
             for (i, record) in records.iter().enumerate() {
                 let record_id = format!("record_{}", i);
@@ -384,26 +406,26 @@ fn property_search_consistency() {
                     return TestResult::discard();
                 }
             }
-            
+
             // build_index() не нужен в новой реализации
-            
+
             // Выполняем поиск с разными k
             let results_k1 = match index.search(&query.values, k1 as usize) {
                 Ok(r) => r,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             let results_k2 = match index.search(&query.values, k2 as usize) {
                 Ok(r) => r,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             // Проверяем что первые k1 результатов в results_k2 совпадают с results_k1
             // (с учетом того что HNSW приблизительный)
             let k1_usize = k1 as usize;
             if results_k1.len() == k1_usize && results_k2.len() >= k1_usize {
                 let results_k2_truncated = &results_k2[..k1_usize];
-                
+
                 // Проверяем что результаты "приблизительно" те же
                 let mut matches = 0;
                 for id1 in &results_k1 {
@@ -411,7 +433,7 @@ fn property_search_consistency() {
                         matches += 1;
                     }
                 }
-                
+
                 // Позволяем до 20% различий для приблизительного поиска HNSW
                 let threshold = (k1_usize as f32 * 0.8) as usize;
                 TestResult::from_bool(matches >= threshold)
@@ -420,7 +442,7 @@ fn property_search_consistency() {
             }
         })
     }
-    
+
     // Простой unit test вместо quickcheck
     let records = vec![TestRecord::new(1, 128), TestRecord::new(2, 128)];
     let query = TestVector::new(128, 3.0);
@@ -434,12 +456,17 @@ fn property_index_persistence() {
         if records.is_empty() || records.len() > 100 {
             return TestResult::discard();
         }
-        
+
         let dimension = records[0].embedding.values.len();
-        if dimension == 0 || dimension > 256 || !records.iter().all(|r| r.embedding.values.len() == dimension) {
+        if dimension == 0
+            || dimension > 256
+            || !records
+                .iter()
+                .all(|r| r.embedding.values.len() == dimension)
+        {
             return TestResult::discard();
         }
-        
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let temp_dir = match tempfile::TempDir::new() {
@@ -447,7 +474,7 @@ fn property_index_persistence() {
                 Err(_) => return TestResult::discard(),
             };
             let index_path = temp_dir.path().join("persistence_test.hnsw");
-            
+
             // Создаем и заполняем индекс
             {
                 let config = HnswRsConfig {
@@ -463,19 +490,19 @@ fn property_index_persistence() {
                     Ok(idx) => idx,
                     Err(_) => return TestResult::discard(),
                 };
-                
+
                 for (i, record) in records.iter().enumerate() {
                     let record_id = format!("record_{}", i);
                     if let Err(_) = index.add(record_id, record.embedding.values.clone()) {
                         return TestResult::discard();
                     }
                 }
-                
+
                 // build_index() не нужен в новой реализации
-                
+
                 // save() не нужен в новой реализации - индекс сохраняется автоматически
             }
-            
+
             // Загружаем индекс заново
             // Для загрузки создаём новый индекс с той же конфигурацией
             let config = HnswRsConfig {
@@ -491,27 +518,30 @@ fn property_index_persistence() {
                 Ok(idx) => idx,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             // Проверяем что поиск работает одинаково
             if records.is_empty() {
                 return TestResult::passed();
             }
-            
+
             let query = &records[0].embedding.values;
             let results = match loaded_index.search(query, 5) {
                 Ok(r) => r,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             // Результаты должны содержать валидные ID
             let valid = results.iter().all(|result| {
                 let index_str = result.0.strip_prefix("record_").unwrap_or("0");
-                index_str.parse::<usize>().map(|idx| idx < records.len()).unwrap_or(false)
+                index_str
+                    .parse::<usize>()
+                    .map(|idx| idx < records.len())
+                    .unwrap_or(false)
             });
             TestResult::from_bool(valid)
         })
     }
-    
+
     // Простой unit test вместо quickcheck
     let records = vec![TestRecord::new(1, 128), TestRecord::new(2, 128)];
     let result = test_index_persistence(records);
@@ -524,19 +554,19 @@ fn property_vector_normalization_invariant() {
         if vector.values.is_empty() || scale == 0.0 || !scale.is_finite() {
             return TestResult::discard();
         }
-        
+
         let scaled_vector: Vec<f32> = vector.values.iter().map(|&x| x * scale).collect();
-        
+
         // Вычисляем cosine similarity между оригинальным и масштабированным векторами
         let similarity = cosine_similarity(&vector.values, &scaled_vector);
-        
+
         // Cosine similarity должна быть 1.0 для векторов в одном направлении
         // или -1.0 для противоположных направлений
         let expected = if scale > 0.0 { 1.0 } else { -1.0 };
-        
+
         TestResult::from_bool((similarity - expected).abs() < 1e-5)
     }
-    
+
     // Простой unit test вместо quickcheck
     let vector = TestVector::new(128, 1.0);
     let result = test_normalization_invariant(vector, 2.0);
@@ -550,26 +580,26 @@ fn property_empty_search_behavior() {
         if dim == 0 || dim > 256 {
             return TestResult::discard();
         }
-        
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let index = match create_test_index(dim) {
                 Ok(idx) => idx,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             // Пытаемся искать в пустом индексе
             let query = vec![1.0; dim];
             let results = match index.search(&query, 10) {
                 Ok(r) => r,
                 Err(_) => return TestResult::passed(), // Ошибка ожидаема для пустого индекса
             };
-            
+
             // Пустой индекс должен возвращать пустые результаты
             TestResult::from_bool(results.is_empty())
         })
     }
-    
+
     // Простой unit test вместо quickcheck
     let result = test_empty_search(128);
     assert!(matches!(result, TestResult::Passed | TestResult::Discard));
@@ -581,19 +611,23 @@ fn property_search_limit_respected() {
         if records.is_empty() || limit == 0 {
             return TestResult::discard();
         }
-        
+
         let dimension = records[0].embedding.values.len();
-        if dimension == 0 || !records.iter().all(|r| r.embedding.values.len() == dimension) {
+        if dimension == 0
+            || !records
+                .iter()
+                .all(|r| r.embedding.values.len() == dimension)
+        {
             return TestResult::discard();
         }
-        
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let index = match create_test_index(dimension) {
                 Ok(idx) => idx,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             // Добавляем записи
             for (i, record) in records.iter().enumerate() {
                 let record_id = format!("record_{}", i);
@@ -601,21 +635,21 @@ fn property_search_limit_respected() {
                     return TestResult::discard();
                 }
             }
-            
+
             // build_index() не нужен в новой реализации
-            
+
             // Выполняем поиск с лимитом
             let query = &records[0].embedding.values;
             let results = match index.search(query, limit as usize) {
                 Ok(r) => r,
                 Err(_) => return TestResult::discard(),
             };
-            
+
             // Количество результатов не должно превышать лимит
             TestResult::from_bool(results.len() <= limit as usize)
         })
     }
-    
+
     // Заменено на простой unit test
     let records = vec![TestRecord::new(1, 128), TestRecord::new(2, 128)];
     let result = test_search_limit(records, 1);

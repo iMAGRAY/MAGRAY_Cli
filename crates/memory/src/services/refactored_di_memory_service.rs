@@ -6,21 +6,21 @@
 //! - Dependency Injection для всех зависимостей
 //! - Сохранение обратной совместимости API
 
+use anyhow::Result;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use anyhow::Result;
-use tracing::{info, debug, warn, error};
+use tracing::{debug, error, info, warn};
 
 use crate::{
-    di::{UnifiedDIContainer, UnifiedMemoryConfigurator, MemoryServiceConfig, DIResolver},
-    types::{Layer, Record, SearchOptions},
+    api::MemoryServiceTrait,
+    backup::BackupMetadata,
+    di::{DIResolver, UnifiedDIContainer, UnifiedMemoryConfigurator},
     health::SystemHealthStatus,
     promotion::PromotionStats,
     service_di::{BatchInsertResult, BatchSearchResult, MemorySystemStats},
-    services::{
-        ServiceFactory, ServiceCollection, ServiceFactoryConfig,
-    },
-    backup::BackupMetadata,
+    service_di_facade::MemoryServiceConfig,
+    services::{ServiceCollection, ServiceFactory, ServiceFactoryConfig},
+    types::{Layer, Record, SearchOptions},
     DIContainerStats, DIPerformanceMetrics,
 };
 
@@ -29,17 +29,17 @@ use crate::{
 pub struct RefactoredDIMemoryService {
     /// DI контейнер со всеми зависимостями
     container: Arc<UnifiedDIContainer>,
-    
+
     /// Коллекция всех специализированных сервисов
     services: ServiceCollection,
-    
+
     /// Готовность к работе
     ready: Arc<std::sync::atomic::AtomicBool>,
-    
+
     /// Performance timer
     #[allow(dead_code)] // Будет использоваться для измерения времени выполнения
     performance_timer: Arc<std::sync::Mutex<Instant>>,
-    
+
     /// Lifecycle manager для graceful shutdown
     lifecycle_manager: Arc<tokio::sync::RwLock<LifecycleManager>>,
 }
@@ -72,9 +72,9 @@ impl RefactoredDIMemoryService {
 
         // Создаём все специализированные сервисы через фабрику
         let service_factory = ServiceFactory::new(container.clone());
-        let services = service_factory.create_services_with_config(
-            ServiceFactoryConfig::production()
-        ).await?;
+        let services = service_factory
+            .create_services_with_config(ServiceFactoryConfig::production())
+            .await?;
 
         let service = Self {
             container,
@@ -84,8 +84,11 @@ impl RefactoredDIMemoryService {
             lifecycle_manager: Arc::new(tokio::sync::RwLock::new(LifecycleManager::default())),
         };
 
-        info!("✅ RefactoredDIMemoryService создан с {} специализированными сервисами", 5);
-        
+        info!(
+            "✅ RefactoredDIMemoryService создан с {} специализированными сервисами",
+            5
+        );
+
         Ok(service)
     }
 
@@ -94,12 +97,12 @@ impl RefactoredDIMemoryService {
         info!("🧪 Создание минимального RefactoredDIMemoryService для тестов");
 
         let container = Arc::new(UnifiedMemoryConfigurator::configure_minimal(&config).await?);
-        
+
         // Создаём минимальные сервисы для тестов
         let service_factory = ServiceFactory::new(container.clone());
-        let services = service_factory.create_services_with_config(
-            ServiceFactoryConfig::test()
-        ).await?;
+        let services = service_factory
+            .create_services_with_config(ServiceFactoryConfig::test())
+            .await?;
 
         Ok(Self {
             container,
@@ -120,17 +123,20 @@ impl RefactoredDIMemoryService {
         // 1. Инициализируем базовые слои памяти (через core memory service)
         // NOTE: В текущей реализации core memory service не предоставляет этот метод
         // В полной реализации здесь был бы вызов self.services.core_memory.initialize_memory_layers().await?;
-        
+
         // 2. Инициализируем все сервисы
         self.services.initialize_all().await?;
 
         let initialization_time = start_time.elapsed();
-        
+
         // Помечаем как готовый к работе
         self.ready.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        info!("✅ RefactoredDIMemoryService полностью инициализирован за {:?}", initialization_time);
-        
+        info!(
+            "✅ RefactoredDIMemoryService полностью инициализирован за {:?}",
+            initialization_time
+        );
+
         Ok(())
     }
 
@@ -138,7 +144,7 @@ impl RefactoredDIMemoryService {
     #[allow(dead_code)]
     pub async fn insert(&self, record: Record) -> Result<()> {
         let operation_start = Instant::now();
-        
+
         // Увеличиваем счетчик активных операций
         {
             let mut lifecycle = self.lifecycle_manager.write().await;
@@ -162,13 +168,19 @@ impl RefactoredDIMemoryService {
         match result {
             Ok(_) => {
                 // Записываем успешную операцию в ResilienceService
-                self.services.resilience.record_successful_operation(operation_duration).await;
+                self.services
+                    .resilience
+                    .record_successful_operation(operation_duration)
+                    .await;
                 debug!("✅ Insert успешен за {:?}", operation_duration);
                 Ok(())
             }
             Err(e) => {
                 // Записываем неудачную операцию в ResilienceService
-                self.services.resilience.record_failed_operation(operation_duration).await;
+                self.services
+                    .resilience
+                    .record_failed_operation(operation_duration)
+                    .await;
                 error!("❌ Insert не удался: {}", e);
                 Err(e)
             }
@@ -184,9 +196,14 @@ impl RefactoredDIMemoryService {
 
     /// Search операция - делегирует к CoreMemoryService с resilience
     #[allow(dead_code)]
-    pub async fn search(&self, query: &str, layer: Layer, options: SearchOptions) -> Result<Vec<Record>> {
+    pub async fn search(
+        &self,
+        query: &str,
+        layer: Layer,
+        options: SearchOptions,
+    ) -> Result<Vec<Record>> {
         let operation_start = Instant::now();
-        
+
         // Увеличиваем счетчик активных операций
         {
             let mut lifecycle = self.lifecycle_manager.write().await;
@@ -199,7 +216,11 @@ impl RefactoredDIMemoryService {
         debug!("🔍 Search в слое {:?}: '{}'", layer, query);
 
         // Выполняем search через CoreMemoryService
-        let result = self.services.core_memory.search(query, layer, options).await;
+        let result = self
+            .services
+            .core_memory
+            .search(query, layer, options)
+            .await;
 
         // Уменьшаем счетчик активных операций
         {
@@ -211,21 +232,33 @@ impl RefactoredDIMemoryService {
 
         match result {
             Ok(results) => {
-                self.services.resilience.record_successful_operation(operation_duration).await;
-                
+                self.services
+                    .resilience
+                    .record_successful_operation(operation_duration)
+                    .await;
+
                 let result_count = results.len();
                 let duration_ms = operation_duration.as_millis() as f64;
-                
+
                 if duration_ms > 5.0 {
-                    warn!("⏱️ Медленный поиск: {:.2}ms для '{}' (цель <5ms)", duration_ms, query);
+                    warn!(
+                        "⏱️ Медленный поиск: {:.2}ms для '{}' (цель <5ms)",
+                        duration_ms, query
+                    );
                 } else {
-                    debug!("⚡ Быстрый поиск: {:.2}ms для '{}' ({} результатов)", duration_ms, query, result_count);
+                    debug!(
+                        "⚡ Быстрый поиск: {:.2}ms для '{}' ({} результатов)",
+                        duration_ms, query, result_count
+                    );
                 }
-                
+
                 Ok(results)
             }
             Err(e) => {
-                self.services.resilience.record_failed_operation(operation_duration).await;
+                self.services
+                    .resilience
+                    .record_failed_operation(operation_duration)
+                    .await;
                 error!("❌ Search не удался для '{}': {}", query, e);
                 Err(e)
             }
@@ -255,9 +288,21 @@ impl RefactoredDIMemoryService {
 
     /// Batch search - делегирует к CoreMemoryService
     #[allow(dead_code)]
-    pub async fn batch_search(&self, queries: Vec<String>, layer: Layer, options: SearchOptions) -> Result<BatchSearchResult> {
-        debug!("🔍 Batch search {} запросов в слое {:?}", queries.len(), layer);
-        self.services.core_memory.batch_search(queries, layer, options).await
+    pub async fn batch_search(
+        &self,
+        queries: Vec<String>,
+        layer: Layer,
+        options: SearchOptions,
+    ) -> Result<BatchSearchResult> {
+        debug!(
+            "🔍 Batch search {} запросов в слое {:?}",
+            queries.len(),
+            layer
+        );
+        self.services
+            .core_memory
+            .batch_search(queries, layer, options)
+            .await
     }
 
     /// Получить статистику системы - делегирует к MonitoringService
@@ -278,11 +323,16 @@ impl RefactoredDIMemoryService {
     #[allow(dead_code)]
     pub async fn run_promotion(&self) -> Result<PromotionStats> {
         debug!("🔄 Запуск promotion через DI (legacy compatibility)");
-        
-        if let Ok(promotion_engine) = self.container.resolve::<crate::promotion::PromotionEngine>() {
+
+        if let Ok(promotion_engine) = self
+            .container
+            .resolve::<crate::promotion::PromotionEngine>()
+        {
             let stats = promotion_engine.run_promotion_cycle().await?;
-            info!("✓ Promotion завершен: interact_to_insights={}, insights_to_assets={}", 
-                  stats.interact_to_insights, stats.insights_to_assets);
+            info!(
+                "✓ Promotion завершен: interact_to_insights={}, insights_to_assets={}",
+                stats.interact_to_insights, stats.insights_to_assets
+            );
             Ok(stats)
         } else {
             debug!("Promotion engine недоступен, возвращаем нулевую статистику");
@@ -320,7 +370,9 @@ impl RefactoredDIMemoryService {
 
         if let Ok(backup_manager) = self.container.resolve::<crate::backup::BackupManager>() {
             let store = self.container.resolve::<crate::storage::VectorStore>()?;
-            let _backup_path = backup_manager.create_backup(store, Some(path.to_string())).await?;
+            let _backup_path = backup_manager
+                .create_backup(store, Some(path.to_string()))
+                .await?;
             let metadata = BackupMetadata {
                 version: 1,
                 created_at: chrono::Utc::now(),
@@ -371,17 +423,20 @@ impl RefactoredDIMemoryService {
         }
 
         // Помечаем как не готовый к работе
-        self.ready.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.ready
+            .store(false, std::sync::atomic::Ordering::Relaxed);
 
         // Shutdown всех сервисов
         self.services.shutdown_all().await?;
 
         // Финальные метрики
         if let Ok(production_metrics) = self.services.monitoring.get_production_metrics().await {
-            info!("📊 Финальные метрики: {} операций, {} успешных, {} неудачных", 
-                  production_metrics.total_operations,
-                  production_metrics.successful_operations,
-                  production_metrics.failed_operations);
+            info!(
+                "📊 Финальные метрики: {} операций, {} успешных, {} неудачных",
+                production_metrics.total_operations,
+                production_metrics.successful_operations,
+                production_metrics.failed_operations
+            );
         }
 
         info!("✅ Graceful shutdown RefactoredDIMemoryService завершен");
@@ -389,7 +444,7 @@ impl RefactoredDIMemoryService {
     }
 
     /// DI compatibility methods
-    
+
     #[allow(dead_code)]
     pub fn resolve<T>(&self) -> Result<Arc<T>>
     where
@@ -467,6 +522,118 @@ impl RefactoredDIMemoryServiceBuilder {
             RefactoredDIMemoryService::new_minimal(self.config).await
         } else {
             RefactoredDIMemoryService::new(self.config).await
+        }
+    }
+}
+
+/// Реализация MemoryServiceTrait для RefactoredDIMemoryService
+/// Делегирует к соответствующим специализированным сервисам
+impl MemoryServiceTrait for RefactoredDIMemoryService {
+    fn search_sync(&self, query: &str, layer: Layer, top_k: usize) -> Result<Vec<Record>> {
+        // Создаем search options
+        let options = SearchOptions {
+            top_k,
+            layers: vec![layer],
+            ..Default::default()
+        };
+
+        // Синхронно выполняем поиск через async runtime
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => {
+                // Мы в async контексте, используем block_in_place
+                tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current()
+                        .block_on(async { self.search(query, layer, options).await })
+                })
+            }
+            Err(_) => {
+                // Создаем runtime для sync контекста
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(async { self.search(query, layer, options).await })
+            }
+        }
+    }
+
+    fn run_promotion_sync(&self) -> Result<PromotionStats> {
+        // Синхронно выполняем продвижение
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current()
+                    .block_on(async { self.run_promotion_cycle().await })
+            }),
+            Err(_) => {
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(async { self.run_promotion_cycle().await })
+            }
+        }
+    }
+
+    fn get_system_health(&self) -> SystemHealthStatus {
+        use crate::health::HealthStatus;
+        use chrono::Utc;
+        use std::collections::HashMap;
+
+        // Возвращаем базовое состояние здоровья
+        if self.ready.load(std::sync::atomic::Ordering::SeqCst) {
+            SystemHealthStatus {
+                overall_status: HealthStatus::Healthy,
+                component_statuses: HashMap::new(),
+                active_alerts: Vec::new(),
+                metrics_summary: HashMap::new(),
+                last_updated: Utc::now(),
+                uptime_seconds: 0,
+            }
+        } else {
+            SystemHealthStatus {
+                overall_status: HealthStatus::Degraded,
+                component_statuses: HashMap::new(),
+                active_alerts: Vec::new(),
+                metrics_summary: HashMap::new(),
+                last_updated: Utc::now(),
+                uptime_seconds: 0,
+            }
+        }
+    }
+
+    fn cache_stats(&self) -> (u64, u64, u64) {
+        // Возвращаем базовую статистику кэша
+        // В реальной реализации здесь был бы доступ к cache metrics
+        (0, 0, 0)
+    }
+
+    fn remember_sync(&self, text: String, layer: Layer) -> Result<uuid::Uuid> {
+        use chrono::Utc;
+
+        let record = Record {
+            id: uuid::Uuid::new_v4(),
+            text,
+            embedding: vec![], // Empty embedding, will be populated later
+            layer,
+            kind: "user_input".to_string(),
+            tags: vec![],
+            project: "default".to_string(),
+            session: "sync_session".to_string(),
+            ts: Utc::now(),
+            score: 0.0,
+            access_count: 0,
+            last_access: Utc::now(),
+        };
+
+        // Синхронно добавляем запись
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    self.insert(record.clone()).await?;
+                    Ok(record.id)
+                })
+            }),
+            Err(_) => {
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(async {
+                    self.insert(record.clone()).await?;
+                    Ok(record.id)
+                })
+            }
         }
     }
 }

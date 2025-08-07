@@ -1,13 +1,14 @@
+use crate::memory_pool::GLOBAL_MEMORY_POOL;
 use crate::RerankingConfig;
 #[cfg(feature = "gpu")]
 use crate::{GpuConfig, GpuInfo};
-use crate::memory_pool::GLOBAL_MEMORY_POOL;
 use anyhow::Result as AnyhowResult;
-use ort::{session::Session, value::Tensor, inputs};
+use common::service_traits::StatisticsProvider;
+use ort::{inputs, session::Session, value::Tensor};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
-use tracing::{info, debug, warn};
+use tracing::{debug, info, warn};
 
 /// Optimized Qwen3 Reranker Service with batch processing and memory pooling
 pub struct OptimizedQwen3RerankerService {
@@ -46,21 +47,26 @@ pub struct BatchRerankResult {
 impl OptimizedQwen3RerankerService {
     /// Create new optimized Qwen3 reranker service with GPU support
     pub fn new_with_config(config: RerankingConfig) -> AnyhowResult<Self> {
-        let model_path = PathBuf::from(format!("crates/memory/models/{}/model.onnx", config.model_name));
+        let model_path = PathBuf::from(format!(
+            "crates/memory/models/{}/model.onnx",
+            config.model_name
+        ));
         let max_seq_length = config.max_length;
         let batch_size = config.batch_size;
         info!("Initializing OPTIMIZED Qwen3 reranker service");
         info!("   Max sequence length: {}", max_seq_length);
         info!("   Batch size: {}", batch_size);
-        
+
         // Setup DLL path for Windows
         #[cfg(target_os = "windows")]
         {
             let possible_paths = vec![
-                std::env::current_dir().unwrap().join("scripts/onnxruntime/lib/onnxruntime.dll"),
+                std::env::current_dir()
+                    .unwrap()
+                    .join("scripts/onnxruntime/lib/onnxruntime.dll"),
                 PathBuf::from("./scripts/onnxruntime/lib/onnxruntime.dll"),
             ];
-            
+
             for dll_path in possible_paths {
                 if dll_path.exists() {
                     info!("Found ORT library at: {}", dll_path.display());
@@ -69,36 +75,34 @@ impl OptimizedQwen3RerankerService {
                 }
             }
         }
-        
+
         // Initialize ONNX Runtime
-        ort::init()
-            .with_name("optimized_qwen3_reranker")
-            .commit()?;
-        
+        ort::init().with_name("optimized_qwen3_reranker").commit()?;
+
         // Проверяем доступность GPU
         #[cfg(feature = "gpu")]
         if config.use_gpu {
             let gpu_info = GpuInfo::detect();
             gpu_info.print_info();
-            
+
             if !gpu_info.available {
                 warn!("⚠️ GPU запрошен, но не доступен. Используем CPU.");
             }
         }
-        
+
         // Create optimized session
         #[cfg(feature = "gpu")]
         let mut session_builder = Session::builder()?
             .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
             .with_memory_pattern(true)?; // Enable memory pattern optimization
-            
+
         #[cfg(not(feature = "gpu"))]
         let session_builder = Session::builder()?
             .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
             .with_memory_pattern(true)?; // Enable memory pattern optimization
-            
+
         // Добавляем GPU провайдеры если нужно
         #[cfg(feature = "gpu")]
         if config.use_gpu {
@@ -106,14 +110,21 @@ impl OptimizedQwen3RerankerService {
                 match gpu_config.create_providers() {
                     Ok(providers) => {
                         if !providers.is_empty() {
-                            info!("🚀 Добавляем {} GPU провайдеров для reranker", providers.len());
-                            session_builder = session_builder.with_execution_providers(providers)?;
+                            info!(
+                                "🚀 Добавляем {} GPU провайдеров для reranker",
+                                providers.len()
+                            );
+                            session_builder =
+                                session_builder.with_execution_providers(providers)?;
                         } else {
                             warn!("⚠️ GPU провайдеры не созданы для reranker, используем CPU");
                         }
                     }
                     Err(e) => {
-                        warn!("⚠️ Ошибка создания GPU провайдеров для reranker: {}. Используем CPU.", e);
+                        warn!(
+                            "⚠️ Ошибка создания GPU провайдеров для reranker: {}. Используем CPU.",
+                            e
+                        );
                     }
                 }
             } else if config.use_gpu {
@@ -123,28 +134,35 @@ impl OptimizedQwen3RerankerService {
                     Ok(providers) => {
                         if !providers.is_empty() {
                             info!("🚀 Используем дефолтную GPU конфигурацию для reranker");
-                            session_builder = session_builder.with_execution_providers(providers)?;
+                            session_builder =
+                                session_builder.with_execution_providers(providers)?;
                         }
                     }
                     Err(e) => {
-                        warn!("⚠️ Ошибка создания дефолтных GPU провайдеров для reranker: {}", e);
+                        warn!(
+                            "⚠️ Ошибка создания дефолтных GPU провайдеров для reranker: {}",
+                            e
+                        );
                     }
                 }
             }
         }
-        
+
         let session = session_builder.commit_from_file(&model_path)?;
-        
+
         info!("✅ OPTIMIZED Qwen3 reranker session created");
         info!("   Model: {}", model_path.display());
         info!("   Inputs: {}", session.inputs.len());
         info!("   Outputs: {}", session.outputs.len());
-        
+
         // Verify it's the expected Qwen3 model (3 inputs for Qwen3)
         if session.inputs.len() != 3 {
-            warn!("Expected 3 inputs for Qwen3 reranker, got {}", session.inputs.len());
+            warn!(
+                "Expected 3 inputs for Qwen3 reranker, got {}",
+                session.inputs.len()
+            );
         }
-        
+
         Ok(Self {
             session: Arc::new(Mutex::new(session)),
             model_path,
@@ -152,9 +170,13 @@ impl OptimizedQwen3RerankerService {
             batch_size,
         })
     }
-    
+
     /// Create new optimized Qwen3 reranker service (legacy method)
-    pub fn new(_model_path: PathBuf, max_seq_length: usize, batch_size: usize) -> AnyhowResult<Self> {
+    pub fn new(
+        _model_path: PathBuf,
+        max_seq_length: usize,
+        batch_size: usize,
+    ) -> AnyhowResult<Self> {
         let config = RerankingConfig {
             model_name: "qwen3_reranker".to_string(),
             batch_size,
@@ -164,15 +186,18 @@ impl OptimizedQwen3RerankerService {
         };
         Self::new_with_config(config)
     }
-    
+
     /// Optimized batch reranking with memory pooling
     pub fn rerank_batch(&self, batch: &RerankBatch) -> AnyhowResult<BatchRerankResult> {
         let start_time = std::time::Instant::now();
         let query = &batch.query;
         let documents = &batch.documents;
-        
-        info!("🚀 OPTIMIZED batch reranking: {} documents", documents.len());
-        
+
+        info!(
+            "🚀 OPTIMIZED batch reranking: {} documents",
+            documents.len()
+        );
+
         if documents.is_empty() {
             return Ok(BatchRerankResult {
                 results: vec![],
@@ -180,87 +205,108 @@ impl OptimizedQwen3RerankerService {
                 throughput_docs_per_sec: 0.0,
             });
         }
-        
+
         // Process documents in optimized batches
         let mut all_results = Vec::with_capacity(documents.len());
         let chunks: Vec<&[String]> = documents.chunks(self.batch_size).collect();
-        
-        debug!("Processing {} chunks of max size {}", chunks.len(), self.batch_size);
-        
+
+        debug!(
+            "Processing {} chunks of max size {}",
+            chunks.len(),
+            self.batch_size
+        );
+
         for (chunk_idx, chunk) in chunks.iter().enumerate() {
-            debug!("Processing chunk {}/{} with {} documents", chunk_idx + 1, chunks.len(), chunk.len());
-            
+            debug!(
+                "Processing chunk {}/{} with {} documents",
+                chunk_idx + 1,
+                chunks.len(),
+                chunk.len()
+            );
+
             let chunk_results = self.process_batch_optimized(query, chunk)?;
-            
+
             // Add original indices
             for (local_idx, mut result) in chunk_results.into_iter().enumerate() {
                 result.index = chunk_idx * self.batch_size + local_idx;
                 all_results.push(result);
             }
         }
-        
+
         // Sort by score (descending)
         all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-        
+
         // Apply top_k limit if specified
         if let Some(k) = batch.top_k {
             all_results.truncate(k);
         }
-        
+
         let total_time = start_time.elapsed().as_millis();
         let throughput = 1000.0 * documents.len() as f64 / total_time as f64;
-        
-        info!("✅ OPTIMIZED batch reranking completed in {}ms ({:.1} docs/sec)", 
-              total_time, throughput);
-        
+
+        info!(
+            "✅ OPTIMIZED batch reranking completed in {}ms ({:.1} docs/sec)",
+            total_time, throughput
+        );
+
         Ok(BatchRerankResult {
             results: all_results,
             total_time_ms: total_time,
             throughput_docs_per_sec: throughput,
         })
     }
-    
+
     /// Process a batch of documents at once using memory pooling
-    fn process_batch_optimized(&self, query: &str, documents: &[String]) -> AnyhowResult<Vec<OptimizedRerankResult>> {
+    fn process_batch_optimized(
+        &self,
+        query: &str,
+        documents: &[String],
+    ) -> AnyhowResult<Vec<OptimizedRerankResult>> {
         let batch_size = documents.len();
         debug!("Processing optimized batch of {} documents", batch_size);
-        
+
         // Tokenize all query-document pairs in batch
         let batch_tokenized = self.tokenize_batch(query, documents);
-        
+
         // Find maximum sequence length for padding
-        let max_len = batch_tokenized.input_ids.iter().map(|ids| ids.len()).max().unwrap_or(0);
+        let max_len = batch_tokenized
+            .input_ids
+            .iter()
+            .map(|ids| ids.len())
+            .max()
+            .unwrap_or(0);
         let padded_len = max_len.min(self.max_seq_length);
-        
+
         debug!("Batch max length: {}, padded to: {}", max_len, padded_len);
-        
+
         // Use memory pools for batch data
         let total_elements = batch_size * padded_len;
         let mut flat_input_ids = GLOBAL_MEMORY_POOL.get_input_buffer(total_elements);
         let mut flat_attention_masks = GLOBAL_MEMORY_POOL.get_attention_buffer(total_elements);
         let mut flat_position_ids = GLOBAL_MEMORY_POOL.get_token_type_buffer(total_elements);
-        
+
         // Flatten and pad batch data
         for i in 0..batch_size {
             let input_ids = &batch_tokenized.input_ids[i];
             let attention_mask = &batch_tokenized.attention_masks[i];
             let position_ids = &batch_tokenized.position_ids[i];
-            
+
             // Pad to uniform length
             let actual_len = input_ids.len().min(padded_len);
-            
+
             // Add padded input_ids
             flat_input_ids.extend_from_slice(&input_ids[..actual_len]);
             if actual_len < padded_len {
                 flat_input_ids.extend(vec![1i64; padded_len - actual_len]); // PAD token
             }
-            
+
             // Add padded attention_mask
             flat_attention_masks.extend_from_slice(&attention_mask[..actual_len]);
             if actual_len < padded_len {
-                flat_attention_masks.extend(vec![0i64; padded_len - actual_len]); // Ignore padded positions
+                flat_attention_masks.extend(vec![0i64; padded_len - actual_len]);
+                // Ignore padded positions
             }
-            
+
             // Add padded position_ids
             flat_position_ids.extend_from_slice(&position_ids[..actual_len]);
             if actual_len < padded_len {
@@ -270,26 +316,32 @@ impl OptimizedQwen3RerankerService {
                 }
             }
         }
-        
+
         // Create batch tensors [batch_size, seq_len]
-        let input_ids_tensor = Tensor::from_array(([batch_size, padded_len], flat_input_ids.to_vec()))?;
-        let attention_mask_tensor = Tensor::from_array(([batch_size, padded_len], flat_attention_masks.to_vec()))?;
-        let position_ids_tensor = Tensor::from_array(([batch_size, padded_len], flat_position_ids.to_vec()))?;
-        
+        let input_ids_tensor =
+            Tensor::from_array(([batch_size, padded_len], flat_input_ids.to_vec()))?;
+        let attention_mask_tensor =
+            Tensor::from_array(([batch_size, padded_len], flat_attention_masks.to_vec()))?;
+        let position_ids_tensor =
+            Tensor::from_array(([batch_size, padded_len], flat_position_ids.to_vec()))?;
+
         // Single ONNX call for entire batch
-        let mut session = self.session.lock().map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
-        
+        let mut session = self
+            .session
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
+
         let outputs = session.run(inputs![
             "input_ids" => input_ids_tensor,
             "attention_mask" => attention_mask_tensor,
             "position_ids" => position_ids_tensor
         ])?;
-        
+
         // Buffers are automatically returned to pool via Drop trait
-        
+
         // Extract batch scores
         let scores = self.extract_batch_scores(&outputs, batch_size)?;
-        
+
         // Create results
         let mut results = Vec::with_capacity(batch_size);
         for (i, document) in documents.iter().enumerate() {
@@ -297,93 +349,105 @@ impl OptimizedQwen3RerankerService {
                 query: query.to_string(),
                 document: document.clone(),
                 score: scores[i],
-                index: i, // Will be updated by caller
+                index: i,              // Will be updated by caller
                 processing_time_ms: 0, // Will be set by caller
             });
         }
-        
+
         debug!("Extracted {} batch scores", scores.len());
         Ok(results)
     }
-    
+
     /// Tokenize query with multiple documents in batch
     fn tokenize_batch(&self, query: &str, documents: &[String]) -> BatchTokenizedPairs {
         let mut batch_input_ids = Vec::with_capacity(documents.len());
         let mut batch_attention_masks = Vec::with_capacity(documents.len());
         let mut batch_position_ids = Vec::with_capacity(documents.len());
-        
+
         for document in documents {
-            let (input_ids, attention_mask, position_ids) = self.tokenize_pair_optimized(query, document);
-            
+            let (input_ids, attention_mask, position_ids) =
+                self.tokenize_pair_optimized(query, document);
+
             batch_input_ids.push(input_ids);
             batch_attention_masks.push(attention_mask);
             batch_position_ids.push(position_ids);
         }
-        
+
         BatchTokenizedPairs {
             input_ids: batch_input_ids,
             attention_masks: batch_attention_masks,
             position_ids: batch_position_ids,
         }
     }
-    
+
     /// Optimized tokenization for query-document pairs with memory pooling
-    fn tokenize_pair_optimized(&self, query: &str, document: &str) -> (Vec<i64>, Vec<i64>, Vec<i64>) {
+    fn tokenize_pair_optimized(
+        &self,
+        query: &str,
+        document: &str,
+    ) -> (Vec<i64>, Vec<i64>, Vec<i64>) {
         // Use memory pools for tokenization buffers
         let mut query_tokens = GLOBAL_MEMORY_POOL.get_input_buffer(128);
         let mut doc_tokens = GLOBAL_MEMORY_POOL.get_input_buffer(256);
-        
+
         // Simple hash-based tokenization (can be replaced with real tokenizer later)
         for word in query.split_whitespace().take(128) {
             let word_hash = word.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
             query_tokens.push((word_hash % 30000 + 1000) as i64);
         }
-        
+
         for word in document.split_whitespace().take(256) {
             let word_hash = word.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
             doc_tokens.push((word_hash % 30000 + 1000) as i64);
         }
-        
+
         // Create combined input: [CLS] query [SEP] document
         let mut input_ids = vec![0i64]; // CLS token
         input_ids.extend_from_slice(&query_tokens);
-        input_ids.push(2i64); // SEP token  
+        input_ids.push(2i64); // SEP token
         input_ids.extend_from_slice(&doc_tokens);
-        
+
         // Truncate if too long
         if input_ids.len() > self.max_seq_length {
             input_ids.truncate(self.max_seq_length);
         }
-        
+
         let seq_len = input_ids.len();
         let attention_mask = vec![1i64; seq_len];
         let position_ids: Vec<i64> = (0..seq_len as i64).collect();
-        
+
         // Buffers are automatically returned to pool via Drop trait
-        
+
         (input_ids, attention_mask, position_ids)
     }
-    
+
     /// Extract scores from batch outputs
-    fn extract_batch_scores(&self, outputs: &ort::session::SessionOutputs, batch_size: usize) -> AnyhowResult<Vec<f32>> {
+    fn extract_batch_scores(
+        &self,
+        outputs: &ort::session::SessionOutputs,
+        batch_size: usize,
+    ) -> AnyhowResult<Vec<f32>> {
         for (_name, output) in outputs.iter() {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
-                
+
                 // Qwen3 reranker outputs logits [batch_size, seq_len, vocab_size]
                 if shape_vec.len() == 3 && shape_vec[0] == batch_size as i64 {
                     let seq_len = shape_vec[1] as usize;
                     let vocab_size = shape_vec[2] as usize;
-                    
-                    debug!("Extracting scores from batch output: [{}, {}, {}]", batch_size, seq_len, vocab_size);
-                    
+
+                    debug!(
+                        "Extracting scores from batch output: [{}, {}, {}]",
+                        batch_size, seq_len, vocab_size
+                    );
+
                     let mut scores = Vec::with_capacity(batch_size);
-                    
+
                     // Extract score for each item in batch
                     for batch_idx in 0..batch_size {
                         let batch_offset = batch_idx * seq_len * vocab_size;
                         let last_token_start = batch_offset + (seq_len - 1) * vocab_size;
-                        
+
                         if last_token_start + 100 < data.len() {
                             // Take average of some logits as proxy score
                             let mut sum = 0.0f32;
@@ -396,10 +460,9 @@ impl OptimizedQwen3RerankerService {
                             scores.push(0.0); // Fallback score
                         }
                     }
-                    
+
                     debug!("Extracted {} batch scores", scores.len());
                     return Ok(scores);
-                    
                 } else if shape_vec.len() == 2 && shape_vec[0] == batch_size as i64 {
                     // Direct score outputs [batch_size, num_classes]
                     if shape_vec[1] == 1 {
@@ -414,22 +477,29 @@ impl OptimizedQwen3RerankerService {
                 }
             }
         }
-        
-        Err(anyhow::anyhow!("Could not extract batch reranking scores from model outputs"))
+
+        Err(anyhow::anyhow!(
+            "Could not extract batch reranking scores from model outputs"
+        ))
     }
-    
+
     /// Single document reranking (fallback for compatibility)
-    pub fn rerank(&self, query: &str, documents: &[String], top_k: Option<usize>) -> AnyhowResult<Vec<OptimizedRerankResult>> {
+    pub fn rerank(
+        &self,
+        query: &str,
+        documents: &[String],
+        top_k: Option<usize>,
+    ) -> AnyhowResult<Vec<OptimizedRerankResult>> {
         let batch = RerankBatch {
             query: query.to_string(),
             documents: documents.to_vec(),
             top_k,
         };
-        
+
         let batch_result = self.rerank_batch(&batch)?;
         Ok(batch_result.results)
     }
-    
+
     /// Get service statistics including memory pool stats
     pub fn get_stats(&self) -> RerankServiceStats {
         RerankServiceStats {
@@ -439,12 +509,12 @@ impl OptimizedQwen3RerankerService {
             optimization_level: "Level3+MemoryPool+Batch".to_string(),
         }
     }
-    
+
     /// Get memory pool statistics
     pub fn get_pool_stats(&self) -> crate::memory_pool::PoolStats {
         GLOBAL_MEMORY_POOL.get_stats()
     }
-    
+
     /// Check if model is available
     pub fn is_available(&self) -> bool {
         self.model_path.exists()
@@ -471,21 +541,21 @@ pub struct RerankServiceStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_optimized_reranker_creation() {
         let model_path = PathBuf::from("test_models/qwen3_reranker/model.onnx");
-        
+
         match OptimizedQwen3RerankerService::new(model_path, 512, 8) {
             Ok(_service) => {
                 println!("✅ Optimized Qwen3 service created successfully");
-            },
+            }
             Err(e) => {
                 println!("Expected error without model file: {}", e);
             }
         }
     }
-    
+
     #[test]
     fn test_batch_reranking_api() {
         let query = "machine learning algorithms";
@@ -494,13 +564,13 @@ mod tests {
             "traditional algorithms and data structures".to_string(),
             "artificial intelligence and ML".to_string(),
         ];
-        
+
         let batch = RerankBatch {
             query: query.to_string(),
             documents,
             top_k: Some(2),
         };
-        
+
         // Test batch structure
         assert_eq!(batch.documents.len(), 3);
         assert_eq!(batch.top_k, Some(2));

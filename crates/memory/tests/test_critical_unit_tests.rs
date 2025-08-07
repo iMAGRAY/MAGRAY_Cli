@@ -3,15 +3,14 @@
 // Тесты для критической функциональности без внешних зависимостей
 // =============================================================================
 
-use memory::{
-    types::{Layer, Record, SearchOptions, MemoryLayer, PromotionConfig,
-           BatchConfig, CacheConfig},
-    cosine_distance_auto,
-};
-use serde_json::Value;
-use proptest::prelude::*;
-use uuid::Uuid;
 use chrono::Utc;
+use memory::{
+    cosine_distance_auto,
+    types::{BatchConfig, CacheConfig, Layer, MemoryLayer, PromotionConfig, Record, SearchOptions},
+};
+use proptest::prelude::*;
+use serde_json::Value;
+use uuid::Uuid;
 
 #[cfg(test)]
 mod types_tests {
@@ -20,15 +19,12 @@ mod types_tests {
     #[test]
     fn test_layer_enum_serialization() {
         // Test all layer variants can be serialized
-        let layers = vec![
-            Layer::Interact,
-            Layer::Insights,
-            Layer::Assets,
-        ];
-        
+        let layers = vec![Layer::Interact, Layer::Insights, Layer::Assets];
+
         for layer in layers {
             let json = serde_json::to_string(&layer).expect("Layer should serialize");
-            let deserialized: Layer = serde_json::from_str(&json).expect("Layer should deserialize");
+            let deserialized: Layer =
+                serde_json::from_str(&json).expect("Layer should deserialize");
             assert_eq!(layer, deserialized);
         }
     }
@@ -55,7 +51,10 @@ mod types_tests {
     fn test_record_with_metadata() {
         let mut metadata = std::collections::HashMap::new();
         metadata.insert("source".to_string(), Value::String("test".to_string()));
-        metadata.insert("priority".to_string(), Value::Number(serde_json::Number::from(1)));
+        metadata.insert(
+            "priority".to_string(),
+            Value::Number(serde_json::Number::from(1)),
+        );
 
         let record = Record {
             id: "test_metadata".to_string(),
@@ -74,7 +73,7 @@ mod types_tests {
     #[test]
     fn test_search_options_defaults() {
         let options = SearchOptions::default();
-        
+
         // Test reasonable defaults exist
         assert!(options.limit >= 1, "Limit should be at least 1");
         assert!(options.min_score >= 0.0, "Min score should be non-negative");
@@ -86,7 +85,7 @@ mod types_tests {
         // Test that MemoryLayer alias works correctly
         let layer: MemoryLayer = Layer::Interact;
         assert_eq!(layer, Layer::Interact);
-        
+
         let layer2: Layer = MemoryLayer::Insights;
         assert_eq!(layer2, Layer::Insights);
     }
@@ -146,20 +145,24 @@ mod vector_operations_tests {
     fn test_cosine_distance_basic() {
         let vec1 = vec![1.0, 0.0, 0.0];
         let vec2 = vec![0.0, 1.0, 0.0];
-        
+
         let distance = cosine_distance_auto(&vec1, &vec2);
-        
+
         // Orthogonal vectors should have distance close to 1.0
-        assert!((distance - 1.0).abs() < 0.0001, "Expected ~1.0, got {}", distance);
+        assert!(
+            (distance - 1.0).abs() < 0.0001,
+            "Expected ~1.0, got {}",
+            distance
+        );
     }
 
     #[test]
     fn test_cosine_distance_identical_vectors() {
         let vec1 = vec![1.0, 2.0, 3.0];
         let vec2 = vec![1.0, 2.0, 3.0];
-        
+
         let distance = cosine_distance_auto(&vec1, &vec2);
-        
+
         // Identical vectors should have distance close to 0.0
         assert!(distance.abs() < 0.0001, "Expected ~0.0, got {}", distance);
     }
@@ -168,13 +171,18 @@ mod vector_operations_tests {
     fn test_cosine_distance_normalized_vectors() {
         let vec1 = vec![3.0, 4.0]; // |vec1| = 5
         let vec2 = vec![5.0, 0.0]; // |vec2| = 5
-        
+
         let distance = cosine_distance_auto(&vec1, &vec2);
-        
+
         // Manual calculation: cos(θ) = (3*5 + 4*0) / (5*5) = 15/25 = 0.6
         // cosine_distance = 1 - cos(θ) = 1 - 0.6 = 0.4
         let expected = 0.4;
-        assert!((distance - expected).abs() < 0.0001, "Expected ~{}, got {}", expected, distance);
+        assert!(
+            (distance - expected).abs() < 0.0001,
+            "Expected ~{}, got {}",
+            expected,
+            distance
+        );
     }
 
     #[test]
@@ -182,7 +190,7 @@ mod vector_operations_tests {
     fn test_cosine_distance_empty_vectors() {
         let vec1: Vec<f32> = vec![];
         let vec2: Vec<f32> = vec![];
-        
+
         cosine_distance_auto(&vec1, &vec2);
     }
 
@@ -191,7 +199,7 @@ mod vector_operations_tests {
     fn test_cosine_distance_mismatched_dimensions() {
         let vec1 = vec![1.0, 2.0];
         let vec2 = vec![1.0, 2.0, 3.0];
-        
+
         cosine_distance_auto(&vec1, &vec2);
     }
 }
@@ -212,7 +220,7 @@ mod property_tests {
                 timestamp: chrono::Utc::now(),
                 score: 0.5,
             };
-            
+
             // Invariants
             prop_assert_eq!(record.content, text);
             prop_assert!(!record.content.is_empty());
@@ -225,7 +233,7 @@ mod property_tests {
             values in proptest::collection::vec(-1.0f32..=1.0f32, 1..=2048)
         ) {
             let embedding = values.into_iter().take(dim).collect::<Vec<f32>>();
-            
+
             let record = Record {
                 id: "prop_test".to_string(),
                 content: "test".to_string(),
@@ -234,7 +242,7 @@ mod property_tests {
                 timestamp: chrono::Utc::now(),
                 score: 0.5,
             };
-            
+
             prop_assert_eq!(record.embedding.len(), embedding.len());
             prop_assert_eq!(record.embedding.len(), dim);
         }
@@ -249,7 +257,7 @@ mod property_tests {
                 timestamp: chrono::Utc::now(),
                 score: score,
             };
-            
+
             prop_assert!(record.score >= 0.0);
             prop_assert!(record.score <= 1.0);
         }
@@ -263,14 +271,14 @@ mod property_tests {
             let dim = a.len().min(b.len());
             let vec_a = a.into_iter().take(dim).collect::<Vec<f32>>();
             let vec_b = b.into_iter().take(dim).collect::<Vec<f32>>();
-            
+
             // Skip zero vectors to avoid division by zero
             let norm_a: f32 = vec_a.iter().map(|x| x * x).sum::<f32>().sqrt();
             let norm_b: f32 = vec_b.iter().map(|x| x * x).sum::<f32>().sqrt();
-            
+
             if norm_a > 0.0001 && norm_b > 0.0001 {
                 let distance = cosine_distance_auto(&vec_a, &vec_b);
-                
+
                 // Properties of cosine distance
                 prop_assert!(distance >= 0.0, "Distance should be non-negative");
                 prop_assert!(distance <= 2.0, "Distance should be at most 2.0");
@@ -295,7 +303,7 @@ mod error_handling_tests {
             timestamp: chrono::Utc::now(),
             score: 0.0,
         };
-        
+
         assert_eq!(record.score, 0.0);
     }
 
@@ -310,7 +318,7 @@ mod error_handling_tests {
             timestamp: chrono::Utc::now(),
             score: 0.5,
         };
-        
+
         assert!(record.embedding.is_empty());
     }
 }
@@ -329,7 +337,7 @@ mod async_tests {
                 // Service created successfully - basic smoke test
                 // Just verify it exists without calling complex methods
                 assert!(true, "Service created successfully");
-            },
+            }
             Err(e) => {
                 // Service creation failed - might be due to missing dependencies
                 // This is expected in some test environments
@@ -342,14 +350,14 @@ mod async_tests {
     #[tokio::test]
     async fn test_basic_service_operations() {
         use memory::default_config;
-        
+
         // Test that config creation works
         match default_config() {
             Ok(config) => {
                 assert!(true, "Config created successfully");
                 // We can't test DIMemoryService::new due to complex dependencies
                 // but we can test config creation
-            },
+            }
             Err(e) => {
                 println!("Config creation failed: {}", e);
                 assert!(true, "Config creation failure is acceptable");
@@ -368,31 +376,39 @@ mod performance_tests {
     fn test_cosine_distance_performance() {
         let vec1: Vec<f32> = (0..1024).map(|i| (i as f32) / 1024.0).collect();
         let vec2: Vec<f32> = (0..1024).map(|i| ((1024 - i) as f32) / 1024.0).collect();
-        
+
         let start = Instant::now();
         let _distance = cosine_distance_auto(&vec1, &vec2);
         let duration = start.elapsed();
-        
+
         // Should be very fast for 1K dimensions
-        assert!(duration.as_millis() < 10, "Cosine distance should be fast, took {:?}", duration);
+        assert!(
+            duration.as_millis() < 10,
+            "Cosine distance should be fast, took {:?}",
+            duration
+        );
     }
 
     #[test]
     fn test_record_serialization_performance() {
         let record = Record {
             id: "perf_test".to_string(),
-            content: "x".repeat(1000), // 1KB text
+            content: "x".repeat(1000),    // 1KB text
             embedding: vec![0.1f32; 512], // 512-dim embedding
             layer: Layer::Insights,
             timestamp: chrono::Utc::now(),
             score: 0.85,
         };
-        
+
         let start = Instant::now();
         let _json = serde_json::to_string(&record).expect("Serialization should succeed");
         let duration = start.elapsed();
-        
+
         // Should serialize quickly
-        assert!(duration.as_millis() < 50, "Serialization should be fast, took {:?}", duration);
+        assert!(
+            duration.as_millis() < 50,
+            "Serialization should be fast, took {:?}",
+            duration
+        );
     }
 }

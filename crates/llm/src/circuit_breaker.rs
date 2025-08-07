@@ -1,12 +1,12 @@
 use std::time::{Duration, Instant};
-use tracing::{warn, info, debug};
+use tracing::{debug, info, warn};
 
 /// Circuit breaker states
 #[derive(Debug, Clone, PartialEq)]
 pub enum CircuitBreakerState {
-    Closed,      // Normal operation
-    Open,        // Failing, rejecting requests
-    HalfOpen,    // Testing if service recovered
+    Closed,   // Normal operation
+    Open,     // Failing, rejecting requests
+    HalfOpen, // Testing if service recovered
 }
 
 /// Circuit breaker for LLM providers
@@ -43,7 +43,7 @@ impl CircuitBreaker {
             ..Default::default()
         }
     }
-    
+
     /// Check if request should be allowed
     pub fn can_execute(&mut self) -> bool {
         match self.state {
@@ -67,8 +67,10 @@ impl CircuitBreaker {
             CircuitBreakerState::HalfOpen => {
                 if self.half_open_test_count < self.half_open_max_tests {
                     self.half_open_test_count += 1;
-                    debug!("🧪 Circuit breaker HALF_OPEN - test request {}/{}", 
-                        self.half_open_test_count, self.half_open_max_tests);
+                    debug!(
+                        "🧪 Circuit breaker HALF_OPEN - test request {}/{}",
+                        self.half_open_test_count, self.half_open_max_tests
+                    );
                     true
                 } else {
                     debug!("⭕ Circuit breaker HALF_OPEN - max tests reached");
@@ -77,14 +79,17 @@ impl CircuitBreaker {
             }
         }
     }
-    
+
     /// Record successful request
     pub fn record_success(&mut self) {
         match self.state {
             CircuitBreakerState::Closed => {
                 // Reset failure count on success
                 if self.failure_count > 0 {
-                    debug!("✅ Circuit breaker - resetting failure count from {}", self.failure_count);
+                    debug!(
+                        "✅ Circuit breaker - resetting failure count from {}",
+                        self.failure_count
+                    );
                     self.failure_count = 0;
                 }
             }
@@ -101,19 +106,25 @@ impl CircuitBreaker {
             }
         }
     }
-    
+
     /// Record failed request
     pub fn record_failure(&mut self) {
         self.failure_count += 1;
         self.last_failure_time = Some(Instant::now());
-        
+
         match self.state {
             CircuitBreakerState::Closed => {
                 if self.failure_count >= self.failure_threshold {
-                    warn!("🚨 Circuit breaker OPENING - {} consecutive failures", self.failure_count);
+                    warn!(
+                        "🚨 Circuit breaker OPENING - {} consecutive failures",
+                        self.failure_count
+                    );
                     self.state = CircuitBreakerState::Open;
                 } else {
-                    debug!("❌ Circuit breaker - failure {}/{}", self.failure_count, self.failure_threshold);
+                    debug!(
+                        "❌ Circuit breaker - failure {}/{}",
+                        self.failure_count, self.failure_threshold
+                    );
                 }
             }
             CircuitBreakerState::HalfOpen => {
@@ -126,7 +137,7 @@ impl CircuitBreaker {
             }
         }
     }
-    
+
     /// Get current state info
     pub fn get_state_info(&self) -> String {
         match self.state {
@@ -141,7 +152,10 @@ impl CircuitBreaker {
                 }
             }
             CircuitBreakerState::HalfOpen => {
-                format!("HALF_OPEN (tests: {}/{})", self.half_open_test_count, self.half_open_max_tests)
+                format!(
+                    "HALF_OPEN (tests: {}/{})",
+                    self.half_open_test_count, self.half_open_max_tests
+                )
             }
         }
     }
@@ -155,25 +169,25 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_flow() {
         let mut cb = CircuitBreaker::new(3, Duration::from_millis(100));
-        
+
         // Initially closed
         assert_eq!(cb.state, CircuitBreakerState::Closed);
         assert!(cb.can_execute());
-        
+
         // Record failures
         cb.record_failure();
         cb.record_failure();
         assert_eq!(cb.state, CircuitBreakerState::Closed);
-        
+
         cb.record_failure(); // Should open
         assert_eq!(cb.state, CircuitBreakerState::Open);
         assert!(!cb.can_execute());
-        
+
         // Wait for recovery timeout
         tokio::time::sleep(Duration::from_millis(150)).await;
         assert!(cb.can_execute()); // Should be half-open now
         assert_eq!(cb.state, CircuitBreakerState::HalfOpen);
-        
+
         // Success should close
         cb.record_success();
         assert_eq!(cb.state, CircuitBreakerState::Closed);

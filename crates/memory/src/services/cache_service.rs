@@ -6,14 +6,14 @@
 //! - cache statistics и optimization
 //! - cache lifecycle management
 
-use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
+use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 use crate::{
     cache_interface::EmbeddingCacheInterface,
-    di_container::DIContainer,
+    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
     services::{traits::CacheServiceTrait, CoordinatorServiceTrait},
 };
 
@@ -22,7 +22,7 @@ use crate::{
 #[allow(dead_code)]
 pub struct CacheService {
     /// DI контейнер для доступа к cache
-    container: Arc<DIContainer>,
+    container: Arc<UnifiedDIContainer>,
     /// Координатор сервис для доступа к embedding coordinator
     coordinator_service: Option<Arc<dyn CoordinatorServiceTrait>>,
     /// Fallback embedding размерность
@@ -31,9 +31,9 @@ pub struct CacheService {
 
 impl CacheService {
     /// Создать новый CacheService
-    pub fn new(container: Arc<DIContainer>) -> Self {
+    pub fn new(container: Arc<UnifiedDIContainer>) -> Self {
         info!("💾 Создание CacheService для управления кэшированием");
-        
+
         Self {
             container,
             coordinator_service: None,
@@ -44,11 +44,11 @@ impl CacheService {
     /// Создать с coordinator service для полной функциональности
     #[allow(dead_code)]
     pub fn new_with_coordinator(
-        container: Arc<DIContainer>, 
-        coordinator_service: Arc<dyn CoordinatorServiceTrait>
+        container: Arc<UnifiedDIContainer>,
+        coordinator_service: Arc<dyn CoordinatorServiceTrait>,
     ) -> Self {
         info!("💾 Создание CacheService с CoordinatorService");
-        
+
         Self {
             container,
             coordinator_service: Some(coordinator_service),
@@ -58,9 +58,15 @@ impl CacheService {
 
     /// Создать с кастомной размерностью embedding
     #[allow(dead_code)]
-    pub fn new_with_dimension(container: Arc<DIContainer>, embedding_dimension: usize) -> Self {
-        info!("💾 Создание CacheService с embedding dimension={}", embedding_dimension);
-        
+    pub fn new_with_dimension(
+        container: Arc<UnifiedDIContainer>,
+        embedding_dimension: usize,
+    ) -> Self {
+        info!(
+            "💾 Создание CacheService с embedding dimension={}",
+            embedding_dimension
+        );
+
         Self {
             container,
             coordinator_service: None,
@@ -96,16 +102,19 @@ impl CacheServiceTrait for CacheService {
         // Fallback на прямой cache + fallback embedding
         if let Some(_cache) = self.get_cache() {
             debug!("💾 Проверяем cache на наличие embedding");
-            
+
             // Пытаемся получить из кэша
             // NOTE: EmbeddingCacheInterface не предоставляет async get метод в текущей реализации
             // Поэтому генерируем fallback embedding
-            
+
             let embedding = self.generate_fallback_embedding(text);
-            
-            debug!("✅ CacheService: сгенерирован embedding размерности {} для '{}'", 
-                   embedding.len(), text);
-            
+
+            debug!(
+                "✅ CacheService: сгенерирован embedding размерности {} для '{}'",
+                embedding.len(),
+                text
+            );
+
             Ok(embedding)
         } else {
             // Если cache недоступен, просто генерируем fallback
@@ -119,12 +128,12 @@ impl CacheServiceTrait for CacheService {
     fn generate_fallback_embedding(&self, text: &str) -> Vec<f32> {
         let mut embedding = vec![0.0; self.embedding_dimension];
         let hash = text.chars().fold(0u32, |acc, c| acc.wrapping_add(c as u32));
-        
+
         // Генерируем детерминированный embedding на основе хеша текста
         for (i, val) in embedding.iter_mut().enumerate() {
             *val = ((hash.wrapping_add(i as u32) % 1000) as f32 / 1000.0) - 0.5;
         }
-        
+
         // Нормализуем вектор
         let norm = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
         if norm > 0.0 {
@@ -132,9 +141,11 @@ impl CacheServiceTrait for CacheService {
                 *val /= norm;
             }
         }
-        
-        debug!("🔧 CacheService: сгенерирован fallback embedding размерности {} для текста: '{}'", 
-               self.embedding_dimension, text);
+
+        debug!(
+            "🔧 CacheService: сгенерирован fallback embedding размерности {} для текста: '{}'",
+            self.embedding_dimension, text
+        );
         embedding
     }
 
@@ -167,10 +178,10 @@ impl CacheServiceTrait for CacheService {
     async fn clear_cache(&self) -> Result<()> {
         if let Some(_cache) = self.get_cache() {
             debug!("🧹 Очистка cache");
-            
+
             // NOTE: EmbeddingCacheInterface не предоставляет clear метод в текущей реализации
             // В реальной реализации здесь был бы вызов cache.clear()
-            
+
             info!("✅ Cache очищен (заглушка)");
             Ok(())
         } else {
@@ -182,11 +193,11 @@ impl CacheServiceTrait for CacheService {
     #[allow(dead_code)]
     async fn set_cache_size(&self, size: usize) -> Result<()> {
         info!("⚙️ CacheService: установка размера cache = {}", size);
-        
+
         if let Some(_cache) = self.get_cache() {
             // NOTE: EmbeddingCacheInterface не предоставляет set_size метод в текущей реализации
             // В реальной реализации здесь был бы вызов cache.set_size(size)
-            
+
             info!("✅ Размер cache установлен: {} (заглушка)", size);
             Ok(())
         } else {
@@ -198,14 +209,14 @@ impl CacheServiceTrait for CacheService {
     #[allow(dead_code)]
     async fn get_cache_hit_rate(&self) -> f64 {
         let (hits, misses, _size) = self.get_cache_stats().await;
-        
+
         if hits + misses == 0 {
             return 0.0;
         }
-        
+
         let hit_rate = (hits as f64 / (hits + misses) as f64) * 100.0;
         debug!("📊 CacheService: hit rate = {:.1}%", hit_rate);
-        
+
         hit_rate
     }
 }
@@ -216,7 +227,7 @@ impl CacheService {
     pub async fn get_detailed_cache_stats(&self) -> CacheDetailedStats {
         let (hits, misses, size) = self.get_cache_stats().await;
         let hit_rate = self.get_cache_hit_rate().await;
-        
+
         CacheDetailedStats {
             cache_hits: hits,
             cache_misses: misses,
@@ -232,7 +243,10 @@ impl CacheService {
     /// Установить embedding dimension для fallback
     #[allow(dead_code)]
     pub fn set_embedding_dimension(&mut self, dimension: usize) {
-        info!("⚙️ CacheService: установка embedding dimension = {}", dimension);
+        info!(
+            "⚙️ CacheService: установка embedding dimension = {}",
+            dimension
+        );
         self.embedding_dimension = dimension;
     }
 

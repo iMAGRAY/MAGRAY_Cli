@@ -32,7 +32,9 @@ impl Tool for WebSearch {
     }
 
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
-        let query = input.args.get("query")
+        let query = input
+            .args
+            .get("query")
             .ok_or_else(|| anyhow::anyhow!("Отсутствует параметр 'query'"))?;
 
         // Mock implementation
@@ -43,19 +45,20 @@ impl Tool for WebSearch {
             metadata: HashMap::new(),
         })
     }
-    
+
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         let mut args = HashMap::new();
-        
+
         // Извлекаем поисковый запрос
-        let query_clean = query.replace("найди информацию о", "")
+        let query_clean = query
+            .replace("найди информацию о", "")
             .replace("найти ", "")
             .replace("поиск ", "")
             .trim()
             .to_string();
-        
+
         args.insert("query".to_string(), query_clean);
-        
+
         Ok(ToolInput {
             command: "web_search".to_string(),
             args,
@@ -94,7 +97,9 @@ impl Tool for WebFetch {
     }
 
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
-        let url = input.args.get("url")
+        let url = input
+            .args
+            .get("url")
             .ok_or_else(|| anyhow::anyhow!("Отсутствует параметр 'url'"))?;
 
         // Mock implementation
@@ -105,24 +110,28 @@ impl Tool for WebFetch {
             metadata: HashMap::new(),
         })
     }
-    
+
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         let mut args = HashMap::new();
-        
+
         // Извлекаем URL из запроса
         let words: Vec<&str> = query.split_whitespace().collect();
         for word in words {
-            if word.starts_with("http://") || word.starts_with("https://") || word.contains(".com") || word.contains(".org") {
+            if word.starts_with("http://")
+                || word.starts_with("https://")
+                || word.contains(".com")
+                || word.contains(".org")
+            {
                 args.insert("url".to_string(), word.to_string());
                 break;
             }
         }
-        
+
         // Если URL не найден, используем весь запрос
         if !args.contains_key("url") {
             args.insert("url".to_string(), query.to_string());
         }
-        
+
         Ok(ToolInput {
             command: "web_fetch".to_string(),
             args,

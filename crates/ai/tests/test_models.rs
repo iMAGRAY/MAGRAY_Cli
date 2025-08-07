@@ -44,11 +44,11 @@ impl ModelInfo {
     pub fn size_mb(&self) -> f64 {
         self.size_bytes as f64 / (1024.0 * 1024.0)
     }
-    
+
     pub fn is_compatible_with(&self, model_type: &ModelType) -> bool {
         self.model_type == *model_type
     }
-    
+
     pub fn estimate_inference_time_ms(&self) -> u64 {
         // Simple estimation based on model size
         let base_time = 10; // 10ms base
@@ -62,7 +62,7 @@ fn test_model_type_variants() {
     let embedding = ModelType::Embedding;
     let reranker = ModelType::Reranker;
     let llm = ModelType::LLM;
-    
+
     assert_ne!(embedding, reranker);
     assert_ne!(reranker, llm);
     assert_ne!(embedding, llm);
@@ -80,13 +80,13 @@ fn test_model_type_from_string() {
     assert_eq!(ModelType::from_string("embedding"), ModelType::Embedding);
     assert_eq!(ModelType::from_string("Embedding"), ModelType::Embedding);
     assert_eq!(ModelType::from_string("EMBEDDING"), ModelType::Embedding);
-    
+
     assert_eq!(ModelType::from_string("reranker"), ModelType::Reranker);
     assert_eq!(ModelType::from_string("Reranker"), ModelType::Reranker);
-    
+
     assert_eq!(ModelType::from_string("llm"), ModelType::LLM);
     assert_eq!(ModelType::from_string("LLM"), ModelType::LLM);
-    
+
     // Default case
     assert_eq!(ModelType::from_string("unknown"), ModelType::Embedding);
 }
@@ -102,7 +102,7 @@ fn test_model_info_creation() {
         max_length: Some(512),
         description: Some("Test embedding model".to_string()),
     };
-    
+
     assert_eq!(model.name, "test-model");
     assert_eq!(model.model_type, ModelType::Embedding);
     assert_eq!(model.size_bytes, 1024 * 1024);
@@ -120,7 +120,7 @@ fn test_model_size_formatting() {
         max_length: None,
         description: None,
     };
-    
+
     let large_model = ModelInfo {
         name: "large".to_string(),
         model_type: ModelType::LLM,
@@ -130,7 +130,7 @@ fn test_model_size_formatting() {
         max_length: None,
         description: None,
     };
-    
+
     assert_eq!(small_model.size_mb(), 0.0009765625); // ~0.001 MB
     assert_eq!(large_model.size_mb(), 1024.0); // 1024 MB
 }
@@ -146,7 +146,7 @@ fn test_model_compatibility_check() {
         max_length: Some(512),
         description: None,
     };
-    
+
     let reranker_model = ModelInfo {
         name: "reranker".to_string(),
         model_type: ModelType::Reranker,
@@ -156,11 +156,11 @@ fn test_model_compatibility_check() {
         max_length: Some(512),
         description: None,
     };
-    
+
     // Test compatibility
     assert!(embedding_model.is_compatible_with(&ModelType::Embedding));
     assert!(!embedding_model.is_compatible_with(&ModelType::Reranker));
-    
+
     assert!(reranker_model.is_compatible_with(&ModelType::Reranker));
     assert!(!reranker_model.is_compatible_with(&ModelType::Embedding));
 }
@@ -176,9 +176,9 @@ fn test_model_clone_and_equality() {
         max_length: Some(256),
         description: Some("Clone test model".to_string()),
     };
-    
+
     let cloned = original.clone();
-    
+
     assert_eq!(original.name, cloned.name);
     assert_eq!(original.model_type, cloned.model_type);
     assert_eq!(original.size_bytes, cloned.size_bytes);
@@ -196,7 +196,7 @@ fn test_model_debug_format() {
         max_length: None,
         description: None,
     };
-    
+
     let debug_str = format!("{:?}", model);
     assert!(debug_str.contains("debug-test"));
     assert!(debug_str.contains("LLM"));
@@ -213,7 +213,7 @@ fn test_model_performance_estimates() {
         max_length: Some(256),
         description: None,
     };
-    
+
     let large_model = ModelInfo {
         name: "large-perf".to_string(),
         model_type: ModelType::Embedding,
@@ -223,11 +223,11 @@ fn test_model_performance_estimates() {
         max_length: Some(8192),
         description: None,
     };
-    
+
     // Estimate inference time based on model size
     let small_estimate = small_model.estimate_inference_time_ms();
     let large_estimate = large_model.estimate_inference_time_ms();
-    
+
     assert!(small_estimate < large_estimate);
     assert!(small_estimate > 0);
     assert!(large_estimate > small_estimate);
@@ -244,7 +244,7 @@ fn test_model_path_validation() {
         max_length: None,
         description: None,
     };
-    
+
     // Check that path has correct extension
     assert!(model.file_path.extension().unwrap() == "onnx");
 }
@@ -252,7 +252,7 @@ fn test_model_path_validation() {
 #[test]
 fn test_model_dimensions_validation() {
     let dimensions = [128, 256, 384, 512, 768, 1024, 1536, 2048];
-    
+
     for dim in dimensions {
         assert!(dim > 0);
         assert!(dim <= 4096);
@@ -267,7 +267,7 @@ fn test_model_size_categories() {
     let small = 10 * 1024 * 1024; // 10MB
     let medium = 100 * 1024 * 1024; // 100MB
     let large = 1024 * 1024 * 1024; // 1GB
-    
+
     assert!(tiny < small);
     assert!(small < medium);
     assert!(medium < large);
@@ -276,11 +276,11 @@ fn test_model_size_categories() {
 #[test]
 fn test_model_max_length_ranges() {
     let max_lengths = [128, 256, 512, 1024, 2048, 4096, 8192];
-    
+
     for length in max_lengths {
         assert!(length > 0);
         assert!(length <= 8192); // Common upper bound
-        // Should be power of 2
+                                 // Should be power of 2
         assert!((length & (length - 1)) == 0);
     }
 }

@@ -1,5 +1,5 @@
-﻿//! Clean Architecture traits для UnifiedAgent
-//! 
+//! Clean Architecture traits для UnifiedAgent
+//!
 //! Реализует Dependency Inversion принцип через высокоуровневые абстракции
 //! для всех компонентов агента согласно Clean Architecture
 
@@ -82,7 +82,7 @@ pub struct ProcessingResult {
 pub trait IntentDecisionStrategy: Send + Sync {
     /// Анализирует запрос и определяет намерение
     async fn analyze_intent(&self, context: &RequestContext) -> Result<IntentDecision>;
-    
+
     /// Возвращает название стратегии для логирования
     fn strategy_name(&self) -> &'static str;
 }
@@ -91,11 +91,15 @@ pub trait IntentDecisionStrategy: Send + Sync {
 #[async_trait]
 pub trait FallbackStrategy: Send + Sync {
     /// Обрабатывает запрос когда основные стратегии не сработали
-    async fn handle_fallback(&self, context: &RequestContext, error: &anyhow::Error) -> Result<AgentResponse>;
-    
+    async fn handle_fallback(
+        &self,
+        context: &RequestContext,
+        error: &anyhow::Error,
+    ) -> Result<AgentResponse>;
+
     /// Проверяет может ли стратегия обработать данную ошибку
     fn can_handle(&self, error: &anyhow::Error) -> bool;
-    
+
     /// Приоритет стратегии (выше = важнее)
     fn priority(&self) -> u8;
 }
@@ -104,8 +108,12 @@ pub trait FallbackStrategy: Send + Sync {
 #[async_trait]
 pub trait ResponseFormattingStrategy: Send + Sync {
     /// Форматирует ответ для пользователя
-    async fn format_response(&self, response: &AgentResponse, context: &RequestContext) -> Result<String>;
-    
+    async fn format_response(
+        &self,
+        response: &AgentResponse,
+        context: &RequestContext,
+    ) -> Result<String>;
+
     /// Поддерживаемые типы ответов
     fn supported_response_types(&self) -> Vec<&'static str>;
 }
@@ -119,10 +127,14 @@ pub trait ResponseFormattingStrategy: Send + Sync {
 pub trait LlmServiceTrait: Send + Sync {
     /// Простой chat запрос
     async fn chat(&self, message: &str) -> Result<String>;
-    
+
     /// Chat с контекстом
-    async fn chat_with_context(&self, message: &str, context: &HashMap<String, String>) -> Result<String>;
-    
+    async fn chat_with_context(
+        &self,
+        message: &str,
+        context: &HashMap<String, String>,
+    ) -> Result<String>;
+
     /// Проверка доступности сервиса
     async fn health_check(&self) -> Result<()>;
 }
@@ -132,12 +144,9 @@ pub trait LlmServiceTrait: Send + Sync {
 pub trait IntelligentRoutingTrait: Send + Sync {
     /// Обработка умного запроса с планированием и выполнением
     async fn process_request(&self, query: &str) -> Result<String>;
-    
+
     /// Анализ запроса без выполнения (для предварительной оценки)
     async fn analyze_request(&self, query: &str) -> Result<String>;
-    
-    /// Проверка доступности сервиса
-    async fn health_check(&self) -> Result<()>;
 }
 
 /// Высокоуровневая абстракция для управления памятью
@@ -145,16 +154,16 @@ pub trait IntelligentRoutingTrait: Send + Sync {
 pub trait MemoryManagementTrait: Send + Sync {
     /// Сохранение пользовательского сообщения
     async fn store_message(&self, message: &str, context: &HashMap<String, String>) -> Result<()>;
-    
+
     /// Поиск релевантной информации
     async fn search_memory(&self, query: &str, limit: usize) -> Result<Vec<String>>;
-    
+
     /// Запуск процесса продвижения между слоями памяти
     async fn run_promotion(&self) -> Result<String>;
-    
+
     /// Получение статистики системы памяти
     async fn get_memory_stats(&self) -> Result<String>;
-    
+
     /// Проверка здоровья системы памяти
     async fn health_check(&self) -> Result<()>;
 }
@@ -164,15 +173,19 @@ pub trait MemoryManagementTrait: Send + Sync {
 pub trait AdminServiceTrait: Send + Sync {
     /// Получение системной статистики
     async fn get_system_stats(&self) -> Result<AdminResponse>;
-    
+
     /// Проверка здоровья всех компонентов
     async fn check_system_health(&self) -> Result<AdminResponse>;
-    
+
     /// Получение метрик производительности
     async fn get_performance_metrics(&self) -> Result<AdminResponse>;
-    
+
     /// Выполнение административных команд
-    async fn execute_admin_command(&self, command: &str, args: &HashMap<String, String>) -> Result<AdminResponse>;
+    async fn execute_admin_command(
+        &self,
+        command: &str,
+        args: &HashMap<String, String>,
+    ) -> Result<AdminResponse>;
 }
 
 /// Высокоуровневая абстракция для мониторинга производительности
@@ -180,13 +193,13 @@ pub trait AdminServiceTrait: Send + Sync {
 pub trait PerformanceMonitoringTrait: Send + Sync {
     /// Начало измерения операции
     fn start_operation(&self, operation_name: &str) -> String;
-    
+
     /// Завершение измерения операции
     fn finish_operation(&self, operation_id: &str, success: bool);
-    
+
     /// Получение метрик за период
     async fn get_metrics(&self, period_minutes: u32) -> Result<HashMap<String, f64>>;
-    
+
     /// Сброс всех метрик
     fn reset_metrics(&self);
 }
@@ -200,10 +213,10 @@ pub trait PerformanceMonitoringTrait: Send + Sync {
 pub trait RequestProcessorTrait: Send + Sync {
     /// Основная точка входа для обработки запросов
     async fn process_user_request(&self, context: RequestContext) -> Result<ProcessingResult>;
-    
+
     /// Проверка готовности системы к обработке
     async fn is_ready(&self) -> bool;
-    
+
     /// Graceful shutdown всех компонентов
     async fn shutdown(&self) -> Result<()>;
 }
@@ -213,13 +226,13 @@ pub trait RequestProcessorTrait: Send + Sync {
 pub trait ComponentLifecycleTrait: Send + Sync {
     /// Инициализация компонента
     async fn initialize(&self) -> Result<()>;
-    
+
     /// Проверка здоровья компонента
     async fn health_check(&self) -> Result<()>;
-    
+
     /// Graceful shutdown компонента
     async fn shutdown(&self) -> Result<()>;
-    
+
     /// Перезапуск компонента
     async fn restart(&self) -> Result<()> {
         self.shutdown().await?;
@@ -239,13 +252,13 @@ pub trait CircuitBreakerTrait: Send + Sync {
     where
         F: std::future::Future<Output = Result<T>> + Send,
         T: Send;
-    
+
     /// Принудительное открытие автомата
     async fn force_open(&self);
-    
+
     /// Принудительное закрытие автомата
     async fn force_close(&self);
-    
+
     /// Получение текущего состояния
     async fn get_state(&self) -> String;
 }

@@ -1,12 +1,14 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
-use ai::{GpuFallbackManager, EmbeddingConfig, EmbeddingServiceTrait, GpuPipelineManager, PipelineConfig};
-use ai::gpu_fallback::FallbackStats;
+use crate::batch_optimized::{BatchOptimizedConfig, BatchOptimizedProcessor};
 use crate::cache_interface::EmbeddingCacheInterface;
-use crate::batch_optimized::{BatchOptimizedProcessor, BatchOptimizedConfig};
+use ai::gpu_fallback::FallbackStats;
+use ai::{
+    EmbeddingConfig, EmbeddingServiceTrait, GpuFallbackManager, GpuPipelineManager, PipelineConfig,
+};
 
 /// Статус здоровья GPU
 #[derive(Debug, Clone)]
@@ -65,7 +67,7 @@ impl Default for BatchProcessorConfig {
     fn default() -> Self {
         Self {
             max_batch_size: MAX_BATCH_SIZE,
-            batch_timeout_ms: 25,  // Уменьшено для sub-5ms latency
+            batch_timeout_ms: 25, // Уменьшено для sub-5ms latency
             use_gpu_if_available: true,
             cache_embeddings: true,
         }
@@ -85,11 +87,12 @@ impl GpuBatchProcessor {
         cache: Arc<dyn EmbeddingCacheInterface>,
     ) -> Result<Self> {
         info!("🚀 Инициализация GpuBatchProcessor с надёжным fallback");
-        
+
         // Создаём embedding сервис с автоматическим GPU/CPU fallback
         let embedding_service = Arc::new(
-            GpuFallbackManager::new(embedding_config.clone()).await
-                .map_err(|e| anyhow::anyhow!("Failed to create embedding service: {}", e))?
+            GpuFallbackManager::new(embedding_config.clone())
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create embedding service: {}", e))?,
         );
 
         // Пытаемся создать GPU pipeline для максимальной производительности
@@ -100,7 +103,10 @@ impl GpuBatchProcessor {
                     Some(Arc::new(pipeline))
                 }
                 Err(e) => {
-                    warn!("⚠️ Не удалось создать GPU Pipeline: {}. Используем fallback.", e);
+                    warn!(
+                        "⚠️ Не удалось создать GPU Pipeline: {}. Используем fallback.",
+                        e
+                    );
                     None
                 }
             }
@@ -138,21 +144,23 @@ impl GpuBatchProcessor {
     }
 
     /// Создать ultra-optimized batch processor для maximum QPS
-    async fn create_ultra_batch_processor(config: &BatchProcessorConfig) -> Result<BatchOptimizedProcessor> {
+    async fn create_ultra_batch_processor(
+        config: &BatchProcessorConfig,
+    ) -> Result<BatchOptimizedProcessor> {
         let ultra_config = BatchOptimizedConfig {
             max_batch_size: config.max_batch_size,
-            min_batch_size: config.max_batch_size / 8,  // Adaptive min batch size
-            worker_threads: 8,  // High concurrency для 1000+ QPS
-            queue_capacity: 2048,  // Большая очередь для high throughput
-            batch_timeout_us: config.batch_timeout_ms * 1000,  // Convert to microseconds
+            min_batch_size: config.max_batch_size / 8, // Adaptive min batch size
+            worker_threads: 8,                         // High concurrency для 1000+ QPS
+            queue_capacity: 2048,                      // Большая очередь для high throughput
+            batch_timeout_us: config.batch_timeout_ms * 1000, // Convert to microseconds
             use_prefetching: true,
             use_aligned_memory: true,
             adaptive_batching: true,
         };
-        
+
         BatchOptimizedProcessor::new(ultra_config)
     }
-    
+
     /// Попытка создать GPU pipeline сс comprehensive validation
     async fn try_create_gpu_pipeline(
         config: &BatchProcessorConfig,
@@ -160,7 +168,7 @@ impl GpuBatchProcessor {
     ) -> Result<GpuPipelineManager> {
         // Валидация GPU capabilities перед созданием pipeline
         Self::validate_gpu_capabilities()?;
-        
+
         let pipeline_config = PipelineConfig {
             max_concurrent_batches: Self::get_optimal_gpu_streams()?,
             optimal_batch_size: Self::get_safe_batch_size(config.max_batch_size)?,
@@ -169,14 +177,19 @@ impl GpuBatchProcessor {
             memory_pooling_enabled: Self::can_use_pinned_memory(),
             adaptive_batching: true,
         };
-        
-        info!("🔍 Создание GPU Pipeline с конфигурацией: {:?}", pipeline_config);
-        
+
+        info!(
+            "🔍 Создание GPU Pipeline с конфигурацией: {:?}",
+            pipeline_config
+        );
+
         // Создаем с timeout и error handling
         match tokio::time::timeout(
             std::time::Duration::from_secs(30),
-            GpuPipelineManager::new(embedding_config.clone(), pipeline_config)
-        ).await {
+            GpuPipelineManager::new(embedding_config.clone(), pipeline_config),
+        )
+        .await
+        {
             Ok(Ok(manager)) => {
                 info!("✅ GPU Pipeline успешно создан");
                 Ok(manager)
@@ -191,59 +204,63 @@ impl GpuBatchProcessor {
             }
         }
     }
-    
+
     /// Валидация GPU capabilities
     fn validate_gpu_capabilities() -> Result<()> {
         #[cfg(feature = "gpu")]
         {
             // Проверяем доступность GPU через AI модуль
             use ai::gpu_detector::GpuDetector;
-            
+
             let detector = GpuDetector::detect();
-            
+
             if !detector.available || detector.devices.is_empty() {
                 return Err(anyhow::anyhow!("No GPU devices detected"));
             }
-            
+
             // Проверяем минимальные требования
             let primary_gpu = &detector.devices[0];
-            if primary_gpu.total_memory_mb < 2048 {  // Минимум 2GB
+            if primary_gpu.total_memory_mb < 2048 {
+                // Минимум 2GB
                 return Err(anyhow::anyhow!(
-                    "Insufficient GPU memory: {}MB < 2048MB required", 
+                    "Insufficient GPU memory: {}MB < 2048MB required",
                     primary_gpu.total_memory_mb
                 ));
             }
-            
+
             // Парсим compute capability (например "7.5" -> (7, 5))
             let parts: Vec<&str> = primary_gpu.compute_capability.split('.').collect();
             if parts.len() == 2 {
-                if let (Ok(major), Ok(_minor)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
+                if let (Ok(major), Ok(_minor)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>())
+                {
                     if major < 6 {
                         return Err(anyhow::anyhow!(
-                            "Insufficient compute capability: {} < 6.0 required", 
+                            "Insufficient compute capability: {} < 6.0 required",
                             primary_gpu.compute_capability
                         ));
                     }
                 }
             }
-            
-            info!("✅ GPU validation passed: {} with {}MB memory", 
-                  primary_gpu.name, primary_gpu.total_memory_mb);
+
+            info!(
+                "✅ GPU validation passed: {} with {}MB memory",
+                primary_gpu.name, primary_gpu.total_memory_mb
+            );
             Ok(())
         }
-        
+
         #[cfg(not(feature = "gpu"))]
         {
             Err(anyhow::anyhow!("GPU support not compiled"))
         }
     }
-    
+
     /// Получить оптимальное количество GPU streams
     fn get_optimal_gpu_streams() -> Result<usize> {
         #[cfg(feature = "gpu")]
         {
             use ai::gpu_detector::GpuDetector;
-            
+
             let detector = GpuDetector::detect();
             if detector.available {
                 if let Some(primary_gpu) = detector.devices.first() {
@@ -252,73 +269,80 @@ impl GpuBatchProcessor {
                     return Ok(streams);
                 }
             }
-            
+
             Ok(2) // Safe default
         }
-        
+
         #[cfg(not(feature = "gpu"))]
         {
             Ok(1) // CPU fallback
         }
     }
-    
+
     /// Получить безопасный размер batch с учетом GPU memory
     fn get_safe_batch_size(requested_size: usize) -> Result<usize> {
         #[cfg(feature = "gpu")]
         {
             use ai::gpu_detector::GpuDetector;
-            
+
             const EMBEDDING_SIZE_BYTES: usize = 768 * 4; // f32 = 4 bytes
             const SAFETY_MARGIN: f32 = 0.7; // Используем 70% памяти
-            
+
             let detector = GpuDetector::detect();
             if detector.available {
                 if let Some(primary_gpu) = detector.devices.first() {
-                    let available_memory = (primary_gpu.total_memory_mb as f32 * 1024.0 * 1024.0 * SAFETY_MARGIN) as usize;
+                    let available_memory =
+                        (primary_gpu.total_memory_mb as f32 * 1024.0 * 1024.0 * SAFETY_MARGIN)
+                            as usize;
                     let max_batch_by_memory = available_memory / EMBEDDING_SIZE_BYTES;
                     let safe_batch = requested_size.min(max_batch_by_memory).max(1);
-                    
-                    info!("🔍 GPU Memory-based batch size: {} (requested: {}, memory limit: {})", 
-                          safe_batch, requested_size, max_batch_by_memory);
+
+                    info!(
+                        "🔍 GPU Memory-based batch size: {} (requested: {}, memory limit: {})",
+                        safe_batch, requested_size, max_batch_by_memory
+                    );
                     return Ok(safe_batch);
                 }
             }
-            
+
             Ok(requested_size.min(64)) // Conservative fallback
         }
-        
+
         #[cfg(not(feature = "gpu"))]
         {
-            Ok(requested_size.min(32)) // CPU batch limit  
+            Ok(requested_size.min(32)) // CPU batch limit
         }
     }
-    
+
     /// Проверить можно ли использовать pinned memory
     fn can_use_pinned_memory() -> bool {
         #[cfg(feature = "gpu")]
         {
             use ai::gpu_detector::GpuDetector;
-            
+
             let detector = GpuDetector::detect();
             if detector.available {
-                return detector.devices.iter().any(|gpu| gpu.total_memory_mb > 4096);
+                return detector
+                    .devices
+                    .iter()
+                    .any(|gpu| gpu.total_memory_mb > 4096);
             }
-            
+
             false
         }
-        
+
         #[cfg(not(feature = "gpu"))]
         {
             false
         }
     }
-    
+
     /// Проверить можно ли использовать prefetch
     fn can_use_prefetch() -> bool {
         #[cfg(feature = "gpu")]
         {
             use ai::gpu_detector::GpuDetector;
-            
+
             let detector = GpuDetector::detect();
             if detector.available {
                 return detector.devices.iter().any(|gpu| {
@@ -332,10 +356,10 @@ impl GpuBatchProcessor {
                     false
                 });
             }
-            
+
             false
         }
-        
+
         #[cfg(not(feature = "gpu"))]
         {
             false
@@ -349,11 +373,12 @@ impl GpuBatchProcessor {
             warn!("Empty text provided for embedding");
             return Ok(vec![0.0; 1024]); // Qwen3 dimension fallback
         }
-        
-        if text.len() > 8192 { // Reasonable text length limit
+
+        if text.len() > 8192 {
+            // Reasonable text length limit
             warn!("Text too long ({} chars), truncating", text.len());
         }
-        
+
         // Проверяем кэш
         if self.config.cache_embeddings {
             if let Some(embedding) = self.cache.get(text, "bge-m3") {
@@ -366,7 +391,10 @@ impl GpuBatchProcessor {
         let embedding = match self.get_embedding_with_fallback(text).await {
             Ok(emb) => emb,
             Err(e) => {
-                warn!("All embedding methods failed for text: {}. Using zero vector fallback", e);
+                warn!(
+                    "All embedding methods failed for text: {}. Using zero vector fallback",
+                    e
+                );
                 vec![0.0; 768] // Last resort fallback
             }
         };
@@ -380,11 +408,15 @@ impl GpuBatchProcessor {
 
         Ok(embedding)
     }
-    
+
     /// Получить embedding с comprehensive fallback chain
     async fn get_embedding_with_fallback(&self, text: &str) -> Result<Vec<f32>> {
         // 1. Пытаемся через основной fallback сервис (GPU→CPU)
-        match self.embedding_service.embed_batch(vec![text.to_string()]).await {
+        match self
+            .embedding_service
+            .embed_batch(vec![text.to_string()])
+            .await
+        {
             Ok(mut embeddings) => {
                 if let Some(embedding) = embeddings.pop() {
                     if !embedding.is_empty() {
@@ -397,46 +429,48 @@ impl GpuBatchProcessor {
                 warn!("Primary embedding service failed: {}", e);
             }
         }
-        
+
         // 2. Если основной сервис не работает, пытаемся через отдельный CPU fallback
         warn!("Attempting emergency CPU-only fallback for text embedding");
-        
+
         // Создаем временный CPU-only сервис как last resort
         match self.create_emergency_cpu_service().await {
-            Ok(cpu_service) => {
-                match cpu_service.embed_batch(vec![text.to_string()]).await {
-                    Ok(mut embeddings) => {
-                        if let Some(embedding) = embeddings.pop() {
-                            if !embedding.is_empty() {
-                                info!("✅ Emergency CPU fallback succeeded");
-                                return Ok(embedding);
-                            }
+            Ok(cpu_service) => match cpu_service.embed_batch(vec![text.to_string()]).await {
+                Ok(mut embeddings) => {
+                    if let Some(embedding) = embeddings.pop() {
+                        if !embedding.is_empty() {
+                            info!("✅ Emergency CPU fallback succeeded");
+                            return Ok(embedding);
                         }
                     }
-                    Err(e) => warn!("Emergency CPU service also failed: {}", e),
                 }
-            }
+                Err(e) => warn!("Emergency CPU service also failed: {}", e),
+            },
             Err(e) => warn!("Could not create emergency CPU service: {}", e),
         }
-        
+
         Err(anyhow::anyhow!("All embedding fallback methods exhausted"))
     }
-    
+
     /// Создать emergency CPU-only сервис
     async fn create_emergency_cpu_service(&self) -> Result<ai::GpuFallbackManager> {
         let mut emergency_config = ai::EmbeddingConfig::default();
         emergency_config.use_gpu = false;
         emergency_config.batch_size = 1; // Minimal batch size
-        
+
         ai::GpuFallbackManager::new(emergency_config).await
     }
 
     /// Получить fallback embedding для одного текста
     async fn get_fallback_embedding(&self, text: &str) -> Result<Option<Vec<f32>>> {
         debug!("Получение fallback embedding для: {}", text);
-        
+
         // Пытаемся через основной fallback сервис
-        match self.embedding_service.embed_batch(vec![text.to_string()]).await {
+        match self
+            .embedding_service
+            .embed_batch(vec![text.to_string()])
+            .await
+        {
             Ok(embeddings) => {
                 if let Some(embedding) = embeddings.into_iter().next() {
                     Ok(Some(embedding))
@@ -481,29 +515,44 @@ impl GpuBatchProcessor {
         if !uncached_texts.is_empty() {
             let embeddings = if let Some(ref pipeline) = self.gpu_pipeline {
                 // Используем GPU pipeline для максимальной производительности
-                debug!("🚀 Используем GPU Pipeline для {} текстов", uncached_texts.len());
-                
+                debug!(
+                    "🚀 Используем GPU Pipeline для {} текстов",
+                    uncached_texts.len()
+                );
+
                 // Пытаемся через GPU pipeline с fallback
-                match pipeline.process_texts_optimized(uncached_texts.clone()).await {
+                match pipeline
+                    .process_texts_optimized(uncached_texts.clone())
+                    .await
+                {
                     Ok(embeddings) => embeddings,
                     Err(e) => {
                         warn!("🔄 GPU Pipeline failed: {}. Fallback на основной сервис", e);
-                        self.embedding_service.embed_batch(uncached_texts.clone()).await
+                        self.embedding_service
+                            .embed_batch(uncached_texts.clone())
+                            .await
                             .map_err(|fallback_err| {
-                                anyhow::anyhow!("Both GPU pipeline and fallback failed. GPU: {}, Fallback: {}", e, fallback_err)
+                                anyhow::anyhow!(
+                                    "Both GPU pipeline and fallback failed. GPU: {}, Fallback: {}",
+                                    e,
+                                    fallback_err
+                                )
                             })?
                     }
                 }
             } else {
                 // Fallback на обычный сервис
-                debug!("🔄 Используем Fallback сервис для {} текстов", uncached_texts.len());
-                self.embedding_service.embed_batch(uncached_texts.clone()).await?
+                debug!(
+                    "🔄 Используем Fallback сервис для {} текстов",
+                    uncached_texts.len()
+                );
+                self.embedding_service
+                    .embed_batch(uncached_texts.clone())
+                    .await?
             };
 
             // Сохраняем в кэш и результаты с защитой от partial failures
-            for (idx, (text, embedding)) in uncached_texts.iter()
-                .zip(embeddings.iter())
-                .enumerate() 
+            for (idx, (text, embedding)) in uncached_texts.iter().zip(embeddings.iter()).enumerate()
             {
                 // Кэшируем с error handling
                 if self.config.cache_embeddings {
@@ -512,13 +561,17 @@ impl GpuBatchProcessor {
                         // Продолжаем обработку даже если кэширование не удалось
                     }
                 }
-                
+
                 // Проверяем индексы для безопасности
                 if let Some(result_idx) = uncached_indices.get(idx) {
                     if *result_idx < results.len() {
                         results[*result_idx] = Some(embedding.clone());
                     } else {
-                        warn!("Invalid result index {} for batch size {}", result_idx, results.len());
+                        warn!(
+                            "Invalid result index {} for batch size {}",
+                            result_idx,
+                            results.len()
+                        );
                     }
                 } else {
                     warn!("Missing uncached index for embedding {}", idx);
@@ -534,7 +587,9 @@ impl GpuBatchProcessor {
                 None => {
                     warn!("Missing embedding result for index {}, using fallback", i);
                     // Пытаемся получить fallback embedding для этого текста
-                    let fallback_embedding = self.get_fallback_embedding(&texts[i]).await?
+                    let fallback_embedding = self
+                        .get_fallback_embedding(&texts[i])
+                        .await?
                         .unwrap_or_else(|| vec![0.0; 1024]); // Qwen3 dimension fallback
                     final_results.push(fallback_embedding);
                 }
@@ -554,9 +609,7 @@ impl GpuBatchProcessor {
             return Ok(());
         }
 
-        let texts: Vec<String> = pending.iter()
-            .map(|p| p.text.clone())
-            .collect();
+        let texts: Vec<String> = pending.iter().map(|p| p.text.clone()).collect();
 
         debug!("Processing batch of {} texts", texts.len());
 
@@ -583,12 +636,12 @@ impl GpuBatchProcessor {
         // Проверяем success rate вместо прямого доступа к полям
         stats.gpu_success_rate() > 0.0 || stats.fallback_rate() < 1.0
     }
-    
+
     /// Получить статистику fallback
     pub fn get_fallback_stats(&self) -> FallbackStats {
         self.embedding_service.get_stats()
     }
-    
+
     /// Принудительно переключиться на CPU режим
     pub fn force_cpu_mode(&self) {
         self.embedding_service.force_cpu_mode();
@@ -597,14 +650,14 @@ impl GpuBatchProcessor {
     /// Получить статистику с comprehensive information
     pub async fn get_stats(&self) -> BatchProcessorStats {
         let queue_size = self.processing_queue.lock().await.len();
-        
+
         // Получаем статистику pipeline если доступен
         let pipeline_stats = if let Some(ref pipeline) = self.gpu_pipeline {
             Some(pipeline.get_stats().await)
         } else {
             None
         };
-        
+
         BatchProcessorStats {
             total_batches: 0,
             successful_batches: 0,
@@ -621,18 +674,18 @@ impl GpuBatchProcessor {
             pipeline_stats,
         }
     }
-    
+
     /// Проверить GPU memory usage и состояние
     pub async fn check_gpu_health(&self) -> GpuHealthStatus {
         #[cfg(feature = "gpu")]
         {
             use ai::gpu_detector::GpuDetector;
-            
+
             let detector = GpuDetector::detect();
             if detector.available {
                 if let Some(primary_gpu) = detector.devices.first() {
                     let fallback_stats = self.get_fallback_stats();
-                    
+
                     GpuHealthStatus {
                         available: true,
                         memory_total_mb: primary_gpu.total_memory_mb as u32,
@@ -649,13 +702,13 @@ impl GpuBatchProcessor {
                 GpuHealthStatus::unavailable("GPU not available")
             }
         }
-        
+
         #[cfg(not(feature = "gpu"))]
         {
             GpuHealthStatus::unavailable("GPU support not compiled")
         }
     }
-    
+
     /// Оценка использования GPU памяти
     #[allow(dead_code)] // Для будущего мониторинга ресурсов
     async fn estimate_gpu_memory_usage(&self) -> u32 {
@@ -664,51 +717,59 @@ impl GpuBatchProcessor {
         let estimated_mb = (queue_size * 768 * 4) / (1024 * 1024); // f32 embeddings
         estimated_mb as u32
     }
-    
+
     /// Обнаружение проблем с GPU
     #[allow(dead_code)] // Для будущей диагностики
     fn detect_gpu_issues(&self, stats: &FallbackStats) -> Vec<String> {
         let mut issues = Vec::new();
-        
+
         if stats.gpu_success_rate() < 0.8 {
-            issues.push(format!("Low GPU success rate: {:.1}%", stats.gpu_success_rate() * 100.0));
+            issues.push(format!(
+                "Low GPU success rate: {:.1}%",
+                stats.gpu_success_rate() * 100.0
+            ));
         }
-        
+
         if stats.gpu_error_count > 10 {
             issues.push(format!("High error count: {}", stats.gpu_error_count));
         }
-        
+
         if stats.fallback_rate() > 0.5 {
-            issues.push(format!("High CPU fallback rate: {:.1}%", stats.fallback_rate() * 100.0));
+            issues.push(format!(
+                "High CPU fallback rate: {:.1}%",
+                stats.fallback_rate() * 100.0
+            ));
         }
-        
+
         issues
     }
-    
+
     /// Cleanup и освобождение GPU ресурсов  
     pub async fn cleanup_gpu_resources(&self) -> Result<()> {
         info!("🧹 Освобождение GPU ресурсов");
-        
+
         // Очищаем очередь обработки
         {
             let mut queue = self.processing_queue.lock().await;
             if !queue.is_empty() {
                 warn!("Clearing {} pending operations during cleanup", queue.len());
-                // Отправляем ошибки всем pending операциям  
+                // Отправляем ошибки всем pending операциям
                 for pending in queue.drain(..) {
-                    let _ = pending.callback.send(Err(anyhow::anyhow!("Cleanup in progress")));
+                    let _ = pending
+                        .callback
+                        .send(Err(anyhow::anyhow!("Cleanup in progress")));
                 }
             }
         }
-        
+
         // Принудительный сброс circuit breaker если нужно
         if self.get_fallback_stats().gpu_error_count > 5 {
             info!("Resetting circuit breaker due to high error count");
             self.embedding_service.reset_circuit_breaker();
         }
-        
+
         // TODO: Добавить освобождение GPU памяти когда API будет доступно
-        
+
         Ok(())
     }
 }
@@ -727,23 +788,24 @@ mod tests {
                 return;
             }
         };
-        
-        let cache = match crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()) {
+
+        let cache = match crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default())
+        {
             Ok(c) => Arc::new(c) as Arc<dyn EmbeddingCacheInterface>,
             Err(e) => {
                 println!("Failed to create cache: {}", e);
                 return;
             }
         };
-        
+
         let config = BatchProcessorConfig::default();
         let embedding_config = EmbeddingConfig::default();
-        
+
         match GpuBatchProcessor::new(config, embedding_config, cache).await {
             Ok(_) => {
                 // Должен создаться хотя бы с CPU fallback
                 println!("✅ Processor created successfully with fallback");
-            },
+            }
             Err(e) => {
                 println!("⚠️ Expected error without models: {}", e);
                 // This is expected in test environment without models
@@ -760,34 +822,35 @@ mod tests {
                 return;
             }
         };
-        
-        let cache = match crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()) {
+
+        let cache = match crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default())
+        {
             Ok(c) => Arc::new(c) as Arc<dyn EmbeddingCacheInterface>,
             Err(e) => {
                 println!("Failed to create cache: {}", e);
                 return;
             }
         };
-        
+
         let config = BatchProcessorConfig {
             use_gpu_if_available: false, // Форсируем CPU для тестов
             ..Default::default()
         };
         let embedding_config = EmbeddingConfig::default();
-        
+
         match GpuBatchProcessor::new(config, embedding_config, cache).await {
             Ok(processor) => {
                 match processor.embed("test text").await {
                     Ok(embedding) => {
                         println!("✅ Got embedding with length: {}", embedding.len());
                         assert!(!embedding.is_empty(), "Embedding should not be empty");
-                    },
+                    }
                     Err(e) => {
                         println!("⚠️ Embedding failed (expected without models): {}", e);
                         // Expected in test environment
                     }
                 }
-            },
+            }
             Err(e) => {
                 println!("⚠️ Expected error without models: {}", e);
                 // This is expected in test environment without models
@@ -795,7 +858,7 @@ mod tests {
         }
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_batch_embedding() {
         let temp_dir = match TempDir::new() {
             Ok(dir) => dir,
@@ -804,21 +867,22 @@ mod tests {
                 return;
             }
         };
-        
-        let cache = match crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()) {
+
+        let cache = match crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default())
+        {
             Ok(c) => Arc::new(c) as Arc<dyn EmbeddingCacheInterface>,
             Err(e) => {
                 println!("Failed to create cache: {}", e);
                 return;
             }
         };
-        
+
         let config = BatchProcessorConfig {
             use_gpu_if_available: false, // Форсируем CPU для тестов
             ..Default::default()
         };
         let embedding_config = EmbeddingConfig::default();
-        
+
         match GpuBatchProcessor::new(config, embedding_config, cache).await {
             Ok(processor) => {
                 let texts = vec![
@@ -826,92 +890,108 @@ mod tests {
                     "second text".to_string(),
                     "third text".to_string(),
                 ];
-                
+
                 match processor.embed_batch(texts.clone()).await {
                     Ok(embeddings) => {
-                        println!("✅ Got {} embeddings for {} texts", embeddings.len(), texts.len());
+                        println!(
+                            "✅ Got {} embeddings for {} texts",
+                            embeddings.len(),
+                            texts.len()
+                        );
                         assert_eq!(embeddings.len(), 3, "Should have 3 embeddings");
-                        
+
                         for (i, embedding) in embeddings.iter().enumerate() {
                             assert!(!embedding.is_empty(), "Embedding {} should not be empty", i);
                         }
-                    },
+                    }
                     Err(e) => {
                         println!("⚠️ Batch embedding failed (expected without models): {}", e);
                         // Expected in test environment
                     }
                 }
-            },
+            }
             Err(e) => {
                 println!("⚠️ Expected error without models: {}", e);
                 // This is expected in test environment without models
             }
         }
     }
-    
+
     #[tokio::test]
     async fn test_gpu_health_check() {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let cache = Arc::new(crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()).expect("Failed to create cache")) as Arc<dyn EmbeddingCacheInterface>;
-        
+        let cache = Arc::new(
+            crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default())
+                .expect("Failed to create cache"),
+        ) as Arc<dyn EmbeddingCacheInterface>;
+
         let config = BatchProcessorConfig {
             use_gpu_if_available: false, // Safe for tests
             ..Default::default()
         };
         let embedding_config = EmbeddingConfig::default();
-        
+
         match GpuBatchProcessor::new(config, embedding_config, cache).await {
             Ok(processor) => {
                 let health = processor.check_gpu_health().await;
                 println!("GPU Health Status: {:?}", health);
-                
+
                 // В тестовой среде GPU может быть недоступен
                 if !health.available {
-                    assert!(!health.issues.is_empty(), "Should report why GPU is unavailable");
+                    assert!(
+                        !health.issues.is_empty(),
+                        "Should report why GPU is unavailable"
+                    );
                 }
-            },
+            }
             Err(e) => {
                 println!("Expected error in test environment: {}", e);
             }
         }
     }
-    
+
     #[tokio::test]
     async fn test_fallback_behavior() {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let cache = Arc::new(crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default()).expect("Failed to create cache")) as Arc<dyn EmbeddingCacheInterface>;
-        
+        let cache = Arc::new(
+            crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default())
+                .expect("Failed to create cache"),
+        ) as Arc<dyn EmbeddingCacheInterface>;
+
         let config = BatchProcessorConfig {
             use_gpu_if_available: true, // Request GPU but expect fallback
             ..Default::default()
         };
         let embedding_config = EmbeddingConfig::default();
-        
+
         match GpuBatchProcessor::new(config, embedding_config, cache).await {
             Ok(processor) => {
                 // Test resilient embedding for edge cases
                 match processor.embed("").await {
                     Ok(embedding) => {
-                        println!("✅ Got fallback embedding for empty text: length {}", embedding.len());
+                        println!(
+                            "✅ Got fallback embedding for empty text: length {}",
+                            embedding.len()
+                        );
                         assert_eq!(embedding.len(), 1024, "Should use Qwen3 dimension fallback");
-                    },
+                    }
                     Err(e) => {
                         println!("⚠️ Even fallback failed: {}", e);
                     }
                 }
-                
+
                 // Test very long text
                 let long_text = "word ".repeat(2000);
                 match processor.embed(&long_text).await {
                     Ok(embedding) => {
                         println!("✅ Got embedding for long text: length {}", embedding.len());
                         assert!(!embedding.is_empty(), "Should handle long text gracefully");
-                    },
+                    }
                     Err(e) => {
                         println!("⚠️ Long text failed: {}", e);
                     }
                 }
-            },
+            }
             Err(e) => {
                 println!("Expected error in test environment: {}", e);
             }
@@ -941,7 +1021,7 @@ impl BatchProcessorStats {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     pub fn success_rate(&self) -> f32 {
         if self.total_batches == 0 {
             0.0
@@ -949,7 +1029,7 @@ impl BatchProcessorStats {
             self.successful_batches as f32 / self.total_batches as f32
         }
     }
-    
+
     pub fn gpu_usage_rate(&self) -> f32 {
         if self.total_batches == 0 {
             0.0

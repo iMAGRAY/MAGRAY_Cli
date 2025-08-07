@@ -5,24 +5,22 @@
 //! - управление жизненным циклом координаторов
 //! - предоставление доступа к координаторам через trait интерфейс
 
-use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
+use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 use crate::{
-    di_container::DIContainer,
+    cache_interface::EmbeddingCacheInterface,
+    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
+    gpu_accelerated::GpuBatchProcessor,
+    health::HealthMonitor,
     orchestration::{
-        EmbeddingCoordinator as EmbeddingCoordinatorImpl,
+        EmbeddingCoordinator as EmbeddingCoordinatorImpl, HealthManager, ResourceController,
         SearchCoordinator as SearchCoordinatorImpl,
-        HealthManager,
-        ResourceController,
     },
     services::traits::CoordinatorServiceTrait,
     storage::VectorStore,
-    gpu_accelerated::GpuBatchProcessor,
-    health::HealthMonitor,
-    cache_interface::EmbeddingCacheInterface,
 };
 
 /// Структура для хранения всех координаторов
@@ -57,7 +55,7 @@ impl CoordinatorService {
     /// Создать новый CoordinatorService
     pub fn new() -> Self {
         info!("🎯 Создание CoordinatorService для управления координаторами");
-        
+
         Self {
             coordinators: Arc::new(tokio::sync::RwLock::new(CoordinatorRefs::default())),
         }
@@ -65,69 +63,79 @@ impl CoordinatorService {
 
     /// Создать embedding coordinator
     #[allow(dead_code)]
-    async fn create_embedding_coordinator(&self, container: &DIContainer) -> Result<Arc<EmbeddingCoordinatorImpl>> {
+    async fn create_embedding_coordinator(
+        &self,
+        container: &UnifiedDIContainer,
+    ) -> Result<Arc<EmbeddingCoordinatorImpl>> {
         debug!("🎯 Создание EmbeddingCoordinator...");
-        
+
         let gpu_processor = container.resolve::<GpuBatchProcessor>()?;
-        
+
         // Создаем временный cache для демонстрации
         let cache_path = std::env::temp_dir().join("embedding_cache");
         let cache = Arc::new(crate::cache_lru::EmbeddingCacheLRU::new(
             cache_path,
-            crate::cache_lru::CacheConfig::default()
+            crate::cache_lru::CacheConfig::default(),
         )?) as Arc<dyn EmbeddingCacheInterface>;
-        
+
         let coordinator = Arc::new(EmbeddingCoordinatorImpl::new(gpu_processor, cache));
         debug!("✅ EmbeddingCoordinator создан");
-        
+
         Ok(coordinator)
     }
 
     /// Создать search coordinator  
     #[allow(dead_code)]
     async fn create_search_coordinator(
-        &self, 
-        container: &DIContainer, 
-        embedding_coordinator: &Arc<EmbeddingCoordinatorImpl>
+        &self,
+        container: &UnifiedDIContainer,
+        embedding_coordinator: &Arc<EmbeddingCoordinatorImpl>,
     ) -> Result<Arc<SearchCoordinatorImpl>> {
         debug!("🎯 Создание SearchCoordinator...");
-        
+
         let store = container.resolve::<VectorStore>()?;
-        
+
         let coordinator = Arc::new(SearchCoordinatorImpl::new_production(
             store,
             embedding_coordinator.clone(),
-            64,  // max concurrent searches
-            2000 // cache size
+            64,   // max concurrent searches
+            2000, // cache size
         ));
         debug!("✅ SearchCoordinator создан");
-        
+
         Ok(coordinator)
     }
 
     /// Создать health manager
     #[allow(dead_code)]
-    async fn create_health_manager(&self, container: &DIContainer) -> Result<Arc<HealthManager>> {
+    async fn create_health_manager(
+        &self,
+        container: &UnifiedDIContainer,
+    ) -> Result<Arc<HealthManager>> {
         debug!("🎯 Создание HealthManager...");
-        
+
         let health_monitor = container.resolve::<HealthMonitor>()?;
-        
+
         let manager = Arc::new(HealthManager::new(health_monitor));
         debug!("✅ HealthManager создан");
-        
+
         Ok(manager)
     }
 
     /// Создать resource controller
     #[allow(dead_code)]
-    async fn create_resource_controller(&self, container: &DIContainer) -> Result<Arc<ResourceController>> {
+    async fn create_resource_controller(
+        &self,
+        container: &UnifiedDIContainer,
+    ) -> Result<Arc<ResourceController>> {
         debug!("🎯 Создание ResourceController...");
-        
-        let resource_manager = container.resolve::<parking_lot::RwLock<crate::resource_manager::ResourceManager>>()?;
-        
+
+        let resource_manager =
+            container.resolve::<parking_lot::RwLock<crate::resource_manager::ResourceManager>>()?;
+
         let controller = Arc::new(ResourceController::new_production(resource_manager));
         debug!("✅ ResourceController создан");
-        
+
         Ok(controller)
     }
 }
@@ -136,7 +144,7 @@ impl CoordinatorService {
 impl CoordinatorServiceTrait for CoordinatorService {
     /// Создать все координаторы
     #[allow(dead_code)]
-    async fn create_coordinators(&self, container: &DIContainer) -> Result<()> {
+    async fn create_coordinators(&self, container: &UnifiedDIContainer) -> Result<()> {
         info!("🎯 Создание всех координаторов...");
 
         let mut coordinators = self.coordinators.write().await;
@@ -144,15 +152,17 @@ impl CoordinatorServiceTrait for CoordinatorService {
         // Создаём embedding coordinator
         let embedding_coordinator = self.create_embedding_coordinator(container).await?;
         coordinators.embedding_coordinator = Some(embedding_coordinator.clone());
-        
+
         // Создаём search coordinator (зависит от embedding coordinator)
-        let search_coordinator = self.create_search_coordinator(container, &embedding_coordinator).await?;
+        let search_coordinator = self
+            .create_search_coordinator(container, &embedding_coordinator)
+            .await?;
         coordinators.search_coordinator = Some(search_coordinator);
-        
+
         // Создаём health manager
         let health_manager = self.create_health_manager(container).await?;
         coordinators.health_manager = Some(health_manager);
-        
+
         // Создаём resource controller
         let resource_controller = self.create_resource_controller(container).await?;
         coordinators.resource_controller = Some(resource_controller);
@@ -314,10 +324,18 @@ impl CoordinatorServiceTrait for CoordinatorService {
     fn count_active_coordinators(&self) -> usize {
         if let Ok(coordinators) = self.coordinators.try_read() {
             let mut count = 0;
-            if coordinators.embedding_coordinator.is_some() { count += 1; }
-            if coordinators.search_coordinator.is_some() { count += 1; }
-            if coordinators.health_manager.is_some() { count += 1; }
-            if coordinators.resource_controller.is_some() { count += 1; }
+            if coordinators.embedding_coordinator.is_some() {
+                count += 1;
+            }
+            if coordinators.search_coordinator.is_some() {
+                count += 1;
+            }
+            if coordinators.health_manager.is_some() {
+                count += 1;
+            }
+            if coordinators.resource_controller.is_some() {
+                count += 1;
+            }
             count
         } else {
             0

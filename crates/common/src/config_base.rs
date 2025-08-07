@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 /// Базовая конфигурация для batch операций
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -268,7 +267,7 @@ macro_rules! create_config {
             pub timeout: crate::TimeoutConfigBase,
             $(pub $field: $field_type,)*
         }
-        
+
         impl Default for $name {
             fn default() -> Self {
                 Self {
@@ -279,22 +278,22 @@ macro_rules! create_config {
                 }
             }
         }
-        
+
         impl crate::ConfigComposition for $name {
             fn batch(&self) -> &crate::BatchConfigBase {
                 &self.batch
             }
-            
+
             fn cache(&self) -> &crate::CacheConfigBase {
                 &self.cache
             }
-            
+
             fn timeout(&self) -> &crate::TimeoutConfigBase {
                 &self.timeout
             }
         }
     };
-    
+
     // Вариант без дополнительных полей
     (
         $name:ident {
@@ -309,7 +308,7 @@ macro_rules! create_config {
             pub cache: crate::CacheConfigBase,
             pub timeout: crate::TimeoutConfigBase,
         }
-        
+
         impl Default for $name {
             fn default() -> Self {
                 Self {
@@ -319,16 +318,16 @@ macro_rules! create_config {
                 }
             }
         }
-        
+
         impl crate::ConfigComposition for $name {
             fn batch(&self) -> &crate::BatchConfigBase {
                 &self.batch
             }
-            
+
             fn cache(&self) -> &crate::CacheConfigBase {
                 &self.cache
             }
-            
+
             fn timeout(&self) -> &crate::TimeoutConfigBase {
                 &self.timeout
             }

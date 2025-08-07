@@ -6,21 +6,21 @@
 //! - system resource tracking
 //! - readiness checks
 
-use std::sync::Arc;
-use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 use crate::{
+    batch_manager::BatchStats,
+    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
     health::{HealthMonitor, SystemHealthStatus},
+    promotion::PromotionStats,
+    service_di::MemorySystemStats,
     services::traits::{MonitoringServiceTrait, ProductionMetrics},
     services::CoordinatorServiceTrait,
-    promotion::PromotionStats,
-    batch_manager::BatchStats,
-    di_container::DIContainer,
-    service_di::MemorySystemStats,
 };
 
 /// Реализация системного мониторинга
@@ -28,7 +28,7 @@ use crate::{
 #[allow(dead_code)]
 pub struct MonitoringService {
     /// DI контейнер для доступа к компонентам
-    container: Arc<DIContainer>,
+    container: Arc<UnifiedDIContainer>,
     /// Кэшированные production метрики
     production_metrics: Arc<RwLock<ProductionMetrics>>,
     /// Счетчик запущенных мониторингов
@@ -39,9 +39,9 @@ pub struct MonitoringService {
 
 impl MonitoringService {
     /// Создать новый MonitoringService
-    pub fn new(container: Arc<DIContainer>) -> Self {
+    pub fn new(container: Arc<UnifiedDIContainer>) -> Self {
         info!("📊 Создание MonitoringService для системного мониторинга");
-        
+
         Self {
             container,
             production_metrics: Arc::new(RwLock::new(ProductionMetrics::default())),
@@ -53,11 +53,11 @@ impl MonitoringService {
     /// Создать с coordinator service для более полной функциональности
     #[allow(dead_code)]
     pub fn new_with_coordinator(
-        container: Arc<DIContainer>, 
-        coordinator_service: Arc<dyn CoordinatorServiceTrait>
+        container: Arc<UnifiedDIContainer>,
+        coordinator_service: Arc<dyn CoordinatorServiceTrait>,
     ) -> Self {
         info!("📊 Создание MonitoringService с CoordinatorService");
-        
+
         Self {
             container,
             production_metrics: Arc::new(RwLock::new(ProductionMetrics::default())),
@@ -71,7 +71,6 @@ impl MonitoringService {
     fn get_health_monitor(&self) -> Option<Arc<HealthMonitor>> {
         self.container.try_resolve::<HealthMonitor>()
     }
-
 }
 
 #[async_trait]
@@ -80,39 +79,44 @@ impl MonitoringServiceTrait for MonitoringService {
     #[allow(dead_code)]
     async fn start_production_monitoring(&self) -> Result<()> {
         info!("📊 Запуск production мониторинга...");
-        
+
         let production_metrics = self.production_metrics.clone();
         let counter = self.monitoring_tasks_count.clone();
-        
+
         tokio::spawn(async move {
             counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            
+
             let mut interval = tokio::time::interval(Duration::from_secs(60));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let metrics = production_metrics.read().await;
-                
+
                 if metrics.total_operations > 0 {
-                    let success_rate = (metrics.successful_operations as f64 / metrics.total_operations as f64) * 100.0;
-                    
-                    debug!("📊 Production метрики: операций={}, успех={}%, avg_response={}ms", 
-                           metrics.total_operations,
-                           success_rate,
-                           metrics.avg_response_time_ms);
-                    
+                    let success_rate = (metrics.successful_operations as f64
+                        / metrics.total_operations as f64)
+                        * 100.0;
+
+                    debug!(
+                        "📊 Production метрики: операций={}, успех={}%, avg_response={}ms",
+                        metrics.total_operations, success_rate, metrics.avg_response_time_ms
+                    );
+
                     if success_rate < 95.0 {
                         warn!("📉 Низкий success rate: {:.1}%", success_rate);
                     }
-                    
+
                     if metrics.avg_response_time_ms > 100.0 {
-                        warn!("⏱️ Высокое время отклика: {:.1}ms", metrics.avg_response_time_ms);
+                        warn!(
+                            "⏱️ Высокое время отклика: {:.1}ms",
+                            metrics.avg_response_time_ms
+                        );
                     }
                 }
             }
         });
-        
+
         debug!("📊 Production мониторинг запущен");
         Ok(())
     }
@@ -123,25 +127,25 @@ impl MonitoringServiceTrait for MonitoringService {
         if let Some(coordinator_service) = &self.coordinator_service {
             if let Some(health_manager) = coordinator_service.get_health_manager() {
                 info!("🚑 Запуск health мониторинга через HealthManager...");
-                
+
                 let _manager = health_manager.clone();
                 let counter = self.monitoring_tasks_count.clone();
-                
+
                 tokio::spawn(async move {
                     counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    
+
                     let mut interval = tokio::time::interval(Duration::from_secs(30));
-                    
+
                     loop {
                         interval.tick().await;
-                        
+
                         // NOTE: run_health_check заглушка
                         if let Err(e) = async { Ok(()) as Result<()> }.await {
                             error!("❌ Health check не удался: {}", e);
                         }
                     }
                 });
-                
+
                 debug!("🚑 Health мониторинг запущен");
             } else {
                 warn!("⚠️ HealthManager недоступен для health мониторинга");
@@ -150,29 +154,29 @@ impl MonitoringServiceTrait for MonitoringService {
             // Fallback на прямой health monitor если нет coordinator service
             if let Some(health_monitor) = self.get_health_monitor() {
                 info!("🚑 Запуск fallback health мониторинга...");
-                
+
                 let monitor = health_monitor.clone();
                 let counter = self.monitoring_tasks_count.clone();
-                
+
                 tokio::spawn(async move {
                     counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    
+
                     let mut interval = tokio::time::interval(Duration::from_secs(60));
-                    
+
                     loop {
                         interval.tick().await;
-                        
+
                         let health = monitor.get_system_health();
                         debug!("🚑 System health: {:?}", health);
                     }
                 });
-                
+
                 debug!("🚑 Fallback health мониторинг запущен");
             } else {
                 warn!("⚠️ Ни HealthManager, ни HealthMonitor недоступны");
             }
         }
-        
+
         Ok(())
     }
 
@@ -182,10 +186,10 @@ impl MonitoringServiceTrait for MonitoringService {
         if let Some(coordinator_service) = &self.coordinator_service {
             if let Some(resource_controller) = coordinator_service.get_resource_controller() {
                 info!("💾 Запуск resource мониторинга и auto-scaling...");
-                
+
                 // Запускаем auto-scaling monitoring
                 resource_controller.start_autoscaling_monitoring().await?;
-                
+
                 debug!("💾 Resource мониторинг запущен");
             } else {
                 warn!("⚠️ ResourceController недоступен для resource мониторинга");
@@ -193,7 +197,7 @@ impl MonitoringServiceTrait for MonitoringService {
         } else {
             warn!("⚠️ CoordinatorService недоступен для resource мониторинга");
         }
-        
+
         Ok(())
     }
 
@@ -235,7 +239,9 @@ impl MonitoringServiceTrait for MonitoringService {
         // Базовые проверки DI контейнера
         let di_stats = self.container.stats();
         if di_stats.registered_factories == 0 {
-            return Err(anyhow::anyhow!("DI контейнер пуст - нет зарегистрированных типов"));
+            return Err(anyhow::anyhow!(
+                "DI контейнер пуст - нет зарегистрированных типов"
+            ));
         }
 
         info!("✅ Все проверки готовности пройдены");
@@ -306,7 +312,9 @@ impl MonitoringServiceTrait for MonitoringService {
             0
         };
         let di_stats = self.container.stats();
-        let monitoring_tasks = self.monitoring_tasks_count.load(std::sync::atomic::Ordering::Relaxed);
+        let monitoring_tasks = self
+            .monitoring_tasks_count
+            .load(std::sync::atomic::Ordering::Relaxed);
 
         info!("🎉 === MONITORING INITIALIZATION SUMMARY ===");
         info!("📊 Активных координаторов: {}", coordinator_count);
@@ -328,6 +336,7 @@ impl MonitoringService {
     /// Получить количество запущенных мониторинговых задач
     #[allow(dead_code)]
     pub fn get_monitoring_tasks_count(&self) -> u32 {
-        self.monitoring_tasks_count.load(std::sync::atomic::Ordering::Relaxed)
+        self.monitoring_tasks_count
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 }

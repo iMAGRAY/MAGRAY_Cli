@@ -1,15 +1,15 @@
-use memory::{Layer, Record, SearchOptions, PromotionConfig};
-use uuid::Uuid;
 use chrono::Utc;
+use memory::{Layer, PromotionConfig, Record, SearchOptions};
+use uuid::Uuid;
 
 #[test]
 fn test_layer_enum() {
     let layer = Layer::Interact;
     assert_eq!(layer.as_str(), "interact");
-    
+
     let layer = Layer::Insights;
     assert_eq!(layer.as_str(), "insights");
-    
+
     let layer = Layer::Assets;
     assert_eq!(layer.as_str(), "assets");
 }
@@ -26,7 +26,7 @@ fn test_layer_ordering() {
     // Проверяем что Layer implement Ord
     let mut layers = vec![Layer::Assets, Layer::Interact, Layer::Insights];
     layers.sort();
-    
+
     // После сортировки должны быть в порядке: Interact, Insights, Assets
     assert_eq!(layers[0], Layer::Interact);
     assert_eq!(layers[1], Layer::Insights);
@@ -36,7 +36,7 @@ fn test_layer_ordering() {
 #[test]
 fn test_record_default() {
     let record = Record::default();
-    
+
     assert_eq!(record.layer, Layer::Interact);
     assert_eq!(record.kind, "general");
     assert_eq!(record.access_count, 0);
@@ -52,7 +52,7 @@ fn test_record_default() {
 fn test_record_creation() {
     let now = Utc::now();
     let id = Uuid::new_v4();
-    
+
     let record = Record {
         id,
         text: "Test content".to_string(),
@@ -67,7 +67,7 @@ fn test_record_creation() {
         access_count: 5,
         last_access: now,
     };
-    
+
     assert_eq!(record.id, id);
     assert_eq!(record.text, "Test content");
     assert_eq!(record.embedding, vec![1.0, 2.0, 3.0]);
@@ -96,12 +96,12 @@ fn test_record_serialization() {
         access_count: 10,
         last_access: Utc::now(),
     };
-    
+
     // Сериализация в JSON
     let json = serde_json::to_string(&record).unwrap();
     assert!(json.contains("Serialization test"));
     assert!(json.contains("document"));
-    
+
     // Десериализация обратно
     let deserialized: Record = serde_json::from_str(&json).unwrap();
     assert_eq!(deserialized.id, record.id);
@@ -113,7 +113,7 @@ fn test_record_serialization() {
 #[test]
 fn test_search_options_default() {
     let options = SearchOptions::default();
-    
+
     assert_eq!(options.layers, vec![Layer::Interact, Layer::Insights]);
     assert_eq!(options.top_k, 10);
     assert_eq!(options.score_threshold, 0.0);
@@ -130,7 +130,7 @@ fn test_search_options_custom() {
         tags: vec!["rust".to_string(), "memory".to_string()],
         project: Some("magray".to_string()),
     };
-    
+
     assert_eq!(options.layers, vec![Layer::Assets]);
     assert_eq!(options.top_k, 20);
     assert_eq!(options.score_threshold, 0.7);
@@ -141,7 +141,7 @@ fn test_search_options_custom() {
 #[test]
 fn test_promotion_config_default() {
     let config = PromotionConfig::default();
-    
+
     assert_eq!(config.interact_ttl_hours, 24);
     assert_eq!(config.insights_ttl_days, 90);
     assert_eq!(config.promote_threshold, 0.8);
@@ -156,7 +156,7 @@ fn test_promotion_config_custom() {
         promote_threshold: 0.6,
         decay_factor: 0.95,
     };
-    
+
     assert_eq!(config.interact_ttl_hours, 48);
     assert_eq!(config.insights_ttl_days, 180);
     assert_eq!(config.promote_threshold, 0.6);
@@ -179,9 +179,9 @@ fn test_record_clone() {
         access_count: 15,
         last_access: Utc::now(),
     };
-    
+
     let cloned = original.clone();
-    
+
     assert_eq!(cloned.id, original.id);
     assert_eq!(cloned.text, original.text);
     assert_eq!(cloned.embedding, original.embedding);
@@ -203,11 +203,11 @@ fn test_search_options_serialization() {
         tags: vec!["ai".to_string(), "llm".to_string()],
         project: Some("magray_cli".to_string()),
     };
-    
+
     // Сериализация и десериализация
     let json = serde_json::to_string(&options).unwrap();
     let deserialized: SearchOptions = serde_json::from_str(&json).unwrap();
-    
+
     assert_eq!(deserialized.layers, options.layers);
     assert_eq!(deserialized.top_k, options.top_k);
     assert_eq!(deserialized.score_threshold, options.score_threshold);
@@ -220,7 +220,7 @@ fn test_layer_equality() {
     assert_eq!(Layer::Interact, Layer::Interact);
     assert_ne!(Layer::Interact, Layer::Insights);
     assert_ne!(Layer::Insights, Layer::Assets);
-    
+
     // Test Copy trait
     let layer1 = Layer::Assets;
     let layer2 = layer1; // Copy
@@ -230,12 +230,12 @@ fn test_layer_equality() {
 #[test]
 fn test_layer_hash() {
     use std::collections::HashSet;
-    
+
     let mut set = HashSet::new();
     set.insert(Layer::Interact);
     set.insert(Layer::Insights);
     set.insert(Layer::Assets);
-    
+
     assert_eq!(set.len(), 3);
     assert!(set.contains(&Layer::Interact));
     assert!(set.contains(&Layer::Insights));

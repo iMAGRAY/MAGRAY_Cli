@@ -1,5 +1,5 @@
 /// Общие макросы для устранения дублирования кода в MAGRAY CLI
-/// 
+///
 /// Этот модуль содержит derive macros и helper macros для автоматической
 /// генерации повторяющихся impl блоков для Config структур и Service patterns
 
@@ -17,7 +17,7 @@ macro_rules! impl_config_default {
             }
         }
     };
-    
+
     // Версия для Config с batch_size и timeout паттернами
     ($type:ty, batch: $batch:expr, timeout: $timeout:expr) => {
         impl Default for $type {
@@ -31,7 +31,7 @@ macro_rules! impl_config_default {
             }
         }
     };
-    
+
     // Версия для GPU Config паттернов
     ($type:ty, gpu_config) => {
         impl Default for $type {
@@ -46,7 +46,7 @@ macro_rules! impl_config_default {
             }
         }
     };
-    
+
     // Версия для Memory Config паттернов
     ($type:ty, memory_config: {max_size: $max_size:expr, max_entries: $max_entries:expr}) => {
         impl Default for $type {
@@ -84,7 +84,7 @@ macro_rules! impl_display {
             }
         }
     };
-    
+
     ($type:ty, $field:ident) => {
         impl std::fmt::Display for $type {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -102,11 +102,11 @@ macro_rules! impl_service_basic {
             fn name(&self) -> &'static str {
                 stringify!($type)
             }
-            
+
             fn is_healthy(&self) -> bool {
                 true // Default health check
             }
-            
+
             fn version(&self) -> &'static str {
                 env!("CARGO_PKG_VERSION")
             }
@@ -130,17 +130,17 @@ macro_rules! impl_circuit_breaker {
                 }
             }
         }
-        
+
         impl $type {
             pub fn new() -> Self {
                 Self::default()
             }
-            
+
             pub fn with_threshold(mut self, threshold: usize) -> Self {
                 self.failure_threshold = threshold;
                 self
             }
-            
+
             pub fn with_timeout(mut self, timeout: std::time::Duration) -> Self {
                 self.timeout = timeout;
                 self
@@ -164,17 +164,17 @@ macro_rules! impl_retry_policy {
                 }
             }
         }
-        
+
         impl $type {
             pub fn new() -> Self {
                 Self::default()
             }
-            
+
             pub fn with_max_retries(mut self, max_retries: usize) -> Self {
                 self.max_retries = max_retries;
                 self
             }
-            
+
             pub fn with_base_delay(mut self, delay: std::time::Duration) -> Self {
                 self.base_delay = delay;
                 self
@@ -191,14 +191,14 @@ macro_rules! impl_builder {
             pub fn new() -> Self {
                 Self::default()
             }
-            
+
             $(
                 pub fn $field(mut self, $field: $field_type) -> Self {
                     self.$field = Some($field);
                     self
                 }
             )*
-            
+
             pub fn build(self) -> Result<$type, crate::errors::MagrayError> {
                 Ok(<$type>::new())
             }
@@ -213,7 +213,7 @@ macro_rules! impl_arc_clone {
         impl Clone for $type {
             fn clone(&self) -> Self {
                 Self {
-                    inner: Arc::clone(&self.inner)
+                    inner: Arc::clone(&self.inner),
                 }
             }
         }
@@ -227,12 +227,12 @@ macro_rules! impl_debug_redacted {
         impl std::fmt::Debug for $type {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let mut debug_struct = f.debug_struct(stringify!($type));
-                
+
                 // Все поля кроме redacted
                 $(
                     debug_struct.field(stringify!($redacted_field), &"[REDACTED]");
                 )*
-                
+
                 debug_struct.finish()
             }
         }
@@ -243,16 +243,16 @@ macro_rules! impl_debug_redacted {
 mod tests {
     use super::*;
     use std::time::Duration;
-    
+
     struct TestConfig {
         batch_size: usize,
         timeout: Duration,
         max_queue_size: usize,
         worker_threads: usize,
     }
-    
+
     impl_config_default!(TestConfig, batch: 100, timeout: 30);
-    
+
     #[test]
     fn test_config_default_macro() {
         let config = TestConfig::default();

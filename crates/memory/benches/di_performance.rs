@@ -1,15 +1,14 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use memory::{
-    di::{DIContainer, DIContainerBuilder, UnifiedMemoryConfigurator, MemoryServiceConfig, Lifetime},
-};
 use ai::AiConfig;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use memory::di::{
+    DIContainer, DIContainerBuilder, Lifetime, MemoryServiceConfig, UnifiedMemoryConfigurator,
+};
 use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
 /// Performance benchmarks для DI container system
 /// Измеряет: registration, resolution, factory execution, caching performance
-
 
 /// Simple service для тестирования
 struct LightweightService {
@@ -37,8 +36,12 @@ impl HeavyService {
     fn new(id: u64) -> Self {
         // Имитируем тяжелые вычисления
         let computed_data: Vec<u64> = (0..1000).map(|i| (i * id) % 1000).collect();
-        let expensive_result = format!("heavy-computation-{}-{}", id, computed_data.iter().sum::<u64>());
-        
+        let expensive_result = format!(
+            "heavy-computation-{}-{}",
+            id,
+            computed_data.iter().sum::<u64>()
+        );
+
         Self {
             id,
             computed_data,
@@ -85,7 +88,7 @@ fn create_test_config() -> MemoryServiceConfig {
 /// Benchmark: Регистрация множественных сервисов
 fn bench_service_registration(c: &mut Criterion) {
     let mut group = c.benchmark_group("di_registration");
-    
+
     for service_count in [10, 50, 100, 500].iter() {
         group.bench_with_input(
             BenchmarkId::new("lightweight_services", service_count),
@@ -93,21 +96,23 @@ fn bench_service_registration(c: &mut Criterion) {
             |b, &count| {
                 b.iter(|| {
                     let container = DIContainer::new();
-                    
+
                     for i in 0..count {
                         let i_copy = i;
-                        container.register(
-                            move |_| Ok(LightweightService::new(i_copy)),
-                            Lifetime::Singleton
-                        ).unwrap();
+                        container
+                            .register(
+                                move |_| Ok(LightweightService::new(i_copy)),
+                                Lifetime::Singleton,
+                            )
+                            .unwrap();
                     }
-                    
+
                     black_box(container)
                 });
             },
         );
     }
-    
+
     for service_count in [10, 50, 100].iter() {
         group.bench_with_input(
             BenchmarkId::new("heavy_services", service_count),
@@ -115,49 +120,52 @@ fn bench_service_registration(c: &mut Criterion) {
             |b, &count| {
                 b.iter(|| {
                     let container = DIContainer::new();
-                    
+
                     for i in 0..count {
                         let i_copy = i;
-                        container.register(
-                            move |_| Ok(HeavyService::new(i_copy)),
-                            Lifetime::Singleton
-                        ).unwrap();
+                        container
+                            .register(move |_| Ok(HeavyService::new(i_copy)), Lifetime::Singleton)
+                            .unwrap();
                     }
-                    
+
                     black_box(container)
                 });
             },
         );
     }
-    
+
     group.finish();
 }
 
 /// Benchmark: Разрешение зависимостей (resolution)
 fn bench_service_resolution(c: &mut Criterion) {
     let mut group = c.benchmark_group("di_resolution");
-    
+
     // Подготавливаем контейнер с сервисами
     let container = DIContainer::new();
-    
+
     // Регистрируем lightweight services
     for i in 0..100 {
         let i_copy = i;
-        container.register(
-            move |_| Ok(LightweightService::new(i_copy)),
-            Lifetime::Singleton
-        ).unwrap();
+        container
+            .register(
+                move |_| Ok(LightweightService::new(i_copy)),
+                Lifetime::Singleton,
+            )
+            .unwrap();
     }
-    
+
     // Регистрируем heavy services
     for i in 0..50 {
         let i_copy = i;
-        container.register(
-            move |_| Ok(HeavyService::new(i_copy + 1000)),
-            Lifetime::Transient // Transient чтобы тестировать factory execution
-        ).unwrap();
+        container
+            .register(
+                move |_| Ok(HeavyService::new(i_copy + 1000)),
+                Lifetime::Transient, // Transient чтобы тестировать factory execution
+            )
+            .unwrap();
     }
-    
+
     // Benchmark singleton resolution (должен быть очень быстрый)
     group.bench_function("singleton_resolution", |b| {
         b.iter(|| {
@@ -167,7 +175,7 @@ fn bench_service_resolution(c: &mut Criterion) {
             }
         });
     });
-    
+
     // Benchmark transient resolution (включает factory execution)
     group.bench_function("transient_resolution", |b| {
         b.iter(|| {
@@ -175,49 +183,49 @@ fn bench_service_resolution(c: &mut Criterion) {
             black_box(service);
         });
     });
-    
+
     group.finish();
 }
 
 /// Benchmark: Dependency injection chains
 fn bench_dependency_chains(c: &mut Criterion) {
     let mut group = c.benchmark_group("di_dependency_chains");
-    
+
     let container = DIContainer::new();
-    
+
     // Регистрируем базовые сервисы
-    container.register(
-        |_| Ok(LightweightService::new(1)),
-        Lifetime::Singleton
-    ).unwrap();
-    
-    container.register(
-        |_| Ok(HeavyService::new(2)),
-        Lifetime::Singleton
-    ).unwrap();
-    
+    container
+        .register(|_| Ok(LightweightService::new(1)), Lifetime::Singleton)
+        .unwrap();
+
+    container
+        .register(|_| Ok(HeavyService::new(2)), Lifetime::Singleton)
+        .unwrap();
+
     // Регистрируем зависимый сервис
-    container.register(
-        |container| {
-            let lightweight = container.resolve::<LightweightService>()?;
-            let heavy = container.resolve::<HeavyService>()?;
-            Ok(DependentService::new(lightweight, heavy))
-        },
-        Lifetime::Singleton
-    ).unwrap();
-    
+    container
+        .register(
+            |container| {
+                let lightweight = container.resolve::<LightweightService>()?;
+                let heavy = container.resolve::<HeavyService>()?;
+                Ok(DependentService::new(lightweight, heavy))
+            },
+            Lifetime::Singleton,
+        )
+        .unwrap();
+
     group.bench_function("dependency_chain_resolution", |b| {
         b.iter(|| {
             let service: Arc<DependentService> = container.resolve().unwrap();
             black_box(service);
         });
     });
-    
+
     // Benchmark повторного разрешения (должен использовать кэш)
     group.bench_function("cached_dependency_resolution", |b| {
         // Первый resolve для создания кэша
         let _: Arc<DependentService> = container.resolve().unwrap();
-        
+
         b.iter(|| {
             for _ in 0..10 {
                 let service: Arc<DependentService> = container.resolve().unwrap();
@@ -225,7 +233,7 @@ fn bench_dependency_chains(c: &mut Criterion) {
             }
         });
     });
-    
+
     group.finish();
 }
 
@@ -233,23 +241,27 @@ fn bench_dependency_chains(c: &mut Criterion) {
 fn bench_memory_di_configuration(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let mut group = c.benchmark_group("memory_di_config");
-    
+
     group.bench_function("minimal_configuration", |b| {
         b.to_async(&rt).iter(|| async {
             let config = create_test_config();
-            let container = MemoryDIConfigurator::configure_minimal(config).await.unwrap();
+            let container = MemoryDIConfigurator::configure_minimal(config)
+                .await
+                .unwrap();
             black_box(container)
         });
     });
-    
+
     group.bench_function("cpu_only_configuration", |b| {
         b.to_async(&rt).iter(|| async {
             let config = create_test_config();
-            let container = MemoryDIConfigurator::configure_cpu_only(config).await.unwrap();
+            let container = MemoryDIConfigurator::configure_cpu_only(config)
+                .await
+                .unwrap();
             black_box(container)
         });
     });
-    
+
     group.bench_function("full_configuration", |b| {
         b.to_async(&rt).iter(|| async {
             let config = create_test_config();
@@ -257,32 +269,34 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
             black_box(container)
         });
     });
-    
+
     group.finish();
 }
 
 /// Benchmark: Container overhead и statistics
 fn bench_container_overhead(c: &mut Criterion) {
     let mut group = c.benchmark_group("di_overhead");
-    
+
     let container = DIContainer::new();
-    
+
     // Регистрируем много сервисов для realistic overhead
     for i in 0..1000 {
         let i_copy = i;
-        container.register(
-            move |_| Ok(LightweightService::new(i_copy)),
-            Lifetime::Singleton
-        ).unwrap();
+        container
+            .register(
+                move |_| Ok(LightweightService::new(i_copy)),
+                Lifetime::Singleton,
+            )
+            .unwrap();
     }
-    
+
     group.bench_function("stats_calculation", |b| {
         b.iter(|| {
             let stats = container.stats();
             black_box(stats);
         });
     });
-    
+
     group.bench_function("type_registration_check", |b| {
         b.iter(|| {
             for i in 0..100 {
@@ -291,89 +305,95 @@ fn bench_container_overhead(c: &mut Criterion) {
             }
         });
     });
-    
+
     group.bench_function("registered_types_listing", |b| {
         b.iter(|| {
             let types = container.registered_types();
             black_box(types);
         });
     });
-    
+
     group.finish();
 }
 
 /// Benchmark: Concurrent access
 fn bench_concurrent_access(c: &mut Criterion) {
     let mut group = c.benchmark_group("di_concurrent");
-    
+
     let container = Arc::new(DIContainer::new());
-    
+
     // Регистрируем сервисы
-    container.register(
-        |_| Ok(LightweightService::new(42)),
-        Lifetime::Singleton
-    ).unwrap();
-    
-    container.register(
-        |_| Ok(HeavyService::new(84)),
-        Lifetime::Transient
-    ).unwrap();
-    
+    container
+        .register(|_| Ok(LightweightService::new(42)), Lifetime::Singleton)
+        .unwrap();
+
+    container
+        .register(|_| Ok(HeavyService::new(84)), Lifetime::Transient)
+        .unwrap();
+
     group.bench_function("concurrent_singleton_resolution", |b| {
         b.iter(|| {
-            let handles: Vec<_> = (0..10).map(|_| {
-                let container_clone = Arc::clone(&container);
-                std::thread::spawn(move || {
-                    let service: Arc<LightweightService> = container_clone.resolve().unwrap();
-                    black_box(service);
+            let handles: Vec<_> = (0..10)
+                .map(|_| {
+                    let container_clone = Arc::clone(&container);
+                    std::thread::spawn(move || {
+                        let service: Arc<LightweightService> = container_clone.resolve().unwrap();
+                        black_box(service);
+                    })
                 })
-            }).collect();
-            
+                .collect();
+
             for handle in handles {
                 handle.join().unwrap();
             }
         });
     });
-    
+
     group.bench_function("concurrent_transient_resolution", |b| {
         b.iter(|| {
-            let handles: Vec<_> = (0..5).map(|_| {
-                let container_clone = Arc::clone(&container);
-                std::thread::spawn(move || {
-                    let service: Arc<HeavyService> = container_clone.resolve().unwrap();
-                    black_box(service);
+            let handles: Vec<_> = (0..5)
+                .map(|_| {
+                    let container_clone = Arc::clone(&container);
+                    std::thread::spawn(move || {
+                        let service: Arc<HeavyService> = container_clone.resolve().unwrap();
+                        black_box(service);
+                    })
                 })
-            }).collect();
-            
+                .collect();
+
             for handle in handles {
                 handle.join().unwrap();
             }
         });
     });
-    
+
     group.finish();
 }
 
 /// Benchmark: Builder pattern performance
 fn bench_builder_pattern(c: &mut Criterion) {
     let mut group = c.benchmark_group("di_builder");
-    
+
     group.bench_function("builder_chain_creation", |b| {
         b.iter(|| {
             let container = DIContainerBuilder::new()
-                .register_singleton(|_| Ok(LightweightService::new(1))).unwrap()
-                .register_singleton(|_| Ok(HeavyService::new(2))).unwrap()
+                .register_singleton(|_| Ok(LightweightService::new(1)))
+                .unwrap()
+                .register_singleton(|_| Ok(HeavyService::new(2)))
+                .unwrap()
                 .register_transient(|container| {
                     let lightweight = container.resolve::<LightweightService>()?;
                     let heavy = container.resolve::<HeavyService>()?;
                     Ok(DependentService::new(lightweight, heavy))
-                }).unwrap()
-                .build().unwrap();
-            
+                })
+                .unwrap()
+                .build()
+                .unwrap();
+
             black_box(container);
         });
     });
-    
+
     group.finish();
 }
 

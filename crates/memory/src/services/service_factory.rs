@@ -7,19 +7,18 @@
 //! - MonitoringService
 //! - CacheService
 
-use std::sync::Arc;
 use anyhow::Result;
-use tracing::{info, debug};
+use std::sync::Arc;
+use tracing::{debug, info};
 
 use crate::{
-    di_container::DIContainer,
+    di::unified_container::UnifiedDIContainer,
     services::{
-        CoreMemoryService, CoordinatorService, ResilienceService, 
-        MonitoringService, CacheService,
         traits::{
-            CoreMemoryServiceTrait, CoordinatorServiceTrait, ResilienceServiceTrait,
-            MonitoringServiceTrait, CacheServiceTrait,
+            CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait,
+            MonitoringServiceTrait, ResilienceServiceTrait,
         },
+        CacheService, CoordinatorService, CoreMemoryService, MonitoringService, ResilienceService,
     },
 };
 
@@ -27,7 +26,7 @@ use crate::{
 /// Обеспечивает правильное Dependency Injection между сервисами
 #[allow(dead_code)]
 pub struct ServiceFactory {
-    container: Arc<DIContainer>,
+    container: Arc<UnifiedDIContainer>,
 }
 
 /// Результат создания всех сервисов
@@ -36,7 +35,7 @@ pub struct ServiceCollection {
     pub core_memory: Arc<dyn CoreMemoryServiceTrait>,
     pub coordinator: Arc<dyn CoordinatorServiceTrait>,
     pub resilience: Arc<dyn ResilienceServiceTrait>,
-    pub monitoring: Arc<dyn MonitoringServiceTrait>, 
+    pub monitoring: Arc<dyn MonitoringServiceTrait>,
     pub cache: Arc<dyn CacheServiceTrait>,
 }
 
@@ -90,7 +89,7 @@ impl ServiceFactoryConfig {
 
 impl ServiceFactory {
     /// Создать новую фабрику сервисов
-    pub fn new(container: Arc<DIContainer>) -> Self {
+    pub fn new(container: Arc<UnifiedDIContainer>) -> Self {
         info!("🏭 Создание ServiceFactory для инициализации специализированных сервисов");
         Self { container }
     }
@@ -104,11 +103,19 @@ impl ServiceFactory {
 
     /// Создать все сервисы с кастомной конфигурацией
     #[allow(dead_code)]
-    pub async fn create_services_with_config(&self, config: ServiceFactoryConfig) -> Result<ServiceCollection> {
+    pub async fn create_services_with_config(
+        &self,
+        config: ServiceFactoryConfig,
+    ) -> Result<ServiceCollection> {
         info!("🏭 Создание всех специализированных сервисов...");
-        debug!("🔧 Конфигурация: max_ops={}, threshold={}, timeout={}s, dim={}, prod={}", 
-               config.max_concurrent_operations, config.circuit_breaker_threshold,
-               config.circuit_breaker_timeout_secs, config.embedding_dimension, config.production_mode);
+        debug!(
+            "🔧 Конфигурация: max_ops={}, threshold={}, timeout={}s, dim={}, prod={}",
+            config.max_concurrent_operations,
+            config.circuit_breaker_threshold,
+            config.circuit_breaker_timeout_secs,
+            config.embedding_dimension,
+            config.production_mode
+        );
 
         // 1. Создаём базовые сервисы (без зависимостей)
         let resilience = self.create_resilience_service(&config)?;
@@ -136,14 +143,20 @@ impl ServiceFactory {
 
     /// Создать только core memory service (для минимальных конфигураций)
     #[allow(dead_code)]
-    pub fn create_core_memory_only(&self, config: &ServiceFactoryConfig) -> Result<Arc<dyn CoreMemoryServiceTrait>> {
+    pub fn create_core_memory_only(
+        &self,
+        config: &ServiceFactoryConfig,
+    ) -> Result<Arc<dyn CoreMemoryServiceTrait>> {
         debug!("🗃️ Создание только CoreMemoryService...");
         self.create_core_memory_service(config)
     }
 
     /// Создать CoreMemoryService
     #[allow(dead_code)]
-    fn create_core_memory_service(&self, config: &ServiceFactoryConfig) -> Result<Arc<dyn CoreMemoryServiceTrait>> {
+    fn create_core_memory_service(
+        &self,
+        config: &ServiceFactoryConfig,
+    ) -> Result<Arc<dyn CoreMemoryServiceTrait>> {
         let service = if config.production_mode {
             CoreMemoryService::new_production(self.container.clone())
         } else {
@@ -164,13 +177,16 @@ impl ServiceFactory {
 
     /// Создать ResilienceService
     #[allow(dead_code)]
-    fn create_resilience_service(&self, config: &ServiceFactoryConfig) -> Result<Arc<dyn ResilienceServiceTrait>> {
+    fn create_resilience_service(
+        &self,
+        config: &ServiceFactoryConfig,
+    ) -> Result<Arc<dyn ResilienceServiceTrait>> {
         let service = if config.production_mode {
             ResilienceService::new_production()
         } else {
             ResilienceService::new_with_threshold(
                 config.circuit_breaker_threshold,
-                std::time::Duration::from_secs(config.circuit_breaker_timeout_secs)
+                std::time::Duration::from_secs(config.circuit_breaker_timeout_secs),
             )
         };
 
@@ -181,13 +197,10 @@ impl ServiceFactory {
     /// Создать MonitoringService
     #[allow(dead_code)]
     fn create_monitoring_service(
-        &self, 
-        coordinator: Arc<dyn CoordinatorServiceTrait>
+        &self,
+        coordinator: Arc<dyn CoordinatorServiceTrait>,
     ) -> Result<Arc<dyn MonitoringServiceTrait>> {
-        let service = MonitoringService::new_with_coordinator(
-            self.container.clone(),
-            coordinator
-        );
+        let service = MonitoringService::new_with_coordinator(self.container.clone(), coordinator);
 
         debug!("✅ MonitoringService создан");
         Ok(Arc::new(service))
@@ -196,15 +209,12 @@ impl ServiceFactory {
     /// Создать CacheService
     #[allow(dead_code)]
     fn create_cache_service(
-        &self, 
+        &self,
         coordinator: Arc<dyn CoordinatorServiceTrait>,
-        config: &ServiceFactoryConfig
+        config: &ServiceFactoryConfig,
     ) -> Result<Arc<dyn CacheServiceTrait>> {
-        let mut service = CacheService::new_with_coordinator(
-            self.container.clone(),
-            coordinator
-        );
-        
+        let mut service = CacheService::new_with_coordinator(self.container.clone(), coordinator);
+
         // Настраиваем embedding dimension
         service.set_embedding_dimension(config.embedding_dimension);
 

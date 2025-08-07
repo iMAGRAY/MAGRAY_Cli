@@ -1,12 +1,14 @@
-﻿use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+#[cfg(feature = "notifications")]
+use colored::Colorize;
+use common::service_traits::ConfigurationProfile;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
-use crate::health::{HealthAlert, AlertSeverity};
-
+use crate::health::{AlertSeverity, HealthAlert};
 
 /// Типы каналов уведомлений
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,25 +44,25 @@ pub enum NotificationChannel {
 pub struct NotificationConfig {
     /// Каналы уведомлений
     pub channels: Vec<NotificationChannel>,
-    
+
     /// Маршрутизация алертов по severity
     pub routing: HashMap<AlertSeverity, Vec<String>>,
-    
+
     /// Минимальный интервал между одинаковыми алертами (секунды)
     pub cooldown_seconds: u64,
-    
+
     /// Включить группировку похожих алертов
     pub enable_grouping: bool,
-    
+
     /// Максимальное количество алертов в группе
     pub max_group_size: usize,
-    
+
     /// Интервал отправки сгруппированных алертов (секунды)
     pub group_interval_seconds: u64,
-    
+
     /// Фильтры по компонентам (whitelist)
     pub component_filters: Option<Vec<String>>,
-    
+
     /// Игнорируемые паттерны в описании алертов
     pub ignore_patterns: Vec<String>,
 }
@@ -69,10 +71,20 @@ impl Default for NotificationConfig {
     fn default() -> Self {
         let mut routing = HashMap::new();
         routing.insert(AlertSeverity::Info, vec!["log".to_string()]);
-        routing.insert(AlertSeverity::Warning, vec!["log".to_string(), "console".to_string()]);
-        routing.insert(AlertSeverity::Critical, vec!["log".to_string(), "console".to_string(), "email".to_string()]);
+        routing.insert(
+            AlertSeverity::Warning,
+            vec!["log".to_string(), "console".to_string()],
+        );
+        routing.insert(
+            AlertSeverity::Critical,
+            vec![
+                "log".to_string(),
+                "console".to_string(),
+                "email".to_string(),
+            ],
+        );
         routing.insert(AlertSeverity::Fatal, vec!["*".to_string()]); // All channels
-        
+
         Self {
             channels: vec![
                 NotificationChannel::Log,
@@ -89,15 +101,25 @@ impl Default for NotificationConfig {
     }
 }
 
-
-impl NotificationConfig {
-    pub fn production() -> Self {
+impl ConfigurationProfile<NotificationConfig> for NotificationConfig {
+    fn production() -> Self {
         let mut routing = HashMap::new();
         routing.insert(AlertSeverity::Info, vec!["log".to_string()]);
-        routing.insert(AlertSeverity::Warning, vec!["log".to_string(), "slack".to_string()]);
-        routing.insert(AlertSeverity::Critical, vec!["log".to_string(), "slack".to_string(), "email".to_string(), "sms".to_string()]);
+        routing.insert(
+            AlertSeverity::Warning,
+            vec!["log".to_string(), "slack".to_string()],
+        );
+        routing.insert(
+            AlertSeverity::Critical,
+            vec![
+                "log".to_string(),
+                "slack".to_string(),
+                "email".to_string(),
+                "sms".to_string(),
+            ],
+        );
         routing.insert(AlertSeverity::Fatal, vec!["*".to_string()]); // All channels
-        
+
         Self {
             channels: vec![
                 NotificationChannel::Log,
@@ -128,23 +150,32 @@ impl NotificationConfig {
         }
     }
 
-    pub fn minimal() -> Self {
+    fn minimal() -> Self {
         let mut routing = HashMap::new();
         routing.insert(AlertSeverity::Critical, vec!["console".to_string()]);
         routing.insert(AlertSeverity::Fatal, vec!["console".to_string()]);
-        
+
         Self {
-            channels: vec![
-                NotificationChannel::Console { colored: true },
-            ],
+            channels: vec![NotificationChannel::Console { colored: true }],
             routing,
-            cooldown_seconds: 900, // 15 минут - редкие уведомления
+            cooldown_seconds: 900,  // 15 минут - редкие уведомления
             enable_grouping: false, // Отключаем группировку
             max_group_size: 1,
             group_interval_seconds: 600,
             component_filters: Some(vec!["critical".to_string()]), // Только критичные
             ignore_patterns: vec!["debug".to_string(), "trace".to_string()],
         }
+    }
+
+    fn validate_profile(config: &NotificationConfig) -> Result<(), common::ConfigError> {
+        if config.channels.is_empty() {
+            return Err(common::ConfigError::InvalidValue {
+                config_key: "channels".to_string(),
+                value: "empty".to_string(),
+                reason: "At least one notification channel must be configured".to_string(),
+            });
+        }
+        Ok(())
     }
 }
 
@@ -154,10 +185,10 @@ impl NotificationConfig {
 pub trait NotificationSender: Send + Sync {
     /// Уникальное имя канала
     fn channel_name(&self) -> &str;
-    
+
     /// Отправить одиночное уведомление
     async fn send_single(&self, alert: &HealthAlert) -> Result<()>;
-    
+
     /// Отправить группу уведомлений
     async fn send_batch(&self, alerts: &[HealthAlert]) -> Result<()> {
         // По умолчанию отправляем по одному
@@ -166,7 +197,7 @@ pub trait NotificationSender: Send + Sync {
         }
         Ok(())
     }
-    
+
     /// Проверить доступность канала
     async fn test_connection(&self) -> Result<()> {
         Ok(())
@@ -184,7 +215,7 @@ impl NotificationSender for ConsoleSender {
     fn channel_name(&self) -> &str {
         "console"
     }
-    
+
     async fn send_single(&self, alert: &HealthAlert) -> Result<()> {
         let icon = match alert.severity {
             AlertSeverity::Info => "ℹ️",
@@ -192,21 +223,26 @@ impl NotificationSender for ConsoleSender {
             AlertSeverity::Critical => "🚨",
             AlertSeverity::Fatal => "💀",
         };
-        
+
         if self.colored {
-            use colored::*;
-            let message = format!("{} {} - {}", icon, alert.title, alert.description);
-            
-            match alert.severity {
-                AlertSeverity::Info => println!("{}", message.blue()),
-                AlertSeverity::Warning => println!("{}", message.yellow()),
-                AlertSeverity::Critical => println!("{}", message.red()),
-                AlertSeverity::Fatal => println!("{}", message.red().bold()),
+            #[cfg(feature = "notifications")]
+            {
+                let message = format!("{} {} - {}", icon, alert.title, alert.description);
+                match alert.severity {
+                    AlertSeverity::Info => println!("{}", message.blue()),
+                    AlertSeverity::Warning => println!("{}", message.yellow()),
+                    AlertSeverity::Critical => println!("{}", message.red()),
+                    AlertSeverity::Fatal => println!("{}", message.red().bold()),
+                }
+            }
+            #[cfg(not(feature = "notifications"))]
+            {
+                println!("{} {} - {}", icon, alert.title, alert.description);
             }
         } else {
             println!("{} {} - {}", icon, alert.title, alert.description);
         }
-        
+
         Ok(())
     }
 }
@@ -220,7 +256,7 @@ impl NotificationSender for LogSender {
     fn channel_name(&self) -> &str {
         "log"
     }
-    
+
     async fn send_single(&self, alert: &HealthAlert) -> Result<()> {
         match alert.severity {
             AlertSeverity::Info => {
@@ -239,6 +275,7 @@ impl NotificationSender for LogSender {
 
 /// Webhook отправитель уведомлений
 #[allow(dead_code)]
+#[cfg(feature = "notifications")]
 pub struct WebhookSender {
     url: String,
     method: String,
@@ -248,8 +285,14 @@ pub struct WebhookSender {
 }
 
 #[allow(dead_code)]
+#[cfg(feature = "notifications")]
 impl WebhookSender {
-    pub fn new(url: String, method: String, headers: HashMap<String, String>, auth_token: Option<String>) -> Self {
+    pub fn new(
+        url: String,
+        method: String,
+        headers: HashMap<String, String>,
+        auth_token: Option<String>,
+    ) -> Self {
         Self {
             url,
             method,
@@ -261,66 +304,65 @@ impl WebhookSender {
 }
 
 #[async_trait]
+#[cfg(feature = "notifications")]
 impl NotificationSender for WebhookSender {
     fn channel_name(&self) -> &str {
         "webhook"
     }
-    
+
     async fn send_single(&self, alert: &HealthAlert) -> Result<()> {
         let payload = serde_json::json!({
             "alert": alert,
             "timestamp": chrono::Utc::now().to_rfc3339(),
             "source": "magray_memory_system",
         });
-        
+
         let mut request = match self.method.to_uppercase().as_str() {
             "POST" => self.client.post(&self.url),
             "PUT" => self.client.put(&self.url),
             _ => return Err(anyhow!("Unsupported HTTP method: {}", self.method)),
         };
-        
+
         // Добавляем заголовки
         for (key, value) in &self.headers {
             request = request.header(key, value);
         }
-        
+
         // Добавляем авторизацию
         if let Some(token) = &self.auth_token {
             request = request.bearer_auth(token);
         }
-        
-        let response = request
-            .json(&payload)
-            .send()
-            .await?;
-        
+
+        let response = request.json(&payload).send().await?;
+
         if !response.status().is_success() {
             return Err(anyhow!(
-                "Webhook failed with status {}: {}", 
+                "Webhook failed with status {}: {}",
                 response.status(),
                 response.text().await.unwrap_or_default()
             ));
         }
-        
+
         Ok(())
     }
-    
+
     async fn test_connection(&self) -> Result<()> {
-        let response = self.client
-            .head(&self.url)
-            .send()
-            .await?;
-        
-        if !response.status().is_success() && response.status() != reqwest::StatusCode::METHOD_NOT_ALLOWED {
-            return Err(anyhow!("Webhook endpoint not accessible: {}", response.status()));
+        let response = self.client.head(&self.url).send().await?;
+
+        if !response.status().is_success() && response.status().as_u16() != 405 {
+            return Err(anyhow!(
+                "Webhook endpoint not accessible: {}",
+                response.status()
+            ));
         }
-        
+
         Ok(())
     }
 }
 
 /// Slack отправитель уведомлений
 #[allow(dead_code)]
+#[cfg(feature = "notifications")]
 pub struct SlackSender {
     webhook_url: String,
     channel: Option<String>,
@@ -329,6 +371,7 @@ pub struct SlackSender {
 }
 
 #[allow(dead_code)]
+#[cfg(feature = "notifications")]
 impl SlackSender {
     pub fn new(webhook_url: String, channel: Option<String>, mention_users: Vec<String>) -> Self {
         Self {
@@ -341,11 +384,12 @@ impl SlackSender {
 }
 
 #[async_trait]
+#[cfg(feature = "notifications")]
 impl NotificationSender for SlackSender {
     fn channel_name(&self) -> &str {
         "slack"
     }
-    
+
     async fn send_single(&self, alert: &HealthAlert) -> Result<()> {
         let emoji = match alert.severity {
             AlertSeverity::Info => ":information_source:",
@@ -353,23 +397,27 @@ impl NotificationSender for SlackSender {
             AlertSeverity::Critical => ":rotating_light:",
             AlertSeverity::Fatal => ":skull:",
         };
-        
+
         let color = match alert.severity {
             AlertSeverity::Info => "#36a64f",
             AlertSeverity::Warning => "#ff9900",
             AlertSeverity::Critical => "#ff0000",
             AlertSeverity::Fatal => "#000000",
         };
-        
+
         let mentions = if !self.mention_users.is_empty() {
-            format!(" cc: {}", self.mention_users.iter()
-                .map(|u| format!("<@{u}>"))
-                .collect::<Vec<_>>()
-                .join(" "))
+            format!(
+                " cc: {}",
+                self.mention_users
+                    .iter()
+                    .map(|u| format!("<@{u}>"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
         } else {
             String::new()
         };
-        
+
         let payload = serde_json::json!({
             "channel": self.channel,
             "attachments": [{
@@ -392,56 +440,66 @@ impl NotificationSender for SlackSender {
                 "ts": alert.timestamp.timestamp()
             }]
         });
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post(&self.webhook_url)
             .json(&payload)
             .send()
             .await?;
-        
+
         if !response.status().is_success() {
             return Err(anyhow!(
-                "Slack webhook failed: {}", 
+                "Slack webhook failed: {}",
                 response.text().await.unwrap_or_default()
             ));
         }
-        
+
         Ok(())
     }
-    
+
     async fn send_batch(&self, alerts: &[HealthAlert]) -> Result<()> {
         if alerts.is_empty() {
             return Ok(());
         }
-        
+
         let severity_emoji = |sev: &AlertSeverity| match sev {
             AlertSeverity::Info => ":information_source:",
             AlertSeverity::Warning => ":warning:",
             AlertSeverity::Critical => ":rotating_light:",
             AlertSeverity::Fatal => ":skull:",
         };
-        
-        let alert_summary = alerts.iter()
-            .map(|a| format!("• {} {} - {}", severity_emoji(&a.severity), a.title, a.description))
+
+        let alert_summary = alerts
+            .iter()
+            .map(|a| {
+                format!(
+                    "• {} {} - {}",
+                    severity_emoji(&a.severity),
+                    a.title,
+                    a.description
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
-        
+
         let payload = serde_json::json!({
             "channel": self.channel,
             "text": format!("🚨 *Alert Summary* ({} alerts)\n\n{}", alerts.len(), alert_summary),
             "attachments": []
         });
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post(&self.webhook_url)
             .json(&payload)
             .send()
             .await?;
-        
+
         if !response.status().is_success() {
             return Err(anyhow!("Slack batch webhook failed"));
         }
-        
+
         Ok(())
     }
 }
@@ -460,53 +518,76 @@ impl NotificationManager {
     /// Создает новый менеджер уведомлений
     pub fn new(config: NotificationConfig) -> Result<Self> {
         let mut senders: HashMap<String, Arc<dyn NotificationSender>> = HashMap::new();
-        
+
         // Инициализируем каналы из конфигурации
         for channel in &config.channels {
             match channel {
                 NotificationChannel::Console { colored } => {
                     senders.insert(
                         "console".to_string(),
-                        Arc::new(ConsoleSender { colored: *colored })
+                        Arc::new(ConsoleSender { colored: *colored }),
                     );
                 }
                 NotificationChannel::Log => {
                     senders.insert("log".to_string(), Arc::new(LogSender));
                 }
-                NotificationChannel::Webhook { url, method, headers, auth_token } => {
-                    senders.insert(
-                        "webhook".to_string(),
-                        Arc::new(WebhookSender::new(
-                            url.clone(),
-                            method.clone(),
-                            headers.clone(),
-                            auth_token.clone()
-                        ))
-                    );
+                NotificationChannel::Webhook {
+                    url: _url,
+                    method: _method,
+                    headers: _headers,
+                    auth_token: _auth_token,
+                } => {
+                    #[cfg(feature = "notifications")]
+                    {
+                        senders.insert(
+                            "webhook".to_string(),
+                            Arc::new(WebhookSender::new(
+                                _url.clone(),
+                                _method.clone(),
+                                _headers.clone(),
+                                _auth_token.clone(),
+                            )),
+                        );
+                    }
+                    #[cfg(not(feature = "notifications"))]
+                    {
+                        warn!("Webhook notifications not available - compile with 'notifications' feature");
+                    }
                 }
-                NotificationChannel::Slack { webhook_url, channel, mention_users } => {
-                    senders.insert(
-                        "slack".to_string(),
-                        Arc::new(SlackSender::new(
-                            webhook_url.clone(),
-                            channel.clone(),
-                            mention_users.clone()
-                        ))
-                    );
+                NotificationChannel::Slack {
+                    webhook_url: _webhook_url,
+                    channel: _channel,
+                    mention_users: _mention_users,
+                } => {
+                    #[cfg(feature = "notifications")]
+                    {
+                        senders.insert(
+                            "slack".to_string(),
+                            Arc::new(SlackSender::new(
+                                _webhook_url.clone(),
+                                _channel.clone(),
+                                _mention_users.clone(),
+                            )),
+                        );
+                    }
+                    #[cfg(not(feature = "notifications"))]
+                    {
+                        warn!("Slack notifications not available - compile with 'notifications' feature");
+                    }
                 }
                 NotificationChannel::Email { .. } => {
                     warn!("Email notifications not implemented yet");
                 }
             }
         }
-        
+
         let manager = Self {
             config,
             senders,
             alert_history: Arc::new(parking_lot::RwLock::new(HashMap::new())),
             grouped_alerts: Arc::new(parking_lot::RwLock::new(Vec::new())),
         };
-        
+
         // Запускаем фоновую задачу для отправки сгруппированных алертов
         if manager.config.enable_grouping {
             let manager_clone = manager.clone();
@@ -514,47 +595,47 @@ impl NotificationManager {
                 manager_clone.group_sender_loop().await;
             });
         }
-        
+
         Ok(manager)
     }
-    
+
     /// Обрабатывает входящий алерт
     pub async fn handle_alert(&self, alert: HealthAlert) -> Result<()> {
         // Проверяем фильтры
         if !self.should_send_alert(&alert) {
             return Ok(());
         }
-        
+
         // Проверяем cooldown
         if self.is_in_cooldown(&alert) {
             return Ok(());
         }
-        
+
         // Если включена группировка, добавляем в буфер
         if self.config.enable_grouping && alert.severity != AlertSeverity::Fatal {
             let alerts_to_send = {
                 let mut grouped = self.grouped_alerts.write();
                 grouped.push(alert);
-                
+
                 if grouped.len() >= self.config.max_group_size {
                     grouped.drain(..).collect::<Vec<_>>()
                 } else {
                     Vec::new()
                 }
             };
-            
+
             if !alerts_to_send.is_empty() {
                 self.send_grouped_alerts(alerts_to_send).await?;
             }
-            
+
             return Ok(());
         }
-        
+
         // Иначе отправляем сразу
         self.send_alert(&alert).await?;
         Ok(())
     }
-    
+
     /// Проверяет, должен ли алерт быть отправлен
     fn should_send_alert(&self, alert: &HealthAlert) -> bool {
         // Проверяем фильтр по компонентам
@@ -564,39 +645,41 @@ impl NotificationManager {
                 return false;
             }
         }
-        
+
         // Проверяем игнорируемые паттерны
         for pattern in &self.config.ignore_patterns {
             if alert.description.contains(pattern) || alert.title.contains(pattern) {
                 return false;
             }
         }
-        
+
         true
     }
-    
+
     /// Проверяет cooldown для алерта
     fn is_in_cooldown(&self, alert: &HealthAlert) -> bool {
         let alert_key = format!("{:?}-{}", alert.component, alert.title);
         let mut history = self.alert_history.write();
-        
+
         if let Some(last_sent) = history.get(&alert_key) {
             if last_sent.elapsed().as_secs() < self.config.cooldown_seconds {
                 return true;
             }
         }
-        
+
         history.insert(alert_key, std::time::Instant::now());
         false
     }
-    
+
     /// Отправляет алерт через соответствующие каналы
     async fn send_alert(&self, alert: &HealthAlert) -> Result<()> {
-        let channels = self.config.routing
+        let channels = self
+            .config
+            .routing
             .get(&alert.severity)
             .cloned()
             .unwrap_or_default();
-        
+
         for channel_name in channels {
             if channel_name == "*" {
                 // Отправляем через все каналы
@@ -611,18 +694,19 @@ impl NotificationManager {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Отправляет группу алертов
     async fn send_grouped_alerts(&self, alerts: Vec<HealthAlert>) -> Result<()> {
         if alerts.is_empty() {
             return Ok(());
         }
-        
+
         // Определяем максимальную severity в группе
-        let max_severity = alerts.iter()
+        let max_severity = alerts
+            .iter()
             .map(|a| &a.severity)
             .max_by_key(|s| match s {
                 AlertSeverity::Info => 0,
@@ -631,12 +715,14 @@ impl NotificationManager {
                 AlertSeverity::Fatal => 3,
             })
             .unwrap_or(&AlertSeverity::Info);
-        
-        let channels = self.config.routing
+
+        let channels = self
+            .config
+            .routing
             .get(max_severity)
             .cloned()
             .unwrap_or_default();
-        
+
         for channel_name in channels {
             if channel_name == "*" {
                 for sender in self.senders.values() {
@@ -650,17 +736,17 @@ impl NotificationManager {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Фоновый цикл отправки сгруппированных алертов
     async fn group_sender_loop(&self) {
         let interval = std::time::Duration::from_secs(self.config.group_interval_seconds);
-        
+
         loop {
             tokio::time::sleep(interval).await;
-            
+
             let alerts_to_send = {
                 let mut grouped = self.grouped_alerts.write();
                 if grouped.is_empty() {
@@ -668,21 +754,21 @@ impl NotificationManager {
                 }
                 grouped.drain(..).collect::<Vec<_>>()
             };
-            
+
             if let Err(e) = self.send_grouped_alerts(alerts_to_send).await {
                 error!("Failed to send grouped alerts: {}", e);
             }
         }
     }
-    
+
     /// Тестирует все настроенные каналы
     pub async fn test_all_channels(&self) -> HashMap<String, Result<()>> {
         let mut results = HashMap::new();
-        
+
         for (name, sender) in &self.senders {
             results.insert(name.clone(), sender.test_connection().await);
         }
-        
+
         results
     }
 }
@@ -701,7 +787,7 @@ impl Clone for NotificationManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_console_sender() {
         let sender = ConsoleSender { colored: false };
@@ -717,15 +803,15 @@ mod tests {
             resolved: false,
             resolved_at: None,
         };
-        
+
         assert!(sender.send_single(&alert).await.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_notification_manager() {
         let config = NotificationConfig::default();
         let manager = NotificationManager::new(config).unwrap();
-        
+
         let alert = HealthAlert {
             id: "test-2".to_string(),
             component: crate::health::ComponentType::Cache,
@@ -738,7 +824,7 @@ mod tests {
             resolved: false,
             resolved_at: None,
         };
-        
+
         assert!(manager.handle_alert(alert).await.is_ok());
     }
 }

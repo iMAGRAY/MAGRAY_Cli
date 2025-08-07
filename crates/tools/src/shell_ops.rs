@@ -33,7 +33,9 @@ impl Tool for ShellExec {
     }
 
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
-        let command = input.args.get("command")
+        let command = input
+            .args
+            .get("command")
             .ok_or_else(|| anyhow::anyhow!("Отсутствует параметр 'command'"))?;
 
         // Парсим команду для выполнения
@@ -51,13 +53,9 @@ impl Tool for ShellExec {
 
         // Выполняем команду
         let output = if cfg!(target_os = "windows") {
-            Command::new("cmd")
-                .args(&["/C", command])
-                .output()
+            Command::new("cmd").args(&["/C", command]).output()
         } else {
-            Command::new("sh")
-                .args(&["-c", command])
-                .output()
+            Command::new("sh").args(&["-c", command]).output()
         };
 
         match output {
@@ -89,18 +87,19 @@ impl Tool for ShellExec {
             }),
         }
     }
-    
+
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         let mut args = HashMap::new();
-        
+
         // Простое извлечение команды
-        let command = query.replace("выполни команду", "")
+        let command = query
+            .replace("выполни команду", "")
             .replace("выполнить", "")
             .trim()
             .to_string();
-        
+
         args.insert("command".to_string(), command);
-        
+
         Ok(ToolInput {
             command: "shell_exec".to_string(),
             args,

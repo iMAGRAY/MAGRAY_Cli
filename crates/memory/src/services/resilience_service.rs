@@ -6,13 +6,13 @@
 //! - failure tracking и recovery
 //! - error handling patterns
 
-use std::time::{Duration, Instant};
 use anyhow::Result;
 use async_trait::async_trait;
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
-use crate::services::traits::{ResilienceServiceTrait, ProductionMetrics};
+use crate::services::traits::{ProductionMetrics, ResilienceServiceTrait};
 
 /// Circuit breaker состояние
 #[derive(Debug, Clone)]
@@ -50,7 +50,7 @@ impl ResilienceService {
     /// Создать новый ResilienceService
     pub fn new() -> Self {
         info!("🛡️ Создание ResilienceService для отказоустойчивости");
-        
+
         Self {
             circuit_breaker: RwLock::new(CircuitBreakerState::default()),
             production_metrics: RwLock::new(ProductionMetrics::default()),
@@ -60,13 +60,15 @@ impl ResilienceService {
     /// Создать с кастомными настройками circuit breaker
     #[allow(dead_code)]
     pub fn new_with_threshold(failure_threshold: u32, recovery_timeout: Duration) -> Self {
-        info!("🛡️ Создание ResilienceService с threshold={}, recovery_timeout={:?}", 
-              failure_threshold, recovery_timeout);
-        
+        info!(
+            "🛡️ Создание ResilienceService с threshold={}, recovery_timeout={:?}",
+            failure_threshold, recovery_timeout
+        );
+
         let mut breaker_state = CircuitBreakerState::default();
         breaker_state.failure_threshold = failure_threshold;
         breaker_state.recovery_timeout = recovery_timeout;
-        
+
         Self {
             circuit_breaker: RwLock::new(breaker_state),
             production_metrics: RwLock::new(ProductionMetrics::default()),
@@ -92,19 +94,24 @@ impl ResilienceServiceTrait for ResilienceService {
     #[allow(dead_code)]
     async fn check_circuit_breaker(&self) -> Result<()> {
         let mut breaker = self.circuit_breaker.write().await;
-        
+
         if breaker.is_open {
             if let Some(last_failure) = breaker.last_failure {
                 if last_failure.elapsed() > breaker.recovery_timeout {
                     breaker.is_open = false;
                     breaker.failure_count = 0;
-                    info!("🔄 Circuit breaker восстановлен после {:?}", breaker.recovery_timeout);
+                    info!(
+                        "🔄 Circuit breaker восстановлен после {:?}",
+                        breaker.recovery_timeout
+                    );
                     return Ok(());
                 }
             }
-            return Err(anyhow::anyhow!("🚫 Circuit breaker открыт - операции временно недоступны"));
+            return Err(anyhow::anyhow!(
+                "🚫 Circuit breaker открыт - операции временно недоступны"
+            ));
         }
-        
+
         Ok(())
     }
 
@@ -122,14 +129,15 @@ impl ResilienceServiceTrait for ResilienceService {
             let mut metrics = self.production_metrics.write().await;
             metrics.total_operations += 1;
             metrics.successful_operations += 1;
-            
+
             // Exponential moving average для response time
             let duration_ms = duration.as_millis() as f64;
             let alpha = 0.1;
             if metrics.avg_response_time_ms == 0.0 {
                 metrics.avg_response_time_ms = duration_ms;
             } else {
-                metrics.avg_response_time_ms = alpha * duration_ms + (1.0 - alpha) * metrics.avg_response_time_ms;
+                metrics.avg_response_time_ms =
+                    alpha * duration_ms + (1.0 - alpha) * metrics.avg_response_time_ms;
             }
         }
 
@@ -144,10 +152,13 @@ impl ResilienceServiceTrait for ResilienceService {
             let mut breaker = self.circuit_breaker.write().await;
             breaker.failure_count += 1;
             breaker.last_failure = Some(Instant::now());
-            
+
             if breaker.failure_count >= breaker.failure_threshold {
                 breaker.is_open = true;
-                error!("🚫 Circuit breaker открыт после {} ошибок", breaker.failure_count);
+                error!(
+                    "🚫 Circuit breaker открыт после {} ошибок",
+                    breaker.failure_count
+                );
             }
         }
 
@@ -156,19 +167,20 @@ impl ResilienceServiceTrait for ResilienceService {
             let mut metrics = self.production_metrics.write().await;
             metrics.total_operations += 1;
             metrics.failed_operations += 1;
-            
+
             // Увеличиваем счетчик circuit breaker trips при открытии
             if self.circuit_breaker.read().await.is_open {
                 metrics.circuit_breaker_trips += 1;
             }
-            
+
             // Обновляем response time даже для неудачных операций
             let duration_ms = duration.as_millis() as f64;
             let alpha = 0.1;
             if metrics.avg_response_time_ms == 0.0 {
                 metrics.avg_response_time_ms = duration_ms;
             } else {
-                metrics.avg_response_time_ms = alpha * duration_ms + (1.0 - alpha) * metrics.avg_response_time_ms;
+                metrics.avg_response_time_ms =
+                    alpha * duration_ms + (1.0 - alpha) * metrics.avg_response_time_ms;
             }
         }
 
@@ -189,7 +201,7 @@ impl ResilienceServiceTrait for ResilienceService {
         breaker.is_open = false;
         breaker.failure_count = 0;
         breaker.last_failure = None;
-        
+
         info!("🔄 Circuit breaker принудительно сброшен");
         Ok(())
     }
@@ -199,7 +211,7 @@ impl ResilienceServiceTrait for ResilienceService {
     async fn set_failure_threshold(&self, threshold: u32) -> Result<()> {
         let mut breaker = self.circuit_breaker.write().await;
         breaker.failure_threshold = threshold;
-        
+
         info!("⚙️ Circuit breaker threshold установлен: {}", threshold);
         Ok(())
     }
@@ -210,7 +222,7 @@ impl ResilienceServiceTrait for ResilienceService {
         let breaker = self.circuit_breaker.read().await;
         let recovery_timeout = breaker.recovery_timeout;
         let failure_count = breaker.failure_count;
-        
+
         (failure_count, recovery_timeout)
     }
 }

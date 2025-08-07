@@ -15,23 +15,23 @@ pub struct ToolMetadata {
     pub author: String,
     pub category: ToolCategory,
     pub tags: Vec<String>,
-    
+
     // Security metadata
     pub permissions: ToolPermissions,
     pub security_level: SecurityLevel,
     pub trusted: bool,
     pub signature: Option<String>,
-    
+
     // Runtime metadata
     pub resource_requirements: ResourceRequirements,
     pub dependencies: Vec<ToolDependency>,
-    
+
     // Usage metadata
     pub registration_time: u64,
     pub last_used: Option<u64>,
     pub usage_count: u64,
     pub performance_metrics: PerformanceMetrics,
-    
+
     // Schema and examples
     pub input_schema: serde_json::Value,
     pub output_schema: serde_json::Value,
@@ -58,19 +58,19 @@ impl SemanticVersion {
             build: None,
         }
     }
-    
+
     pub fn is_compatible(&self, required: &SemanticVersion) -> bool {
         // Compatible if major version matches and minor.patch >= required
         if self.major != required.major {
             return false;
         }
-        
+
         if self.minor > required.minor {
             return true;
         } else if self.minor == required.minor {
             return self.patch >= required.patch;
         }
-        
+
         false
     }
 }
@@ -78,15 +78,15 @@ impl SemanticVersion {
 impl std::fmt::Display for SemanticVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
-        
+
         if let Some(ref pre) = self.pre_release {
             write!(f, "-{}", pre)?;
         }
-        
+
         if let Some(ref build) = self.build {
             write!(f, "+{}", build)?;
         }
-        
+
         Ok(())
     }
 }
@@ -108,10 +108,9 @@ pub enum ToolCategory {
 
 impl ToolCategory {
     pub fn is_high_risk(&self) -> bool {
-        matches!(self, 
-            ToolCategory::System | 
-            ToolCategory::Security | 
-            ToolCategory::Database
+        matches!(
+            self,
+            ToolCategory::System | ToolCategory::Security | ToolCategory::Database
         )
     }
 }
@@ -167,18 +166,18 @@ pub enum SystemPermissions {
 /// Security levels for risk assessment
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SecurityLevel {
-    Safe,           // Read-only, no external access
-    LowRisk,        // Limited write access
-    MediumRisk,     // Network access, file modifications
-    HighRisk,       // System access, external process execution
-    Critical,       // Full system access, dangerous operations
+    Safe,       // Read-only, no external access
+    LowRisk,    // Limited write access
+    MediumRisk, // Network access, file modifications
+    HighRisk,   // System access, external process execution
+    Critical,   // Full system access, dangerous operations
 }
 
 impl SecurityLevel {
     pub fn requires_confirmation(&self) -> bool {
         matches!(self, SecurityLevel::HighRisk | SecurityLevel::Critical)
     }
-    
+
     pub fn requires_admin(&self) -> bool {
         matches!(self, SecurityLevel::Critical)
     }
@@ -198,7 +197,7 @@ pub struct ResourceRequirements {
 impl Default for ResourceRequirements {
     fn default() -> Self {
         Self {
-            max_memory_mb: Some(512),  // Default 512MB limit
+            max_memory_mb: Some(512), // Default 512MB limit
             max_cpu_cores: Some(1),
             max_execution_time: Some(Duration::from_secs(30)),
             requires_gpu: false,
@@ -235,10 +234,10 @@ impl PerformanceMetrics {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-            
+
         // Simple moving average (in production, use more sophisticated metrics)
         self.average_execution_time = (self.average_execution_time + execution_time) / 2;
-        
+
         if success {
             // Exponential moving average for success rate
             self.success_rate = self.success_rate * 0.9 + 0.1;
@@ -246,10 +245,10 @@ impl PerformanceMetrics {
             self.success_rate = self.success_rate * 0.9;
             self.error_count += 1;
         }
-        
+
         self.last_performance_update = Some(current_time);
     }
-    
+
     pub fn is_healthy(&self) -> bool {
         self.success_rate > 0.8 && self.error_count < 5
     }
@@ -270,7 +269,7 @@ impl ToolMetadata {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-            
+
         Self {
             id,
             name,
@@ -279,110 +278,116 @@ impl ToolMetadata {
             author: String::new(),
             category: ToolCategory::Custom("unknown".to_string()),
             tags: Vec::new(),
-            
+
             permissions: ToolPermissions::default(),
             security_level: SecurityLevel::Safe,
             trusted: false,
             signature: None,
-            
+
             resource_requirements: ResourceRequirements::default(),
             dependencies: Vec::new(),
-            
+
             registration_time: current_time,
             last_used: None,
             usage_count: 0,
             performance_metrics: PerformanceMetrics::default(),
-            
+
             input_schema: serde_json::Value::Object(serde_json::Map::new()),
             output_schema: serde_json::Value::Object(serde_json::Map::new()),
             examples: Vec::new(),
         }
     }
-    
+
     pub fn with_category(mut self, category: ToolCategory) -> Self {
         self.category = category;
         self
     }
-    
+
     pub fn with_permissions(mut self, permissions: ToolPermissions) -> Self {
         self.permissions = permissions;
         self.update_security_level();
         self
     }
-    
+
     pub fn with_description(mut self, description: String) -> Self {
         self.description = description;
         self
     }
-    
+
     pub fn with_author(mut self, author: String) -> Self {
         self.author = author;
         self
     }
-    
+
     pub fn add_dependency(mut self, dependency: ToolDependency) -> Self {
         self.dependencies.push(dependency);
         self
     }
-    
+
     pub fn mark_as_trusted(mut self) -> Self {
         self.trusted = true;
         self
     }
-    
+
     /// Update security level based on permissions
     fn update_security_level(&mut self) {
         let mut level = SecurityLevel::Safe;
-        
+
         // Check file system permissions
         match &self.permissions.file_system {
-            FileSystemPermissions::None | FileSystemPermissions::ReadOnly => {},
+            FileSystemPermissions::None | FileSystemPermissions::ReadOnly => {}
             FileSystemPermissions::ReadWrite => level = SecurityLevel::LowRisk,
             FileSystemPermissions::FullAccess => level = SecurityLevel::HighRisk,
             FileSystemPermissions::Restricted { .. } => level = SecurityLevel::LowRisk,
         }
-        
+
         // Check network permissions
         match &self.permissions.network {
-            NetworkPermissions::None => {},
+            NetworkPermissions::None => {}
             NetworkPermissions::LocalHost => level = level.max(SecurityLevel::LowRisk),
             NetworkPermissions::InternalNetworks => level = level.max(SecurityLevel::MediumRisk),
             NetworkPermissions::Internet => level = level.max(SecurityLevel::HighRisk),
             NetworkPermissions::Restricted { .. } => level = level.max(SecurityLevel::MediumRisk),
         }
-        
+
         // Check system permissions
         match &self.permissions.system {
-            SystemPermissions::None => {},
+            SystemPermissions::None => {}
             SystemPermissions::ProcessQuery | SystemPermissions::EnvironmentRead => {
                 level = level.max(SecurityLevel::LowRisk);
-            },
+            }
             SystemPermissions::ProcessControl | SystemPermissions::EnvironmentWrite => {
                 level = level.max(SecurityLevel::MediumRisk);
-            },
+            }
             SystemPermissions::FullAccess => level = SecurityLevel::Critical,
         }
-        
+
         self.security_level = level;
     }
-    
+
     pub fn record_usage(&mut self) {
         self.usage_count += 1;
-        self.last_used = Some(SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs());
+        self.last_used = Some(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        );
     }
-    
-    pub fn is_dependencies_satisfied(&self, available_tools: &HashMap<String, ToolMetadata>) -> Result<()> {
+
+    pub fn is_dependencies_satisfied(
+        &self,
+        available_tools: &HashMap<String, ToolMetadata>,
+    ) -> Result<()> {
         for dependency in &self.dependencies {
             if dependency.optional {
                 continue;
             }
-            
-            let dep_tool = available_tools.get(&dependency.tool_id)
+
+            let dep_tool = available_tools
+                .get(&dependency.tool_id)
                 .ok_or_else(|| anyhow::anyhow!("Missing dependency: {}", dependency.tool_id))?;
-                
+
             if !dep_tool.version.is_compatible(&dependency.min_version) {
                 return Err(anyhow::anyhow!(
                     "Incompatible dependency version: {} requires {} but {} is available",
@@ -391,7 +396,7 @@ impl ToolMetadata {
                     dep_tool.version
                 ));
             }
-            
+
             if let Some(ref max_version) = dependency.max_version {
                 if dep_tool.version > *max_version {
                     return Err(anyhow::anyhow!(
@@ -403,56 +408,56 @@ impl ToolMetadata {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     pub fn can_execute_safely(&self) -> bool {
-        self.trusted || 
-        self.security_level <= SecurityLevel::LowRisk ||
-        self.performance_metrics.is_healthy()
+        self.trusted
+            || self.security_level <= SecurityLevel::LowRisk
+            || self.performance_metrics.is_healthy()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_semantic_version_compatibility() {
         let v1 = SemanticVersion::new(1, 2, 3);
         let v2 = SemanticVersion::new(1, 2, 0);
         let v3 = SemanticVersion::new(2, 0, 0);
-        
+
         assert!(v1.is_compatible(&v2));
         assert!(!v1.is_compatible(&v3));
     }
-    
+
     #[test]
     fn test_security_level_from_permissions() {
         let mut metadata = ToolMetadata::new(
             "test".to_string(),
             "Test Tool".to_string(),
-            SemanticVersion::new(1, 0, 0)
+            SemanticVersion::new(1, 0, 0),
         );
-        
+
         metadata = metadata.with_permissions(ToolPermissions {
             file_system: FileSystemPermissions::FullAccess,
             network: NetworkPermissions::Internet,
             system: SystemPermissions::None,
             custom: HashMap::new(),
         });
-        
+
         assert_eq!(metadata.security_level, SecurityLevel::HighRisk);
     }
-    
+
     #[test]
     fn test_performance_metrics_update() {
         let mut metrics = PerformanceMetrics::default();
-        
+
         metrics.update_execution(Duration::from_secs(1), true);
         assert!(metrics.success_rate > 0.0);
-        
+
         metrics.update_execution(Duration::from_secs(2), false);
         assert!(metrics.error_count == 1);
     }

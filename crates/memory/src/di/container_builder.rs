@@ -2,11 +2,9 @@ use anyhow::Result;
 use std::{any::Any, sync::Arc};
 
 use super::{
-    traits::{Lifetime},
-    container_core::ContainerCore,
-    lifetime_manager::LifetimeManagerImpl,
-    dependency_validator::DependencyValidatorImpl,
-    metrics_collector::MetricsReporterImpl,
+    container_core::ContainerCore, dependency_validator::DependencyValidatorImpl,
+    lifetime_manager::LifetimeManagerImpl, metrics_collector::MetricsReporterImpl,
+    traits::Lifetime,
 };
 
 /// Builder для создания DI контейнера с настройками
@@ -100,11 +98,7 @@ impl DIContainerBuilder {
         let metrics_reporter = Arc::new(MetricsReporterImpl::new());
 
         // Создаём core контейнер
-        let core = ContainerCore::new(
-            lifetime_manager,
-            dependency_validator,
-            metrics_reporter,
-        );
+        let core = ContainerCore::new(lifetime_manager, dependency_validator, metrics_reporter);
 
         // В упрощенной версии просто пропускаем предварительные регистрации
 
@@ -131,14 +125,18 @@ pub struct DIContainer {
 
 impl Clone for DIContainer {
     fn clone(&self) -> Self {
-        Self { core: Arc::clone(&self.core) }
+        Self {
+            core: Arc::clone(&self.core),
+        }
     }
 }
 
 impl DIContainer {
     /// Создать новый контейнер с core компонентом
     pub(crate) fn new(core: ContainerCore) -> Self {
-        Self { core: Arc::new(core) }
+        Self {
+            core: Arc::new(core),
+        }
     }
 
     /// Создать контейнер с настройками по умолчанию
@@ -230,12 +228,12 @@ impl DIContainer {
     pub fn performance_metrics(&self) -> super::traits::DIPerformanceMetrics {
         self.core.performance_metrics()
     }
-    
+
     /// Получить краткий отчет о производительности в формате строки
     pub fn get_performance_report(&self) -> String {
         self.core.get_performance_report()
     }
-    
+
     /// Сбросить метрики производительности
     pub fn reset_performance_metrics(&self) {
         self.core.reset_performance_metrics();
@@ -320,10 +318,7 @@ mod tests {
     fn test_builder_with_config() -> Result<()> {
         let container = DIContainer::builder()
             .configure(|registrar| {
-                registrar.register(
-                    |_| Ok(TestService::new()),
-                    Lifetime::Singleton,
-                )?;
+                registrar.register(|_| Ok(TestService::new()), Lifetime::Singleton)?;
                 Ok(())
             })?
             .build()?;
@@ -372,14 +367,11 @@ mod tests {
         let container = DIContainer::default_container()?;
 
         // Регистрируем сервис через facade API
-        container.register(
-            |_| Ok(TestService::new()),
-            Lifetime::Singleton,
-        )?;
+        container.register(|_| Ok(TestService::new()), Lifetime::Singleton)?;
 
         // Проверяем, что facade API работает
         assert!(container.is_registered::<TestService>());
-        
+
         let service = container.resolve::<TestService>()?;
         assert_eq!(service.value, 42);
 

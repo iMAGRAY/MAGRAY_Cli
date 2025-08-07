@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{debug, warn, error};
+use tracing::{debug, error, warn};
 
 /// Политика повторных попыток
 #[derive(Debug, Clone)]
@@ -41,7 +41,7 @@ impl RetryPolicy {
             jitter: true,
         }
     }
-    
+
     /// Агрессивная политика для критически важных операций
     pub fn aggressive() -> Self {
         Self {
@@ -52,7 +52,7 @@ impl RetryPolicy {
             jitter: true,
         }
     }
-    
+
     /// Без повторов
     pub fn none() -> Self {
         Self {
@@ -84,7 +84,7 @@ impl<T> RetryResult<T> {
             Self::NonRetriable(e) => Err(e),
         }
     }
-    
+
     pub fn attempts(&self) -> u32 {
         match self {
             Self::Success(_, attempts) => *attempts,
@@ -103,7 +103,7 @@ impl RetryHandler {
     pub fn new(policy: RetryPolicy) -> Self {
         Self { policy }
     }
-    
+
     /// Выполнить операцию с повторными попытками
     pub async fn execute<F, Fut, T>(&self, operation: F) -> RetryResult<T>
     where
@@ -112,11 +112,11 @@ impl RetryHandler {
     {
         let mut attempt = 0;
         let mut delay = self.policy.initial_delay;
-        
+
         loop {
             attempt += 1;
             debug!("Попытка {}/{}", attempt, self.policy.max_attempts);
-            
+
             match operation().await {
                 Ok(result) => {
                     if attempt > 1 {
@@ -130,26 +130,31 @@ impl RetryHandler {
                         warn!("Ошибка не подлежит повтору: {}", e);
                         return RetryResult::NonRetriable(e);
                     }
-                    
+
                     if attempt >= self.policy.max_attempts {
                         error!("Все {} попыток исчерпаны: {}", self.policy.max_attempts, e);
-                        return RetryResult::ExhaustedRetries(
-                            anyhow::anyhow!("Exhausted {} retries: {}", self.policy.max_attempts, e)
-                        );
+                        return RetryResult::ExhaustedRetries(anyhow::anyhow!(
+                            "Exhausted {} retries: {}",
+                            self.policy.max_attempts,
+                            e
+                        ));
                     }
-                    
-                    warn!("Попытка {} не удалась: {}, повтор через {:?}", attempt, e, delay);
-                    
+
+                    warn!(
+                        "Попытка {} не удалась: {}, повтор через {:?}",
+                        attempt, e, delay
+                    );
+
                     // Ждем перед следующей попыткой
                     sleep(self.calculate_delay(delay)).await;
-                    
+
                     // Увеличиваем задержку
                     delay = self.next_delay(delay);
                 }
             }
         }
     }
-    
+
     /// Выполнить операцию с fallback
     pub async fn execute_with_fallback<F, Fut, T, Fallback, FallbackFut>(
         &self,
@@ -170,55 +175,54 @@ impl RetryHandler {
             }
         }
     }
-    
+
     /// Проверить является ли ошибка retriable
     fn is_retriable(&self, error: &anyhow::Error) -> bool {
         // Проверяем сообщение об ошибке на известные retriable паттерны
         let error_msg = error.to_string().to_lowercase();
-        
+
         // Network и timeout ошибки - retriable
-        if error_msg.contains("timeout") || 
-           error_msg.contains("connection") ||
-           error_msg.contains("network") ||
-           error_msg.contains("temporary") {
+        if error_msg.contains("timeout")
+            || error_msg.contains("connection")
+            || error_msg.contains("network")
+            || error_msg.contains("temporary")
+        {
             return true;
         }
-        
+
         // Database lock - retriable
-        if error_msg.contains("database locked") ||
-           error_msg.contains("database is locked") {
+        if error_msg.contains("database locked") || error_msg.contains("database is locked") {
             return true;
         }
-        
+
         // Resource exhaustion - retriable после ожидания
-        if error_msg.contains("out of memory") ||
-           error_msg.contains("too many open files") {
+        if error_msg.contains("out of memory") || error_msg.contains("too many open files") {
             return true;
         }
-        
+
         // Все остальные ошибки не retriable по умолчанию
         false
     }
-    
+
     /// Вычислить задержку с jitter
     fn calculate_delay(&self, base_delay: Duration) -> Duration {
         if !self.policy.jitter {
             return base_delay;
         }
-        
+
         // Добавляем случайный jitter ±25%
         let jitter_range = base_delay.as_millis() as f64 * 0.25;
         let jitter = (rand::random::<f64>() - 0.5) * 2.0 * jitter_range;
         let final_delay = (base_delay.as_millis() as f64 + jitter).max(0.0) as u64;
-        
+
         Duration::from_millis(final_delay)
     }
-    
+
     /// Вычислить следующую задержку
     fn next_delay(&self, current: Duration) -> Duration {
         let next = current.as_secs_f32() * self.policy.backoff_multiplier;
         let next_duration = Duration::from_secs_f32(next);
-        
+
         if next_duration > self.policy.max_delay {
             self.policy.max_delay
         } else {
@@ -240,37 +244,37 @@ impl RetryHandlerBuilder {
             policy: RetryPolicy::default(),
         }
     }
-    
+
     #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn max_attempts(mut self, attempts: u32) -> Self {
         self.policy.max_attempts = attempts;
         self
     }
-    
+
     #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn initial_delay(mut self, delay: Duration) -> Self {
         self.policy.initial_delay = delay;
         self
     }
-    
+
     #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn max_delay(mut self, delay: Duration) -> Self {
         self.policy.max_delay = delay;
         self
     }
-    
+
     #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn backoff_multiplier(mut self, multiplier: f32) -> Self {
         self.policy.backoff_multiplier = multiplier;
         self
     }
-    
+
     #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn with_jitter(mut self, jitter: bool) -> Self {
         self.policy.jitter = jitter;
         self
     }
-    
+
     #[allow(dead_code)] // Для будущего orchestration функционала
     pub fn build(self) -> RetryHandler {
         RetryHandler::new(self.policy)
@@ -287,15 +291,15 @@ impl Default for RetryHandlerBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_retry_success_first_attempt() {
         let handler = RetryHandler::new(RetryPolicy::default());
-        
-        let result = handler.execute(|| async {
-            Ok::<_, anyhow::Error>(42)
-        }).await;
-        
+
+        let result = handler
+            .execute(|| async { Ok::<_, anyhow::Error>(42) })
+            .await;
+
         match result {
             RetryResult::Success(value, attempts) => {
                 assert_eq!(value, 42);
@@ -304,21 +308,23 @@ mod tests {
             _ => panic!("Expected success"),
         }
     }
-    
+
     #[tokio::test]
     async fn test_retry_success_after_failures() {
         let handler = RetryHandler::new(RetryPolicy::fast());
         let counter = std::sync::atomic::AtomicU32::new(0);
-        
-        let result = handler.execute(|| async {
-            let count = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            if count < 1 {
-                Err(anyhow::anyhow!("Temporary failure"))
-            } else {
-                Ok(42)
-            }
-        }).await;
-        
+
+        let result = handler
+            .execute(|| async {
+                let count = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if count < 1 {
+                    Err(anyhow::anyhow!("Temporary failure"))
+                } else {
+                    Ok(42)
+                }
+            })
+            .await;
+
         match result {
             RetryResult::Success(value, attempts) => {
                 assert_eq!(value, 42);
@@ -327,7 +333,7 @@ mod tests {
             _ => panic!("Expected success"),
         }
     }
-    
+
     #[tokio::test]
     async fn test_retry_exhausted() {
         let handler = RetryHandler::new(RetryPolicy {
@@ -335,22 +341,22 @@ mod tests {
             initial_delay: Duration::from_millis(10),
             ..Default::default()
         });
-        
-        let result = handler.execute(|| async {
-            Err::<i32, _>(anyhow::anyhow!("Network timeout"))
-        }).await;
-        
+
+        let result = handler
+            .execute(|| async { Err::<i32, _>(anyhow::anyhow!("Network timeout")) })
+            .await;
+
         assert!(matches!(result, RetryResult::ExhaustedRetries(_)));
     }
-    
+
     #[tokio::test]
     async fn test_non_retriable_error() {
         let handler = RetryHandler::new(RetryPolicy::default());
-        
-        let result = handler.execute(|| async {
-            Err::<i32, _>(anyhow::anyhow!("Invalid argument"))
-        }).await;
-        
+
+        let result = handler
+            .execute(|| async { Err::<i32, _>(anyhow::anyhow!("Invalid argument")) })
+            .await;
+
         assert!(matches!(result, RetryResult::NonRetriable(_)));
     }
 }

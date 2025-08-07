@@ -1,12 +1,12 @@
 //! Circuit Breaker Module - Single Responsibility для resilience patterns
-//! 
+//!
 //! Этот модуль отвечает ТОЛЬКО за circuit breaker логику и управление отказоустойчивостью.
 //! Применяет Single Responsibility и State pattern.
 
 use anyhow::Result;
 use std::time::{Duration, Instant};
-use tracing::{info, error, debug, warn};
 use tokio::sync::RwLock;
+use tracing::{debug, error, info, warn};
 
 /// Состояние Circuit Breaker
 #[derive(Debug, Clone, PartialEq)]
@@ -162,7 +162,7 @@ impl CircuitBreaker {
     /// Проверить состояние и разрешить/заблокировать операцию
     pub async fn check_and_allow_operation(&self) -> Result<()> {
         let mut state = self.internal_state.write().await;
-        
+
         match state.state {
             CircuitBreakerState::Closed => {
                 // Операции разрешены
@@ -178,7 +178,9 @@ impl CircuitBreaker {
                         Ok(())
                     } else {
                         error!("🚫 Circuit breaker открыт - операция заблокирована");
-                        Err(anyhow::anyhow!("Circuit breaker открыт - операции временно недоступны"))
+                        Err(anyhow::anyhow!(
+                            "Circuit breaker открыт - операции временно недоступны"
+                        ))
                     }
                 } else {
                     // Нет времени последней ошибки - переходим в HalfOpen
@@ -190,11 +192,16 @@ impl CircuitBreaker {
                 // Разрешаем ограниченное количество пробных операций
                 if state.half_open_calls < self.config.half_open_max_calls {
                     state.half_open_calls += 1;
-                    debug!("Circuit breaker в HalfOpen - пробная операция {} разрешена", state.half_open_calls);
+                    debug!(
+                        "Circuit breaker в HalfOpen - пробная операция {} разрешена",
+                        state.half_open_calls
+                    );
                     Ok(())
                 } else {
                     warn!("Circuit breaker в HalfOpen - лимит пробных операций исчерпан");
-                    Err(anyhow::anyhow!("Circuit breaker в половинном состоянии - лимит операций исчерпан"))
+                    Err(anyhow::anyhow!(
+                        "Circuit breaker в половинном состоянии - лимит операций исчерпан"
+                    ))
                 }
             }
         }
@@ -204,14 +211,14 @@ impl CircuitBreaker {
     pub async fn record_success(&self) {
         let mut state = self.internal_state.write().await;
         let mut stats = self.stats.write().await;
-        
+
         state.failure_count = 0;
         state.success_count += 1;
         state.last_success_time = Some(Instant::now());
-        
+
         stats.total_successes += 1;
         stats.last_success_time = state.last_success_time;
-        
+
         match state.state {
             CircuitBreakerState::HalfOpen => {
                 // Достаточно успехов для закрытия?
@@ -235,19 +242,22 @@ impl CircuitBreaker {
     pub async fn record_failure(&self) {
         let mut state = self.internal_state.write().await;
         let mut stats = self.stats.write().await;
-        
+
         state.failure_count += 1;
         state.success_count = 0;
         state.last_failure_time = Some(Instant::now());
-        
+
         stats.total_failures += 1;
         stats.last_failure_time = state.last_failure_time;
-        
+
         match state.state {
             CircuitBreakerState::Closed => {
                 if state.failure_count >= self.config.failure_threshold {
                     self.transition_to_open(&mut state, &mut stats).await;
-                    error!("🚫 Circuit breaker открыт после {} неудач", state.failure_count);
+                    error!(
+                        "🚫 Circuit breaker открыт после {} неудач",
+                        state.failure_count
+                    );
                 }
             }
             CircuitBreakerState::HalfOpen => {
@@ -279,13 +289,13 @@ impl CircuitBreaker {
     pub async fn reset(&self) {
         let mut state = self.internal_state.write().await;
         let mut stats = self.stats.write().await;
-        
+
         *state = CircuitBreakerInternalState::default();
         stats.state = CircuitBreakerState::Closed;
         stats.state_transitions += 1;
-        
+
         *self.state_entered_at.write().await = Instant::now();
-        
+
         info!("Circuit breaker сброшен в состояние Closed");
     }
 
@@ -293,33 +303,41 @@ impl CircuitBreaker {
     pub async fn force_open(&self) {
         let mut state = self.internal_state.write().await;
         let mut stats = self.stats.write().await;
-        
+
         self.transition_to_open(&mut state, &mut stats).await;
         error!("🚨 Circuit breaker принудительно открыт!");
     }
 
     // === Private helper methods ===
 
-    async fn transition_to_closed(&self, state: &mut CircuitBreakerInternalState, stats: &mut CircuitBreakerStats) {
+    async fn transition_to_closed(
+        &self,
+        state: &mut CircuitBreakerInternalState,
+        stats: &mut CircuitBreakerStats,
+    ) {
         state.state = CircuitBreakerState::Closed;
         state.failure_count = 0;
         state.success_count = 0;
         state.half_open_calls = 0;
-        
+
         stats.state = CircuitBreakerState::Closed;
         stats.state_transitions += 1;
-        
+
         *self.state_entered_at.write().await = Instant::now();
     }
 
-    async fn transition_to_open(&self, state: &mut CircuitBreakerInternalState, stats: &mut CircuitBreakerStats) {
+    async fn transition_to_open(
+        &self,
+        state: &mut CircuitBreakerInternalState,
+        stats: &mut CircuitBreakerStats,
+    ) {
         state.state = CircuitBreakerState::Open;
         state.success_count = 0;
         state.half_open_calls = 0;
-        
+
         stats.state = CircuitBreakerState::Open;
         stats.state_transitions += 1;
-        
+
         *self.state_entered_at.write().await = Instant::now();
     }
 
@@ -327,11 +345,11 @@ impl CircuitBreaker {
         state.state = CircuitBreakerState::HalfOpen;
         state.half_open_calls = 0;
         state.success_count = 0;
-        
+
         let mut stats = self.stats.write().await;
         stats.state = CircuitBreakerState::HalfOpen;
         stats.state_transitions += 1;
-        
+
         *self.state_entered_at.write().await = Instant::now();
     }
 
@@ -339,18 +357,26 @@ impl CircuitBreaker {
     pub async fn get_state_description(&self) -> String {
         let state = self.internal_state.read().await;
         let stats = self.get_stats().await;
-        
+
         match state.state {
             CircuitBreakerState::Closed => {
-                format!("✅ ЗАКРЫТ: {} неудач из {} допустимых", state.failure_count, self.config.failure_threshold)
+                format!(
+                    "✅ ЗАКРЫТ: {} неудач из {} допустимых",
+                    state.failure_count, self.config.failure_threshold
+                )
             }
             CircuitBreakerState::Open => {
-                let time_until_recovery = self.config.recovery_timeout
+                let time_until_recovery = self
+                    .config
+                    .recovery_timeout
                     .saturating_sub(stats.time_in_current_state);
                 format!("🚫 ОТКРЫТ: восстановление через {:?}", time_until_recovery)
             }
             CircuitBreakerState::HalfOpen => {
-                format!("🔄 ПОЛУОТКРЫТ: {} из {} пробных операций", state.half_open_calls, self.config.half_open_max_calls)
+                format!(
+                    "🔄 ПОЛУОТКРЫТ: {} из {} пробных операций",
+                    state.half_open_calls, self.config.half_open_max_calls
+                )
             }
         }
     }
@@ -370,7 +396,7 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_closed_state() {
         let cb = CircuitBreaker::with_minimal_config();
-        
+
         // В закрытом состоянии операции должны проходить
         assert!(cb.check_and_allow_operation().await.is_ok());
         assert_eq!(cb.get_state().await, CircuitBreakerState::Closed);
@@ -379,12 +405,12 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_failure_threshold() {
         let cb = CircuitBreaker::with_minimal_config(); // threshold = 3
-        
+
         // Записываем неудачи, но не превышаем порог
         cb.record_failure().await;
         cb.record_failure().await;
         assert_eq!(cb.get_state().await, CircuitBreakerState::Closed);
-        
+
         // Превышаем порог - должен открыться
         cb.record_failure().await;
         assert_eq!(cb.get_state().await, CircuitBreakerState::Open);
@@ -395,19 +421,19 @@ mod tests {
         let mut config = CircuitBreakerConfig::minimal();
         config.recovery_timeout = Duration::from_millis(100);
         let cb = CircuitBreaker::new(config);
-        
+
         // Открываем circuit breaker
         for _ in 0..3 {
             cb.record_failure().await;
         }
         assert_eq!(cb.get_state().await, CircuitBreakerState::Open);
-        
+
         // Операции блокируются
         assert!(cb.check_and_allow_operation().await.is_err());
-        
+
         // Ждем recovery timeout
         sleep(Duration::from_millis(150)).await;
-        
+
         // Теперь должен перейти в HalfOpen
         assert!(cb.check_and_allow_operation().await.is_ok());
         assert_eq!(cb.get_state().await, CircuitBreakerState::HalfOpen);
@@ -416,34 +442,35 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_half_open_success() {
         let cb = CircuitBreaker::with_minimal_config();
-        
+
         // Открываем circuit breaker
         for _ in 0..3 {
             cb.record_failure().await;
         }
-        
+
         // Принудительно переводим в HalfOpen для теста
         cb.reset().await;
         let mut state = cb.internal_state.write().await;
         state.state = CircuitBreakerState::HalfOpen;
         drop(state);
-        
+
         // Записываем достаточно успехов для закрытия
-        for _ in 0..2 { // half_open_max_calls = 2 для minimal config
+        for _ in 0..2 {
+            // half_open_max_calls = 2 для minimal config
             cb.record_success().await;
         }
-        
+
         assert_eq!(cb.get_state().await, CircuitBreakerState::Closed);
     }
 
     #[tokio::test]
     async fn test_circuit_breaker_stats() {
         let cb = CircuitBreaker::with_minimal_config();
-        
+
         cb.record_success().await;
         cb.record_failure().await;
         cb.record_success().await;
-        
+
         let stats = cb.get_stats().await;
         assert_eq!(stats.total_successes, 2);
         assert_eq!(stats.total_failures, 1);
@@ -454,11 +481,11 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_force_operations() {
         let cb = CircuitBreaker::with_minimal_config();
-        
+
         // Принудительно открываем
         cb.force_open().await;
         assert_eq!(cb.get_state().await, CircuitBreakerState::Open);
-        
+
         // Сбрасываем
         cb.reset().await;
         assert_eq!(cb.get_state().await, CircuitBreakerState::Closed);
@@ -467,10 +494,10 @@ mod tests {
     #[tokio::test]
     async fn test_state_description() {
         let cb = CircuitBreaker::with_minimal_config();
-        
+
         let desc_closed = cb.get_state_description().await;
         assert!(desc_closed.contains("ЗАКРЫТ"));
-        
+
         cb.force_open().await;
         let desc_open = cb.get_state_description().await;
         assert!(desc_open.contains("ОТКРЫТ"));

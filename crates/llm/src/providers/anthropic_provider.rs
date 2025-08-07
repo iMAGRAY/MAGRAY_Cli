@@ -1,13 +1,13 @@
 use super::{
-    LlmProvider, LlmRequest, LlmResponse, ProviderCapabilities, ProviderHealth, ProviderId, 
-    TokenUsage, LatencyClass,
+    LatencyClass, LlmProvider, LlmRequest, LlmResponse, ProviderCapabilities, ProviderHealth,
+    ProviderId, TokenUsage,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 
 #[derive(Debug, Clone)]
 pub struct AnthropicProvider {
@@ -22,12 +22,12 @@ impl AnthropicProvider {
         if api_key.is_empty() {
             return Err(anyhow!("Anthropic API key cannot be empty"));
         }
-        
+
         let client = Client::builder()
             .timeout(Duration::from_secs(90)) // Anthropic tends to be slower
             .build()
             .map_err(|e| anyhow!("Failed to create HTTP client: {}", e))?;
-            
+
         Ok(Self {
             api_key,
             model,
@@ -35,7 +35,7 @@ impl AnthropicProvider {
             timeout: Duration::from_secs(90),
         })
     }
-    
+
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self.client = Client::builder()
@@ -44,7 +44,7 @@ impl AnthropicProvider {
             .expect("Failed to rebuild HTTP client with timeout");
         self
     }
-    
+
     /// Get model-specific capabilities
     fn get_model_capabilities(&self) -> ProviderCapabilities {
         match self.model.as_str() {
@@ -115,14 +115,14 @@ impl LlmProvider for AnthropicProvider {
     fn id(&self) -> ProviderId {
         ProviderId::new("anthropic", &self.model)
     }
-    
+
     fn capabilities(&self) -> ProviderCapabilities {
         self.get_model_capabilities()
     }
-    
+
     async fn health_check(&self) -> Result<ProviderHealth> {
         let start_time = Instant::now();
-        
+
         let test_request = AnthropicRequest {
             model: self.model.clone(),
             max_tokens: 1,
@@ -132,8 +132,9 @@ impl LlmProvider for AnthropicProvider {
             }],
             temperature: Some(0.0),
         };
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post("https://api.anthropic.com/v1/messages")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
@@ -141,13 +142,16 @@ impl LlmProvider for AnthropicProvider {
             .json(&test_request)
             .send()
             .await;
-            
+
         match response {
             Ok(resp) => {
                 let elapsed = start_time.elapsed();
                 if resp.status().is_success() {
                     if elapsed > Duration::from_secs(15) {
-                        info!("Anthropic health check: DEGRADED (slow response: {:?})", elapsed);
+                        info!(
+                            "Anthropic health check: DEGRADED (slow response: {:?})",
+                            elapsed
+                        );
                         Ok(ProviderHealth::Degraded)
                     } else {
                         debug!("Anthropic health check: HEALTHY ({:?})", elapsed);
@@ -164,16 +168,16 @@ impl LlmProvider for AnthropicProvider {
             }
         }
     }
-    
+
     async fn complete(&self, request: LlmRequest) -> Result<LlmResponse> {
         let start_time = Instant::now();
-        
+
         // Validate request first
         self.validate_request(&request)?;
-        
+
         // Build messages array - Anthropic has different format
         let mut messages = Vec::new();
-        
+
         // Anthropic handles system prompt separately in newer API versions
         // For simplicity, we'll include it as the first message
         if let Some(system_prompt) = &request.system_prompt {
@@ -182,26 +186,30 @@ impl LlmProvider for AnthropicProvider {
                 content: system_prompt.clone(),
             });
         }
-        
+
         // Context handling can be added later if needed
-        
+
         // Add main prompt
         messages.push(AnthropicMessage {
             role: "user".to_string(),
             content: request.prompt.clone(),
         });
-        
+
         let anthropic_request = AnthropicRequest {
             model: self.model.clone(),
             max_tokens: request.max_tokens.unwrap_or(1000),
             messages,
             temperature: request.temperature,
         };
-        
-        info!("🚀 Sending request to Anthropic: {} (model: {})", 
-            request.prompt.chars().take(50).collect::<String>(), self.model);
-        
-        let response = self.client
+
+        info!(
+            "🚀 Sending request to Anthropic: {} (model: {})",
+            request.prompt.chars().take(50).collect::<String>(),
+            self.model
+        );
+
+        let response = self
+            .client
             .post("https://api.anthropic.com/v1/messages")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
@@ -209,19 +217,21 @@ impl LlmProvider for AnthropicProvider {
             .json(&anthropic_request)
             .send()
             .await?;
-            
+
         if !response.status().is_success() {
             let error_text = response.text().await?;
             error!("Anthropic API error: {}", error_text);
             return Err(anyhow!("Anthropic API error: {}", error_text));
         }
-        
+
         let anthropic_response: AnthropicResponse = response.json().await?;
         let elapsed = start_time.elapsed();
-        
-        let content_block = anthropic_response.content.first()
+
+        let content_block = anthropic_response
+            .content
+            .first()
             .ok_or_else(|| anyhow!("Empty response from Anthropic"))?;
-            
+
         let usage = if let Some(usage) = anthropic_response.usage {
             TokenUsage::new(usage.input_tokens, usage.output_tokens)
         } else {
@@ -230,44 +240,52 @@ impl LlmProvider for AnthropicProvider {
             let completion_tokens = content_block.text.len() as u32 / 4;
             TokenUsage::new(prompt_tokens, completion_tokens)
         };
-        
-        info!("✅ Received response from Anthropic ({:?}): {} tokens", elapsed, usage.total_tokens);
-        
+
+        info!(
+            "✅ Received response from Anthropic ({:?}): {} tokens",
+            elapsed, usage.total_tokens
+        );
+
         Ok(LlmResponse {
             content: content_block.text.clone(),
             usage,
             model: self.model.clone(),
-            finish_reason: anthropic_response.stop_reason.unwrap_or("end_turn".to_string()),
+            finish_reason: anthropic_response
+                .stop_reason
+                .unwrap_or("end_turn".to_string()),
             response_time: elapsed,
         })
     }
-    
-    async fn complete_stream(&self, request: LlmRequest) -> Result<tokio::sync::mpsc::Receiver<String>> {
+
+    async fn complete_stream(
+        &self,
+        request: LlmRequest,
+    ) -> Result<tokio::sync::mpsc::Receiver<String>> {
         let capabilities = self.capabilities();
         if !capabilities.supports_streaming {
             return Err(anyhow!("Streaming not supported for model {}", self.model));
         }
-        
+
         // Validate request first
         self.validate_request(&request)?;
-        
+
         // Build messages array (similar to complete())
         let mut messages = Vec::new();
-        
+
         if let Some(system_prompt) = &request.system_prompt {
             messages.push(AnthropicMessage {
                 role: "system".to_string(),
                 content: system_prompt.clone(),
             });
         }
-        
+
         // Context handling can be added later if needed
-        
+
         messages.push(AnthropicMessage {
             role: "user".to_string(),
             content: request.prompt.clone(),
         });
-        
+
         let anthropic_request = AnthropicStreamRequest {
             model: self.model.clone(),
             max_tokens: request.max_tokens.unwrap_or(1000),
@@ -275,14 +293,14 @@ impl LlmProvider for AnthropicProvider {
             temperature: request.temperature,
             stream: true,
         };
-        
+
         let (tx, rx) = tokio::sync::mpsc::channel(100);
         let client = self.client.clone();
         let api_key = self.api_key.clone();
-        
+
         tokio::spawn(async move {
             info!("🚀 Starting streaming request to Anthropic");
-            
+
             match client
                 .post("https://api.anthropic.com/v1/messages")
                 .header("Authorization", format!("Bearer {}", api_key))
@@ -290,14 +308,14 @@ impl LlmProvider for AnthropicProvider {
                 .header("anthropic-version", "2023-06-01")
                 .json(&anthropic_request)
                 .send()
-                .await 
+                .await
             {
                 Ok(response) => {
                     if !response.status().is_success() {
                         error!("Anthropic streaming request failed: {}", response.status());
                         return;
                     }
-                    
+
                     // In a real implementation, you would parse the SSE stream
                     // For now, we'll simulate streaming by chunking the response
                     match response.text().await {
@@ -307,7 +325,8 @@ impl LlmProvider for AnthropicProvider {
                                 if tx.send(format!("{} ", word)).await.is_err() {
                                     break;
                                 }
-                                tokio::time::sleep(Duration::from_millis(80)).await; // Anthropic is slower
+                                tokio::time::sleep(Duration::from_millis(80)).await;
+                                // Anthropic is slower
                             }
                         }
                         Err(e) => {
@@ -319,10 +338,10 @@ impl LlmProvider for AnthropicProvider {
                     error!("Failed to send streaming request: {}", e);
                 }
             }
-            
+
             info!("✅ Streaming request completed");
         });
-        
+
         Ok(rx)
     }
 }
@@ -384,28 +403,29 @@ mod tests {
         let provider = AnthropicProvider::new(
             "test-api-key".to_string(),
             "claude-3-haiku-20240307".to_string(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         assert_eq!(provider.id().provider_type, "anthropic");
         assert_eq!(provider.id().model, "claude-3-haiku-20240307");
-        
+
         let capabilities = provider.capabilities();
         assert!(capabilities.supports_streaming);
         assert!(!capabilities.supports_functions); // Anthropic uses different approach
         assert_eq!(capabilities.cost_per_1k_input, 0.00025);
     }
-    
+
     #[tokio::test]
     async fn test_anthropic_provider_validation() {
         let provider = AnthropicProvider::new(
             "test-api-key".to_string(),
             "claude-3-haiku-20240307".to_string(),
-        ).unwrap();
-        
-        let valid_request = LlmRequest::new("Hello")
-            .with_parameters(Some(1000), Some(0.7));
+        )
+        .unwrap();
+
+        let valid_request = LlmRequest::new("Hello").with_parameters(Some(1000), Some(0.7));
         assert!(provider.validate_request(&valid_request).is_ok());
-        
+
         let invalid_request = LlmRequest::new(&"x".repeat(1_000_000)) // Too long
             .with_parameters(Some(1000), Some(0.7));
         assert!(provider.validate_request(&invalid_request).is_err());

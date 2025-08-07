@@ -8,7 +8,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
-use crate::registry::{ToolPermissions, FileSystemPermissions, NetworkPermissions, SystemPermissions};
+use crate::registry::{
+    FileSystemPermissions, NetworkPermissions, SystemPermissions, ToolPermissions,
+};
 
 /// Security enforcement configuration
 #[derive(Debug, Clone)]
@@ -27,14 +29,26 @@ impl Default for SecurityConfig {
             enable_sandboxing: true,
             sandbox_timeout: Duration::from_secs(60),
             allowed_file_extensions: vec![
-                ".txt".to_string(), ".md".to_string(), ".json".to_string(),
-                ".toml".to_string(), ".yaml".to_string(), ".yml".to_string(),
-                ".rs".to_string(), ".py".to_string(), ".js".to_string(),
+                ".txt".to_string(),
+                ".md".to_string(),
+                ".json".to_string(),
+                ".toml".to_string(),
+                ".yaml".to_string(),
+                ".yml".to_string(),
+                ".rs".to_string(),
+                ".py".to_string(),
+                ".js".to_string(),
             ],
             blocked_commands: vec![
-                "rm -rf".to_string(), "del /f".to_string(), "format".to_string(),
-                "shutdown".to_string(), "reboot".to_string(), "sudo".to_string(),
-                "su".to_string(), "chmod 777".to_string(), "passwd".to_string(),
+                "rm -rf".to_string(),
+                "del /f".to_string(),
+                "format".to_string(),
+                "shutdown".to_string(),
+                "reboot".to_string(),
+                "sudo".to_string(),
+                "su".to_string(),
+                "chmod 777".to_string(),
+                "passwd".to_string(),
             ],
             max_file_size_mb: 100,
             enable_network_isolation: true,
@@ -87,11 +101,11 @@ pub enum FileSystemMode {
 /// Process isolation levels
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProcessIsolation {
-    None,           // Run in current process
-    Thread,         // Run in separate thread
-    Process,        // Run in separate process
-    Container,      // Run in container (if available)
-    VM,             // Run in virtual machine (future)
+    None,      // Run in current process
+    Thread,    // Run in separate thread
+    Process,   // Run in separate process
+    Container, // Run in container (if available)
+    VM,        // Run in virtual machine (future)
 }
 
 /// Security violation types
@@ -162,7 +176,7 @@ struct SandboxResourceUsage {
 impl SecurityEnforcer {
     pub fn new(config: SecurityConfig) -> Self {
         info!("🛡️ Initializing Security Enforcer");
-        
+
         Self {
             config,
             active_permissions: Mutex::new(HashMap::new()),
@@ -170,7 +184,7 @@ impl SecurityEnforcer {
             sandbox_instances: Mutex::new(HashMap::new()),
         }
     }
-    
+
     /// Grant execution permission for a tool
     pub async fn grant_permission(
         &self,
@@ -181,9 +195,9 @@ impl SecurityEnforcer {
     ) -> Result<ExecutionPermission> {
         let granted_at = SystemTime::now();
         let expires_at = duration.map(|d| granted_at + d);
-        
+
         let restrictions = self.generate_restrictions(&permissions).await;
-        
+
         let permission = ExecutionPermission {
             tool_id: tool_id.clone(),
             granted_at,
@@ -192,17 +206,17 @@ impl SecurityEnforcer {
             permissions,
             restrictions,
         };
-        
+
         // Store permission
         {
             let mut perms = self.active_permissions.lock().await;
             perms.insert(tool_id.clone(), permission.clone());
         }
-        
+
         info!("🔑 Granted execution permission for tool: {}", tool_id);
         Ok(permission)
     }
-    
+
     /// Validate file access request
     pub async fn validate_file_access(
         &self,
@@ -212,11 +226,12 @@ impl SecurityEnforcer {
     ) -> Result<()> {
         let permissions = {
             let perms = self.active_permissions.lock().await;
-            perms.get(tool_id)
+            perms
+                .get(tool_id)
                 .ok_or_else(|| anyhow!("No permissions found for tool: {}", tool_id))?
                 .clone()
         };
-        
+
         // Check if permission is still valid
         if let Some(expires_at) = permissions.expires_at {
             if SystemTime::now() > expires_at {
@@ -227,11 +242,12 @@ impl SecurityEnforcer {
                     severity: ViolationSeverity::Medium,
                     timestamp: SystemTime::now(),
                     remediation: Some("Re-grant permissions".to_string()),
-                }).await;
+                })
+                .await;
                 return Err(anyhow!("Permission expired for tool: {}", tool_id));
             }
         }
-        
+
         // Check file system permissions
         match &permissions.permissions.file_system {
             FileSystemPermissions::None => {
@@ -242,7 +258,8 @@ impl SecurityEnforcer {
                     severity: ViolationSeverity::High,
                     timestamp: SystemTime::now(),
                     remediation: Some("Grant appropriate file system permissions".to_string()),
-                }).await;
+                })
+                .await;
                 return Err(anyhow!("Tool does not have file system permissions"));
             }
             FileSystemPermissions::ReadOnly => {
@@ -251,9 +268,9 @@ impl SecurityEnforcer {
                 }
             }
             FileSystemPermissions::Restricted { allowed_paths } => {
-                let path_allowed = allowed_paths.iter().any(|allowed| {
-                    file_path.starts_with(allowed)
-                });
+                let path_allowed = allowed_paths
+                    .iter()
+                    .any(|allowed| file_path.starts_with(allowed));
                 if !path_allowed {
                     self.log_violation(SecurityViolation {
                         tool_id: tool_id.to_string(),
@@ -262,13 +279,14 @@ impl SecurityEnforcer {
                         severity: ViolationSeverity::High,
                         timestamp: SystemTime::now(),
                         remediation: Some("Add path to allowed list".to_string()),
-                    }).await;
+                    })
+                    .await;
                     return Err(anyhow!("Path not in allowed list"));
                 }
             }
             _ => {} // Full access or ReadWrite allowed
         }
-        
+
         // Check file size restrictions
         if access_type == FileAccessType::Write {
             if let Ok(metadata) = tokio::fs::metadata(file_path).await {
@@ -278,7 +296,7 @@ impl SecurityEnforcer {
                 }
             }
         }
-        
+
         // Check file extension restrictions
         if let Some(extension) = file_path.extension().and_then(|e| e.to_str()) {
             let ext_with_dot = format!(".{}", extension);
@@ -287,11 +305,15 @@ impl SecurityEnforcer {
                 // Don't block, but log the warning
             }
         }
-        
-        debug!("✅ File access validated for tool: {} -> {}", tool_id, file_path.display());
+
+        debug!(
+            "✅ File access validated for tool: {} -> {}",
+            tool_id,
+            file_path.display()
+        );
         Ok(())
     }
-    
+
     /// Validate network access request
     pub async fn validate_network_access(
         &self,
@@ -301,11 +323,12 @@ impl SecurityEnforcer {
     ) -> Result<()> {
         let permissions = {
             let perms = self.active_permissions.lock().await;
-            perms.get(tool_id)
+            perms
+                .get(tool_id)
                 .ok_or_else(|| anyhow!("No permissions found for tool: {}", tool_id))?
                 .clone()
         };
-        
+
         match &permissions.permissions.network {
             NetworkPermissions::None => {
                 self.log_violation(SecurityViolation {
@@ -315,7 +338,8 @@ impl SecurityEnforcer {
                     severity: ViolationSeverity::High,
                     timestamp: SystemTime::now(),
                     remediation: Some("Grant network permissions".to_string()),
-                }).await;
+                })
+                .await;
                 return Err(anyhow!("Tool does not have network permissions"));
             }
             NetworkPermissions::LocalHost => {
@@ -332,35 +356,36 @@ impl SecurityEnforcer {
                         severity: ViolationSeverity::Medium,
                         timestamp: SystemTime::now(),
                         remediation: Some("Add host to allowed list".to_string()),
-                    }).await;
+                    })
+                    .await;
                     return Err(anyhow!("Host not in allowed list"));
                 }
             }
             _ => {} // Other permissions allow broader access
         }
-        
-        debug!("✅ Network access validated for tool: {} -> {}:{}", tool_id, host, port);
+
+        debug!(
+            "✅ Network access validated for tool: {} -> {}:{}",
+            tool_id, host, port
+        );
         Ok(())
     }
-    
+
     /// Validate command execution
-    pub async fn validate_command_execution(
-        &self,
-        tool_id: &str,
-        command: &str,
-    ) -> Result<()> {
+    pub async fn validate_command_execution(&self, tool_id: &str, command: &str) -> Result<()> {
         let permissions = {
             let perms = self.active_permissions.lock().await;
-            perms.get(tool_id)
+            perms
+                .get(tool_id)
                 .ok_or_else(|| anyhow!("No permissions found for tool: {}", tool_id))?
                 .clone()
         };
-        
+
         // Check system permissions
         if let SystemPermissions::None = permissions.permissions.system {
             return Err(anyhow!("Tool does not have system command permissions"));
         }
-        
+
         // Check against blocked commands
         let command_lower = command.to_lowercase();
         for blocked in &self.config.blocked_commands {
@@ -372,15 +397,19 @@ impl SecurityEnforcer {
                     severity: ViolationSeverity::Critical,
                     timestamp: SystemTime::now(),
                     remediation: Some("Remove or modify the command".to_string()),
-                }).await;
+                })
+                .await;
                 return Err(anyhow!("Command contains blocked patterns: {}", blocked));
             }
         }
-        
-        debug!("✅ Command execution validated for tool: {} -> {}", tool_id, command);
+
+        debug!(
+            "✅ Command execution validated for tool: {} -> {}",
+            tool_id, command
+        );
         Ok(())
     }
-    
+
     /// Create isolated execution environment
     pub async fn create_sandbox(
         &self,
@@ -389,7 +418,7 @@ impl SecurityEnforcer {
         isolation_level: ProcessIsolation,
     ) -> Result<String> {
         let sandbox_id = format!("{}_{}", tool_id, self.current_timestamp());
-        
+
         // Create sandbox instance
         let instance = SandboxInstance {
             id: sandbox_id.clone(),
@@ -398,13 +427,13 @@ impl SecurityEnforcer {
             isolation_level: isolation_level.clone(),
             resource_usage: SandboxResourceUsage::default(),
         };
-        
+
         // Store instance
         {
             let mut instances = self.sandbox_instances.lock().await;
             instances.insert(sandbox_id.clone(), instance);
         }
-        
+
         // Setup sandbox environment based on isolation level
         match isolation_level {
             ProcessIsolation::None => {
@@ -426,19 +455,23 @@ impl SecurityEnforcer {
                 return Err(anyhow!("VM isolation not yet implemented"));
             }
         }
-        
-        info!("📦 Created sandbox: {} with {:?} isolation", sandbox_id, isolation_level);
+
+        info!(
+            "📦 Created sandbox: {} with {:?} isolation",
+            sandbox_id, isolation_level
+        );
         Ok(sandbox_id)
     }
-    
+
     /// Cleanup sandbox environment
     pub async fn cleanup_sandbox(&self, sandbox_id: &str) -> Result<()> {
         let instance = {
             let mut instances = self.sandbox_instances.lock().await;
-            instances.remove(sandbox_id)
+            instances
+                .remove(sandbox_id)
                 .ok_or_else(|| anyhow!("Sandbox not found: {}", sandbox_id))?
         };
-        
+
         // Cleanup based on isolation level
         match instance.isolation_level {
             ProcessIsolation::Process => {
@@ -449,27 +482,31 @@ impl SecurityEnforcer {
             }
             _ => {} // Other levels don't need special cleanup
         }
-        
+
         info!("🧹 Cleaned up sandbox: {}", sandbox_id);
         Ok(())
     }
-    
+
     /// Get security violation history
     pub async fn get_violation_history(&self, tool_id: Option<&str>) -> Vec<SecurityViolation> {
         let history = self.violation_history.lock().await;
         match tool_id {
-            Some(id) => history.iter()
+            Some(id) => history
+                .iter()
                 .filter(|v| v.tool_id == id)
                 .cloned()
                 .collect(),
             None => history.clone(),
         }
     }
-    
+
     /// Generate security restrictions based on permissions
-    async fn generate_restrictions(&self, permissions: &ToolPermissions) -> Vec<SecurityRestriction> {
+    async fn generate_restrictions(
+        &self,
+        permissions: &ToolPermissions,
+    ) -> Vec<SecurityRestriction> {
         let mut restrictions = Vec::new();
-        
+
         // Add file system restrictions
         match &permissions.file_system {
             FileSystemPermissions::None => {
@@ -479,77 +516,97 @@ impl SecurityEnforcer {
                 restrictions.push(SecurityRestriction::ReadOnlyFileSystem);
             }
             FileSystemPermissions::Restricted { allowed_paths } => {
-                let paths: Vec<PathBuf> = allowed_paths.iter()
-                    .map(|s| PathBuf::from(s))
-                    .collect();
+                let paths: Vec<PathBuf> = allowed_paths.iter().map(|s| PathBuf::from(s)).collect();
                 restrictions.push(SecurityRestriction::FilePathWhitelist(paths));
             }
             _ => {}
         }
-        
+
         // Add network restrictions
         match &permissions.network {
             NetworkPermissions::None => {
                 restrictions.push(SecurityRestriction::DisallowNetworkAccess);
             }
             NetworkPermissions::Restricted { allowed_hosts } => {
-                restrictions.push(SecurityRestriction::NetworkHostWhitelist(allowed_hosts.clone()));
+                restrictions.push(SecurityRestriction::NetworkHostWhitelist(
+                    allowed_hosts.clone(),
+                ));
             }
             _ => {}
         }
-        
+
         // Add common restrictions
         restrictions.push(SecurityRestriction::FileExtensionWhitelist(
-            self.config.allowed_file_extensions.clone()
+            self.config.allowed_file_extensions.clone(),
         ));
         restrictions.push(SecurityRestriction::CommandBlacklist(
-            self.config.blocked_commands.clone()
+            self.config.blocked_commands.clone(),
         ));
-        restrictions.push(SecurityRestriction::MaxFileSize(self.config.max_file_size_mb));
-        restrictions.push(SecurityRestriction::MaxExecutionTime(self.config.sandbox_timeout));
-        
+        restrictions.push(SecurityRestriction::MaxFileSize(
+            self.config.max_file_size_mb,
+        ));
+        restrictions.push(SecurityRestriction::MaxExecutionTime(
+            self.config.sandbox_timeout,
+        ));
+
         restrictions
     }
-    
-    async fn setup_thread_isolation(&self, _sandbox_id: &str, _config: &SandboxConfig) -> Result<()> {
+
+    async fn setup_thread_isolation(
+        &self,
+        _sandbox_id: &str,
+        _config: &SandboxConfig,
+    ) -> Result<()> {
         // Thread isolation setup (basic resource limiting)
         Ok(())
     }
-    
-    async fn setup_process_isolation(&self, _sandbox_id: &str, _config: &SandboxConfig) -> Result<()> {
+
+    async fn setup_process_isolation(
+        &self,
+        _sandbox_id: &str,
+        _config: &SandboxConfig,
+    ) -> Result<()> {
         // Process isolation setup
         // In production, this would create a separate process with limited privileges
         Ok(())
     }
-    
-    async fn setup_container_isolation(&self, _sandbox_id: &str, _config: &SandboxConfig) -> Result<()> {
+
+    async fn setup_container_isolation(
+        &self,
+        _sandbox_id: &str,
+        _config: &SandboxConfig,
+    ) -> Result<()> {
         // Container isolation setup
         // Would integrate with Docker or similar container runtime
         Ok(())
     }
-    
+
     async fn cleanup_process_isolation(&self, _sandbox_id: &str) -> Result<()> {
         // Cleanup process isolation
         Ok(())
     }
-    
+
     async fn cleanup_container_isolation(&self, _sandbox_id: &str) -> Result<()> {
         // Cleanup container isolation
         Ok(())
     }
-    
+
     async fn log_violation(&self, violation: SecurityViolation) {
-        warn!("🚨 Security violation: {} - {}", violation.violation_type_str(), violation.description);
-        
+        warn!(
+            "🚨 Security violation: {} - {}",
+            violation.violation_type_str(),
+            violation.description
+        );
+
         let mut history = self.violation_history.lock().await;
         history.push(violation);
-        
+
         // Keep only recent violations (last 1000)
         if history.len() > 1000 {
             history.drain(0..100);
         }
     }
-    
+
     fn current_timestamp(&self) -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -569,7 +626,7 @@ impl SecurityViolation {
     fn violation_type_str(&self) -> &str {
         match self.violation_type {
             ViolationType::UnauthorizedFileAccess => "Unauthorized File Access",
-            ViolationType::UnauthorizedNetworkAccess => "Unauthorized Network Access", 
+            ViolationType::UnauthorizedNetworkAccess => "Unauthorized Network Access",
             ViolationType::UnauthorizedCommand => "Unauthorized Command",
             ViolationType::ResourceLimitExceeded => "Resource Limit Exceeded",
             ViolationType::SuspiciousActivity => "Suspicious Activity",
@@ -588,18 +645,18 @@ impl Default for SecurityEnforcer {
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    
+
     #[tokio::test]
     async fn test_security_enforcer_creation() {
         let enforcer = SecurityEnforcer::default();
         let history = enforcer.get_violation_history(None).await;
         assert!(history.is_empty());
     }
-    
+
     #[tokio::test]
     async fn test_file_access_validation() {
         let enforcer = SecurityEnforcer::default();
-        
+
         // Grant permissions
         let permissions = ToolPermissions {
             file_system: FileSystemPermissions::ReadOnly,
@@ -607,28 +664,35 @@ mod tests {
             system: SystemPermissions::None,
             custom: HashMap::new(),
         };
-        
-        let permission = enforcer.grant_permission(
-            "test_tool".to_string(),
-            permissions,
-            "test_user".to_string(),
-            None,
-        ).await.unwrap();
-        
+
+        let permission = enforcer
+            .grant_permission(
+                "test_tool".to_string(),
+                permissions,
+                "test_user".to_string(),
+                None,
+            )
+            .await
+            .unwrap();
+
         // Test read access (should pass)
-        let result = enforcer.validate_file_access(
-            "test_tool",
-            Path::new("/tmp/test.txt"),
-            FileAccessType::Read,
-        ).await;
+        let result = enforcer
+            .validate_file_access(
+                "test_tool",
+                Path::new("/tmp/test.txt"),
+                FileAccessType::Read,
+            )
+            .await;
         assert!(result.is_ok());
-        
+
         // Test write access (should fail for ReadOnly)
-        let result = enforcer.validate_file_access(
-            "test_tool", 
-            Path::new("/tmp/test.txt"),
-            FileAccessType::Write,
-        ).await;
+        let result = enforcer
+            .validate_file_access(
+                "test_tool",
+                Path::new("/tmp/test.txt"),
+                FileAccessType::Write,
+            )
+            .await;
         assert!(result.is_err());
     }
 }

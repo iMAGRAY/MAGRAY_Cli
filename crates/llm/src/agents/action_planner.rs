@@ -1,7 +1,7 @@
-﻿use anyhow::{Result, anyhow};
+use crate::LlmClient;
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::LlmClient;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionPlan {
@@ -26,11 +26,16 @@ impl ActionPlannerAgent {
     pub fn new(llm: LlmClient) -> Self {
         Self { llm }
     }
-    
-    pub async fn create_plan(&self, user_query: &str, available_tools: &[String]) -> Result<ActionPlan> {
+
+    pub async fn create_plan(
+        &self,
+        user_query: &str,
+        available_tools: &[String],
+    ) -> Result<ActionPlan> {
         let tools_list = available_tools.join(", ");
-        
-        let prompt = format!(r#"Ты - эксперт по планированию сложных действий. Проанализируй запрос пользователя и создай оптимальный пошаговый план выполнения.
+
+        let prompt = format!(
+            r#"Ты - эксперт по планированию сложных действий. Проанализируй запрос пользователя и создай оптимальный пошаговый план выполнения.
 
 ДОСТУПНЫЕ ИНСТРУМЕНТЫ: {tools_list}
 ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "{user_query}"
@@ -85,19 +90,20 @@ Git операции:
     ],
     "reasoning": "план создан для выполнения запроса пользователя с проверкой результата",
     "confidence": 0.95
-}}"#);
+}}"#
+        );
 
         let response = self.llm.chat_simple(&prompt).await?;
         self.parse_action_plan(&response)
     }
-    
+
     fn parse_action_plan(&self, response: &str) -> Result<ActionPlan> {
         let cleaned_response = response.trim();
-        
+
         if let Some(json_start) = cleaned_response.find('{') {
             if let Some(json_end) = cleaned_response.rfind('}') {
                 let json_str = &cleaned_response[json_start..=json_end];
-                
+
                 match serde_json::from_str::<ActionPlan>(json_str) {
                     Ok(plan) => return Ok(plan),
                     Err(e) => {
@@ -108,10 +114,10 @@ Git операции:
                 }
             }
         }
-        
+
         Err(anyhow!("Не найден валидный JSON в ответе: {}", response))
     }
-    
+
     fn fix_json_format(&self, json_str: &str) -> String {
         json_str
             .replace("'", "\"")
@@ -119,6 +125,6 @@ Git операции:
             .replace("False", "false")
             .replace(",}", "}")
             .replace(",]", "]")
-            .replace("\\\"", "\"")  // Исправляем экранированные кавычки в JSON
+            .replace("\\\"", "\"") // Исправляем экранированные кавычки в JSON
     }
 }

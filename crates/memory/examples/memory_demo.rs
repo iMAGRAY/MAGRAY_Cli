@@ -1,8 +1,8 @@
 use anyhow::Result;
-use memory::{Layer, DIMemoryService, Record, default_config, SearchOptions};
+use chrono::Utc;
+use memory::{default_config, DIMemoryService, Layer, Record, SearchOptions};
 use std::path::PathBuf;
 use uuid::Uuid;
-use chrono::Utc;
 
 // Демонстрация использования DIMemoryService
 
@@ -18,13 +18,13 @@ async fn main() -> Result<()> {
 
     println!("Initializing DI Memory Service...");
     let service = DIMemoryService::new(config).await?;
-    
+
     // Инициализация слоев памяти
     service.initialize().await?;
 
     // Insert some sample records
     println!("\nInserting sample memories...");
-    
+
     let records = vec![
         Record {
             id: Uuid::new_v4(),
@@ -85,16 +85,15 @@ async fn main() -> Result<()> {
         top_k: 5,
         ..Default::default()
     };
-    let results = service.search(
-        "authentication OAuth",
-        Layer::Interact,
-        search_options
-    ).await?;
-    
+    let results = service
+        .search("authentication OAuth", Layer::Interact, search_options)
+        .await?;
+
     for (i, record) in results.iter().enumerate() {
-        println!("  {}. [{}] {} (score: {:.2})", 
-            i + 1, 
-            record.layer.as_str(), 
+        println!(
+            "  {}. [{}] {} (score: {:.2})",
+            i + 1,
+            record.layer.as_str(),
             &record.text[..50.min(record.text.len())],
             record.score
         );
@@ -102,12 +101,14 @@ async fn main() -> Result<()> {
 
     // 2. Layer-specific search
     println!("\n2. Search only in Insights layer:");
-    let results = service.search(
-        "optimization performance",
-        Layer::Insights,
-        SearchOptions::default()
-    ).await?;
-    
+    let results = service
+        .search(
+            "optimization performance",
+            Layer::Insights,
+            SearchOptions::default(),
+        )
+        .await?;
+
     for record in &results {
         println!("  - {}", &record.text[..60.min(record.text.len())]);
     }
@@ -118,15 +119,14 @@ async fn main() -> Result<()> {
         tags: vec!["design".to_string()],
         ..Default::default()
     };
-    let results = service.search(
-        "system design",
-        Layer::Assets,
-        search_options
-    ).await?;
-    
+    let results = service
+        .search("system design", Layer::Assets, search_options)
+        .await?;
+
     for record in &results {
-        println!("  - {} (tags: {:?})", 
-            &record.text[..50.min(record.text.len())], 
+        println!(
+            "  - {} (tags: {:?})",
+            &record.text[..50.min(record.text.len())],
             record.tags
         );
     }
@@ -137,14 +137,16 @@ async fn main() -> Result<()> {
         project: Some("backend".to_string()),
         ..Default::default()
     };
-    let results = service.search(
-        "backend optimization",
-        Layer::Insights,
-        search_options
-    ).await?;
-    
+    let results = service
+        .search("backend optimization", Layer::Insights, search_options)
+        .await?;
+
     for record in &results {
-        println!("  - [{}] {}", record.project, &record.text[..50.min(record.text.len())]);
+        println!(
+            "  - [{}] {}",
+            record.project,
+            &record.text[..50.min(record.text.len())]
+        );
     }
 
     // 5. High-quality results only
@@ -153,12 +155,10 @@ async fn main() -> Result<()> {
         score_threshold: 0.85,
         ..Default::default()
     };
-    let results = service.search(
-        "important decisions",
-        Layer::Assets,
-        search_options
-    ).await?;
-    
+    let results = service
+        .search("important decisions", Layer::Assets, search_options)
+        .await?;
+
     println!("  Found {} high-quality matches", results.len());
 
     // Show statistics
@@ -173,23 +173,41 @@ async fn main() -> Result<()> {
         0.0
     };
     println!("  Cache hit rate: {:.2}%", hit_rate * 100.0);
-    println!("  DI Container types: {}", stats.di_container_stats.total_types);
-    println!("  Cached singletons: {}", stats.di_container_stats.cached_singletons);
+    println!(
+        "  DI Container types: {}",
+        stats.di_container_stats.total_types
+    );
+    println!(
+        "  Cached singletons: {}",
+        stats.di_container_stats.cached_singletons
+    );
 
     // Demonstrate promotion cycle
     println!("\n=== Running Promotion Cycle ===");
     let promotion_stats = service.run_promotion().await?;
-    println!("  Promoted from Interact to Insights: {}", promotion_stats.interact_to_insights);
-    println!("  Promoted from Insights to Assets: {}", promotion_stats.insights_to_assets);
-    println!("  Expired from Interact: {}", promotion_stats.expired_interact);
-    println!("  Expired from Insights: {}", promotion_stats.expired_insights);
+    println!(
+        "  Promoted from Interact to Insights: {}",
+        promotion_stats.interact_to_insights
+    );
+    println!(
+        "  Promoted from Insights to Assets: {}",
+        promotion_stats.insights_to_assets
+    );
+    println!(
+        "  Expired from Interact: {}",
+        promotion_stats.expired_interact
+    );
+    println!(
+        "  Expired from Insights: {}",
+        promotion_stats.expired_insights
+    );
     println!("  Total time: {}ms", promotion_stats.total_time_ms);
-    
+
     // Show performance metrics
     println!("\n=== DI Performance Metrics ===");
     let perf_report = service.get_performance_report();
     println!("{}", perf_report);
-    
+
     // Показываем статистику по слоям
     if let Ok(health) = &stats.health_status {
         println!("\n  Health status: {:?}", health.overall_status);

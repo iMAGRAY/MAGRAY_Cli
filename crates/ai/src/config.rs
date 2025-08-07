@@ -1,5 +1,29 @@
+use common::service_traits::{ConfigTrait, ConfigurationProfile};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+// Conditional GPU Config type
+#[cfg(feature = "gpu")]
+type OptionalGpuConfig = Option<crate::GpuConfig>;
+
+#[cfg(not(feature = "gpu"))]
+type OptionalGpuConfig = Option<()>;
+
+// Helper function to create default GPU config
+#[cfg(feature = "gpu")]
+fn default_gpu_config() -> OptionalGpuConfig {
+    Some(crate::GpuConfig::auto_optimized())
+}
+
+#[cfg(not(feature = "gpu"))]
+fn default_gpu_config() -> OptionalGpuConfig {
+    None
+}
+
+// Helper function for no GPU config
+fn no_gpu_config() -> OptionalGpuConfig {
+    None
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiConfig {
@@ -23,7 +47,7 @@ pub struct EmbeddingConfig {
     pub use_gpu: bool,
     /// GPU configuration (if use_gpu is true)
     #[serde(skip)]
-    pub gpu_config: Option<crate::GpuConfig>,
+    pub gpu_config: OptionalGpuConfig,
     /// Embedding dimension (optional, defaults based on model)
     pub embedding_dim: Option<usize>,
 }
@@ -40,7 +64,7 @@ pub struct RerankingConfig {
     pub use_gpu: bool,
     /// GPU configuration (if use_gpu is true)
     #[serde(skip)]
-    pub gpu_config: Option<crate::GpuConfig>,
+    pub gpu_config: OptionalGpuConfig,
 }
 
 impl Default for AiConfig {
@@ -53,37 +77,27 @@ impl Default for AiConfig {
     }
 }
 
-impl AiConfig {
-    pub fn production() -> Self {
+// Реализация общих трейтов для устранения дублирования
+impl ConfigTrait for AiConfig {}
+
+impl ConfigurationProfile<AiConfig> for AiConfig {
+    fn production() -> Self {
         Self {
             models_dir: PathBuf::from("/opt/magray/models"), // Production path
-            embedding: EmbeddingConfig {
-                model_name: "qwen3emb_prod".to_string(),
-                batch_size: 64, // Больший batch для production
-                max_length: 1024, // Больше tokens
-                use_gpu: true,
-                gpu_config: Some(crate::GpuConfig::auto_optimized()),
-                embedding_dim: Some(1024),
-            },
-            reranking: RerankingConfig {
-                model_name: "qwen3_reranker_prod".to_string(),
-                batch_size: 32, // Больший batch
-                max_length: 1024,
-                use_gpu: true,
-                gpu_config: Some(crate::GpuConfig::auto_optimized()),
-            },
+            embedding: EmbeddingConfig::production(),
+            reranking: RerankingConfig::production(),
         }
     }
 
-    pub fn minimal() -> Self {
+    fn minimal() -> Self {
         Self {
             models_dir: PathBuf::from("./models"), // Локальная папка
             embedding: EmbeddingConfig {
                 model_name: "qwen3emb_small".to_string(),
-                batch_size: 8, // Маленький batch
+                batch_size: 8,   // Маленький batch
                 max_length: 256, // Меньше tokens
-                use_gpu: false, // CPU только
-                gpu_config: None,
+                use_gpu: false,  // CPU только
+                gpu_config: no_gpu_config(),
                 embedding_dim: Some(512), // Меньшая размерность
             },
             reranking: RerankingConfig {
@@ -91,9 +105,55 @@ impl AiConfig {
                 batch_size: 4,
                 max_length: 256,
                 use_gpu: false,
-                gpu_config: None,
+                gpu_config: no_gpu_config(),
             },
         }
+    }
+
+    fn validate_profile(config: &AiConfig) -> Result<(), common::ConfigError> {
+        if config.embedding.batch_size == 0 {
+            return Err(common::ConfigError::InvalidValue {
+                config_key: "embedding.batch_size".to_string(),
+                value: "0".to_string(),
+                reason: "Batch size must be greater than 0".to_string(),
+            });
+        }
+        if config.reranking.batch_size == 0 {
+            return Err(common::ConfigError::InvalidValue {
+                config_key: "reranking.batch_size".to_string(),
+                value: "0".to_string(),
+                reason: "Batch size must be greater than 0".to_string(),
+            });
+        }
+        Ok(())
+    }
+}
+
+impl ConfigurationProfile<EmbeddingConfig> for EmbeddingConfig {
+    fn production() -> Self {
+        Self {
+            model_name: "qwen3emb_prod".to_string(),
+            batch_size: 64,
+            max_length: 1024,
+            use_gpu: true,
+            gpu_config: default_gpu_config(),
+            embedding_dim: Some(1024),
+        }
+    }
+
+    fn minimal() -> Self {
+        Self {
+            model_name: "qwen3emb_small".to_string(),
+            batch_size: 8,
+            max_length: 256,
+            use_gpu: false,
+            gpu_config: no_gpu_config(),
+            embedding_dim: Some(512),
+        }
+    }
+
+    fn validate_profile(_config: &EmbeddingConfig) -> Result<(), common::ConfigError> {
+        Ok(())
     }
 }
 
@@ -103,10 +163,36 @@ impl Default for EmbeddingConfig {
             model_name: "qwen3emb".to_string(), // Qwen3 embedding model
             batch_size: 32,
             max_length: 512,
-            use_gpu: true,  // Включаем GPU по умолчанию
-            gpu_config: Some(crate::GpuConfig::auto_optimized()), // Автоматическая настройка GPU
-            embedding_dim: Some(1024), // Qwen3 also 1024 dims
+            use_gpu: true,                    // Включаем GPU по умолчанию
+            gpu_config: default_gpu_config(), // Автоматическая настройка GPU
+            embedding_dim: Some(1024),        // Qwen3 also 1024 dims
         }
+    }
+}
+
+impl ConfigurationProfile<RerankingConfig> for RerankingConfig {
+    fn production() -> Self {
+        Self {
+            model_name: "qwen3_reranker_prod".to_string(),
+            batch_size: 32,
+            max_length: 1024,
+            use_gpu: true,
+            gpu_config: default_gpu_config(),
+        }
+    }
+
+    fn minimal() -> Self {
+        Self {
+            model_name: "qwen3_reranker_small".to_string(),
+            batch_size: 4,
+            max_length: 256,
+            use_gpu: false,
+            gpu_config: no_gpu_config(),
+        }
+    }
+
+    fn validate_profile(_config: &RerankingConfig) -> Result<(), common::ConfigError> {
+        Ok(())
     }
 }
 
@@ -116,8 +202,8 @@ impl Default for RerankingConfig {
             model_name: "qwen3_reranker".to_string(), // Qwen3 reranker model
             batch_size: 16,
             max_length: 512,
-            use_gpu: true,  // Включаем GPU по умолчанию
-            gpu_config: Some(crate::GpuConfig::auto_optimized()), // Автоматическая настройка GPU
+            use_gpu: true,                    // Включаем GPU по умолчанию
+            gpu_config: default_gpu_config(), // Автоматическая настройка GPU
         }
     }
 }

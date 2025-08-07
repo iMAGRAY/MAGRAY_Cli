@@ -1,5 +1,5 @@
 //! Comprehensive Unit Tests для декомпозированной DI архитектуры
-//! 
+//!
 //! Эти тесты проверяют что новая SOLID-совместимая архитектура работает корректно
 //! и обеспечивает 100% обратную совместимость с оригинальным God Object.
 
@@ -8,18 +8,15 @@ use std::sync::Arc;
 use tokio_test;
 
 use memory::{
-    service_di::{
-        DIMemoryServiceFacade, DIMemoryServiceBuilder,
-        MemoryServiceConfig, ServiceConfigType, 
-        ProductionCoordinatorFactory, CoordinatorFactory,
-        OperationExecutor, ProductionOperationExecutor, SimpleOperationExecutor,
-        OperationConfig, BatchInsertResult, BatchSearchResult,
-        ProductionMetrics, MetricsCollector,
-        CircuitBreaker, LifecycleManager,
-        MemorySystemStats, OrchestrationCoordinators,
-    },
-    types::{Record, Layer, SearchOptions},
     di_memory_config::test_helpers,
+    service_di::{
+        BatchInsertResult, BatchSearchResult, CircuitBreaker, CoordinatorFactory,
+        DIMemoryServiceBuilder, DIMemoryServiceFacade, LifecycleManager, MemoryServiceConfig,
+        MemorySystemStats, MetricsCollector, OperationConfig, OperationExecutor,
+        OrchestrationCoordinators, ProductionCoordinatorFactory, ProductionMetrics,
+        ProductionOperationExecutor, ServiceConfigType, SimpleOperationExecutor,
+    },
+    types::{Layer, Record, SearchOptions},
 };
 
 mod facade_tests {
@@ -55,7 +52,7 @@ mod facade_tests {
     #[tokio::test]
     async fn test_facade_builder_pattern() -> Result<()> {
         let config = test_helpers::create_test_config()?;
-        
+
         // Тестируем различные конфигурации Builder
         let minimal_service = DIMemoryServiceBuilder::new(config.clone())
             .minimal()
@@ -67,9 +64,7 @@ mod facade_tests {
             .build()
             .await?;
 
-        let full_service = DIMemoryServiceBuilder::new(config)
-            .build()
-            .await?;
+        let full_service = DIMemoryServiceBuilder::new(config).build().await?;
 
         // Проверяем что все созданы успешно
         assert!(minimal_service.di_stats().total_resolutions >= 0);
@@ -90,13 +85,11 @@ mod facade_tests {
 
         // Тестируем основные операции (должны работать как у God Object)
         service.insert(record.clone()).await?;
-        
-        let search_results = service.search(
-            &record.text,
-            Layer::Hot,
-            SearchOptions::default()
-        ).await?;
-        
+
+        let search_results = service
+            .search(&record.text, Layer::Hot, SearchOptions::default())
+            .await?;
+
         assert!(!search_results.is_empty());
 
         // Тестируем batch операции
@@ -121,12 +114,10 @@ mod coordinator_factory_tests {
         // Тестируем что Factory применяет SOLID принципы
 
         // Single Responsibility: Factory отвечает ТОЛЬКО за создание координаторов
-        let factory = ProductionCoordinatorFactory::new(
-            memory::di_container::DIContainer::new()
-        );
+        let factory = ProductionCoordinatorFactory::new(memory::di_container::DIContainer::new());
 
         let container = memory::di_container::DIContainer::new();
-        
+
         // Open/Closed: можем расширять через конфигурацию без изменения кода
         let full_coords = factory.create_all_coordinators(&container).await?;
         assert!(full_coords.count_active() >= 0);
@@ -138,11 +129,11 @@ mod coordinator_factory_tests {
         // Interface Segregation: разные типы координаторов создаются отдельно
         let custom_factory = ProductionCoordinatorFactory::custom(true, false, true, false);
         let custom_coords = custom_factory.create_all_coordinators(&container).await?;
-        
+
         // Проверяем что создались только нужные координаторы
         assert!(custom_coords.embedding_coordinator.is_some());
         assert!(custom_coords.search_coordinator.is_none());
-        assert!(custom_coords.health_manager.is_some()); 
+        assert!(custom_coords.health_manager.is_some());
         assert!(custom_coords.resource_controller.is_none());
 
         Ok(())
@@ -156,7 +147,7 @@ mod coordinator_factory_tests {
 
         // Тестируем lifecycle management
         coordinators.initialize().await?;
-        
+
         // Тестируем health checking
         let health = coordinators.check_health().await?;
         assert!(health.overall_healthy); // или проверить другие поля
@@ -176,31 +167,27 @@ mod operation_executor_tests {
     #[tokio::test]
     async fn test_operation_executor_trait_segregation() -> Result<()> {
         let container = Arc::new(memory::di_container::DIContainer::new());
-        
+
         // Interface Segregation: разные implementations для разных нужд
         let simple_executor = SimpleOperationExecutor::new(container.clone());
         let production_executor = ProductionOperationExecutor::new_minimal(container.clone());
 
         // Тестируем что все executors реализуют общий интерфейс
-        let executors: Vec<Arc<dyn OperationExecutor>> = vec![
-            Arc::new(simple_executor),
-            Arc::new(production_executor),
-        ];
+        let executors: Vec<Arc<dyn OperationExecutor>> =
+            vec![Arc::new(simple_executor), Arc::new(production_executor)];
 
         for executor in executors {
             // Тестируем lifecycle
             executor.initialize().await?;
-            
+
             // Тестируем создание тестовой записи
             let record = test_helpers::create_test_record();
             executor.insert(record.clone()).await?;
-            
+
             // Тестируем поиск
-            let results = executor.search(
-                &record.text, 
-                Layer::Hot, 
-                SearchOptions::default()
-            ).await?;
+            let results = executor
+                .search(&record.text, Layer::Hot, SearchOptions::default())
+                .await?;
             assert!(!results.is_empty());
 
             executor.shutdown().await?;
@@ -216,9 +203,8 @@ mod operation_executor_tests {
         let config = OperationConfig::production();
 
         let executor = ProductionOperationExecutor::new(
-            container,
-            None, // No embedding coordinator
-            None, // No search coordinator 
+            container, None, // No embedding coordinator
+            None, // No search coordinator
             config,
         );
 
@@ -236,7 +222,7 @@ mod operation_executor_tests {
         Ok(())
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_operation_config_variants() -> Result<()> {
         // Тестируем различные конфигурации операций
         let production_config = OperationConfig::production();
@@ -273,16 +259,11 @@ mod operation_executor_tests {
         assert!(batch_result.total_time_ms > 0);
 
         // Тестируем batch search
-        let queries = vec![
-            records[0].text.clone(),
-            records[1].text.clone(),
-        ];
+        let queries = vec![records[0].text.clone(), records[1].text.clone()];
 
-        let search_result = executor.batch_search(
-            queries.clone(),
-            Layer::Hot,
-            SearchOptions::default()
-        ).await?;
+        let search_result = executor
+            .batch_search(queries.clone(), Layer::Hot, SearchOptions::default())
+            .await?;
 
         assert_eq!(search_result.queries.len(), 2);
         assert_eq!(search_result.results.len(), 2);
@@ -299,16 +280,16 @@ mod solid_principles_integration_tests {
     #[tokio::test]
     async fn test_single_responsibility_principle() -> Result<()> {
         // Каждый модуль имеет единственную ответственность
-        
+
         // CoordinatorFactory - ТОЛЬКО создание координаторов
         let factory = ProductionCoordinatorFactory::minimal();
         let container = memory::di_container::DIContainer::new();
         let _coordinators = factory.create_all_coordinators(&container).await?;
 
         // OperationExecutor - ТОЛЬКО выполнение операций
-        let executor = Arc::new(ProductionOperationExecutor::new_minimal(
-            Arc::new(container)
-        ));
+        let executor = Arc::new(ProductionOperationExecutor::new_minimal(Arc::new(
+            container,
+        )));
         executor.initialize().await?;
         let record = test_helpers::create_test_record();
         executor.insert(record).await?;
@@ -323,13 +304,15 @@ mod solid_principles_integration_tests {
     #[tokio::test]
     async fn test_open_closed_principle() -> Result<()> {
         // Система открыта для расширения, закрыта для модификации
-        
+
         // Можем создавать новые типы операций без изменения базового executor
         let container = Arc::new(memory::di_container::DIContainer::new());
-        
+
         // Разные executors используют одинаковый интерфейс
-        let simple: Arc<dyn OperationExecutor> = Arc::new(SimpleOperationExecutor::new(container.clone()));
-        let production: Arc<dyn OperationExecutor> = Arc::new(ProductionOperationExecutor::new_minimal(container));
+        let simple: Arc<dyn OperationExecutor> =
+            Arc::new(SimpleOperationExecutor::new(container.clone()));
+        let production: Arc<dyn OperationExecutor> =
+            Arc::new(ProductionOperationExecutor::new_minimal(container));
 
         // Оба executor реализуют одинаковый интерфейс
         simple.initialize().await?;
@@ -342,7 +325,7 @@ mod solid_principles_integration_tests {
     async fn test_liskov_substitution_principle() -> Result<()> {
         // Подтипы должны быть взаимозаменяемы с базовыми типами
         let container = Arc::new(memory::di_container::DIContainer::new());
-        
+
         let executors: Vec<Arc<dyn OperationExecutor>> = vec![
             Arc::new(SimpleOperationExecutor::new(container.clone())),
             Arc::new(ProductionOperationExecutor::new_minimal(container)),
@@ -351,28 +334,29 @@ mod solid_principles_integration_tests {
         // Все executors должны работать одинаково через общий интерфейс
         for executor in executors {
             executor.initialize().await?;
-            
+
             let record = test_helpers::create_test_record();
             executor.insert(record.clone()).await?;
-            
-            let results = executor.search(&record.text, Layer::Hot, SearchOptions::default()).await?;
+
+            let results = executor
+                .search(&record.text, Layer::Hot, SearchOptions::default())
+                .await?;
             assert!(!results.is_empty());
-            
+
             executor.shutdown().await?;
         }
 
         Ok(())
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_interface_segregation_principle() -> Result<()> {
         // Клиенты не должны зависеть от интерфейсов которые не используют
-        
+
         // OperationExecutor interface содержит только операции
         let container = Arc::new(memory::di_container::DIContainer::new());
-        let executor: Arc<dyn OperationExecutor> = Arc::new(
-            SimpleOperationExecutor::new(container)
-        );
+        let executor: Arc<dyn OperationExecutor> =
+            Arc::new(SimpleOperationExecutor::new(container));
 
         // Clients который использует только insert не видит search
         executor.initialize().await?;
@@ -381,9 +365,8 @@ mod solid_principles_integration_tests {
         executor.shutdown().await?;
 
         // CoordinatorFactory interface содержит только создание координаторов
-        let factory: Arc<dyn CoordinatorFactory> = Arc::new(
-            ProductionCoordinatorFactory::minimal()
-        );
+        let factory: Arc<dyn CoordinatorFactory> =
+            Arc::new(ProductionCoordinatorFactory::minimal());
         let container = memory::di_container::DIContainer::new();
         let _coord = factory.create_embedding_coordinator(&container).await;
 
@@ -394,13 +377,12 @@ mod solid_principles_integration_tests {
     async fn test_dependency_inversion_principle() -> Result<()> {
         // Высокоуровневые модули не зависят от низкоуровневых
         // Оба зависят от абстракций
-        
+
         let container = Arc::new(memory::di_container::DIContainer::new());
-        
+
         // Facade зависит от абстракции OperationExecutor, не от конкретного класса
-        let executor: Arc<dyn OperationExecutor> = Arc::new(
-            ProductionOperationExecutor::new_minimal(container)
-        );
+        let executor: Arc<dyn OperationExecutor> =
+            Arc::new(ProductionOperationExecutor::new_minimal(container));
 
         // Facade может работать с любой implementation OperationExecutor
         executor.initialize().await?;
@@ -424,7 +406,7 @@ mod performance_and_reliability_tests {
         service.initialize().await?;
 
         let start = Instant::now();
-        
+
         // Выполняем типичные операции
         for i in 0..100 {
             let mut record = test_helpers::create_test_record();
@@ -433,9 +415,13 @@ mod performance_and_reliability_tests {
         }
 
         let duration = start.elapsed();
-        
+
         // Новая архитектура должна быть reasonably быстрой
-        assert!(duration.as_millis() < 5000, "Too slow: {}ms", duration.as_millis());
+        assert!(
+            duration.as_millis() < 5000,
+            "Too slow: {}ms",
+            duration.as_millis()
+        );
 
         service.shutdown().await?;
         Ok(())
@@ -445,16 +431,16 @@ mod performance_and_reliability_tests {
     async fn test_facade_memory_usage() -> Result<()> {
         // Тестируем что новая архитектура не использует больше памяти
         let config = test_helpers::create_test_config()?;
-        
+
         // Создаем много сервисов для проверки memory leaks
         for _ in 0..10 {
             let service = DIMemoryServiceFacade::new_minimal(config.clone()).await?;
             service.initialize().await?;
-            
+
             // Выполняем операции
             let record = test_helpers::create_test_record();
             service.insert(record).await?;
-            
+
             service.shutdown().await?;
             // Service должен быть cleanup после drop
         }
@@ -499,45 +485,49 @@ async fn test_backward_compatibility_comprehensive() -> Result<()> {
     let service = DIMemoryServiceFacade::new_minimal(config).await?;
 
     // === Все методы оригинального God Object должны работать ===
-    
+
     // Инициализация
     service.initialize().await?;
-    
+
     // Business operations
     let record = test_helpers::create_test_record();
     service.insert(record.clone()).await?;
-    
-    let results = service.search(&record.text, Layer::Hot, SearchOptions::default()).await?;
+
+    let results = service
+        .search(&record.text, Layer::Hot, SearchOptions::default())
+        .await?;
     assert!(!results.is_empty());
-    
+
     let batch_results = service.batch_insert(vec![record.clone()]).await?;
     assert!(batch_results.inserted >= 1);
-    
-    let search_results = service.batch_search(
-        vec![record.text.clone()],
-        Layer::Hot,
-        SearchOptions::default()
-    ).await?;
+
+    let search_results = service
+        .batch_search(
+            vec![record.text.clone()],
+            Layer::Hot,
+            SearchOptions::default(),
+        )
+        .await?;
     assert!(!search_results.results.is_empty());
-    
+
     service.update(record.clone()).await?;
     service.delete(&record.id, Layer::Hot).await?;
-    
+
     // Management operations
     service.flush_all().await?;
     let _promotion_stats = service.run_promotion().await?;
     let _backup = service.create_backup("/tmp/test_backup").await?;
-    
+
     // Monitoring operations
     let _health = service.check_health().await?;
     let _stats = service.get_stats().await;
-    
+
     // DI operations
     let _di_stats = service.di_stats();
     let _metrics = service.get_performance_metrics();
     let _report = service.get_performance_report();
     service.reset_performance_metrics();
-    
+
     // Graceful shutdown
     service.shutdown().await?;
 

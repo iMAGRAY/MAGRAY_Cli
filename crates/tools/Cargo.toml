@@ -3,6 +3,32 @@ name = "tools"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = ["cpu"]
+
+# Minimal build - basic file and shell operations only
+minimal = ["file-ops", "shell-ops"]
+
+# CPU build - full functionality without GPU tools
+cpu = [
+    "minimal",
+    "git-ops",
+    "web-ops", 
+    "plugins",
+    "security"
+]
+
+# GPU build - same as CPU 
+gpu = ["cpu"]
+
+# Individual tool categories
+file-ops = []
+shell-ops = []
+git-ops = []
+web-ops = ["reqwest"]
+plugins = ["llm/cpu"]
+security = []
+
 [dependencies]
 llm = { path = "../llm" }
 tokio = { workspace = true }
@@ -11,14 +37,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 walkdir = { workspace = true }
-syntect = { workspace = true }
-ureq = { workspace = true }
-ignore = { workspace = true }
 tempfile = { workspace = true }
 console = { workspace = true }
 indicatif = { workspace = true }
 async-trait = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, optional = true }
 urlencoding = "2.1"
 rand = "0.8"
 thiserror = { workspace = true }

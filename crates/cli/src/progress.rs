@@ -1,6 +1,6 @@
-﻿// use indicatif::{ProgressBar, ProgressStyle}; // TODO: Implement progress bars
-use std::time::Duration;
+// use indicatif::{ProgressBar, ProgressStyle}; // TODO: Implement progress bars
 use colored::Colorize;
+use std::time::Duration;
 
 /// Типы операций для адаптивных прогресс-баров
 #[derive(Debug, Clone, Copy)]
@@ -8,7 +8,7 @@ use colored::Colorize;
 pub enum ProgressType {
     /// Быстрая операция (100-500ms)
     Fast,
-    /// Средняя операция (0.5-5s) 
+    /// Средняя операция (0.5-5s)
     Medium,
     /// Медленная операция (5s+)
     Slow,
@@ -76,26 +76,26 @@ impl ProgressType {
     pub fn create_spinner(self, message: &str) -> AdaptiveSpinner {
         let config = self.config();
         let spinner = indicatif::ProgressBar::new_spinner();
-        
+
         let template = match self {
             ProgressType::Backup | ProgressType::Search | ProgressType::Memory => {
                 "{spinner} {msg}".to_string()
-            },
+            }
             _ => {
                 format!("{{spinner:.{}}} {{msg}}", config.color)
             }
         };
-        
+
         spinner.set_style(
             indicatif::ProgressStyle::default_spinner()
                 .tick_chars(config.spinner_chars)
                 .template(&template)
-                .unwrap()
+                .unwrap(),
         );
-        
+
         spinner.set_message(message.to_string());
         spinner.enable_steady_tick(config.tick_interval);
-        
+
         AdaptiveSpinner {
             spinner,
             progress_type: self,
@@ -119,13 +119,13 @@ impl AdaptiveSpinner {
     pub fn set_message(&self, message: &str) {
         self.spinner.set_message(message.to_string());
     }
-    
+
     /// Завершить с успехом
     pub fn finish_success(&self, message: Option<&str>) {
         let msg = message
             .or(self.config.success_message.as_deref())
             .unwrap_or("✓ Completed!");
-            
+
         let colored_msg = match self.config.color {
             "green" => msg.green().to_string(),
             "blue" => msg.blue().to_string(),
@@ -135,10 +135,10 @@ impl AdaptiveSpinner {
             "purple" => msg.purple().to_string(),
             _ => msg.green().to_string(),
         };
-        
+
         self.spinner.finish_with_message(colored_msg);
     }
-    
+
     /// Завершить с ошибкой
     #[allow(dead_code)]
     pub fn finish_error(&self, message: &str) {
@@ -146,13 +146,13 @@ impl AdaptiveSpinner {
         let error_msg_str = error_msg.red().to_string();
         self.spinner.finish_with_message(error_msg_str);
     }
-    
+
     /// Завершить и очистить
     #[allow(dead_code)]
     pub fn finish_and_clear(&self) {
         self.spinner.finish_and_clear();
     }
-    
+
     /// Установить прогресс для операций с известной длительностью
     #[allow(dead_code)]
     pub fn set_progress(&self, current: u64, total: u64) {
@@ -162,7 +162,7 @@ impl AdaptiveSpinner {
             self.set_message(&progress_msg);
         }
     }
-    
+
     /// Адаптивная задержка между операциями
     #[allow(dead_code)]
     pub fn adaptive_delay(&self) -> Duration {
@@ -195,20 +195,22 @@ impl MultiStageProgress {
             current_spinner: None,
         }
     }
-    
+
     /// Перейти к следующему этапу
     pub fn next_stage(&mut self) -> bool {
         if let Some(spinner) = &self.current_spinner {
             spinner.finish_success(None);
         }
-        
+
         if self.current_stage < self.stages.len() {
             let (message, progress_type) = &self.stages[self.current_stage];
-            let stage_msg = format!("[{}/{}] {}", 
-                                   self.current_stage + 1, 
-                                   self.stages.len(), 
-                                   message);
-            
+            let stage_msg = format!(
+                "[{}/{}] {}",
+                self.current_stage + 1,
+                self.stages.len(),
+                message
+            );
+
             self.current_spinner = Some(progress_type.create_spinner(&stage_msg));
             self.current_stage += 1;
             true
@@ -216,14 +218,14 @@ impl MultiStageProgress {
             false
         }
     }
-    
+
     /// Завершить все этапы
     pub fn finish(&mut self) {
         if let Some(spinner) = &self.current_spinner {
             spinner.finish_success(Some("✓ All stages completed!"));
         }
     }
-    
+
     /// Получить текущий спиннер
     pub fn current_spinner(&self) -> Option<&AdaptiveSpinner> {
         self.current_spinner.as_ref()
@@ -238,27 +240,26 @@ impl ProgressBuilder {
     pub fn fast(message: &str) -> AdaptiveSpinner {
         ProgressType::Fast.create_spinner(message)
     }
-    
+
     /// Создать медленный спиннер
     #[allow(dead_code)]
     pub fn slow(message: &str) -> AdaptiveSpinner {
         ProgressType::Slow.create_spinner(message)
     }
-    
+
     /// Создать спиннер для backup операций
     pub fn backup(message: &str) -> AdaptiveSpinner {
         ProgressType::Backup.create_spinner(message)
     }
-    
+
     /// Создать спиннер для поиска
     #[allow(dead_code)]
     pub fn search(message: &str) -> AdaptiveSpinner {
         ProgressType::Search.create_spinner(message)
     }
-    
+
     /// Создать спиннер для операций с памятью
     pub fn memory(message: &str) -> AdaptiveSpinner {
         ProgressType::Memory.create_spinner(message)
     }
 }
-

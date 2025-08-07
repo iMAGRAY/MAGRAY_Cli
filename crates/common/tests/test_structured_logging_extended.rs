@@ -1,7 +1,7 @@
-use common::structured_logging::*;
-use std::collections::HashMap;
-use serde_json::{json, Value};
 use chrono::Utc;
+use common::structured_logging::*;
+use serde_json::{json, Value};
+use std::collections::HashMap;
 
 // Тесты для StructuredLogEntry
 #[test]
@@ -10,7 +10,7 @@ fn test_structured_log_entry_full() {
     fields.insert("component".to_string(), json!("test-component"));
     fields.insert("action".to_string(), json!("test-action"));
     fields.insert("count".to_string(), json!(42));
-    
+
     let context = ExecutionContext {
         request_id: Some("req-123".to_string()),
         user_id: Some("user-456".to_string()),
@@ -19,7 +19,7 @@ fn test_structured_log_entry_full() {
         pid: 12345,
         thread_id: "thread-1".to_string(),
     };
-    
+
     let performance = PerformanceMetrics {
         duration_ms: 150,
         cpu_usage_percent: Some(45.5),
@@ -28,7 +28,7 @@ fn test_structured_log_entry_full() {
         cache_hits: Some(80),
         cache_misses: Some(20),
     };
-    
+
     let entry = StructuredLogEntry {
         timestamp: Utc::now().to_rfc3339(),
         level: "INFO".to_string(),
@@ -38,13 +38,13 @@ fn test_structured_log_entry_full() {
         context: Some(context),
         performance: Some(performance),
     };
-    
+
     // Проверяем сериализацию
     let json_str = serde_json::to_string(&entry).unwrap();
     assert!(json_str.contains("test-component"));
     assert!(json_str.contains("req-123"));
     assert!(json_str.contains("150"));
-    
+
     // Проверяем десериализацию
     let deserialized: StructuredLogEntry = serde_json::from_str(&json_str).unwrap();
     assert_eq!(deserialized.level, "INFO");
@@ -62,7 +62,7 @@ fn test_structured_log_entry_minimal() {
         context: None,
         performance: None,
     };
-    
+
     let json_str = serde_json::to_string(&entry).unwrap();
     assert!(json_str.contains("ERROR"));
     assert!(json_str.contains("Error occurred"));
@@ -81,7 +81,7 @@ fn test_execution_context_complete() {
         pid: 54321,
         thread_id: "main-thread".to_string(),
     };
-    
+
     let json = serde_json::to_value(&context).unwrap();
     assert_eq!(json["request_id"], "unique-request-id");
     assert_eq!(json["user_id"], "user123");
@@ -101,7 +101,7 @@ fn test_execution_context_partial() {
         pid: 1000,
         thread_id: "thread-1".to_string(),
     };
-    
+
     let json = serde_json::to_value(&context).unwrap();
     assert_eq!(json["request_id"], Value::Null);
     assert_eq!(json["user_id"], Value::Null);
@@ -118,7 +118,7 @@ fn test_performance_metrics_all_fields() {
         cache_hits: Some(150),
         cache_misses: Some(50),
     };
-    
+
     let json = serde_json::to_value(&metrics).unwrap();
     assert_eq!(json["duration_ms"], 250);
     assert_eq!(json["cpu_usage_percent"], 75.5);
@@ -138,7 +138,7 @@ fn test_performance_metrics_partial() {
         cache_hits: None,
         cache_misses: None,
     };
-    
+
     let json_str = serde_json::to_string(&metrics).unwrap();
     assert!(json_str.contains("100"));
     assert!(!json_str.contains("cpu_usage_percent"));
@@ -151,7 +151,7 @@ fn test_request_context_complete() {
     context = context.with_user("user123");
     context = context.with_metadata("source", "api");
     context = context.with_metadata("version", "v1");
-    
+
     assert_eq!(context.request_id(), "req-789");
     assert_eq!(context.user_id(), Some("user123"));
     assert_eq!(context.metadata().get("source"), Some(&"api".to_string()));
@@ -161,7 +161,7 @@ fn test_request_context_complete() {
 #[test]
 fn test_request_context_minimal() {
     let context = RequestContext::new("test-request");
-    
+
     assert_eq!(context.request_id(), "test-request");
     assert_eq!(context.user_id(), None);
     assert!(context.metadata().is_empty());
@@ -181,7 +181,7 @@ fn test_logging_config_builder() {
         .with_level("debug")
         .with_json_output(true)
         .with_pretty_print(true);
-    
+
     assert_eq!(config.level(), "debug");
     assert!(config.json_output());
 }
@@ -192,9 +192,9 @@ fn test_operation_timer_basic() {
     let mut timer = OperationTimer::new("test_operation");
     timer.add_field("user_id", "12345");
     timer.add_field("items_count", 100);
-    
+
     std::thread::sleep(std::time::Duration::from_millis(10));
-    
+
     let metrics = timer.finish();
     assert!(metrics.duration_ms >= 10);
     assert!(metrics.memory_used_bytes.is_none());
@@ -204,12 +204,12 @@ fn test_operation_timer_basic() {
 #[test]
 fn test_operation_timer_with_callback() {
     let timer = OperationTimer::new("callback_test");
-    
+
     let result = timer.finish_with(|metrics| {
         assert!(metrics.duration_ms >= 0);
         "operation_completed"
     });
-    
+
     assert_eq!(result, "operation_completed");
 }
 
@@ -219,10 +219,13 @@ fn test_flatten_fields() {
     let mut fields = HashMap::new();
     fields.insert("key1".to_string(), json!("value1"));
     fields.insert("key2".to_string(), json!(42));
-    fields.insert("nested".to_string(), json!({
-        "inner": "value"
-    }));
-    
+    fields.insert(
+        "nested".to_string(),
+        json!({
+            "inner": "value"
+        }),
+    );
+
     let entry = StructuredLogEntry {
         timestamp: "2024-01-01T00:00:00Z".to_string(),
         level: "INFO".to_string(),
@@ -232,7 +235,7 @@ fn test_flatten_fields() {
         context: None,
         performance: None,
     };
-    
+
     let json = serde_json::to_value(&entry).unwrap();
     assert_eq!(json["key1"], "value1");
     assert_eq!(json["key2"], 42);
@@ -244,11 +247,14 @@ fn test_error_serialization() {
     let mut fields = HashMap::new();
     fields.insert("error_type".to_string(), json!("ValidationError"));
     fields.insert("error_code".to_string(), json!(400));
-    fields.insert("error_details".to_string(), json!({
-        "field": "email",
-        "reason": "Invalid format"
-    }));
-    
+    fields.insert(
+        "error_details".to_string(),
+        json!({
+            "field": "email",
+            "reason": "Invalid format"
+        }),
+    );
+
     let entry = StructuredLogEntry {
         timestamp: Utc::now().to_rfc3339(),
         level: "ERROR".to_string(),
@@ -258,7 +264,7 @@ fn test_error_serialization() {
         context: None,
         performance: None,
     };
-    
+
     let json_str = serde_json::to_string(&entry).unwrap();
     assert!(json_str.contains("ValidationError"));
     assert!(json_str.contains("400"));
@@ -277,7 +283,7 @@ fn test_empty_fields_map() {
         context: None,
         performance: None,
     };
-    
+
     let json = serde_json::to_value(&entry).unwrap();
     assert_eq!(json["message"], "Empty fields test");
     // Поскольку fields помечен как #[serde(flatten)], пустой HashMap не создаёт отдельное поле
@@ -289,7 +295,7 @@ fn test_special_characters_in_fields() {
     fields.insert("special\"key".to_string(), json!("value with \"quotes\""));
     fields.insert("unicode_🚀".to_string(), json!("emoji value 😊"));
     fields.insert("newline\nkey".to_string(), json!("line1\nline2"));
-    
+
     let entry = StructuredLogEntry {
         timestamp: "2024-01-01T00:00:00Z".to_string(),
         level: "INFO".to_string(),
@@ -299,11 +305,11 @@ fn test_special_characters_in_fields() {
         context: None,
         performance: None,
     };
-    
+
     // Должно корректно сериализоваться
     let json_str = serde_json::to_string(&entry).unwrap();
     assert!(json_str.contains("emoji value"));
-    
+
     // И десериализоваться обратно
     let deserialized: StructuredLogEntry = serde_json::from_str(&json_str).unwrap();
     assert!(deserialized.fields.contains_key("unicode_🚀"));
@@ -319,11 +325,11 @@ fn test_large_performance_metrics() {
         cache_hits: Some(u64::MAX),
         cache_misses: Some(u64::MAX),
     };
-    
+
     // Должно корректно сериализоваться даже с максимальными значениями
     let json_str = serde_json::to_string(&metrics).unwrap();
     assert!(json_str.len() > 0);
-    
+
     let deserialized: PerformanceMetrics = serde_json::from_str(&json_str).unwrap();
     assert_eq!(deserialized.duration_ms, u64::MAX);
 }
@@ -334,7 +340,7 @@ fn test_init_structured_logging_json() {
     let config = LoggingConfig::new()
         .with_json_output(true)
         .with_level("debug");
-    
+
     // Не должно паниковать
     let _ = init_structured_logging_with_config(config);
 }
@@ -344,7 +350,7 @@ fn test_init_structured_logging_human_readable() {
     let config = LoggingConfig::new()
         .with_json_output(false)
         .with_level("info");
-    
+
     // Не должно паниковать
     let _ = init_structured_logging_with_config(config);
 }

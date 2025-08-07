@@ -4,17 +4,17 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::Instant;
 
-pub mod openai_provider;
 pub mod anthropic_provider;
-pub mod local_provider;
 pub mod azure_provider;
 pub mod groq_provider;
+pub mod local_provider;
+pub mod openai_provider;
 
-pub use openai_provider::OpenAIProvider;
 pub use anthropic_provider::AnthropicProvider;
-pub use local_provider::LocalProvider;
 pub use azure_provider::AzureProvider;
 pub use groq_provider::GroqProvider;
+pub use local_provider::LocalProvider;
+pub use openai_provider::OpenAIProvider;
 
 /// Request object for LLM providers
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,13 +36,12 @@ impl LlmRequest {
             stream: false,
         }
     }
-    
+
     pub fn with_system_prompt(mut self, system_prompt: &str) -> Self {
         self.system_prompt = Some(system_prompt.to_string());
         self
     }
-    
-    
+
     pub fn with_parameters(mut self, max_tokens: Option<u32>, temperature: Option<f32>) -> Self {
         self.max_tokens = max_tokens;
         self.temperature = temperature;
@@ -83,7 +82,7 @@ impl ChatMessage {
             timestamp: Some(Instant::now()),
         }
     }
-    
+
     pub fn user(content: &str) -> Self {
         Self {
             role: MessageRole::User,
@@ -91,7 +90,7 @@ impl ChatMessage {
             timestamp: Some(Instant::now()),
         }
     }
-    
+
     pub fn assistant(content: &str) -> Self {
         Self {
             role: MessageRole::Assistant,
@@ -135,10 +134,10 @@ pub struct ProviderCapabilities {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum LatencyClass {
-    UltraFast,  // < 500ms (Groq)
-    Fast,       // 500ms - 2s
-    Standard,   // 2s - 5s  
-    Slow,       // > 5s
+    UltraFast, // < 500ms (Groq)
+    Fast,      // 500ms - 2s
+    Standard,  // 2s - 5s
+    Slow,      // > 5s
 }
 
 /// Provider health status
@@ -165,7 +164,7 @@ impl ProviderId {
             region: None,
         }
     }
-    
+
     pub fn with_region(mut self, region: &str) -> Self {
         self.region = Some(region.to_string());
         self
@@ -177,43 +176,46 @@ impl ProviderId {
 pub trait LlmProvider: Send + Sync {
     /// Unique identifier for this provider instance
     fn id(&self) -> ProviderId;
-    
+
     /// Get provider capabilities and metadata
     fn capabilities(&self) -> ProviderCapabilities;
-    
+
     /// Check provider health status
     async fn health_check(&self) -> Result<ProviderHealth>;
-    
+
     /// Execute completion request
     async fn complete(&self, request: LlmRequest) -> Result<LlmResponse>;
-    
+
     /// Execute streaming completion (if supported)
-    async fn complete_stream(&self, request: LlmRequest) -> Result<tokio::sync::mpsc::Receiver<String>> {
+    async fn complete_stream(
+        &self,
+        request: LlmRequest,
+    ) -> Result<tokio::sync::mpsc::Receiver<String>> {
         // Default implementation for non-streaming providers
         let response = self.complete(request).await?;
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        
+
         tokio::spawn(async move {
             let _ = tx.send(response.content).await;
         });
-        
+
         Ok(rx)
     }
-    
+
     /// Estimate cost for a request
     fn estimate_cost(&self, request: &LlmRequest) -> f32 {
         let capabilities = self.capabilities();
         let estimated_input_tokens = request.prompt.len() as f32 / 4.0; // Rough estimation
         let estimated_output_tokens = request.max_tokens.unwrap_or(1000) as f32;
-        
-        (estimated_input_tokens / 1000.0 * capabilities.cost_per_1k_input) +
-        (estimated_output_tokens / 1000.0 * capabilities.cost_per_1k_output)
+
+        (estimated_input_tokens / 1000.0 * capabilities.cost_per_1k_input)
+            + (estimated_output_tokens / 1000.0 * capabilities.cost_per_1k_output)
     }
-    
+
     /// Validate request before execution
     fn validate_request(&self, request: &LlmRequest) -> Result<()> {
         let capabilities = self.capabilities();
-        
+
         if let Some(max_tokens) = request.max_tokens {
             if max_tokens > capabilities.max_tokens {
                 return Err(anyhow::anyhow!(
@@ -223,7 +225,7 @@ pub trait LlmProvider: Send + Sync {
                 ));
             }
         }
-        
+
         let estimated_prompt_tokens = request.prompt.len() as u32 / 4;
         if estimated_prompt_tokens > capabilities.context_window {
             return Err(anyhow::anyhow!(
@@ -232,10 +234,10 @@ pub trait LlmProvider: Send + Sync {
                 capabilities.context_window
             ));
         }
-        
+
         Ok(())
     }
-    
+
     /// Get human-readable name
     fn name(&self) -> String {
         format!("{} ({})", self.id().provider_type, self.id().model)
@@ -263,7 +265,7 @@ impl LlmProvider for ProviderWrapper {
             ProviderWrapper::Groq(p) => p.id(),
         }
     }
-    
+
     fn capabilities(&self) -> ProviderCapabilities {
         match self {
             ProviderWrapper::OpenAI(p) => p.capabilities(),
@@ -273,7 +275,7 @@ impl LlmProvider for ProviderWrapper {
             ProviderWrapper::Groq(p) => p.capabilities(),
         }
     }
-    
+
     async fn health_check(&self) -> Result<ProviderHealth> {
         match self {
             ProviderWrapper::OpenAI(p) => p.health_check().await,
@@ -283,7 +285,7 @@ impl LlmProvider for ProviderWrapper {
             ProviderWrapper::Groq(p) => p.health_check().await,
         }
     }
-    
+
     async fn complete(&self, request: LlmRequest) -> Result<LlmResponse> {
         match self {
             ProviderWrapper::OpenAI(p) => p.complete(request).await,
@@ -293,8 +295,11 @@ impl LlmProvider for ProviderWrapper {
             ProviderWrapper::Groq(p) => p.complete(request).await,
         }
     }
-    
-    async fn complete_stream(&self, request: LlmRequest) -> Result<tokio::sync::mpsc::Receiver<String>> {
+
+    async fn complete_stream(
+        &self,
+        request: LlmRequest,
+    ) -> Result<tokio::sync::mpsc::Receiver<String>> {
         match self {
             ProviderWrapper::OpenAI(p) => p.complete_stream(request).await,
             ProviderWrapper::Anthropic(p) => p.complete_stream(request).await,
@@ -350,7 +355,10 @@ impl ProviderFactory {
                 )?;
                 Ok(ProviderWrapper::Local(provider))
             }
-            _ => Err(anyhow::anyhow!("Unknown provider type: {}", config.provider_type)),
+            _ => Err(anyhow::anyhow!(
+                "Unknown provider type: {}",
+                config.provider_type
+            )),
         }
     }
 }
@@ -379,17 +387,17 @@ impl ProviderConfig {
             max_retries: None,
         }
     }
-    
+
     pub fn with_api_key(mut self, api_key: String) -> Self {
         self.api_key = Some(api_key);
         self
     }
-    
+
     pub fn with_endpoint(mut self, endpoint: String) -> Self {
         self.endpoint = Some(endpoint);
         self
     }
-    
+
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self

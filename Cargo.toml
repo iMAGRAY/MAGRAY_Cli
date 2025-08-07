@@ -11,6 +11,9 @@ members = [
     "crates/domain",
     # "crates/application", # Temporarily excluded due to agent_202508080151_app work in progress
 ]
+exclude = [
+    "fuzz"
+]
 resolver = "2"
 
 [workspace.package]
@@ -30,6 +33,7 @@ clap = { version = "4.0", features = ["derive"] }
 rusqlite = { version = "0.31", features = ["bundled", "chrono"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+log = "0.4"
 async-trait = "0.1"
 thiserror = "1.0"
 reqwest = { version = "0.11", features = ["json"] }
@@ -38,15 +42,66 @@ indicatif = "0.17"
 console = "0.15"
 tokio-stream = "0.1"
 walkdir = "2.4"
-syntect = "5.2"
-ureq = { version = "2.9", features = ["json"] }
-ignore = "0.4"
 tempfile = "3.8"
 
 # Testing dependencies
-proptest = "1.4"
-mockall = "0.12"
-mockito = "1.2"
+proptest = "1.5"
+quickcheck = "1.0" 
+arbitrary = "1.4"
+mockall = "0.14"
+mockito = "1.7"
+rstest = "0.24"
+tokio-test = "0.4"
+wiremock = "0.6"
 criterion = { version = "0.5", features = ["html_reports"] }
 fake = { version = "2.9", features = ["derive", "chrono", "uuid"] }
 serial_test = "3.0"
+
+# Conditional compilation features for MAGRAY CLI  
+[workspace.metadata.features]
+# Default feature set - CPU only
+default = ["cpu"]
+
+# Minimal build - basic functionality only
+minimal = []
+
+# CPU build - full functionality without GPU
+cpu = ["ai/cpu", "memory/cpu", "llm/cpu", "embeddings", "reranking"] 
+
+# GPU build - full functionality with CUDA/TensorRT support  
+gpu = ["cpu", "ai/gpu", "memory/gpu", "llm/gpu", "cuda", "tensorrt", "gpu-acceleration"]
+
+# Individual feature flags
+embeddings = []
+reranking = []
+cuda = []
+tensorrt = []
+gpu-acceleration = []
+
+# Development and testing features
+dev-tools = ["proptest", "criterion"]
+test-mocks = ["mockall", "wiremock", "fake"]
+
+[workspace.metadata.tarpaulin]
+# Coverage configuration
+exclude = [
+    "target/*",
+    "**/*test*",  
+    "**/test_*",
+    "**/tests/*",
+    "**/benches/*", 
+    "**/examples/*",
+]
+out = ["Html", "Lcov", "Json"]
+output-dir = "coverage_report"
+timeout = 300
+follow-exec = true
+run-types = ["Tests", "Doctests"]
+verbose = true
+ignore-panics = true
+
+# Features to enable for tests
+features = ["cpu", "gpu", "minimal"]
+
+# Additional args for cargo test
+args = ["--", "--test-threads=1"]

@@ -1,14 +1,14 @@
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tracing::{info, warn, debug};
 #[cfg(feature = "gpu")]
 use tracing::error;
+use tracing::{debug, info, warn};
 
-use crate::{EmbeddingConfig, CpuEmbeddingService, EmbeddingServiceTrait};
 #[cfg(feature = "gpu")]
 use crate::GpuEmbeddingService;
+use crate::{CpuEmbeddingService, EmbeddingConfig, EmbeddingServiceTrait};
 
 /// Политика fallback
 #[derive(Debug, Clone)]
@@ -52,10 +52,10 @@ struct CircuitBreaker {
 
 #[derive(Debug, PartialEq)]
 enum CircuitState {
-    Closed,    // GPU работает
-    Open,      // GPU заблокирован
+    Closed, // GPU работает
+    Open,   // GPU заблокирован
     #[allow(dead_code)]
-    HalfOpen,  // Пробуем восстановить
+    HalfOpen, // Пробуем восстановить
 }
 
 impl CircuitBreaker {
@@ -67,22 +67,25 @@ impl CircuitBreaker {
             policy,
         }
     }
-    
+
     fn record_success(&mut self) {
         self.consecutive_errors = 0;
         self.state = CircuitState::Closed;
     }
-    
+
     fn record_error(&mut self) {
         self.consecutive_errors += 1;
         self.last_error_time = Some(Instant::now());
-        
+
         if self.consecutive_errors >= self.policy.error_threshold {
             self.state = CircuitState::Open;
-            warn!("🔴 Circuit breaker открыт после {} ошибок подряд", self.consecutive_errors);
+            warn!(
+                "🔴 Circuit breaker открыт после {} ошибок подряд",
+                self.consecutive_errors
+            );
         }
     }
-    
+
     #[allow(dead_code)]
     fn is_gpu_available(&mut self) -> bool {
         match self.state {
@@ -128,7 +131,7 @@ impl FallbackStats {
             self.gpu_success_count as f64 / total as f64
         }
     }
-    
+
     pub fn fallback_rate(&self) -> f64 {
         let total = self.gpu_success_count + self.cpu_fallback_count;
         if total == 0 {
@@ -153,24 +156,25 @@ impl GpuFallbackManager {
     /// Создать новый менеджер с автоматическим fallback
     pub async fn new(config: EmbeddingConfig) -> Result<Self> {
         info!("🛡️ Инициализация GpuFallbackManager с надёжным fallback");
-        
+
         let policy = FallbackPolicy::default();
-        
+
         // Всегда создаём CPU сервис как резервный
         let mut cpu_config = config.clone();
         cpu_config.use_gpu = false;
         cpu_config.batch_size = num_cpus::get().min(32);
-        
-        let cpu_service = Arc::new(
-            CpuEmbeddingService::new(cpu_config.clone())
-                .with_context(|| format!(
+
+        let cpu_service = Arc::new(CpuEmbeddingService::new(cpu_config.clone()).with_context(
+            || {
+                format!(
                     "Failed to create CPU embedding service for model: {} at current_dir: {:?}",
                     cpu_config.model_name,
                     std::env::current_dir().unwrap_or_default()
-                ))?
-        );
+                )
+            },
+        )?);
         info!("✅ CPU сервис создан как резервный");
-        
+
         // Пытаемся создать GPU сервис если требуется
         #[cfg(feature = "gpu")]
         let gpu_service = if config.use_gpu {
@@ -180,7 +184,10 @@ impl GpuFallbackManager {
                     Some(Arc::new(service))
                 }
                 Err(e) => {
-                    warn!("⚠️ Не удалось создать GPU сервис: {}. Будет использоваться только CPU.", e);
+                    warn!(
+                        "⚠️ Не удалось создать GPU сервис: {}. Будет использоваться только CPU.",
+                        e
+                    );
                     None
                 }
             }
@@ -188,7 +195,7 @@ impl GpuFallbackManager {
             info!("ℹ️ GPU отключен в конфигурации");
             None
         };
-        
+
         #[cfg(not(feature = "gpu"))]
         let _gpu_service: Option<Arc<()>> = {
             if config.use_gpu {
@@ -196,7 +203,7 @@ impl GpuFallbackManager {
             }
             None
         };
-        
+
         Ok(Self {
             #[cfg(feature = "gpu")]
             gpu_service,
@@ -206,21 +213,24 @@ impl GpuFallbackManager {
             gpu_circuit_breaker: Arc::new(Mutex::new(CircuitBreaker::new(policy))),
         })
     }
-    
+
     /// Попытка создать GPU сервис с тестированием
     #[cfg(feature = "gpu")]
     async fn try_create_gpu_service(config: &EmbeddingConfig) -> Result<GpuEmbeddingService> {
         let service = GpuEmbeddingService::new(config.clone()).await?;
-        
+
         // Тестируем работоспособность
         let test_text = vec!["Test GPU embedding service".to_string()];
         let start = Instant::now();
-        
+
         match tokio::time::timeout(Duration::from_secs(10), service.embed_batch(test_text)).await {
             Ok(Ok(embeddings)) => {
                 let elapsed = start.elapsed();
-                info!("✅ GPU тест пройден за {:?}, размер embedding: {}", 
-                      elapsed, embeddings.first().map(|e| e.len()).unwrap_or(0));
+                info!(
+                    "✅ GPU тест пройден за {:?}, размер embedding: {}",
+                    elapsed,
+                    embeddings.first().map(|e| e.len()).unwrap_or(0)
+                );
                 Ok(service)
             }
             Ok(Err(e)) => {
@@ -233,20 +243,20 @@ impl GpuFallbackManager {
             }
         }
     }
-    
+
     /// Получить embeddings с автоматическим fallback
     pub async fn embed_batch_with_fallback(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
         let batch_size = texts.len();
         debug!("🔄 Обработка batch из {} текстов", batch_size);
-        
+
         // Проверяем доступность GPU через circuit breaker
         #[cfg(feature = "gpu")]
-        let use_gpu = self.gpu_service.is_some() && 
-                      self.gpu_circuit_breaker.lock().unwrap().is_gpu_available();
-        
+        let use_gpu = self.gpu_service.is_some()
+            && self.gpu_circuit_breaker.lock().unwrap().is_gpu_available();
+
         #[cfg(not(feature = "gpu"))]
         let use_gpu = false;
-        
+
         if use_gpu {
             // Пытаемся использовать GPU
             match self.try_gpu_embed(&texts[..]).await {
@@ -261,24 +271,28 @@ impl GpuFallbackManager {
                 }
             }
         }
-        
+
         // Используем CPU
         self.embed_with_cpu(&texts[..]).await
     }
-    
+
     /// Попытка получить embeddings через GPU с timeout
     #[cfg(feature = "gpu")]
     async fn try_gpu_embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        let gpu_service = self.gpu_service.as_ref()
+        let gpu_service = self
+            .gpu_service
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("GPU service not available"))?;
-        
+
         let start = Instant::now();
-        
+
         // Применяем timeout
         match tokio::time::timeout(
-            self.policy.gpu_timeout, 
-            gpu_service.embed_batch(texts.to_vec())
-        ).await {
+            self.policy.gpu_timeout,
+            gpu_service.embed_batch(texts.to_vec()),
+        )
+        .await
+        {
             Ok(Ok(embeddings)) => {
                 let elapsed = start.elapsed();
                 debug!("✅ GPU embedding успешно за {:?}", elapsed);
@@ -289,63 +303,65 @@ impl GpuFallbackManager {
                 Err(e)
             }
             Err(_) => {
-                error!("❌ GPU embedding timeout после {:?}", self.policy.gpu_timeout);
+                error!(
+                    "❌ GPU embedding timeout после {:?}",
+                    self.policy.gpu_timeout
+                );
                 self.fallback_stats.lock().unwrap().gpu_timeout_count += 1;
                 Err(anyhow::anyhow!("GPU embedding timeout"))
             }
         }
     }
-    
+
     /// CPU-only версия метода
     #[cfg(not(feature = "gpu"))]
     async fn try_gpu_embed(&self, _texts: &[String]) -> Result<Vec<Vec<f32>>> {
         Err(anyhow::anyhow!("GPU support not compiled"))
     }
-    
+
     /// Получить embeddings через CPU
     async fn embed_with_cpu(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let start = Instant::now();
         self.fallback_stats.lock().unwrap().cpu_fallbacks += 1;
-        
+
         let results = self.cpu_service.embed_batch(texts)?;
-        
+
         // Конвертируем OptimizedEmbeddingResult в Vec<Vec<f32>>
-        let embeddings: Vec<Vec<f32>> = results
-            .into_iter()
-            .map(|r| r.embedding)
-            .collect();
-        
+        let embeddings: Vec<Vec<f32>> = results.into_iter().map(|r| r.embedding).collect();
+
         let elapsed = start.elapsed();
         let mut stats = self.fallback_stats.lock().unwrap();
-        stats.avg_cpu_time_ms = (stats.avg_cpu_time_ms * stats.cpu_fallbacks as f64 + elapsed.as_millis() as f64) / (stats.cpu_fallbacks + 1) as f64;
-        
+        stats.avg_cpu_time_ms = (stats.avg_cpu_time_ms * stats.cpu_fallbacks as f64
+            + elapsed.as_millis() as f64)
+            / (stats.cpu_fallbacks + 1) as f64;
+
         debug!("✅ CPU embedding успешно за {:?}", elapsed);
         Ok(embeddings)
     }
-    
+
     /// Записать успешный GPU вызов
     fn record_gpu_success(&self) {
         let mut stats = self.fallback_stats.lock().unwrap();
         stats.gpu_successes += 1;
-        
+
         let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
         breaker.record_success();
     }
-    
+
     /// Записать ошибку GPU
     fn record_gpu_error(&self) {
         let mut stats = self.fallback_stats.lock().unwrap();
         stats.gpu_failures += 1;
-        
+
         let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
         breaker.record_error();
     }
-    
+
     /// Получить статистику
     pub fn get_stats(&self) -> FallbackStats {
         self.fallback_stats.lock().unwrap().clone()
     }
-    
+
     /// Принудительно переключиться на CPU
     pub fn force_cpu_mode(&self) {
         let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
@@ -353,7 +369,7 @@ impl GpuFallbackManager {
         breaker.last_error_time = Some(Instant::now());
         info!("🔴 Принудительное переключение на CPU режим");
     }
-    
+
     /// Сбросить circuit breaker и попробовать GPU снова
     pub fn reset_circuit_breaker(&self) {
         let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
@@ -374,7 +390,7 @@ impl EmbeddingServiceTrait for GpuFallbackManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_circuit_breaker() {
         let policy = FallbackPolicy {
@@ -382,29 +398,29 @@ mod tests {
             recovery_time: Duration::from_secs(5),
             ..Default::default()
         };
-        
+
         let mut breaker = CircuitBreaker::new(policy);
-        
+
         // Initially closed
         assert_eq!(breaker.state, CircuitState::Closed);
         assert!(breaker.is_gpu_available());
-        
+
         // Record errors
         breaker.record_error();
         breaker.record_error();
         assert!(breaker.is_gpu_available()); // Still available
-        
+
         // Third error opens the circuit
         breaker.record_error();
         assert_eq!(breaker.state, CircuitState::Open);
         assert!(!breaker.is_gpu_available());
-        
+
         // Success resets
         breaker.record_success();
         assert_eq!(breaker.state, CircuitState::Closed);
         assert!(breaker.is_gpu_available());
     }
-    
+
     #[test]
     fn test_fallback_stats() {
         let stats = FallbackStats {
@@ -414,8 +430,8 @@ mod tests {
             cpu_fallback_count: 20,
             ..Default::default()
         };
-        
+
         assert_eq!(stats.gpu_success_rate(), 0.8); // 80 / (80+15+5)
-        assert_eq!(stats.fallback_rate(), 0.2);    // 20 / (80+20)
+        assert_eq!(stats.fallback_rate(), 0.2); // 20 / (80+20)
     }
 }

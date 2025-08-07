@@ -1,7 +1,7 @@
 use ai::{
-    EmbeddingConfig,
     gpu_memory_pool::GPU_MEMORY_POOL,
     gpu_pipeline::{GpuPipelineManager, PipelineConfig},
+    EmbeddingConfig,
 };
 use anyhow::Result;
 use std::time::Instant;
@@ -48,15 +48,17 @@ async fn test_memory_pool_efficiency() -> Result<()> {
     // Печатаем финальную статистику
     println!("📊 Финальная статистика:");
     let stats = GPU_MEMORY_POOL.get_stats()?;
-    
+
     println!("  💾 Total allocations: {}", stats.allocations);
     println!("  💾 Total deallocations: {}", stats.deallocations);
-    println!("  📈 Hit rate: {:.1}%", 
-             if stats.allocations > 0 { 
-                 (stats.hits as f64 / stats.allocations as f64) * 100.0 
-             } else { 
-                 0.0 
-             });
+    println!(
+        "  📈 Hit rate: {:.1}%",
+        if stats.allocations > 0 {
+            (stats.hits as f64 / stats.allocations as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
 
     assert!(stats.allocations > 0);
 
@@ -72,24 +74,33 @@ async fn test_memory_leak_detection() -> Result<()> {
 
     // Получаем начальную статистику
     let initial_stats = GPU_MEMORY_POOL.get_stats()?;
-    println!("📊 Начальная статистика: {} буферов", initial_stats.current_buffers);
+    println!(
+        "📊 Начальная статистика: {} буферов",
+        initial_stats.current_buffers
+    );
 
     // Симулируем work cycle
     for cycle in 0..3 {
         println!("🔄 Work cycle #{}", cycle + 1);
 
         // Выделяем память с помощью with_buffer
-        let results: Result<Vec<Vec<u8>>> = (0..10).map(|i| {
-            GPU_MEMORY_POOL.with_buffer(1024 * (i + 1), |buffer| {
-                // Имитируем работу с буфером
-                buffer.extend_from_slice(&vec![0u8; 100]);
-                Ok(buffer[0..100].to_vec())
+        let results: Result<Vec<Vec<u8>>> = (0..10)
+            .map(|i| {
+                GPU_MEMORY_POOL.with_buffer(1024 * (i + 1), |buffer| {
+                    // Имитируем работу с буфером
+                    buffer.extend_from_slice(&vec![0u8; 100]);
+                    Ok(buffer[0..100].to_vec())
+                })
             })
-        }).collect();
+            .collect();
 
         match results {
             Ok(data) => {
-                println!("✅ Cycle {} completed, processed {} buffers", cycle + 1, data.len());
+                println!(
+                    "✅ Cycle {} completed, processed {} buffers",
+                    cycle + 1,
+                    data.len()
+                );
             }
             Err(e) => {
                 println!("❌ Cycle {} failed: {}", cycle + 1, e);
@@ -98,20 +109,30 @@ async fn test_memory_leak_detection() -> Result<()> {
 
         // Проверяем статистику после каждого цикла
         let cycle_stats = GPU_MEMORY_POOL.get_stats()?;
-        println!("  📊 После цикла {}: {} буферов", cycle + 1, cycle_stats.current_buffers);
+        println!(
+            "  📊 После цикла {}: {} буферов",
+            cycle + 1,
+            cycle_stats.current_buffers
+        );
     }
 
     // Принудительная очистка
     let _ = GPU_MEMORY_POOL.clear_unused();
-    
+
     // Финальная проверка на утечки
     let final_stats = GPU_MEMORY_POOL.get_stats()?;
-    println!("📊 Финальная статистика: {} буферов", final_stats.current_buffers);
+    println!(
+        "📊 Финальная статистика: {} буферов",
+        final_stats.current_buffers
+    );
 
     // Проверяем что количество буферов не растёт неконтролируемо
-    assert!(final_stats.current_buffers <= initial_stats.current_buffers + 10,
-            "Возможная утечка памяти: {} -> {} буферов", 
-            initial_stats.current_buffers, final_stats.current_buffers);
+    assert!(
+        final_stats.current_buffers <= initial_stats.current_buffers + 10,
+        "Возможная утечка памяти: {} -> {} буферов",
+        initial_stats.current_buffers,
+        final_stats.current_buffers
+    );
 
     Ok(())
 }
@@ -124,55 +145,70 @@ async fn test_concurrent_memory_access() -> Result<()> {
     println!("🔀 Тестирование concurrent memory access");
 
     let start_time = Instant::now();
-    
+
     // Создаём несколько concurrent tasks
-    let tasks: Vec<_> = (0..5).map(|task_id| {
-        tokio::spawn(async move {
-            let mut local_results = Vec::new();
-            
-            for i in 0..10 {
-                let size = 1024 * (i % 8 + 1); // Размеры от 1KB до 8KB
-                
-                let result = GPU_MEMORY_POOL.with_buffer_async(size, |buffer| async move {
-                    // Симулируем асинхронную работу
-                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                    
-                    // Записываем данные в буфер
-                    let mut mut_buffer = buffer;
-                    mut_buffer.extend_from_slice(&vec![(task_id * 10 + i) as u8; 100]);
-                    
-                    Ok((format!("Task {} item {}", task_id, i), mut_buffer))
-                }).await;
-                
-                match result {
-                    Ok(data) => local_results.push(data),
-                    Err(e) => println!("❌ Task {} item {} failed: {}", task_id, i, e),
+    let tasks: Vec<_> = (0..5)
+        .map(|task_id| {
+            tokio::spawn(async move {
+                let mut local_results = Vec::new();
+
+                for i in 0..10 {
+                    let size = 1024 * (i % 8 + 1); // Размеры от 1KB до 8KB
+
+                    let result = GPU_MEMORY_POOL
+                        .with_buffer_async(size, |buffer| async move {
+                            // Симулируем асинхронную работу
+                            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+                            // Записываем данные в буфер
+                            let mut mut_buffer = buffer;
+                            mut_buffer.extend_from_slice(&vec![(task_id * 10 + i) as u8; 100]);
+
+                            Ok((format!("Task {} item {}", task_id, i), mut_buffer))
+                        })
+                        .await;
+
+                    match result {
+                        Ok(data) => local_results.push(data),
+                        Err(e) => println!("❌ Task {} item {} failed: {}", task_id, i, e),
+                    }
                 }
-            }
-            
-            println!("✅ Task {} completed: {} results", task_id, local_results.len());
-            local_results
+
+                println!(
+                    "✅ Task {} completed: {} results",
+                    task_id,
+                    local_results.len()
+                );
+                local_results
+            })
         })
-    }).collect();
+        .collect();
 
     // Ждём завершения всех задач
     let all_results: Vec<_> = futures::future::join_all(tasks).await;
-    let total_results: usize = all_results.iter()
+    let total_results: usize = all_results
+        .iter()
         .map(|result| result.as_ref().map(|r| r.len()).unwrap_or(0))
         .sum();
 
     let elapsed = start_time.elapsed();
-    println!("🏁 Concurrent test completed: {} total results in {:?}", total_results, elapsed);
+    println!(
+        "🏁 Concurrent test completed: {} total results in {:?}",
+        total_results, elapsed
+    );
 
     // Проверяем статистику пула
     let final_stats = GPU_MEMORY_POOL.get_stats()?;
-    println!("📊 Final pool stats: {}/{} hits/misses, efficiency: {:.1}%", 
-             final_stats.hits, final_stats.misses,
-             if final_stats.allocations > 0 { 
-                 (final_stats.hits as f64 / final_stats.allocations as f64) * 100.0 
-             } else { 
-                 0.0 
-             });
+    println!(
+        "📊 Final pool stats: {}/{} hits/misses, efficiency: {:.1}%",
+        final_stats.hits,
+        final_stats.misses,
+        if final_stats.allocations > 0 {
+            (final_stats.hits as f64 / final_stats.allocations as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
 
     assert!(total_results > 0);
     assert!(final_stats.allocations >= total_results as u64);
@@ -221,12 +257,15 @@ async fn test_adaptive_batching_memory() -> Result<()> {
     // Тестируем с разными размерами данных
     let test_scenarios = vec![
         (10, "small batch"),
-        (50, "medium batch"), 
+        (50, "medium batch"),
         (150, "large batch"),
     ];
 
     for (batch_size, scenario_name) in test_scenarios {
-        println!("🧪 Testing scenario: {} ({} texts)", scenario_name, batch_size);
+        println!(
+            "🧪 Testing scenario: {} ({} texts)",
+            scenario_name, batch_size
+        );
 
         let test_texts: Vec<String> = (0..batch_size)
             .map(|i| format!("Adaptive batch test text #{} for {}", i, scenario_name))
@@ -236,9 +275,13 @@ async fn test_adaptive_batching_memory() -> Result<()> {
         match pipeline.process_texts_optimized(test_texts).await {
             Ok(embeddings) => {
                 let elapsed = start.elapsed();
-                println!("✅ {} completed: {} embeddings in {:?} ({:.1} texts/sec)",
-                         scenario_name, embeddings.len(), elapsed,
-                         embeddings.len() as f32 / elapsed.as_secs_f32());
+                println!(
+                    "✅ {} completed: {} embeddings in {:?} ({:.1} texts/sec)",
+                    scenario_name,
+                    embeddings.len(),
+                    elapsed,
+                    embeddings.len() as f32 / elapsed.as_secs_f32()
+                );
             }
             Err(e) => {
                 println!("❌ {} failed: {}", scenario_name, e);
@@ -247,8 +290,11 @@ async fn test_adaptive_batching_memory() -> Result<()> {
 
         // Получаем статистику pipeline
         let stats = pipeline.get_stats().await;
-        println!("  📊 Pipeline stats: avg_batch={:.1}, memory_efficiency={:.1}%",
-                 stats.avg_batch_size, stats.memory_pool_efficiency() * 100.0);
+        println!(
+            "  📊 Pipeline stats: avg_batch={:.1}, memory_efficiency={:.1}%",
+            stats.avg_batch_size,
+            stats.memory_pool_efficiency() * 100.0
+        );
     }
 
     // Финальная очистка
@@ -283,7 +329,7 @@ async fn test_memory_stress() -> Result<()> {
 
             // Проверяем что данные записались
             let check_ok = buffer.iter().take(1000).all(|&b| b == fill_value);
-            
+
             if check_ok {
                 Ok(buffer.len())
             } else {
@@ -298,8 +344,13 @@ async fn test_memory_stress() -> Result<()> {
 
         // Печатаем прогресс каждые 25 операций
         if (i + 1) % 25 == 0 {
-            println!("  🔄 Progress: {}/{} operations ({} success, {} failed)", 
-                     i + 1, iterations, successful_ops, failed_ops);
+            println!(
+                "  🔄 Progress: {}/{} operations ({} success, {} failed)",
+                i + 1,
+                iterations,
+                successful_ops,
+                failed_ops
+            );
         }
     }
 
@@ -314,16 +365,22 @@ async fn test_memory_stress() -> Result<()> {
 
     // Проверяем финальное состояние пула
     let final_stats = GPU_MEMORY_POOL.get_stats()?;
-    println!("  📊 Pool efficiency: {:.1}%", 
-             if final_stats.allocations > 0 { 
-                 (final_stats.hits as f64 / final_stats.allocations as f64) * 100.0 
-             } else { 
-                 0.0 
-             });
+    println!(
+        "  📊 Pool efficiency: {:.1}%",
+        if final_stats.allocations > 0 {
+            (final_stats.hits as f64 / final_stats.allocations as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
 
     // Большинство операций должно быть успешным
-    assert!(successful_ops > iterations * 80 / 100, 
-            "Too many failed operations: {}/{}", failed_ops, iterations);
+    assert!(
+        successful_ops > iterations * 80 / 100,
+        "Too many failed operations: {}/{}",
+        failed_ops,
+        iterations
+    );
 
     Ok(())
 }

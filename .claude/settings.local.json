@@ -1,52 +1,75 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find:*)"
+      "Bash(*)",
+      "Edit(*)",
+      "MultiEdit(*)",
+      "Write(*)",
+      "NotebookEdit(*)",
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "LS(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "TodoWrite(*)",
+      "ExitPlanMode(*)",
+      "Task(*)",
+      "mcp__devtools__mcp_psql_manager(*)",
+      "mcp__devtools__mcp_api_client(*)",
+      "mcp__devtools__mcp_ssh_manager(*)",
+      "mcp__devtools__mcp_project_sync(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__get-library-docs(*)",
+      "Bash(powershell:*)",
+      "mcp__archlens__export_ai_compact",
+      "mcp__archlens__analyze_project",
+      "mcp__archlens__generate_diagram",
+      "Bash(find:*)",
+      "Bash(printf \"%04d\\n\" $RANDOM)",
+      "Bash(rm:*)",
+      "Bash(cargo build:*)",
+      "Bash(true)",
+      "Bash(cargo check:*)",
+      "Bash(dir)",
+      "Bash(Remove-Item -Path \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\test_hook_trigger.rs\" -Force)"
     ],
     "deny": []
   },
-  "mcpServers": {
-    "context7": {
-      "command": "npx -y @upstash/context7-mcp",
-      "env": {}
-    },
-    "postgresql-api-ssh-mcp-server": {
-      "command": "node",
-      "args": [
-        "C:\\Users\\1\\Documents\\GitHub\\PSQL_SSH_API_MCP\\simple_openmcp_server.cjs",
-        "stdio"
-      ],
-      "cwd": "C:\\Users\\1\\Documents\\GitHub\\PSQL_SSH_API_MCP",
-      "timeout": 30
-    },
-    "archlens": {
-      "command": "node",
-      "args": [
-        "C:\\Users\\1\\Documents\\GitHub\\Archinalysator\\mcp\\archlens_mcp_server.cjs"
-      ],
-      "cwd": "C:\\Users\\1\\Documents\\GitHub\\Archinalysator\\mcp",
-      "env": {
-        "NODE_OPTIONS": "--require=child_process",
-        "ARCHLENS_PATH": "C:\\Users\\1\\Documents\\GitHub\\Archinalysator\\mcp",
-        "ARCHLENS_BINARY": "C:\\Users\\1\\Documents\\GitHub\\Archinalysator\\mcp\\archlens.exe"
-      }
-    }
-  },
   "hooks": {
-    "user-prompt-submit-hook": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
-    "post-edit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
-    "post-multi-edit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
-    "pre-commit": "py \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py\"",
     "PostToolUse": [
       {
         "matcher": "Edit|MultiEdit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "py \\\"C:\\\\Users\\\\1\\\\Documents\\\\GitHub\\\\MAGRAY_Cli\\\\scripts\\\\architecture_daemon.py\\"
+            "command": "powershell -Command \"if (Test-Path 'C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py') { py 'C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py' }\""
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -Command \"Write-Host '[HOOK] Running cargo fmt...' -ForegroundColor Cyan; cargo fmt --all; if ($LASTEXITCODE -eq 0) { Write-Host '[OK] Format completed' -ForegroundColor Green } else { Write-Host '[ERROR] Format failed' -ForegroundColor Red }\""
+          },
+          {
+            "type": "command",
+            "command": "powershell -Command \"Write-Host '[HOOK] Running cargo clippy...' -ForegroundColor Magenta; $result = cargo clippy --workspace --bins --lib -- --cap-lints warn 2>&1; if ($LASTEXITCODE -eq 0) { Write-Host '[OK] Clippy passed' -ForegroundColor Green } else { Write-Host '[WARN] Clippy issues found' -ForegroundColor Yellow; $result | Select-Object -First 10 }\""
+          }
+        ]
+      },
+      {
+        "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -Command \"$hookStart = Get-Date; $completedCount = (Get-Content '.claude\\todos.json' -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue | Where-Object { $_.status -eq 'completed' } | Measure-Object).Count; if ($completedCount -gt 0) { Write-Host (\\\"[TASK-COMPLETE] Running final validation for {0} completed task(s)...\\\" -f $completedCount) -ForegroundColor Blue; try { $checkJob = Start-Job -ScriptBlock { cargo check --workspace --quiet 2>&1 }; $check_result = Wait-Job $checkJob -Timeout 60 | Receive-Job; Remove-Job $checkJob -Force; if ($LASTEXITCODE -eq 0) { Write-Host '[VALIDATION] ✅ Project builds successfully' -ForegroundColor Green } else { Write-Host '[VALIDATION] ❌ Build errors found:' -ForegroundColor Red; $check_result | Select-Object -First 15 } } catch { Write-Host '[VALIDATION] ⏱️ Check timed out (60s limit)' -ForegroundColor Yellow } finally { $duration = (Get-Date - $hookStart).TotalSeconds; Write-Host (\\\"[TASK-COMPLETE] Validation finished in {0:F1}s\\\" -f $duration) -ForegroundColor Gray } }\""
           }
         ]
       }
     ]
-  }
+  },
+  "mcpServers": {}
 }

@@ -1,13 +1,13 @@
 use super::{
-    LlmProvider, LlmRequest, LlmResponse, ProviderCapabilities, ProviderHealth, ProviderId, 
-    TokenUsage, LatencyClass,
+    LatencyClass, LlmProvider, LlmRequest, LlmResponse, ProviderCapabilities, ProviderHealth,
+    ProviderId, TokenUsage,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 
 #[derive(Debug, Clone)]
 pub struct GroqProvider {
@@ -23,12 +23,12 @@ impl GroqProvider {
         if api_key.is_empty() {
             return Err(anyhow!("Groq API key cannot be empty"));
         }
-        
+
         let client = Client::builder()
             .timeout(Duration::from_secs(30)) // Groq is ultra-fast
             .build()
             .map_err(|e| anyhow!("Failed to create HTTP client: {}", e))?;
-            
+
         Ok(Self {
             api_key,
             model,
@@ -36,7 +36,7 @@ impl GroqProvider {
             timeout: Duration::from_secs(30),
         })
     }
-    
+
     /// Get model-specific capabilities
     fn get_model_capabilities(&self) -> ProviderCapabilities {
         match self.model.as_str() {
@@ -83,7 +83,7 @@ impl GroqProvider {
                 cost_per_1k_output: 0.0002,
                 latency_class: LatencyClass::UltraFast,
                 reliability_score: 0.9,
-            }
+            },
         }
     }
 }
@@ -93,14 +93,14 @@ impl LlmProvider for GroqProvider {
     fn id(&self) -> ProviderId {
         ProviderId::new("groq", &self.model)
     }
-    
+
     fn capabilities(&self) -> ProviderCapabilities {
         self.get_model_capabilities()
     }
-    
+
     async fn health_check(&self) -> Result<ProviderHealth> {
         let start_time = Instant::now();
-        
+
         let test_request = GroqRequest {
             model: self.model.clone(),
             messages: vec![GroqMessage {
@@ -110,15 +110,16 @@ impl LlmProvider for GroqProvider {
             max_tokens: Some(1),
             temperature: Some(0.0),
         };
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post("https://api.groq.com/openai/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&test_request)
             .send()
             .await;
-            
+
         match response {
             Ok(resp) => {
                 let elapsed = start_time.elapsed();
@@ -141,56 +142,61 @@ impl LlmProvider for GroqProvider {
             }
         }
     }
-    
+
     async fn complete(&self, request: LlmRequest) -> Result<LlmResponse> {
         let start_time = Instant::now();
-        
+
         self.validate_request(&request)?;
-        
+
         let mut messages = Vec::new();
-        
+
         if let Some(system_prompt) = &request.system_prompt {
             messages.push(GroqMessage {
                 role: "system".to_string(),
                 content: system_prompt.clone(),
             });
         }
-        
+
         messages.push(GroqMessage {
             role: "user".to_string(),
             content: request.prompt.clone(),
         });
-        
+
         let groq_request = GroqRequest {
             model: self.model.clone(),
             messages,
             max_tokens: request.max_tokens,
             temperature: request.temperature,
         };
-        
-        info!("🚀 Sending request to Groq: {} (ultra-fast)", 
-            request.prompt.chars().take(50).collect::<String>());
-        
-        let response = self.client
+
+        info!(
+            "🚀 Sending request to Groq: {} (ultra-fast)",
+            request.prompt.chars().take(50).collect::<String>()
+        );
+
+        let response = self
+            .client
             .post("https://api.groq.com/openai/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&groq_request)
             .send()
             .await?;
-            
+
         if !response.status().is_success() {
             let error_text = response.text().await?;
             error!("Groq API error: {}", error_text);
             return Err(anyhow!("Groq API error: {}", error_text));
         }
-        
+
         let groq_response: GroqResponse = response.json().await?;
         let elapsed = start_time.elapsed();
-        
-        let choice = groq_response.choices.first()
+
+        let choice = groq_response
+            .choices
+            .first()
             .ok_or_else(|| anyhow!("Empty response from Groq"))?;
-            
+
         let usage = if let Some(usage) = groq_response.usage {
             TokenUsage::new(usage.prompt_tokens, usage.completion_tokens)
         } else {
@@ -198,10 +204,12 @@ impl LlmProvider for GroqProvider {
             let completion_tokens = choice.message.content.len() as u32 / 4;
             TokenUsage::new(prompt_tokens, completion_tokens)
         };
-        
-        info!("✅ Received ULTRA-FAST response from Groq ({:?}): {} tokens", 
-            elapsed, usage.total_tokens);
-        
+
+        info!(
+            "✅ Received ULTRA-FAST response from Groq ({:?}): {} tokens",
+            elapsed, usage.total_tokens
+        );
+
         Ok(LlmResponse {
             content: choice.message.content.clone(),
             usage,

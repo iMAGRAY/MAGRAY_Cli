@@ -1,48 +1,35 @@
-pub mod structured_logging;
 pub mod comprehensive_errors;
+pub mod config_base;
 pub mod macros;
 pub mod service_traits;
-pub mod config_base;
+pub mod structured_logging;
+
+#[cfg(test)]
+pub mod test_utils;
 
 pub use structured_logging::{
-    init_structured_logging, 
-    LoggingConfig, 
-    StructuredLogEntry,
-    ExecutionContext,
-    PerformanceMetrics,
-    OperationTimer,
-    RequestContext,
+    init_structured_logging, ExecutionContext, LoggingConfig, OperationTimer, PerformanceMetrics,
+    RequestContext, StructuredLogEntry,
 };
 
 pub use comprehensive_errors::{
-    MagrayCoreError, MagrayCoreResult,
-    MemoryError, MemoryResult,
-    AIError, AIResult,
-    LLMError, LLMResult,
-    ResourceError, ResourceResult,
-    ConfigError, ConfigResult,
-    NetworkError, NetworkResult,
-    FileSystemError, FileSystemResult,
-    CriticalError, CriticalResult,
-    RecoveryStrategy,
-    ErrorContext,
-    SafeUnwrap,
+    AIError, AIResult, ConfigError, ConfigResult, CriticalError, CriticalResult, ErrorContext,
+    FileSystemError, FileSystemResult, LLMError, LLMResult, MagrayCoreError, MagrayCoreResult,
+    MemoryError, MemoryResult, NetworkError, NetworkResult, RecoveryStrategy, ResourceError,
+    ResourceResult, SafeUnwrap,
 };
 
 // Re-export service traits
 pub use service_traits::{
-    BaseService, ConfigurableService, MetricsService,
-    CircuitBreakerService, RetryableService, LifecycleService,
-    ServiceCoordinator, ServiceFactory, PooledService, CacheService,
-    ConfigTrait, CircuitBreakerState, RetryConfig, LifecycleState,
-    PoolStats, CacheStats,
+    BaseService, CacheService, CacheStats, CircuitBreakerService, CircuitBreakerState, ConfigTrait,
+    ConfigurableService, LifecycleService, LifecycleState, MetricsService, PoolStats,
+    PooledService, RetryConfig, RetryableService, ServiceCoordinator, ServiceFactory,
 };
 
-// Re-export config base components  
+// Re-export config base components
 pub use config_base::{
-    BatchConfigBase, TimeoutConfigBase, CacheConfigBase, GpuConfigBase,
-    CircuitBreakerConfigBase, RetryConfigBase, MonitoringConfigBase,
-    StorageConfigBase, NetworkConfigBase, ConfigComposition,
+    BatchConfigBase, CacheConfigBase, CircuitBreakerConfigBase, ConfigComposition, GpuConfigBase,
+    MonitoringConfigBase, NetworkConfigBase, RetryConfigBase, StorageConfigBase, TimeoutConfigBase,
 };
 
 // Macros are automatically available at crate root due to #[macro_export]

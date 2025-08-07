@@ -13,11 +13,11 @@ use crate::ToolSpec;
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct ToolConfidence {
     pub tool_name: String,
-    pub confidence_score: f32,  // 0.0 to 1.0
+    pub confidence_score: f32, // 0.0 to 1.0
     pub reasoning: String,
-    pub context_match: f32,     // 0.0 to 1.0
-    pub capability_match: f32,  // 0.0 to 1.0
-    pub performance_factor: f32, // 0.0 to 1.0 
+    pub context_match: f32,      // 0.0 to 1.0
+    pub capability_match: f32,   // 0.0 to 1.0
+    pub performance_factor: f32, // 0.0 to 1.0
 }
 
 /// Context for tool selection
@@ -33,26 +33,26 @@ pub struct ToolSelectionContext {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TaskComplexity {
-    Simple,    // Single tool operation
-    Medium,    // Multiple steps, single domain
-    Complex,   // Multi-domain, orchestrated
-    Expert,    // Advanced workflows, custom logic
+    Simple,  // Single tool operation
+    Medium,  // Multiple steps, single domain
+    Complex, // Multi-domain, orchestrated
+    Expert,  // Advanced workflows, custom logic
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UrgencyLevel {
-    Low,       // Background task
-    Normal,    // Standard priority
-    High,      // User waiting
-    Critical,  // Time-sensitive
+    Low,      // Background task
+    Normal,   // Standard priority
+    High,     // User waiting
+    Critical, // Time-sensitive
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UserExpertise {
-    Beginner,   // Needs guided assistance
+    Beginner,     // Needs guided assistance
     Intermediate, // Some technical knowledge
-    Advanced,   // Comfortable with tools
-    Expert,     // Prefers minimal assistance
+    Advanced,     // Comfortable with tools
+    Expert,       // Prefers minimal assistance
 }
 
 /// Performance metrics for tool selection
@@ -70,16 +70,16 @@ pub struct SelectionMetrics {
 pub struct IntelligentToolSelector {
     // Available tools registry
     available_tools: Arc<Mutex<HashMap<String, ToolSpec>>>,
-    
+
     // Selection performance tracking
     selection_metrics: Arc<Mutex<SelectionMetrics>>,
-    
+
     // Context analysis patterns
     context_patterns: Arc<Mutex<HashMap<String, Vec<String>>>>, // intent -> tools
-    
+
     // Performance history for adaptive learning
     performance_history: Arc<Mutex<HashMap<String, ToolPerformanceData>>>,
-    
+
     // Configuration
     config: SelectorConfig,
 }
@@ -121,7 +121,7 @@ impl Default for SelectorConfig {
 impl IntelligentToolSelector {
     pub fn new(config: SelectorConfig) -> Self {
         info!("🧠 Initializing Intelligent Tool Selector");
-        
+
         Self {
             available_tools: Arc::new(Mutex::new(HashMap::new())),
             selection_metrics: Arc::new(Mutex::new(SelectionMetrics::default())),
@@ -130,101 +130,88 @@ impl IntelligentToolSelector {
             config,
         }
     }
-    
+
     /// Initialize common context patterns for tool selection
     fn init_context_patterns() -> HashMap<String, Vec<String>> {
         let mut patterns = HashMap::new();
-        
+
         // File operations
-        patterns.insert("read_file".to_string(), vec![
-            "file_read".to_string(),
-        ]);
-        patterns.insert("write_file".to_string(), vec![
-            "file_write".to_string(),
-        ]);
-        patterns.insert("list_directory".to_string(), vec![
-            "dir_list".to_string(),
-        ]);
-        patterns.insert("search_files".to_string(), vec![
-            "file_search".to_string(),
-            "dir_list".to_string(),
-        ]);
-        
+        patterns.insert("read_file".to_string(), vec!["file_read".to_string()]);
+        patterns.insert("write_file".to_string(), vec!["file_write".to_string()]);
+        patterns.insert("list_directory".to_string(), vec!["dir_list".to_string()]);
+        patterns.insert(
+            "search_files".to_string(),
+            vec!["file_search".to_string(), "dir_list".to_string()],
+        );
+
         // Git operations
-        patterns.insert("git_status".to_string(), vec![
-            "git_status".to_string(),
-        ]);
-        patterns.insert("git_commit".to_string(), vec![
+        patterns.insert("git_status".to_string(), vec!["git_status".to_string()]);
+        patterns.insert(
             "git_commit".to_string(),
-            "git_status".to_string(),
-        ]);
-        patterns.insert("git_history".to_string(), vec![
-            "git_log".to_string(),
-            "git_diff".to_string(),
-        ]);
-        
+            vec!["git_commit".to_string(), "git_status".to_string()],
+        );
+        patterns.insert(
+            "git_history".to_string(),
+            vec!["git_log".to_string(), "git_diff".to_string()],
+        );
+
         // Web operations
-        patterns.insert("web_search".to_string(), vec![
-            "web_search".to_string(),
-        ]);
-        patterns.insert("fetch_url".to_string(), vec![
-            "web_fetch".to_string(),
-        ]);
-        
+        patterns.insert("web_search".to_string(), vec!["web_search".to_string()]);
+        patterns.insert("fetch_url".to_string(), vec!["web_fetch".to_string()]);
+
         // Shell operations
-        patterns.insert("run_command".to_string(), vec![
-            "shell_exec".to_string(),
-        ]);
-        patterns.insert("system_info".to_string(), vec![
-            "shell_exec".to_string(),
-        ]);
-        
+        patterns.insert("run_command".to_string(), vec!["shell_exec".to_string()]);
+        patterns.insert("system_info".to_string(), vec!["shell_exec".to_string()]);
+
         patterns
     }
-    
+
     /// Register available tool
     pub async fn register_tool(&self, tool_spec: ToolSpec) {
         let mut tools = self.available_tools.lock().await;
         tools.insert(tool_spec.name.clone(), tool_spec.clone());
-        
+
         // Initialize performance tracking
         let mut history = self.performance_history.lock().await;
         let tool_name = tool_spec.name.clone();
-        history.insert(tool_name.clone(), ToolPerformanceData {
-            tool_name: tool_name.clone(),
-            success_rate: 1.0, // Start optimistic
-            average_execution_time: Duration::from_millis(100),
-            user_satisfaction: 0.8,
-            context_relevance: 0.7,
-            last_used: std::time::Instant::now(),
-            usage_count: 0,
-        });
-        
+        history.insert(
+            tool_name.clone(),
+            ToolPerformanceData {
+                tool_name: tool_name.clone(),
+                success_rate: 1.0, // Start optimistic
+                average_execution_time: Duration::from_millis(100),
+                user_satisfaction: 0.8,
+                context_relevance: 0.7,
+                last_used: std::time::Instant::now(),
+                usage_count: 0,
+            },
+        );
+
         debug!("📝 Registered tool: {}", tool_name);
     }
-    
+
     /// Select best tool(s) for given context
     pub async fn select_tools(
-        &self, 
-        context: &ToolSelectionContext
+        &self,
+        context: &ToolSelectionContext,
     ) -> Result<Vec<ToolConfidence>> {
         let start_time = std::time::Instant::now();
-        
+
         debug!("🎯 Selecting tools for query: '{}'", context.user_query);
-        
+
         // Update metrics
         {
             let mut metrics = self.selection_metrics.lock().await;
             metrics.total_selections += 1;
         }
-        
+
         // Analyze query and extract intent
         let intent = self.analyze_intent(&context.user_query).await;
         debug!("🧠 Detected intent: {:?}", intent);
-        
+
         // Get candidate tools based on intent
         let candidates = self.get_candidate_tools(&intent).await;
-        
+
         // Score each candidate
         let mut scored_tools = Vec::new();
         for candidate in candidates {
@@ -234,13 +221,13 @@ impl IntelligentToolSelector {
                 }
             }
         }
-        
+
         // Sort by confidence
         scored_tools.sort_by(|a, b| b.confidence_score.partial_cmp(&a.confidence_score).unwrap());
-        
+
         // Limit results
         scored_tools.truncate(self.config.max_suggestions);
-        
+
         // Update metrics
         let selection_time = start_time.elapsed();
         {
@@ -251,32 +238,44 @@ impl IntelligentToolSelector {
                 metrics.average_confidence = scored_tools[0].confidence_score;
             }
         }
-        
-        info!("✅ Selected {} tools in {:?}", scored_tools.len(), selection_time);
+
+        info!(
+            "✅ Selected {} tools in {:?}",
+            scored_tools.len(),
+            selection_time
+        );
         Ok(scored_tools)
     }
-    
+
     /// Analyze user query to extract intent
     async fn analyze_intent(&self, query: &str) -> Vec<String> {
         let query_lower = query.to_lowercase();
         let mut intents = Vec::new();
-        
+
         // File operations
-        if query_lower.contains("read") || query_lower.contains("show") || 
-           query_lower.contains("cat") || query_lower.contains("content") {
+        if query_lower.contains("read")
+            || query_lower.contains("show")
+            || query_lower.contains("cat")
+            || query_lower.contains("content")
+        {
             intents.push("read_file".to_string());
         }
-        
-        if query_lower.contains("write") || query_lower.contains("create") || 
-           query_lower.contains("save") {
+
+        if query_lower.contains("write")
+            || query_lower.contains("create")
+            || query_lower.contains("save")
+        {
             intents.push("write_file".to_string());
         }
-        
-        if query_lower.contains("list") || query_lower.contains("ls") || 
-           query_lower.contains("directory") || query_lower.contains("folder") {
+
+        if query_lower.contains("list")
+            || query_lower.contains("ls")
+            || query_lower.contains("directory")
+            || query_lower.contains("folder")
+        {
             intents.push("list_directory".to_string());
         }
-        
+
         if query_lower.contains("search") || query_lower.contains("find") {
             if query_lower.contains("web") || query_lower.contains("internet") {
                 intents.push("web_search".to_string());
@@ -284,7 +283,7 @@ impl IntelligentToolSelector {
                 intents.push("search_files".to_string());
             }
         }
-        
+
         // Git operations
         if query_lower.contains("git") {
             if query_lower.contains("status") {
@@ -295,83 +294,90 @@ impl IntelligentToolSelector {
                 intents.push("git_history".to_string());
             }
         }
-        
+
         // Web operations
-        if query_lower.contains("fetch") || query_lower.contains("download") ||
-           query_lower.contains("http") || query_lower.contains("url") {
+        if query_lower.contains("fetch")
+            || query_lower.contains("download")
+            || query_lower.contains("http")
+            || query_lower.contains("url")
+        {
             intents.push("fetch_url".to_string());
         }
-        
+
         // Shell operations
-        if query_lower.contains("run") || query_lower.contains("execute") ||
-           query_lower.contains("command") || query_lower.contains("shell") {
+        if query_lower.contains("run")
+            || query_lower.contains("execute")
+            || query_lower.contains("command")
+            || query_lower.contains("shell")
+        {
             intents.push("run_command".to_string());
         }
-        
-        if query_lower.contains("system") || query_lower.contains("info") ||
-           query_lower.contains("status") {
+
+        if query_lower.contains("system")
+            || query_lower.contains("info")
+            || query_lower.contains("status")
+        {
             intents.push("system_info".to_string());
         }
-        
+
         // Default fallback
         if intents.is_empty() {
             intents.push("general".to_string());
         }
-        
+
         intents
     }
-    
+
     /// Get candidate tools for given intents
     async fn get_candidate_tools(&self, intents: &[String]) -> Vec<String> {
         let patterns = self.context_patterns.lock().await;
         let mut candidates = Vec::new();
-        
+
         for intent in intents {
             if let Some(tools) = patterns.get(intent) {
                 candidates.extend(tools.clone());
             }
         }
-        
+
         // Remove duplicates
         candidates.sort();
         candidates.dedup();
-        
+
         // If no specific matches, return all available tools
         if candidates.is_empty() {
             let tools = self.available_tools.lock().await;
             candidates = tools.keys().cloned().collect();
         }
-        
+
         candidates
     }
-    
+
     /// Score a tool against the given context
     async fn score_tool(
-        &self, 
-        tool_name: &str, 
-        context: &ToolSelectionContext
+        &self,
+        tool_name: &str,
+        context: &ToolSelectionContext,
     ) -> Option<ToolConfidence> {
         let tools = self.available_tools.lock().await;
         let tool_spec = tools.get(tool_name)?;
-        
+
         // Base scoring components
         let context_match = self.calculate_context_match(tool_spec, context).await;
         let capability_match = self.calculate_capability_match(tool_spec, context).await;
         let performance_factor = self.calculate_performance_factor(tool_name).await;
-        
+
         // Weighted final score
-        let confidence_score = 
-            context_match * self.config.context_weight +
+        let confidence_score = context_match * self.config.context_weight +
             capability_match * 0.4 + // Capability weight
             performance_factor * self.config.performance_weight;
-        
+
         let reasoning = format!(
             "Context: {:.1}%, Capability: {:.1}%, Performance: {:.1}%",
             context_match * 100.0,
             capability_match * 100.0,
             performance_factor * 100.0
         );
-        
+
         Some(ToolConfidence {
             tool_name: tool_name.to_string(),
             confidence_score,
@@ -381,82 +387,92 @@ impl IntelligentToolSelector {
             performance_factor,
         })
     }
-    
+
     /// Calculate how well tool matches context
-    async fn calculate_context_match(&self, tool_spec: &ToolSpec, context: &ToolSelectionContext) -> f32 {
+    async fn calculate_context_match(
+        &self,
+        tool_spec: &ToolSpec,
+        context: &ToolSelectionContext,
+    ) -> f32 {
         let mut score = 0.0f32;
         let query_lower = context.user_query.to_lowercase();
-        
+
         // Check tool name relevance
         if query_lower.contains(&tool_spec.name.to_lowercase()) {
             score += 0.4;
         }
-        
+
         // Check description relevance
         let desc_lower = tool_spec.description.to_lowercase();
         let desc_words: Vec<&str> = desc_lower.split_whitespace().collect();
         let query_words: Vec<&str> = query_lower.split_whitespace().collect();
-        
-        let matching_words = desc_words.iter()
+
+        let matching_words = desc_words
+            .iter()
             .filter(|&word| query_words.contains(word))
             .count();
-        
+
         if !desc_words.is_empty() {
             score += 0.3 * (matching_words as f32 / desc_words.len() as f32);
         }
-        
+
         // Check examples relevance
         for example in &tool_spec.examples {
             let example_lower = example.to_lowercase();
             let example_words: Vec<&str> = example_lower.split_whitespace().collect();
-            let common_count = example_words.iter()
+            let common_count = example_words
+                .iter()
                 .filter(|&word| query_words.contains(word))
                 .count();
-            
+
             if !example_words.is_empty() {
                 score += 0.3 * (common_count as f32 / example_words.len() as f32);
                 break; // Only count first matching example
             }
         }
-        
+
         score.min(1.0)
     }
-    
+
     /// Calculate capability match based on task complexity
-    async fn calculate_capability_match(&self, _tool_spec: &ToolSpec, context: &ToolSelectionContext) -> f32 {
+    async fn calculate_capability_match(
+        &self,
+        _tool_spec: &ToolSpec,
+        context: &ToolSelectionContext,
+    ) -> f32 {
         // For now, simple heuristic based on task complexity
         match context.task_complexity {
-            TaskComplexity::Simple => 0.9,    // Most tools can handle simple tasks
-            TaskComplexity::Medium => 0.7,    // Some complexity consideration
-            TaskComplexity::Complex => 0.5,   // Need to verify tool capabilities
-            TaskComplexity::Expert => 0.3,    // Requires specialized tools
+            TaskComplexity::Simple => 0.9,  // Most tools can handle simple tasks
+            TaskComplexity::Medium => 0.7,  // Some complexity consideration
+            TaskComplexity::Complex => 0.5, // Need to verify tool capabilities
+            TaskComplexity::Expert => 0.3,  // Requires specialized tools
         }
     }
-    
+
     /// Calculate performance factor based on historical data
     async fn calculate_performance_factor(&self, tool_name: &str) -> f32 {
         let history = self.performance_history.lock().await;
-        
+
         if let Some(perf_data) = history.get(tool_name) {
             // Weighted performance score
             let success_weight = 0.4;
             let satisfaction_weight = 0.3;
             let recency_weight = 0.3;
-            
+
             let recency_factor = {
                 let elapsed = perf_data.last_used.elapsed().as_secs() as f32;
                 // Decay over 30 days
                 (1.0 - (elapsed / (30.0 * 24.0 * 3600.0))).max(0.1)
             };
-            
-            perf_data.success_rate * success_weight +
-            perf_data.user_satisfaction * satisfaction_weight +
-            recency_factor * recency_weight
+
+            perf_data.success_rate * success_weight
+                + perf_data.user_satisfaction * satisfaction_weight
+                + recency_factor * recency_weight
         } else {
             0.5 // Default for unknown tools
         }
     }
-    
+
     /// Update tool performance after execution
     pub async fn update_tool_performance(
         &self,
@@ -466,44 +482,48 @@ impl IntelligentToolSelector {
         user_satisfaction: Option<f32>,
     ) {
         let mut history = self.performance_history.lock().await;
-        
+
         if let Some(perf_data) = history.get_mut(tool_name) {
             // Update success rate (exponential moving average)
             let alpha = 0.1; // Learning rate
-            perf_data.success_rate = (1.0 - alpha) * perf_data.success_rate + 
-                                   alpha * if success { 1.0 } else { 0.0 };
-            
+            perf_data.success_rate =
+                (1.0 - alpha) * perf_data.success_rate + alpha * if success { 1.0 } else { 0.0 };
+
             // Update execution time
             perf_data.average_execution_time = Duration::from_millis(
-                ((1.0 - alpha) * perf_data.average_execution_time.as_millis() as f32 +
-                 alpha * execution_time.as_millis() as f32) as u64
+                ((1.0 - alpha) * perf_data.average_execution_time.as_millis() as f32
+                    + alpha * execution_time.as_millis() as f32) as u64,
             );
-            
+
             // Update satisfaction if provided
             if let Some(satisfaction) = user_satisfaction {
-                perf_data.user_satisfaction = (1.0 - alpha) * perf_data.user_satisfaction + 
-                                            alpha * satisfaction;
+                perf_data.user_satisfaction =
+                    (1.0 - alpha) * perf_data.user_satisfaction + alpha * satisfaction;
             }
-            
+
             perf_data.last_used = std::time::Instant::now();
             perf_data.usage_count += 1;
-            
-            debug!("📊 Updated performance for {}: success={:.1}%, time={:?}", 
-                   tool_name, perf_data.success_rate * 100.0, perf_data.average_execution_time);
+
+            debug!(
+                "📊 Updated performance for {}: success={:.1}%, time={:?}",
+                tool_name,
+                perf_data.success_rate * 100.0,
+                perf_data.average_execution_time
+            );
         }
     }
-    
+
     /// Get selection statistics
     pub async fn get_selection_stats(&self) -> String {
         let metrics = self.selection_metrics.lock().await;
         let history = self.performance_history.lock().await;
-        
+
         let success_rate = if metrics.total_selections > 0 {
             (metrics.successful_selections as f32 / metrics.total_selections as f32) * 100.0
         } else {
             0.0
         };
-        
+
         let mut stats = format!(
             "🧠 Intelligent Tool Selector Statistics:\n\n\
              📊 Performance Overview:\n\
@@ -517,24 +537,25 @@ impl IntelligentToolSelector {
             metrics.average_confidence * 100.0,
             metrics.selection_time_ms
         );
-        
+
         // Sort tools by usage
-        let mut tool_stats: Vec<_> = history.iter()
-            .map(|(name, data)| (name, data))
-            .collect();
+        let mut tool_stats: Vec<_> = history.iter().map(|(name, data)| (name, data)).collect();
         tool_stats.sort_by(|a, b| b.1.usage_count.cmp(&a.1.usage_count));
-        
+
         for (name, data) in tool_stats.iter().take(10) {
             stats.push_str(&format!(
                 "\n • {}: {} uses, {:.1}% success, {:.1}/5.0 satisfaction",
-                name, data.usage_count, data.success_rate * 100.0, data.user_satisfaction * 5.0
+                name,
+                data.usage_count,
+                data.success_rate * 100.0,
+                data.user_satisfaction * 5.0
             ));
         }
-        
+
         if self.config.enable_learning {
             stats.push_str("\n\n🤖 Adaptive Learning: Enabled");
         }
-        
+
         stats
     }
 }

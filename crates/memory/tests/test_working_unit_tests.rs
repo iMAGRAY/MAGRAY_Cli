@@ -3,13 +3,13 @@
 // Тесты для функциональности, которая точно компилируется
 // =============================================================================
 
+use chrono::Utc;
 use memory::{
-    Layer, Record, SearchOptions, MemoryLayer, PromotionConfig,
-    BatchConfig, CacheConfig, cosine_distance_auto,
+    cosine_distance_auto, BatchConfig, CacheConfig, Layer, MemoryLayer, PromotionConfig, Record,
+    SearchOptions,
 };
 use proptest::prelude::*;
 use uuid::Uuid;
-use chrono::Utc;
 
 #[cfg(test)]
 mod layer_tests {
@@ -18,12 +18,8 @@ mod layer_tests {
     #[test]
     fn test_layer_variants() {
         // Test all layer variants exist
-        let layers = vec![
-            Layer::Interact,
-            Layer::Insights, 
-            Layer::Assets,
-        ];
-        
+        let layers = vec![Layer::Interact, Layer::Insights, Layer::Assets];
+
         assert_eq!(layers.len(), 3);
     }
 
@@ -64,7 +60,7 @@ mod record_tests {
     #[test]
     fn test_record_default() {
         let record = Record::default();
-        
+
         assert!(!record.id.is_nil());
         assert_eq!(record.text, "");
         assert!(record.embedding.is_empty());
@@ -109,7 +105,7 @@ mod record_tests {
         let record = Record::default();
         let json = serde_json::to_string(&record).expect("Should serialize");
         let deserialized: Record = serde_json::from_str(&json).expect("Should deserialize");
-        
+
         assert_eq!(record.text, deserialized.text);
         assert_eq!(record.layer, deserialized.layer);
         assert_eq!(record.kind, deserialized.kind);
@@ -124,7 +120,7 @@ mod search_options_tests {
     #[test]
     fn test_search_options_default() {
         let options = SearchOptions::default();
-        
+
         assert_eq!(options.layers.len(), 2);
         assert!(options.layers.contains(&Layer::Interact));
         assert!(options.layers.contains(&Layer::Insights));
@@ -160,7 +156,7 @@ mod promotion_config_tests {
     #[test]
     fn test_promotion_config_default() {
         let config = PromotionConfig::default();
-        
+
         assert_eq!(config.interact_ttl_hours, 24);
         assert_eq!(config.insights_ttl_days, 90);
         assert_eq!(config.promote_threshold, 0.8);
@@ -185,7 +181,7 @@ mod promotion_config_tests {
     #[test]
     fn test_promotion_config_validation() {
         let config = PromotionConfig::default();
-        
+
         // Validate reasonable ranges
         assert!(config.promote_threshold > 0.0);
         assert!(config.promote_threshold <= 1.0);
@@ -287,9 +283,9 @@ mod vector_operations_tests {
     fn test_cosine_distance_identical_vectors() {
         let vec1 = vec![1.0, 2.0, 3.0];
         let vec2 = vec![1.0, 2.0, 3.0];
-        
+
         let distance = cosine_distance_auto(&vec1, &vec2);
-        
+
         // Identical vectors should have distance close to 0.0
         assert!(distance.abs() < 0.0001, "Expected ~0.0, got {}", distance);
     }
@@ -298,31 +294,39 @@ mod vector_operations_tests {
     fn test_cosine_distance_orthogonal_vectors() {
         let vec1 = vec![1.0, 0.0];
         let vec2 = vec![0.0, 1.0];
-        
+
         let distance = cosine_distance_auto(&vec1, &vec2);
-        
+
         // Orthogonal vectors should have distance close to 1.0
-        assert!((distance - 1.0).abs() < 0.0001, "Expected ~1.0, got {}", distance);
+        assert!(
+            (distance - 1.0).abs() < 0.0001,
+            "Expected ~1.0, got {}",
+            distance
+        );
     }
 
     #[test]
     fn test_cosine_distance_opposite_vectors() {
         let vec1 = vec![1.0, 0.0];
         let vec2 = vec![-1.0, 0.0];
-        
+
         let distance = cosine_distance_auto(&vec1, &vec2);
-        
+
         // Opposite vectors should have distance close to 2.0
-        assert!((distance - 2.0).abs() < 0.0001, "Expected ~2.0, got {}", distance);
+        assert!(
+            (distance - 2.0).abs() < 0.0001,
+            "Expected ~2.0, got {}",
+            distance
+        );
     }
 
     #[test]
     fn test_cosine_distance_properties() {
         let vec1 = vec![3.0, 4.0]; // |vec1| = 5
         let vec2 = vec![5.0, 0.0]; // |vec2| = 5
-        
+
         let distance = cosine_distance_auto(&vec1, &vec2);
-        
+
         // Distance should be non-negative and finite
         assert!(distance >= 0.0, "Distance should be non-negative");
         assert!(distance.is_finite(), "Distance should be finite");
@@ -342,7 +346,7 @@ mod property_tests {
         ) {
             let mut record = Record::default();
             record.text = text.clone();
-            
+
             prop_assert_eq!(&record.text, &text);
             prop_assert!(!text.is_empty());
             prop_assert!(text.len() <= 100);
@@ -355,10 +359,10 @@ mod property_tests {
         ) {
             let mut record = Record::default();
             record.embedding = values.clone();
-            
+
             prop_assert_eq!(record.embedding.len(), values.len());
             prop_assert!(record.embedding.len() <= 2048);
-            
+
             for &val in &record.embedding {
                 prop_assert!(val >= -1.0 && val <= 1.0);
             }
@@ -370,7 +374,7 @@ mod property_tests {
         ) {
             let mut record = Record::default();
             record.score = score;
-            
+
             prop_assert!(record.score >= 0.0);
             prop_assert!(record.score <= 1.0);
         }
@@ -381,7 +385,7 @@ mod property_tests {
         ) {
             let mut options = SearchOptions::default();
             options.top_k = top_k;
-            
+
             prop_assert!(options.top_k >= 1);
             prop_assert!(options.top_k <= 1000);
         }
@@ -392,7 +396,7 @@ mod property_tests {
         ) {
             let mut options = SearchOptions::default();
             options.score_threshold = threshold;
-            
+
             prop_assert!(options.score_threshold >= 0.0);
             prop_assert!(options.score_threshold <= 1.0);
         }
@@ -408,38 +412,50 @@ mod performance_tests {
     #[test]
     fn test_record_creation_performance() {
         let start = Instant::now();
-        
+
         for _ in 0..1000 {
             let _record = Record::default();
         }
-        
+
         let duration = start.elapsed();
-        assert!(duration.as_millis() < 100, "Record creation should be fast, took {:?}", duration);
+        assert!(
+            duration.as_millis() < 100,
+            "Record creation should be fast, took {:?}",
+            duration
+        );
     }
 
     #[test]
     fn test_cosine_distance_performance() {
         let vec1: Vec<f32> = (0..1000).map(|i| (i as f32) / 1000.0).collect();
         let vec2: Vec<f32> = (0..1000).map(|i| (1000 - i) as f32 / 1000.0).collect();
-        
+
         let start = Instant::now();
         let _distance = cosine_distance_auto(&vec1, &vec2);
         let duration = start.elapsed();
-        
-        assert!(duration.as_micros() < 10000, "Cosine distance should be fast, took {:?}", duration);
+
+        assert!(
+            duration.as_micros() < 10000,
+            "Cosine distance should be fast, took {:?}",
+            duration
+        );
     }
 
     #[test]
     fn test_layer_conversion_performance() {
         let start = Instant::now();
-        
+
         for _ in 0..10000 {
             let _ = Layer::Interact.as_str();
             let _ = Layer::Insights.table_name();
         }
-        
+
         let duration = start.elapsed();
-        assert!(duration.as_millis() < 10, "Layer conversions should be very fast, took {:?}", duration);
+        assert!(
+            duration.as_millis() < 10,
+            "Layer conversions should be very fast, took {:?}",
+            duration
+        );
     }
 }
 
@@ -452,7 +468,7 @@ mod edge_case_tests {
     fn test_empty_embedding_vector() {
         let mut record = Record::default();
         record.embedding = vec![];
-        
+
         assert!(record.embedding.is_empty());
     }
 
@@ -460,7 +476,7 @@ mod edge_case_tests {
     fn test_large_embedding_vector() {
         let mut record = Record::default();
         record.embedding = vec![0.0; 4096]; // Large embedding
-        
+
         assert_eq!(record.embedding.len(), 4096);
     }
 
@@ -468,7 +484,7 @@ mod edge_case_tests {
     fn test_zero_score() {
         let mut record = Record::default();
         record.score = 0.0;
-        
+
         assert_eq!(record.score, 0.0);
     }
 
@@ -476,7 +492,7 @@ mod edge_case_tests {
     fn test_maximum_score() {
         let mut record = Record::default();
         record.score = 1.0;
-        
+
         assert_eq!(record.score, 1.0);
     }
 
@@ -484,7 +500,7 @@ mod edge_case_tests {
     fn test_empty_tags() {
         let mut record = Record::default();
         record.tags = vec![];
-        
+
         assert!(record.tags.is_empty());
     }
 
@@ -492,7 +508,7 @@ mod edge_case_tests {
     fn test_many_tags() {
         let mut record = Record::default();
         record.tags = (0..100).map(|i| format!("tag_{}", i)).collect();
-        
+
         assert_eq!(record.tags.len(), 100);
     }
 }
@@ -516,7 +532,7 @@ mod serialization_tests {
         let original = Record::default();
         let json = serde_json::to_string(&original).unwrap();
         let restored: Record = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(original.text, restored.text);
         assert_eq!(original.layer, restored.layer);
         assert_eq!(original.kind, restored.kind);
@@ -528,7 +544,7 @@ mod serialization_tests {
         let original = SearchOptions::default();
         let json = serde_json::to_string(&original).unwrap();
         let restored: SearchOptions = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(original.layers, restored.layers);
         assert_eq!(original.top_k, restored.top_k);
         assert_eq!(original.score_threshold, restored.score_threshold);

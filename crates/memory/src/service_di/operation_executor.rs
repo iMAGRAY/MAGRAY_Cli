@@ -1,29 +1,31 @@
 //! Operation Executor Module - Single Responsibility для выполнения операций
-//! 
+//!
 //! Этот модуль отвечает ТОЛЬКО за выполнение бизнес операций:
 //! insert, search, batch operations, backup/restore.
 //! Применяет Command pattern и Dependency Inversion.
 
 use anyhow::Result;
 use async_trait::async_trait;
-use std::{sync::Arc, time::{Duration, Instant}};
-use tracing::{debug, info, warn, error};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::Semaphore;
+use tracing::{debug, error, info, warn};
 
 use crate::{
-    di::{UnifiedDIContainer, DIContainer},
-    storage::VectorStore,
-    orchestration::traits::Coordinator,
-    types::{Record, Layer, SearchOptions},
-    metrics::MetricsCollector,
-    batch_manager::BatchOperationManager,
     backup::BackupManager,
+    batch_manager::BatchOperationManager,
+    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
+    metrics::MetricsCollector,
+    orchestration::traits::Coordinator,
     orchestration::{
-        EmbeddingCoordinator as EmbeddingCoordinatorImpl,
-        SearchCoordinator as SearchCoordinatorImpl,
-        RetryHandler, RetryPolicy, RetryResult,
         traits::{EmbeddingCoordinator, SearchCoordinator},
+        EmbeddingCoordinator as EmbeddingCoordinatorImpl, RetryHandler, RetryPolicy, RetryResult,
+        SearchCoordinator as SearchCoordinatorImpl,
     },
+    storage::VectorStore,
+    types::{Layer, Record, SearchOptions},
 };
 
 use common::OperationTimer;
@@ -94,18 +96,28 @@ impl OperationConfig {
 pub trait OperationExecutor: Send + Sync {
     /// Инициализация executor
     async fn initialize(&self) -> Result<()>;
-    
+
     /// Graceful shutdown executor
     async fn shutdown(&self) -> Result<()>;
-    
+
     /// Базовые операции
     async fn insert(&self, record: Record) -> Result<()>;
-    async fn search(&self, query: &str, layer: Layer, options: SearchOptions) -> Result<Vec<Record>>;
+    async fn search(
+        &self,
+        query: &str,
+        layer: Layer,
+        options: SearchOptions,
+    ) -> Result<Vec<Record>>;
     async fn batch_insert(&self, records: Vec<Record>) -> Result<BatchInsertResult>;
-    async fn batch_search(&self, queries: Vec<String>, layer: Layer, options: SearchOptions) -> Result<BatchSearchResult>;
+    async fn batch_search(
+        &self,
+        queries: Vec<String>,
+        layer: Layer,
+        options: SearchOptions,
+    ) -> Result<BatchSearchResult>;
     async fn update(&self, record: Record) -> Result<()>;
     async fn delete(&self, id: &uuid::Uuid, layer: Layer) -> Result<()>;
-    
+
     /// Расширенные операции
     async fn flush_all(&self) -> Result<()>;
     async fn run_promotion(&self) -> Result<crate::promotion::PromotionStats>;
@@ -115,7 +127,7 @@ pub trait OperationExecutor: Send + Sync {
 /// Production implementation операций с координаторами
 pub struct ProductionOperationExecutor {
     /// DI контейнер
-    container: Arc<DIContainer>,
+    container: Arc<UnifiedDIContainer>,
     /// Embedding coordinator
     embedding_coordinator: Option<Arc<EmbeddingCoordinatorImpl>>,
     /// Search coordinator  
@@ -130,14 +142,14 @@ pub struct ProductionOperationExecutor {
 
 impl ProductionOperationExecutor {
     pub fn new(
-        container: Arc<DIContainer>,
+        container: Arc<UnifiedDIContainer>,
         embedding_coordinator: Option<Arc<EmbeddingCoordinatorImpl>>,
         search_coordinator: Option<Arc<SearchCoordinatorImpl>>,
         config: OperationConfig,
     ) -> Self {
         let retry_handler = RetryHandler::new(config.retry_policy.clone());
         let operation_limiter = Arc::new(Semaphore::new(config.max_concurrent_operations));
-        
+
         Self {
             container,
             embedding_coordinator,
@@ -149,27 +161,22 @@ impl ProductionOperationExecutor {
     }
 
     /// Создать minimal executor для тестов
-    pub fn new_minimal(container: Arc<DIContainer>) -> Self {
-        Self::new(
-            container,
-            None,
-            None,
-            OperationConfig::minimal(),
-        )
+    pub fn new_minimal(container: Arc<UnifiedDIContainer>) -> Self {
+        Self::new(container, None, None, OperationConfig::minimal())
     }
 
     /// Генерирует простой fallback embedding для тестов (когда нет GPU processor)
     fn generate_fallback_embedding(&self, text: &str) -> Vec<f32> {
         let dimension = 1024; // Фиксированная размерность для совместимости
-        
+
         let mut embedding = vec![0.0; dimension];
         let hash = text.chars().fold(0u32, |acc, c| acc.wrapping_add(c as u32));
-        
+
         // Генерируем детерминированный embedding на основе хеша текста
         for (i, val) in embedding.iter_mut().enumerate() {
             *val = ((hash.wrapping_add(i as u32) % 1000) as f32 / 1000.0) - 0.5;
         }
-        
+
         // Нормализуем вектор
         let norm = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
         if norm > 0.0 {
@@ -177,15 +184,20 @@ impl ProductionOperationExecutor {
                 *val /= norm;
             }
         }
-        
-        debug!("Сгенерирован fallback embedding размерности {} для текста: '{}'", dimension, text);
+
+        debug!(
+            "Сгенерирован fallback embedding размерности {} для текста: '{}'",
+            dimension, text
+        );
         embedding
     }
 
     /// Получить embedding через координатор или fallback
     async fn get_embedding_fallback(&self, text: &str) -> Result<Vec<f32>> {
         if let Some(ref embedding_coordinator) = self.embedding_coordinator {
-            let embeddings = embedding_coordinator.get_embeddings(&[text.to_string()]).await?;
+            let embeddings = embedding_coordinator
+                .get_embeddings(&[text.to_string()])
+                .await?;
             Ok(embeddings.into_iter().next().unwrap_or_default())
         } else {
             Ok(self.generate_fallback_embedding(text))
@@ -221,38 +233,47 @@ impl OperationExecutor for ProductionOperationExecutor {
     /// Production insert с координаторами и retry логикой
     async fn insert(&self, record: Record) -> Result<()> {
         let operation_start = Instant::now();
-        
+
         // Получаем permit для ограничения concurrency
-        let _permit = self.operation_limiter.acquire().await
+        let _permit = self
+            .operation_limiter
+            .acquire()
+            .await
             .map_err(|e| anyhow::anyhow!("Не удалось получить permit для insert: {}", e))?;
 
         debug!("📥 Insert записи: {}", record.id);
 
         // Выполняем insert с retry логикой
-        let insert_result = self.retry_handler.execute(|| async {
-            let store = self.container.resolve::<VectorStore>()?;
-            
-            if let Ok(batch_manager) = self.container.resolve::<Arc<BatchOperationManager>>() {
-                debug!("🔄 Insert через batch manager");
-                batch_manager.add(record.clone()).await?;
-            } else {
-                debug!("🔄 Прямой insert в store");
-                store.insert(&record).await?;
-            }
-            
-            Ok(())
-        }).await;
+        let insert_result = self
+            .retry_handler
+            .execute(|| async {
+                let store = self.container.resolve::<VectorStore>()?;
+
+                if let Ok(batch_manager) = self.container.resolve::<Arc<BatchOperationManager>>() {
+                    debug!("🔄 Insert через batch manager");
+                    batch_manager.add(record.clone()).await?;
+                } else {
+                    debug!("🔄 Прямой insert в store");
+                    store.insert(&record).await?;
+                }
+
+                Ok(())
+            })
+            .await;
 
         let operation_duration = operation_start.elapsed();
 
         match insert_result {
             RetryResult::Success(_, attempts) => {
                 if attempts > 1 {
-                    debug!("✅ Insert успешен после {} попыток за {:?}", attempts, operation_duration);
+                    debug!(
+                        "✅ Insert успешен после {} попыток за {:?}",
+                        attempts, operation_duration
+                    );
                 } else {
                     debug!("✅ Insert успешен за {:?}", operation_duration);
                 }
-                
+
                 self.record_operation_metrics("insert", operation_duration);
                 Ok(())
             }
@@ -271,9 +292,12 @@ impl OperationExecutor for ProductionOperationExecutor {
         options: SearchOptions,
     ) -> Result<Vec<Record>> {
         let operation_start = Instant::now();
-        
-        // Получаем permit для ограничения concurrency  
-        let _permit = self.operation_limiter.acquire().await
+
+        // Получаем permit для ограничения concurrency
+        let _permit = self
+            .operation_limiter
+            .acquire()
+            .await
             .map_err(|e| anyhow::anyhow!("Не удалось получить permit для search: {}", e))?;
 
         debug!("🔍 Search в слое {:?}: '{}'", layer, query);
@@ -281,24 +305,31 @@ impl OperationExecutor for ProductionOperationExecutor {
         let search_result = if let Some(ref search_coordinator) = self.search_coordinator {
             // Используем production SearchCoordinator с sub-5ms HNSW
             debug!("🎯 Используем SearchCoordinator для оптимального поиска");
-            
-            self.retry_handler.execute(|| async {
-                // Timeout для поддержания sub-5ms performance
-                tokio::time::timeout(
-                    Duration::from_millis(50), // Агрессивный timeout для sub-5ms цели
-                    search_coordinator.search(query, layer, options.clone())
-                ).await
-                .map_err(|_| anyhow::anyhow!("Search timeout - превышен лимит 50ms для sub-5ms цели"))?
-            }).await
+
+            self.retry_handler
+                .execute(|| async {
+                    // Timeout для поддержания sub-5ms performance
+                    tokio::time::timeout(
+                        Duration::from_millis(50), // Агрессивный timeout для sub-5ms цели
+                        search_coordinator.search(query, layer, options.clone()),
+                    )
+                    .await
+                    .map_err(|_| {
+                        anyhow::anyhow!("Search timeout - превышен лимит 50ms для sub-5ms цели")
+                    })?
+                })
+                .await
         } else {
             // Fallback на прямой поиск без координатора (для minimal mode)
             debug!("🔄 Fallback поиск без координатора");
-            
-            self.retry_handler.execute(|| async {
-                let embedding = self.get_embedding_fallback(query).await?;
-                let store = self.container.resolve::<VectorStore>()?;
-                store.search(&embedding, layer, options.top_k).await
-            }).await
+
+            self.retry_handler
+                .execute(|| async {
+                    let embedding = self.get_embedding_fallback(query).await?;
+                    let store = self.container.resolve::<VectorStore>()?;
+                    store.search(&embedding, layer, options.top_k).await
+                })
+                .await
         };
 
         let operation_duration = operation_start.elapsed();
@@ -307,13 +338,19 @@ impl OperationExecutor for ProductionOperationExecutor {
             RetryResult::Success(results, attempts) => {
                 let result_count = results.len();
                 let duration_ms = operation_duration.as_millis() as f64;
-                
+
                 if duration_ms > 5.0 {
-                    warn!("⏱️ Медленный поиск: {:.2}ms для '{}' (цель <5ms)", duration_ms, query);
+                    warn!(
+                        "⏱️ Медленный поиск: {:.2}ms для '{}' (цель <5ms)",
+                        duration_ms, query
+                    );
                 } else {
-                    debug!("⚡ Быстрый поиск: {:.2}ms для '{}' ({} результатов)", duration_ms, query, result_count);
+                    debug!(
+                        "⚡ Быстрый поиск: {:.2}ms для '{}' ({} результатов)",
+                        duration_ms, query, result_count
+                    );
                 }
-                
+
                 if attempts > 1 {
                     debug!("✅ Search успешен после {} попыток", attempts);
                 }
@@ -364,7 +401,10 @@ impl OperationExecutor for ProductionOperationExecutor {
         }
 
         let elapsed = timer.elapsed().as_millis() as u64;
-        debug!("Батчевая вставка завершена: {}/{} успешно за {}мс", inserted, total_records, elapsed);
+        debug!(
+            "Батчевая вставка завершена: {}/{} успешно за {}мс",
+            inserted, total_records, elapsed
+        );
 
         self.record_operation_metrics("batch_insert", timer.elapsed());
 
@@ -377,11 +417,20 @@ impl OperationExecutor for ProductionOperationExecutor {
     }
 
     /// Батчевый поиск
-    async fn batch_search(&self, queries: Vec<String>, layer: Layer, options: SearchOptions) -> Result<BatchSearchResult> {
+    async fn batch_search(
+        &self,
+        queries: Vec<String>,
+        layer: Layer,
+        options: SearchOptions,
+    ) -> Result<BatchSearchResult> {
         let timer = OperationTimer::new("batch_search");
         let mut results = Vec::new();
 
-        debug!("Батчевый поиск {} запросов в слое {:?}", queries.len(), layer);
+        debug!(
+            "Батчевый поиск {} запросов в слое {:?}",
+            queries.len(),
+            layer
+        );
 
         for query in &queries {
             let search_results = self.search(query, layer, options.clone()).await?;
@@ -404,14 +453,14 @@ impl OperationExecutor for ProductionOperationExecutor {
     async fn update(&self, record: Record) -> Result<()> {
         let _timer = OperationTimer::new("memory_update");
         let store = self.container.resolve::<VectorStore>()?;
-        
+
         debug!("Обновление записи {}", record.id);
-        
+
         // Сначала удаляем старую версию
         store.delete_by_id(&record.id, record.layer).await?;
         // Затем вставляем новую
         store.insert(&record).await?;
-        
+
         debug!("✓ Запись {} обновлена", record.id);
         Ok(())
     }
@@ -420,10 +469,10 @@ impl OperationExecutor for ProductionOperationExecutor {
     async fn delete(&self, id: &uuid::Uuid, layer: Layer) -> Result<()> {
         let _timer = OperationTimer::new("memory_delete");
         let store = self.container.resolve::<VectorStore>()?;
-        
+
         debug!("Удаление записи {} из слоя {:?}", id, layer);
         store.delete_by_id(id, layer).await?;
-        
+
         debug!("✓ Запись {} удалена", id);
         Ok(())
     }
@@ -431,16 +480,16 @@ impl OperationExecutor for ProductionOperationExecutor {
     /// Инициализация executor
     async fn initialize(&self) -> Result<()> {
         debug!("🔧 Инициализация ProductionOperationExecutor");
-        
+
         // Инициализация координаторов если есть
         if let Some(embedding_coord) = &self.embedding_coordinator {
             embedding_coord.initialize().await?;
         }
-        
+
         if let Some(search_coord) = &self.search_coordinator {
             search_coord.initialize().await?;
         }
-        
+
         debug!("✅ ProductionOperationExecutor инициализирован");
         Ok(())
     }
@@ -448,16 +497,16 @@ impl OperationExecutor for ProductionOperationExecutor {
     /// Graceful shutdown executor
     async fn shutdown(&self) -> Result<()> {
         debug!("🔄 Shutdown ProductionOperationExecutor");
-        
+
         // Shutdown координаторов если есть
         if let Some(embedding_coord) = &self.embedding_coordinator {
             embedding_coord.shutdown().await?;
         }
-        
+
         if let Some(search_coord) = &self.search_coordinator {
             search_coord.shutdown().await?;
         }
-        
+
         debug!("✅ ProductionOperationExecutor завершен");
         Ok(())
     }
@@ -466,7 +515,7 @@ impl OperationExecutor for ProductionOperationExecutor {
     async fn flush_all(&self) -> Result<()> {
         debug!("💾 Flush всех слоев memory system");
         let _store = self.container.resolve::<VectorStore>()?;
-        
+
         // VectorStore doesn't have flush_all method, so we do nothing for now
         debug!("💾 Flush completed (no-op in production implementation)");
         Ok(())
@@ -475,23 +524,29 @@ impl OperationExecutor for ProductionOperationExecutor {
     /// Запустить promotion cycle
     async fn run_promotion(&self) -> Result<crate::promotion::PromotionStats> {
         debug!("🚀 Запуск promotion cycle");
-        
-        let promotion_engine = self.container.resolve::<crate::promotion::PromotionEngine>()?;
+
+        let promotion_engine = self
+            .container
+            .resolve::<crate::promotion::PromotionEngine>()?;
         let stats = promotion_engine.run_promotion_cycle().await?;
-        
-        debug!("✅ Promotion cycle завершен: {} interact->insights, {} insights->assets", 
-               stats.interact_to_insights, stats.insights_to_assets);
+
+        debug!(
+            "✅ Promotion cycle завершен: {} interact->insights, {} insights->assets",
+            stats.interact_to_insights, stats.insights_to_assets
+        );
         Ok(stats)
     }
 
     /// Создать backup
     async fn create_backup(&self, path: &str) -> Result<crate::backup::BackupMetadata> {
         debug!("💾 Создание backup в {}", path);
-        
+
         let backup_manager = self.container.resolve::<crate::backup::BackupManager>()?;
         let store = self.container.resolve::<VectorStore>()?;
-        let backup_path = backup_manager.create_backup(store, Some(path.to_string())).await?;
-        
+        let backup_path = backup_manager
+            .create_backup(store, Some(path.to_string()))
+            .await?;
+
         // Создаем metadata объект из пути (метод возвращает PathBuf, но мы ожидаем BackupMetadata)
         let metadata = crate::backup::BackupMetadata {
             version: 1,
@@ -503,7 +558,7 @@ impl OperationExecutor for ProductionOperationExecutor {
             checksum: None,
             layer_checksums: None,
         };
-        
+
         debug!("✅ Backup создан: {}", backup_path.display());
         Ok(metadata)
     }
@@ -511,11 +566,11 @@ impl OperationExecutor for ProductionOperationExecutor {
 
 /// Простой executor без координаторов (для тестов)
 pub struct SimpleOperationExecutor {
-    container: Arc<DIContainer>,
+    container: Arc<UnifiedDIContainer>,
 }
 
 impl SimpleOperationExecutor {
-    pub fn new(container: Arc<DIContainer>) -> Self {
+    pub fn new(container: Arc<UnifiedDIContainer>) -> Self {
         Self { container }
     }
 }
@@ -527,16 +582,23 @@ impl OperationExecutor for SimpleOperationExecutor {
         store.insert(&record).await
     }
 
-    async fn search(&self, query: &str, layer: Layer, options: SearchOptions) -> Result<Vec<Record>> {
+    async fn search(
+        &self,
+        query: &str,
+        layer: Layer,
+        options: SearchOptions,
+    ) -> Result<Vec<Record>> {
         // Генерируем простой embedding
         let dimension = 1024;
         let mut embedding = vec![0.0; dimension];
-        let hash = query.chars().fold(0u32, |acc, c| acc.wrapping_add(c as u32));
-        
+        let hash = query
+            .chars()
+            .fold(0u32, |acc, c| acc.wrapping_add(c as u32));
+
         for (i, val) in embedding.iter_mut().enumerate() {
             *val = ((hash.wrapping_add(i as u32) % 1000) as f32 / 1000.0) - 0.5;
         }
-        
+
         let store = self.container.resolve::<VectorStore>()?;
         store.search(&embedding, layer, options.top_k).await
     }
@@ -565,7 +627,12 @@ impl OperationExecutor for SimpleOperationExecutor {
         })
     }
 
-    async fn batch_search(&self, queries: Vec<String>, layer: Layer, options: SearchOptions) -> Result<BatchSearchResult> {
+    async fn batch_search(
+        &self,
+        queries: Vec<String>,
+        layer: Layer,
+        options: SearchOptions,
+    ) -> Result<BatchSearchResult> {
         let mut results = Vec::new();
         let start = Instant::now();
 
@@ -643,13 +710,13 @@ impl OperationExecutor for SimpleOperationExecutor {
 
 /// Дополнительные операции (backup, restore, etc.)
 pub struct ExtendedOperationExecutor {
-    container: Arc<DIContainer>,
+    container: Arc<UnifiedDIContainer>,
     base_executor: Arc<dyn OperationExecutor + Send + Sync>,
 }
 
 impl ExtendedOperationExecutor {
     pub fn new(
-        container: Arc<DIContainer>,
+        container: Arc<UnifiedDIContainer>,
         base_executor: Arc<dyn OperationExecutor + Send + Sync>,
     ) -> Self {
         Self {
@@ -664,7 +731,9 @@ impl ExtendedOperationExecutor {
 
         if let Ok(backup_manager) = self.container.resolve::<BackupManager>() {
             let store = self.container.resolve::<VectorStore>()?;
-            let _backup_path = backup_manager.create_backup(store, Some(path.to_string())).await?;
+            let _backup_path = backup_manager
+                .create_backup(store, Some(path.to_string()))
+                .await?;
             let metadata = crate::backup::BackupMetadata {
                 version: 1,
                 created_at: chrono::Utc::now(),
@@ -714,7 +783,12 @@ impl OperationExecutor for ExtendedOperationExecutor {
         self.base_executor.insert(record).await
     }
 
-    async fn search(&self, query: &str, layer: Layer, options: SearchOptions) -> Result<Vec<Record>> {
+    async fn search(
+        &self,
+        query: &str,
+        layer: Layer,
+        options: SearchOptions,
+    ) -> Result<Vec<Record>> {
         self.base_executor.search(query, layer, options).await
     }
 
@@ -722,8 +796,15 @@ impl OperationExecutor for ExtendedOperationExecutor {
         self.base_executor.batch_insert(records).await
     }
 
-    async fn batch_search(&self, queries: Vec<String>, layer: Layer, options: SearchOptions) -> Result<BatchSearchResult> {
-        self.base_executor.batch_search(queries, layer, options).await
+    async fn batch_search(
+        &self,
+        queries: Vec<String>,
+        layer: Layer,
+        options: SearchOptions,
+    ) -> Result<BatchSearchResult> {
+        self.base_executor
+            .batch_search(queries, layer, options)
+            .await
     }
 
     async fn update(&self, record: Record) -> Result<()> {
@@ -774,12 +855,16 @@ mod tests {
     #[tokio::test]
     async fn test_simple_executor() -> Result<()> {
         let config = test_helpers::create_test_config()?;
-        let container = Arc::new(crate::di_memory_config::MemoryDIConfigurator::configure_minimal(config).await?);
-        
+        let container = Arc::new(
+            crate::di_memory_config::MemoryDIConfigurator::configure_minimal(config).await?,
+        );
+
         let executor = SimpleOperationExecutor::new(container);
 
         // Test basic search (должен работать даже без embedding coordinator)
-        let results = executor.search("test query", Layer::Interact, SearchOptions::default()).await;
+        let results = executor
+            .search("test query", Layer::Interact, SearchOptions::default())
+            .await;
         // Может не найти результатов, но не должен падать
         assert!(results.is_ok());
 

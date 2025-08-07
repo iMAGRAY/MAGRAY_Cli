@@ -1,5 +1,5 @@
-﻿//! UnifiedAgent - Modern Clean Architecture Implementation
-//! 
+//! UnifiedAgent - Modern Clean Architecture Implementation
+//!
 //! Этот модуль экспортирует UnifiedAgentV2 как основной UnifiedAgent.
 //! Миграция на Clean Architecture завершена.
 

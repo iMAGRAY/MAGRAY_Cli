@@ -1,19 +1,30 @@
-﻿use anyhow::{anyhow, Result};
-use std::sync::Arc;
-use std::collections::HashMap;
-use uuid::Uuid;
-use tracing::{debug, info, warn};
+use anyhow::{anyhow, Result};
 use parking_lot::Mutex;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tracing::{debug, info, warn};
+use uuid::Uuid;
 
 use crate::types::{Layer, Record};
 
 /// Операция в транзакции
 #[derive(Debug, Clone)]
 pub enum TransactionOp {
-    Insert { record: Record },
-    Update { layer: Layer, id: Uuid, record: Record },
-    Delete { layer: Layer, id: Uuid },
-    BatchInsert { records: Vec<Record> },
+    Insert {
+        record: Record,
+    },
+    Update {
+        layer: Layer,
+        id: Uuid,
+        record: Record,
+    },
+    Delete {
+        layer: Layer,
+        id: Uuid,
+    },
+    BatchInsert {
+        records: Vec<Record>,
+    },
 }
 
 /// Статус транзакции
@@ -54,11 +65,11 @@ impl Transaction {
             rollback_actions: Vec::new(),
         }
     }
-    
+
     pub fn add_operation(&mut self, op: TransactionOp) {
         self.operations.push(op);
     }
-    
+
     pub fn take_operations(&mut self) -> Result<Vec<TransactionOp>> {
         if self.status == TransactionStatus::Aborted {
             return Err(anyhow!("Cannot take operations from aborted transaction"));
@@ -66,45 +77,48 @@ impl Transaction {
         self.status = TransactionStatus::Committed;
         Ok(std::mem::take(&mut self.operations))
     }
-    
+
     pub fn abort(&mut self) {
         self.status = TransactionStatus::Aborted;
         self.operations.clear();
         self.rollback_actions.clear();
     }
-    
+
     pub fn commit(&mut self) {
         self.status = TransactionStatus::Committed;
     }
-    
+
     pub fn status(&self) -> &TransactionStatus {
         &self.status
     }
-    
+
     /// Helper method for tests - добавляет операцию вставки
     #[cfg(test)]
     pub fn insert(&mut self, record: Record) -> Result<()> {
         if self.status != TransactionStatus::Active {
             return Err(anyhow!("Transaction is not active"));
         }
-        self.operations.push(TransactionOp::Insert { record: record.clone() });
+        self.operations.push(TransactionOp::Insert {
+            record: record.clone(),
+        });
         self.rollback_actions.push(RollbackAction::DeleteInserted {
             layer: record.layer,
             id: record.id,
         });
         Ok(())
     }
-    
+
     /// Helper method for tests - добавляет операцию обновления
     #[cfg(test)]
     pub fn update(&mut self, layer: Layer, id: Uuid, record: Record) -> Result<()> {
         if self.status != TransactionStatus::Active {
             return Err(anyhow!("Transaction is not active"));
         }
-        self.operations.push(TransactionOp::Update { layer, id, record });
+        self.operations
+            .push(TransactionOp::Update { layer, id, record });
         Ok(())
     }
-    
+
     /// Helper method for tests - добавляет операцию удаления
     #[cfg(test)]
     pub fn delete(&mut self, layer: Layer, id: Uuid) -> Result<()> {
@@ -114,7 +128,7 @@ impl Transaction {
         self.operations.push(TransactionOp::Delete { layer, id });
         Ok(())
     }
-    
+
     /// Helper method for tests - добавляет операцию батчевой вставки
     #[cfg(test)]
     pub fn batch_insert(&mut self, records: Vec<Record>) -> Result<()> {
@@ -131,25 +145,25 @@ impl Transaction {
         self.operations.push(TransactionOp::BatchInsert { records });
         Ok(())
     }
-    
+
     /// Получить количество операций
     #[cfg(test)]
     pub fn operations_count(&self) -> usize {
         self.operations.len()
     }
-    
+
     /// Получить количество rollback actions
     #[cfg(test)]
     pub fn rollback_actions_count(&self) -> usize {
         self.rollback_actions.len()
     }
-    
+
     /// Получить rollback actions (для тестов)
     #[cfg(test)]
     pub fn rollback_actions(&self) -> &[RollbackAction] {
         &self.rollback_actions
     }
-    
+
     /// Добавить rollback action (для тестов)
     #[cfg(test)]
     pub fn add_rollback_action(&mut self, action: RollbackAction) {
@@ -185,10 +199,10 @@ impl TransactionManager {
     pub fn begin(&self) -> Result<Uuid> {
         let transaction = Transaction::new();
         let id = transaction.id;
-        
+
         let mut transactions = self.active_transactions.lock();
         transactions.insert(id, transaction);
-        
+
         debug!("Started transaction {}", id);
         Ok(id)
     }
@@ -199,30 +213,32 @@ impl TransactionManager {
         F: FnOnce(&mut Transaction) -> Result<()>,
     {
         let mut transactions = self.active_transactions.lock();
-        let transaction = transactions.get_mut(&tx_id)
+        let transaction = transactions
+            .get_mut(&tx_id)
             .ok_or_else(|| anyhow!("Transaction {} not found", tx_id))?;
-        
+
         operation(transaction)
     }
 
     /// Подготовить транзакцию к коммиту
     pub fn prepare_commit(&self, tx_id: Uuid) -> Result<Vec<TransactionOp>> {
         let mut transactions = self.active_transactions.lock();
-        let mut transaction = transactions.remove(&tx_id)
+        let mut transaction = transactions
+            .remove(&tx_id)
             .ok_or_else(|| anyhow!("Transaction {} not found", tx_id))?;
-        
+
         transaction.take_operations()
     }
 
     /// Откатить транзакцию
     pub fn rollback(&self, tx_id: Uuid) -> Result<()> {
         let mut transactions = self.active_transactions.lock();
-        
+
         if let Some(mut transaction) = transactions.remove(&tx_id) {
             transaction.abort();
             info!("Rolled back transaction {}", tx_id);
         }
-        
+
         Ok(())
     }
 
@@ -230,7 +246,7 @@ impl TransactionManager {
     pub fn cleanup_stale_transactions(&self, _timeout_secs: u64) {
         let transactions = self.active_transactions.lock();
         let stale_count = transactions.len();
-        
+
         // В реальной реализации здесь была бы проверка по времени
         // Пока просто логируем
         if stale_count > 0 {
@@ -289,7 +305,7 @@ mod tests {
     #[test]
     fn test_transaction_basic() {
         let mut tx = Transaction::new();
-        
+
         let record = Record {
             id: Uuid::new_v4(),
             text: "test".to_string(),
@@ -297,11 +313,11 @@ mod tests {
             layer: Layer::Interact,
             ..Default::default()
         };
-        
+
         tx.insert(record.clone()).unwrap();
         assert_eq!(tx.operations.len(), 1);
         assert_eq!(tx.rollback_actions.len(), 1);
-        
+
         let ops = tx.take_operations().unwrap();
         assert_eq!(ops.len(), 1);
         assert_eq!(tx.status, TransactionStatus::Committed);
@@ -310,23 +326,25 @@ mod tests {
     #[test]
     fn test_transaction_manager() {
         let manager = TransactionManager::new();
-        
+
         // Begin transaction
         let tx_id = manager.begin().unwrap();
         assert_eq!(manager.active_count(), 1);
-        
+
         // Execute operation
-        manager.execute(tx_id, |tx| {
-            let record = Record {
-                id: Uuid::new_v4(),
-                text: "test".to_string(),
-                embedding: vec![0.1; 1024],
-                layer: Layer::Interact,
-                ..Default::default()
-            };
-            tx.insert(record).map_err(|e| anyhow::anyhow!(e))
-        }).unwrap();
-        
+        manager
+            .execute(tx_id, |tx| {
+                let record = Record {
+                    id: Uuid::new_v4(),
+                    text: "test".to_string(),
+                    embedding: vec![0.1; 1024],
+                    layer: Layer::Interact,
+                    ..Default::default()
+                };
+                tx.insert(record).map_err(|e| anyhow::anyhow!(e))
+            })
+            .unwrap();
+
         // Commit
         let ops = manager.prepare_commit(tx_id).unwrap();
         assert_eq!(ops.len(), 1);
@@ -336,7 +354,7 @@ mod tests {
     #[test]
     fn test_transaction_guard() {
         let manager = TransactionManager::new();
-        
+
         // Test auto-rollback
         {
             let _guard = TransactionGuard::new(&manager).unwrap();
@@ -344,7 +362,7 @@ mod tests {
             // Guard dropped without commit
         }
         assert_eq!(manager.active_count(), 0);
-        
+
         // Test commit
         {
             let guard = TransactionGuard::new(&manager).unwrap();

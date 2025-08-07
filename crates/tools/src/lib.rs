@@ -2,7 +2,6 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-
 // New secure registry system
 pub mod registry;
 
@@ -12,17 +11,17 @@ pub mod execution;
 // Plugin system with WASM and external process support
 pub mod plugins;
 
-// Tool implementations  
+// Tool implementations
 pub mod file_ops;
 pub mod git_ops;
-pub mod web_ops;
 pub mod shell_ops;
+pub mod web_ops;
 
 // Advanced features (legacy - being replaced by execution module)
-pub mod intelligent_selector;
-pub mod execution_pipeline;
-pub mod performance_monitor;
 pub mod enhanced_tool_system;
+pub mod execution_pipeline;
+pub mod intelligent_selector;
+pub mod performance_monitor;
 
 // Базовые типы для системы инструментов
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,7 +53,9 @@ pub struct ToolSpec {
 pub trait Tool: Send + Sync {
     fn spec(&self) -> ToolSpec;
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput>;
-    fn supports_natural_language(&self) -> bool { true }
+    fn supports_natural_language(&self) -> bool {
+        true
+    }
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput>;
 }
 
@@ -68,7 +69,7 @@ impl ToolRegistry {
         let mut registry = Self {
             tools: HashMap::new(),
         };
-        
+
         // Регистрируем базовые инструменты
         registry.register("file_read", Box::new(file_ops::FileReader::new()));
         registry.register("file_write", Box::new(file_ops::FileWriter::new()));
@@ -77,22 +78,22 @@ impl ToolRegistry {
         registry.register("git_commit", Box::new(git_ops::GitCommit::new()));
         registry.register("web_search", Box::new(web_ops::WebSearch::new()));
         registry.register("shell_exec", Box::new(shell_ops::ShellExec::new()));
-        
+
         registry
     }
-    
+
     pub fn register(&mut self, name: &str, tool: Box<dyn Tool>) {
         self.tools.insert(name.to_string(), tool);
     }
-    
+
     pub fn get(&self, name: &str) -> Option<&dyn Tool> {
         self.tools.get(name).map(|t| t.as_ref())
     }
-    
+
     pub fn list_tools(&self) -> Vec<ToolSpec> {
         self.tools.values().map(|tool| tool.spec()).collect()
     }
-    
+
     // Удалены захардкоженные методы find_tool_for_query и execute_natural
     // Теперь используем специализированные агенты в SmartRouter
 }

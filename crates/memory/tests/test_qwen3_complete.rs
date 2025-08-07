@@ -1,13 +1,13 @@
-﻿use memory::{
-    MemoryService, MemoryConfig, Layer, Record, CacheConfigType, CacheConfig,
-    PromotionConfig, HealthConfig, ResourceConfig,
-};
 use ai::AiConfig;
 use anyhow::Result;
 use chrono::Utc;
-use uuid::Uuid;
+use memory::{
+    CacheConfig, CacheConfigType, HealthConfig, Layer, MemoryConfig, MemoryService,
+    PromotionConfig, Record, ResourceConfig,
+};
 use tracing::info;
 use tracing_subscriber;
+use uuid::Uuid;
 
 /// Полное тестирование системы памяти с моделями Qwen3
 #[tokio::test]
@@ -47,18 +47,42 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 
     // Тест 1: Добавление записей в разные слои
     info!("\n📝 Тест 1: Добавление записей в разные слои");
-    
+
     let test_data = vec![
-        ("Rust - это системный язык программирования с нулевой стоимостью абстракций", Layer::Interact, vec!["rust", "programming"]),
-        ("Tokio - асинхронный runtime для Rust, позволяющий писать эффективный асинхронный код", Layer::Interact, vec!["tokio", "async", "rust"]),
-        ("async/await упрощает написание асинхронного кода в Rust", Layer::Insights, vec!["async", "rust"]),
-        ("ONNX Runtime поддерживает различные модели ИИ и ускорители", Layer::Assets, vec!["onnx", "ai", "ml"]),
-        ("Qwen3 - это семейство языковых моделей с поддержкой многоязычности", Layer::Assets, vec!["qwen3", "ai", "nlp"]),
-        ("HNSW алгоритм обеспечивает быстрый поиск ближайших соседей", Layer::Insights, vec!["hnsw", "search", "algorithm"]),
+        (
+            "Rust - это системный язык программирования с нулевой стоимостью абстракций",
+            Layer::Interact,
+            vec!["rust", "programming"],
+        ),
+        (
+            "Tokio - асинхронный runtime для Rust, позволяющий писать эффективный асинхронный код",
+            Layer::Interact,
+            vec!["tokio", "async", "rust"],
+        ),
+        (
+            "async/await упрощает написание асинхронного кода в Rust",
+            Layer::Insights,
+            vec!["async", "rust"],
+        ),
+        (
+            "ONNX Runtime поддерживает различные модели ИИ и ускорители",
+            Layer::Assets,
+            vec!["onnx", "ai", "ml"],
+        ),
+        (
+            "Qwen3 - это семейство языковых моделей с поддержкой многоязычности",
+            Layer::Assets,
+            vec!["qwen3", "ai", "nlp"],
+        ),
+        (
+            "HNSW алгоритм обеспечивает быстрый поиск ближайших соседей",
+            Layer::Insights,
+            vec!["hnsw", "search", "algorithm"],
+        ),
     ];
 
     let mut record_ids = Vec::new();
-    
+
     for (content, layer, tags) in test_data {
         let record = Record {
             id: Uuid::new_v4(),
@@ -74,7 +98,7 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
             access_count: 0,
             last_access: Utc::now(),
         };
-        
+
         memory_service.insert(record.clone()).await?;
         record_ids.push(record.id);
         info!("  ✓ Добавлена запись в {:?}: {}", layer, content);
@@ -85,7 +109,7 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 
     // Тест 2: Векторный поиск с Qwen3 embeddings
     info!("\n🔍 Тест 2: Векторный поиск с Qwen3 embeddings");
-    
+
     let search_queries = vec![
         ("язык программирования Rust", Layer::Interact),
         ("асинхронное программирование", Layer::Insights),
@@ -94,8 +118,11 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
     ];
 
     for (query_text, expected_layer) in search_queries {
-        info!("\n  Запрос: '{}' (ожидаемый слой: {:?})", query_text, expected_layer);
-        
+        info!(
+            "\n  Запрос: '{}' (ожидаемый слой: {:?})",
+            query_text, expected_layer
+        );
+
         let start = std::time::Instant::now();
         let results = memory_service
             .search(query_text)
@@ -105,13 +132,14 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
             .execute()
             .await?;
         let search_time = start.elapsed();
-        
+
         info!("  Время поиска: {:?}", search_time);
         info!("  Найдено результатов: {}", results.len());
-        
+
         for (i, result) in results.iter().enumerate() {
-            info!("    {}. [layer: {:?}] {}", 
-                i + 1, 
+            info!(
+                "    {}. [layer: {:?}] {}",
+                i + 1,
                 result.layer,
                 &result.text[..80.min(result.text.len())]
             );
@@ -120,10 +148,10 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 
     // Тест 3: Поиск по всем слоям
     info!("\n🌐 Тест 3: Поиск по всем слоям");
-    
+
     let global_query = "программирование и алгоритмы";
     info!("  Глобальный запрос: '{}'", global_query);
-    
+
     let start = std::time::Instant::now();
     let all_results = memory_service
         .search(global_query)
@@ -132,12 +160,13 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
         .execute()
         .await?;
     let search_time = start.elapsed();
-    
+
     info!("  Время поиска по всем слоям: {:?}", search_time);
     info!("  Найдено результатов: {}", all_results.len());
-    
+
     for result in &all_results {
-        info!("    [{:?}] {}", 
+        info!(
+            "    [{:?}] {}",
             result.layer,
             &result.text[..60.min(result.text.len())]
         );
@@ -145,17 +174,18 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 
     // Тест 4: Поиск по тегам
     info!("\n🏷️ Тест 4: Поиск с фильтрацией по тегам");
-    
+
     let tag_search = memory_service
         .search("искусственный интеллект")
         .with_tags(vec!["ai".to_string()])
         .top_k(10)
         .execute()
         .await?;
-    
+
     info!("  Найдено записей с тегом 'ai': {}", tag_search.len());
     for record in &tag_search {
-        info!("    - {} (теги: {:?})", 
+        info!(
+            "    - {} (теги: {:?})",
             &record.text[..50.min(record.text.len())],
             record.tags
         );
@@ -163,10 +193,10 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 
     // Тест 5: Батч-загрузка
     info!("\n📦 Тест 5: Батч-загрузка записей");
-    
+
     let batch_size = 50;
     let mut batch_records = Vec::new();
-    
+
     for i in 0..batch_size {
         let record = Record {
             id: Uuid::new_v4(),
@@ -188,16 +218,19 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
     let start = std::time::Instant::now();
     memory_service.insert_batch(batch_records).await?;
     let batch_time = start.elapsed();
-    
+
     info!("  Добавлено {} записей за {:?}", batch_size, batch_time);
-    info!("  Среднее время на запись: {:?}", batch_time / batch_size as u32);
+    info!(
+        "  Среднее время на запись: {:?}",
+        batch_time / batch_size as u32
+    );
 
     // Тест 6: Проверка кэширования embeddings
     info!("\n💾 Тест 6: Проверка кэширования embeddings");
-    
+
     // Вставляем одинаковый текст несколько раз
     let cached_text = "Этот текст будет использован для проверки кэширования embeddings";
-    
+
     let mut cache_test_times = Vec::new();
     for i in 0..3 {
         let record = Record {
@@ -214,15 +247,15 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
             access_count: 0,
             last_access: Utc::now(),
         };
-        
+
         let start = std::time::Instant::now();
         memory_service.insert(record).await?;
         let insert_time = start.elapsed();
         cache_test_times.push(insert_time);
-        
+
         info!("  Вставка {}: {:?}", i + 1, insert_time);
     }
-    
+
     // Первая вставка должна быть медленнее из-за генерации embedding
     if cache_test_times.len() >= 2 && cache_test_times[1] < cache_test_times[0] {
         info!("  ✓ Кэширование работает! Вторая вставка быстрее первой");
@@ -230,17 +263,20 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 
     // Тест 7: Статистика кэша
     info!("\n📊 Тест 7: Статистика системы");
-    
+
     let (hits, misses, items) = memory_service.cache_stats();
     info!("  Статистика кэша:");
     info!("    - Попадания: {}", hits);
     info!("    - Промахи: {}", misses);
     info!("    - Элементов в кэше: {}", items);
-    info!("    - Hit rate: {:.1}%", (hits as f64 / (hits + misses).max(1) as f64) * 100.0);
+    info!(
+        "    - Hit rate: {:.1}%",
+        (hits as f64 / (hits + misses).max(1) as f64) * 100.0
+    );
 
     // Тест 8: Проверка здоровья системы
     info!("\n🏥 Тест 8: Проверка здоровья системы");
-    
+
     let health_status = memory_service.run_health_check().await?;
     info!("  Статус системы: {:?}", health_status.overall_status);
     info!("  Здоровье компонентов:");
@@ -250,7 +286,7 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 
     // Тест 9: Reranking (если доступен)
     info!("\n🎯 Тест 9: Тестирование reranking");
-    
+
     let rerank_query = "эффективный системный язык программирования";
     let search_results = memory_service
         .search(rerank_query)
@@ -258,7 +294,7 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
         .min_score(0.2)
         .execute()
         .await?;
-    
+
     if search_results.len() >= 3 {
         // Reranking через поиск с опциональным reranking параметром
         info!("  Reranking сервис интегрирован в поисковый API");
@@ -266,7 +302,7 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 
     // Тест 10: Многоязычность Qwen3
     info!("\n🌍 Тест 10: Многоязычная поддержка Qwen3");
-    
+
     let multilingual_texts = vec![
         ("Hello, world! This is a test.", "en"),
         ("Привет, мир! Это тест.", "ru"),
@@ -274,7 +310,7 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
         ("こんにちは、世界！これはテストです。", "ja"),
         ("Hola, mundo! Esto es una prueba.", "es"),
     ];
-    
+
     for (text, lang) in multilingual_texts {
         let record = Record {
             id: Uuid::new_v4(),
@@ -290,21 +326,17 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
             access_count: 0,
             last_access: Utc::now(),
         };
-        
+
         memory_service.insert(record).await?;
         info!("  ✓ Добавлен текст на {}: {}", lang, text);
     }
-    
+
     // Поиск на разных языках
-    let multilingual_queries = vec![
-        ("привет мир", "ru"),
-        ("hello world", "en"),
-        ("世界", "zh"),
-    ];
-    
+    let multilingual_queries = vec![("привет мир", "ru"), ("hello world", "en"), ("世界", "zh")];
+
     for (query, expected_lang) in multilingual_queries {
         info!("\n  Поиск '{}' (ожидается {}):", query, expected_lang);
-        
+
         let results = memory_service
             .search(query)
             .with_layer(Layer::Assets)
@@ -312,10 +344,12 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
             .top_k(3)
             .execute()
             .await?;
-        
+
         for result in results {
             let default_tag = "??".to_string();
-            let lang_tag = result.tags.iter()
+            let lang_tag = result
+                .tags
+                .iter()
                 .find(|t| t.len() == 2)
                 .unwrap_or(&default_tag);
             info!("    [{}] {}", lang_tag, result.text);
@@ -324,16 +358,16 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 
     // Итоговая статистика
     info!("\n📈 Итоговая статистика теста:");
-    
+
     let final_health = memory_service.run_health_check().await?;
     info!("  Финальный статус: {:?}", final_health.overall_status);
-    
+
     // Метрики доступны через health check
     info!("  Метрики доступны через систему health monitoring");
 
     info!("\n✅ Все тесты успешно завершены!");
     info!("🎉 Система памяти MAGRAY с моделями Qwen3 работает корректно!");
-    
+
     Ok(())
 }
 
@@ -341,9 +375,7 @@ async fn test_complete_qwen3_memory_system() -> Result<()> {
 #[tokio::test]
 #[ignore] // Запускать отдельно командой: cargo test test_qwen3_stress -- --ignored
 async fn test_qwen3_stress() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .try_init();
+    let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     info!("🔥 Стресс-тест системы памяти с Qwen3");
 
@@ -375,10 +407,10 @@ async fn test_qwen3_stress() -> Result<()> {
     // Загружаем 10000 документов
     info!("Загрузка 10000 документов...");
     let total_start = std::time::Instant::now();
-    
+
     for batch_idx in 0..100 {
         let mut batch = Vec::new();
-        
+
         for i in 0..100 {
             let doc_idx = batch_idx * 100 + i;
             let record = Record {
@@ -397,10 +429,7 @@ async fn test_qwen3_stress() -> Result<()> {
                 ),
                 embedding: Vec::new(),
                 kind: "stress_test".to_string(),
-                tags: vec![
-                    "stress".to_string(),
-                    format!("category_{}", doc_idx % 20),
-                ],
+                tags: vec!["stress".to_string(), format!("category_{}", doc_idx % 20)],
                 project: "stress_project".to_string(),
                 session: format!("session_{}", batch_idx),
                 ts: Utc::now(),
@@ -410,21 +439,24 @@ async fn test_qwen3_stress() -> Result<()> {
             };
             batch.push(record);
         }
-        
+
         memory_service.insert_batch(batch).await?;
-        
+
         if (batch_idx + 1) % 10 == 0 {
             info!("  Загружено {} документов", (batch_idx + 1) * 100);
         }
     }
-    
+
     let load_time = total_start.elapsed();
     info!("Загрузка завершена за {:?}", load_time);
-    info!("Средняя скорость: {:.0} док/сек", 10000.0 / load_time.as_secs_f64());
+    info!(
+        "Средняя скорость: {:.0} док/сек",
+        10000.0 / load_time.as_secs_f64()
+    );
 
     // Выполняем 1000 поисковых запросов
     info!("\nВыполнение 1000 поисковых запросов...");
-    
+
     let queries = vec![
         "производительность и масштабирование",
         "векторный поиск алгоритмы",
@@ -432,10 +464,10 @@ async fn test_qwen3_stress() -> Result<()> {
         "обработка больших данных",
         "структуры данных поиск",
     ];
-    
+
     let search_start = std::time::Instant::now();
     let mut total_results = 0;
-    
+
     for i in 0..200 {
         for query in &queries {
             let options = memory::SearchOptions {
@@ -448,15 +480,18 @@ async fn test_qwen3_stress() -> Result<()> {
                 .await?;
             total_results += results.len();
         }
-        
+
         if (i + 1) % 50 == 0 {
             info!("  Выполнено {} запросов", (i + 1) * queries.len());
         }
     }
-    
+
     let search_time = search_start.elapsed();
     info!("Поиск завершён за {:?}", search_time);
-    info!("Средняя скорость: {:.0} запросов/сек", 1000.0 / search_time.as_secs_f64());
+    info!(
+        "Средняя скорость: {:.0} запросов/сек",
+        1000.0 / search_time.as_secs_f64()
+    );
     info!("Всего найдено результатов: {}", total_results);
 
     // Финальная статистика
@@ -466,11 +501,14 @@ async fn test_qwen3_stress() -> Result<()> {
     info!("  - Попадания: {}", hits);
     info!("  - Промахи: {}", misses);
     if hits + misses > 0 {
-        info!("  - Hit rate: {:.1}%", (hits as f64 / (hits + misses) as f64) * 100.0);
+        info!(
+            "  - Hit rate: {:.1}%",
+            (hits as f64 / (hits + misses) as f64) * 100.0
+        );
     }
     info!("  - Элементов в кэше: {}", items);
 
     info!("\n✅ Стресс-тест завершён успешно!");
-    
+
     Ok(())
 }

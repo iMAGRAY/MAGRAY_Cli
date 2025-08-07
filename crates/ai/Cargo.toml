@@ -5,13 +5,34 @@ edition.workspace = true
 
 [features]
 default = ["cpu"]
-cpu = []  # CPU-only mode (always available)
-gpu = ["ort/cuda", "ort/tensorrt", "ort/directml", "ort/openvino"]  # GPU support with CUDA, TensorRT, DirectML, OpenVINO
-openai = []  # OpenAI API integration
-onnx = []  # Full ONNX Runtime support
-minimal = []  # Minimal build without heavy dependencies
+
+# Minimal build - basic functionality, no heavy AI models
+minimal = []
+
+# CPU build - full functionality without GPU acceleration  
+cpu = ["embeddings", "reranking", "onnx", "openai"]
+
+# GPU build - full functionality with GPU acceleration
+gpu = ["cpu", "cuda", "tensorrt", "directml", "openvino"]
+
+# Individual AI features
+embeddings = ["tokenizers"]
+reranking = ["embeddings"]
+onnx = ["ort", "ndarray"]
+
+# GPU acceleration backends
+cuda = ["ort/cuda"]
+tensorrt = ["ort/tensorrt"] 
+directml = ["ort/directml"]
+openvino = ["ort/openvino"]
+
+# API integrations
+openai = ["reqwest", "futures-util"]
 
 [dependencies]
+# Internal dependencies
+common = { path = "../common" }
+
 # Core dependencies
 anyhow.workspace = true
 serde.workspace = true
@@ -20,25 +41,24 @@ tokio.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
 
-# ONNX Runtime for real model inference
-ort = { version = "2.0.0-rc.10", features = ["load-dynamic"] }
-ndarray = "0.15"
+# ONNX Runtime for real model inference (only for cpu/gpu builds)
+ort = { version = "2.0.0-rc.10", features = ["load-dynamic"], optional = true }
+ndarray = { version = "0.15", optional = true }
 
-# Tokenization
-tokenizers = "0.20"
+# Tokenization (only for embeddings feature)
+tokenizers = { version = "0.20", optional = true }
 
-# HTTP client for remote APIs and model downloading
-reqwest = { workspace = true, features = ["stream"] }
-tokio-stream = { workspace = true }
+# HTTP client for remote APIs and model downloading (conditional)
+reqwest = { workspace = true, features = ["stream"], optional = true }
+tokio-stream = { workspace = true, optional = true }
+futures-util = { version = "0.3", optional = true }
 
 # Utilities
 parking_lot = "0.12"
-dashmap = "5.5"
 num_cpus = "1.16"
-lazy_static = "1.4"
-thread_local = "1.1"
 rand = "0.8"
 futures = "0.3"
+lazy_static = "1.4"
 
 [dev-dependencies]
 tempfile.workspace = true

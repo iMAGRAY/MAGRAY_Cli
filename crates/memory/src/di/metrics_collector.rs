@@ -1,13 +1,13 @@
+use parking_lot::RwLock;
 use std::{
     any::TypeId,
     collections::HashMap,
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant},
 };
-use parking_lot::RwLock;
 use tracing::debug;
 
-use super::traits::{MetricsReporter, DIContainerStats, DIPerformanceMetrics, TypeMetrics};
+use super::traits::{DIContainerStats, DIPerformanceMetrics, MetricsReporter, TypeMetrics};
 
 /// Атомарные счетчики для thread-safe метрик
 struct AtomicCounters {
@@ -109,12 +109,21 @@ struct TimingStats {
 impl TimingStats {
     fn record_duration(&mut self, duration: Duration) {
         self.total_resolution_time += duration;
-        
+
         // Обновляем min/max
-        if self.min_resolution_time.is_none() || duration < self.min_resolution_time.unwrap() {
+        if let Some(current_min) = self.min_resolution_time {
+            if duration < current_min {
+                self.min_resolution_time = Some(duration);
+            }
+        } else {
             self.min_resolution_time = Some(duration);
         }
-        if self.max_resolution_time.is_none() || duration > self.max_resolution_time.unwrap() {
+
+        if let Some(current_max) = self.max_resolution_time {
+            if duration > current_max {
+                self.max_resolution_time = Some(duration);
+            }
+        } else {
             self.max_resolution_time = Some(duration);
         }
 
@@ -132,7 +141,7 @@ impl TimingStats {
 
         let mut sorted = self.recent_resolutions.clone();
         sorted.sort();
-        
+
         let index = (sorted.len() as f64 * percentile / 100.0) as usize;
         sorted.get(index.min(sorted.len() - 1)).copied()
     }
@@ -158,7 +167,7 @@ impl MetricsReporterImpl {
     /// Получить детальные timing статистики
     pub fn get_timing_stats(&self) -> TimingStatsReport {
         let stats = self.timing_stats.read();
-        
+
         TimingStatsReport {
             total_time: stats.total_resolution_time,
             min_time: stats.min_resolution_time,
@@ -178,7 +187,8 @@ impl MetricsReporterImpl {
         let mut types: Vec<_> = type_metrics
             .iter()
             .map(|(&type_id, metrics)| {
-                let name = type_names.get(&type_id)
+                let name = type_names
+                    .get(&type_id)
                     .cloned()
                     .unwrap_or_else(|| format!("Unknown({:?})", type_id));
                 (name, metrics.to_public())
@@ -197,7 +207,8 @@ impl MetricsReporterImpl {
         let mut types: Vec<_> = type_metrics
             .iter()
             .map(|(&type_id, metrics)| {
-                let name = type_names.get(&type_id)
+                let name = type_names
+                    .get(&type_id)
                     .cloned()
                     .unwrap_or_else(|| format!("Unknown({:?})", type_id));
                 (name, metrics.to_public())
@@ -219,7 +230,7 @@ impl MetricsReporterImpl {
         let hits = self.counters.cache_hits.load(Ordering::Relaxed);
         let misses = self.counters.cache_misses.load(Ordering::Relaxed);
         let total = hits + misses;
-        
+
         if total > 0 {
             (hits as f64 / total as f64) * 100.0
         } else {
@@ -237,8 +248,10 @@ impl Default for MetricsReporterImpl {
 impl MetricsReporter for MetricsReporterImpl {
     fn record_resolution(&self, type_id: TypeId, duration: Duration, from_cache: bool) {
         // Обновляем атомарные счетчики
-        self.counters.total_resolutions.fetch_add(1, Ordering::Relaxed);
-        
+        self.counters
+            .total_resolutions
+            .fetch_add(1, Ordering::Relaxed);
+
         if from_cache {
             self.counters.cache_hits.fetch_add(1, Ordering::Relaxed);
         } else {
@@ -254,24 +267,31 @@ impl MetricsReporter for MetricsReporterImpl {
         // Обновляем метрики для конкретного типа
         {
             let mut type_metrics = self.type_metrics.write();
-            let metrics = type_metrics.entry(type_id).or_insert_with(TypeMetricsImpl::new);
+            let metrics = type_metrics
+                .entry(type_id)
+                .or_insert_with(TypeMetricsImpl::new);
             metrics.record_resolution(duration, from_cache);
         }
 
-        debug!("Recorded resolution for type {:?}: {:?} (from_cache: {})", 
-               type_id, duration, from_cache);
+        debug!(
+            "Recorded resolution for type {:?}: {:?} (from_cache: {})",
+            type_id, duration, from_cache
+        );
     }
 
     fn record_registration(&self, type_id: TypeId) {
-        self.counters.total_registrations.fetch_add(1, Ordering::Relaxed);
+        self.counters
+            .total_registrations
+            .fetch_add(1, Ordering::Relaxed);
         debug!("Recorded registration for type {:?}", type_id);
     }
 
     fn get_stats(&self) -> DIContainerStats {
         let type_metrics = self.type_metrics.read();
-        
+
         DIContainerStats {
-            registered_factories: self.counters.total_registrations.load(Ordering::Relaxed) as usize,
+            registered_factories: self.counters.total_registrations.load(Ordering::Relaxed)
+                as usize,
             cached_singletons: type_metrics.len(), // Приблизительная оценка
             total_resolutions: self.counters.total_resolutions.load(Ordering::Relaxed),
             cache_hits: self.counters.cache_hits.load(Ordering::Relaxed),
@@ -282,7 +302,7 @@ impl MetricsReporter for MetricsReporterImpl {
     fn get_performance_metrics(&self) -> DIPerformanceMetrics {
         let type_metrics_guard = self.type_metrics.read();
         let timing_stats = self.timing_stats.read();
-        
+
         let type_metrics: HashMap<TypeId, TypeMetrics> = type_metrics_guard
             .iter()
             .map(|(&type_id, metrics)| (type_id, metrics.to_public()))
@@ -301,12 +321,12 @@ impl MetricsReporter for MetricsReporterImpl {
 
     fn clear_metrics(&self) {
         self.counters.reset();
-        
+
         {
             let mut type_metrics = self.type_metrics.write();
             type_metrics.clear();
         }
-        
+
         {
             let mut timing_stats = self.timing_stats.write();
             timing_stats.reset();
@@ -364,7 +384,8 @@ impl MetricsReporter for CompositeMetricsReporter {
 
     fn get_stats(&self) -> DIContainerStats {
         // Возвращаем статистику от первого reporter'а
-        self.reporters.first()
+        self.reporters
+            .first()
             .map(|r| r.get_stats())
             .unwrap_or_else(|| DIContainerStats {
                 registered_factories: 0,
@@ -377,7 +398,8 @@ impl MetricsReporter for CompositeMetricsReporter {
 
     fn get_performance_metrics(&self) -> DIPerformanceMetrics {
         // Возвращаем метрики от первого reporter'а
-        self.reporters.first()
+        self.reporters
+            .first()
             .map(|r| r.get_performance_metrics())
             .unwrap_or_default()
     }
@@ -427,7 +449,7 @@ mod tests {
 
         // Проверяем, что есть метрики для нашего типа
         assert!(metrics.type_metrics.contains_key(&type_id));
-        
+
         let type_metrics = &metrics.type_metrics[&type_id];
         assert_eq!(type_metrics.resolutions, 3);
         assert_eq!(type_metrics.cache_hits, 1);

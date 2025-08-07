@@ -2,29 +2,29 @@
 //!
 //! Encapsulates business logic for determining when records should be promoted
 
-use chrono::Duration;
-use serde::{Deserialize, Serialize};
 use crate::errors::{DomainError, DomainResult};
 use crate::value_objects::LayerType;
+use chrono::Duration;
+use serde::{Deserialize, Serialize};
 
 /// Business criteria for promoting records between layers
-/// 
+///
 /// Encapsulates the business rules that determine when a record
 /// should be promoted from one layer to another
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromotionCriteria {
     /// Minimum access count required for promotion
     min_access_count: u32,
-    
+
     /// Maximum time between accesses (for frequency check)
     max_access_interval: Duration,
-    
+
     /// Minimum age before promotion (prevents premature promotion)
     min_age: Duration,
-    
+
     /// Minimum importance score (0.0 to 1.0)
     min_importance_score: f32,
-    
+
     /// Require accelerating access pattern
     require_acceleration: bool,
 }
@@ -39,17 +39,18 @@ impl PromotionCriteria {
         require_acceleration: bool,
     ) -> DomainResult<Self> {
         if min_importance_score < 0.0 || min_importance_score > 1.0 {
-            return Err(DomainError::InvalidPromotionCriteria(
-                format!("Importance score must be between 0.0 and 1.0, got {}", min_importance_score)
-            ));
+            return Err(DomainError::InvalidPromotionCriteria(format!(
+                "Importance score must be between 0.0 and 1.0, got {}",
+                min_importance_score
+            )));
         }
-        
+
         if min_access_count == 0 {
             return Err(DomainError::InvalidPromotionCriteria(
-                "Minimum access count must be greater than 0".to_string()
+                "Minimum access count must be greater than 0".to_string(),
             ));
         }
-        
+
         Ok(Self {
             min_access_count,
             max_access_interval,
@@ -58,7 +59,7 @@ impl PromotionCriteria {
             require_acceleration,
         })
     }
-    
+
     /// Default criteria for Interact → Insights promotion
     pub fn interact_to_insights() -> Self {
         Self {
@@ -69,7 +70,7 @@ impl PromotionCriteria {
             require_acceleration: false,
         }
     }
-    
+
     /// Default criteria for Insights → Assets promotion
     pub fn insights_to_assets() -> Self {
         Self {
@@ -80,7 +81,7 @@ impl PromotionCriteria {
             require_acceleration: false,
         }
     }
-    
+
     /// Strict criteria (higher requirements)
     pub fn strict_for_layers(from: LayerType, to: LayerType) -> DomainResult<Self> {
         match (from, to) {
@@ -98,12 +99,13 @@ impl PromotionCriteria {
                 min_importance_score: 0.7,
                 require_acceleration: true,
             }),
-            _ => Err(DomainError::InvalidPromotionCriteria(
-                format!("Invalid promotion path: {:?} → {:?}", from, to)
-            )),
+            _ => Err(DomainError::InvalidPromotionCriteria(format!(
+                "Invalid promotion path: {:?} → {:?}",
+                from, to
+            ))),
         }
     }
-    
+
     /// Lenient criteria (lower requirements)
     pub fn lenient_for_layers(from: LayerType, to: LayerType) -> DomainResult<Self> {
         match (from, to) {
@@ -121,33 +123,34 @@ impl PromotionCriteria {
                 min_importance_score: 0.3,
                 require_acceleration: false,
             }),
-            _ => Err(DomainError::InvalidPromotionCriteria(
-                format!("Invalid promotion path: {:?} → {:?}", from, to)
-            )),
+            _ => Err(DomainError::InvalidPromotionCriteria(format!(
+                "Invalid promotion path: {:?} → {:?}",
+                from, to
+            ))),
         }
     }
-    
+
     // Getters for criteria values
     pub fn min_access_count(&self) -> u32 {
         self.min_access_count
     }
-    
+
     pub fn max_access_interval(&self) -> Duration {
         self.max_access_interval
     }
-    
+
     pub fn min_age(&self) -> Duration {
         self.min_age
     }
-    
+
     pub fn min_importance_score(&self) -> f32 {
         self.min_importance_score
     }
-    
+
     pub fn require_acceleration(&self) -> bool {
         self.require_acceleration
     }
-    
+
     /// Get business description of these criteria
     pub fn description(&self) -> String {
         format!(
@@ -171,7 +174,7 @@ impl Default for PromotionCriteria {
 fn format_duration(duration: Duration) -> String {
     let hours = duration.num_hours();
     let days = duration.num_days();
-    
+
     if days > 0 {
         format!("{}d", days)
     } else if hours > 0 {
@@ -187,18 +190,13 @@ mod tests {
 
     #[test]
     fn test_criteria_creation() {
-        let criteria = PromotionCriteria::new(
-            5,
-            Duration::hours(2),
-            Duration::hours(1),
-            0.5,
-            false,
-        ).unwrap();
-        
+        let criteria =
+            PromotionCriteria::new(5, Duration::hours(2), Duration::hours(1), 0.5, false).unwrap();
+
         assert_eq!(criteria.min_access_count(), 5);
         assert_eq!(criteria.min_importance_score(), 0.5);
     }
-    
+
     #[test]
     fn test_criteria_validation() {
         // Invalid importance score
@@ -210,7 +208,7 @@ mod tests {
             false,
         );
         assert!(result.is_err());
-        
+
         // Zero access count
         let result = PromotionCriteria::new(
             0, // Invalid
@@ -221,28 +219,25 @@ mod tests {
         );
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_default_criteria() {
         let interact_criteria = PromotionCriteria::interact_to_insights();
         let assets_criteria = PromotionCriteria::insights_to_assets();
-        
+
         // Assets promotion should be stricter
         assert!(assets_criteria.min_access_count() > interact_criteria.min_access_count());
         assert!(assets_criteria.min_importance_score() > interact_criteria.min_importance_score());
     }
-    
+
     #[test]
     fn test_strict_vs_lenient() {
-        let strict = PromotionCriteria::strict_for_layers(
-            LayerType::Interact, 
-            LayerType::Insights
-        ).unwrap();
-        let lenient = PromotionCriteria::lenient_for_layers(
-            LayerType::Interact, 
-            LayerType::Insights
-        ).unwrap();
-        
+        let strict =
+            PromotionCriteria::strict_for_layers(LayerType::Interact, LayerType::Insights).unwrap();
+        let lenient =
+            PromotionCriteria::lenient_for_layers(LayerType::Interact, LayerType::Insights)
+                .unwrap();
+
         assert!(strict.min_access_count() > lenient.min_access_count());
         assert!(strict.min_importance_score() > lenient.min_importance_score());
     }

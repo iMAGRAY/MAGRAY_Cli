@@ -1,7 +1,7 @@
+use anyhow::Result;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use anyhow::Result;
-use tracing::{info, debug, warn};
+use tracing::{debug, info, warn};
 
 pub struct GpuMemoryPool {
     /// Пул буферов различных размеров
@@ -33,21 +33,24 @@ pub struct PoolStats {
 impl GpuMemoryPool {
     /// Создать новый пул памяти
     pub fn new(max_pool_size: usize) -> Self {
-        info!("🏊 Инициализация GPU memory pool (max: {} MB)", max_pool_size / 1024 / 1024);
-        
+        info!(
+            "🏊 Инициализация GPU memory pool (max: {} MB)",
+            max_pool_size / 1024 / 1024
+        );
+
         // Создаём пулы для разных размеров (степени двойки)
         let mut pools = Vec::new();
         let sizes = vec![
-            1024,           // 1KB
-            4 * 1024,       // 4KB
-            16 * 1024,      // 16KB
-            64 * 1024,      // 64KB
-            256 * 1024,     // 256KB
-            1024 * 1024,    // 1MB
+            1024,             // 1KB
+            4 * 1024,         // 4KB
+            16 * 1024,        // 16KB
+            64 * 1024,        // 64KB
+            256 * 1024,       // 256KB
+            1024 * 1024,      // 1MB
             4 * 1024 * 1024,  // 4MB
             16 * 1024 * 1024, // 16MB
         ];
-        
+
         for size in sizes {
             let max_buffers = (max_pool_size / size / 8).max(2); // Делим на 8 для каждого размера
             pools.push(BufferPool {
@@ -56,7 +59,7 @@ impl GpuMemoryPool {
                 max_buffers,
             });
         }
-        
+
         Self {
             pools: Arc::new(Mutex::new(pools)),
             max_pool_size,
@@ -64,19 +67,23 @@ impl GpuMemoryPool {
             stats: Arc::new(Mutex::new(PoolStats::default())),
         }
     }
-    
+
     /// Получить буфер из пула или создать новый
     pub fn acquire_buffer(&self, required_size: usize) -> Result<Vec<u8>> {
-        let mut stats = self.stats.lock()
+        let mut stats = self
+            .stats
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to acquire stats lock: {}", e))?;
         stats.allocations += 1;
-        
+
         // Находим подходящий размер (ближайшая степень двойки)
         let actual_size = required_size.next_power_of_two();
-        
-        let mut pools = self.pools.lock()
+
+        let mut pools = self
+            .pools
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to acquire pools lock: {}", e))?;
-        
+
         // Ищем подходящий пул
         for pool in pools.iter_mut() {
             if pool.size >= actual_size && pool.size <= actual_size * 2 {
@@ -86,45 +93,57 @@ impl GpuMemoryPool {
                     debug!("✅ Взят буфер {}KB из пула", pool.size / 1024);
                     return Ok(buffer);
                 }
-                
+
                 // Создаём новый буфер если пул пустой
                 stats.misses += 1;
-                let current = *self.current_size.lock()
+                let current = *self
+                    .current_size
+                    .lock()
                     .map_err(|_| anyhow::anyhow!("Ошибка блокировки размера пула"))?;
-                
+
                 if current + pool.size <= self.max_pool_size {
                     let buffer = vec![0u8; pool.size];
-                    *self.current_size.lock()
-                        .map_err(|_| anyhow::anyhow!("Ошибка блокировки размера пула"))? += pool.size;
+                    *self
+                        .current_size
+                        .lock()
+                        .map_err(|_| anyhow::anyhow!("Ошибка блокировки размера пула"))? +=
+                        pool.size;
                     stats.current_buffers += 1;
-                    
+
                     if current + pool.size > stats.peak_memory_usage {
                         stats.peak_memory_usage = current + pool.size;
                     }
-                    
+
                     debug!("🆕 Создан новый буфер {}KB", pool.size / 1024);
                     return Ok(buffer);
                 }
             }
         }
-        
+
         // Если не нашли подходящий пул, создаём временный буфер
-        warn!("⚠️ Создан временный буфер {}KB (вне пула)", actual_size / 1024);
+        warn!(
+            "⚠️ Создан временный буфер {}KB (вне пула)",
+            actual_size / 1024
+        );
         Ok(vec![0u8; actual_size])
     }
-    
+
     /// Вернуть буфер в пул
     pub fn release_buffer(&self, mut buffer: Vec<u8>) -> Result<()> {
-        let mut stats = self.stats.lock()
+        let mut stats = self
+            .stats
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to acquire stats lock: {}", e))?;
         stats.deallocations += 1;
-        
+
         let size = buffer.capacity();
         buffer.clear(); // Очищаем данные
-        
-        let mut pools = self.pools.lock()
+
+        let mut pools = self
+            .pools
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to acquire pools lock: {}", e))?;
-        
+
         // Находим подходящий пул
         for pool in pools.iter_mut() {
             if pool.size == size && pool.buffers.len() < pool.max_buffers {
@@ -133,9 +152,11 @@ impl GpuMemoryPool {
                 return Ok(());
             }
         }
-        
+
         // Если пул переполнен, просто освобождаем память
-        let mut current = self.current_size.lock()
+        let mut current = self
+            .current_size
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to acquire current_size lock: {}", e))?;
         *current = current.saturating_sub(size);
         drop(current);
@@ -143,7 +164,7 @@ impl GpuMemoryPool {
         debug!("🗑️ Буфер {}KB удалён (пул переполнен)", size / 1024);
         Ok(())
     }
-    
+
     /// Выполнить функцию с временным буфером
     pub fn with_buffer<F, R>(&self, size: usize, f: F) -> Result<R>
     where
@@ -154,7 +175,7 @@ impl GpuMemoryPool {
         let _ = self.release_buffer(buffer); // Игнорируем ошибку release для обратной совместимости
         result
     }
-    
+
     /// Асинхронная версия with_buffer
     pub async fn with_buffer_async<F, Fut, R>(&self, size: usize, f: F) -> Result<R>
     where
@@ -166,13 +187,15 @@ impl GpuMemoryPool {
         let _ = self.release_buffer(returned_buffer); // Игнорируем ошибку release для обратной совместимости
         Ok(result)
     }
-    
+
     /// Очистить все неиспользуемые буферы
     pub fn clear_unused(&self) -> Result<()> {
-        let mut pools = self.pools.lock()
+        let mut pools = self
+            .pools
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to acquire pools lock: {}", e))?;
         let mut freed = 0;
-        
+
         for pool in pools.iter_mut() {
             let count = pool.buffers.len();
             if count > 0 {
@@ -180,43 +203,62 @@ impl GpuMemoryPool {
                 pool.buffers.clear();
             }
         }
-        
+
         if freed > 0 {
-            *self.current_size.lock()
+            *self
+                .current_size
+                .lock()
                 .map_err(|e| anyhow::anyhow!("Failed to update current_size: {}", e))? -= freed;
-            let mut stats = self.stats.lock()
+            let mut stats = self
+                .stats
+                .lock()
                 .map_err(|e| anyhow::anyhow!("Failed to update stats: {}", e))?;
             stats.current_buffers = 0;
             info!("🧹 Очищено {} MB из пула памяти", freed / 1024 / 1024);
         }
         Ok(())
     }
-    
+
     /// Получить статистику использования
     pub fn get_stats(&self) -> Result<PoolStats> {
-        let stats = self.stats.lock()
+        let stats = self
+            .stats
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to acquire stats lock: {}", e))?
             .clone();
         Ok(stats)
     }
-    
+
     /// Вывести статистику
     pub fn print_stats(&self) -> Result<()> {
         let stats = self.get_stats()?;
-        let current = *self.current_size.lock()
+        let current = *self
+            .current_size
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to acquire current_size lock: {}", e))?;
-        
+
         info!("📊 GPU Memory Pool статистика:");
-        info!("  - Текущий размер: {} MB / {} MB", current / 1024 / 1024, self.max_pool_size / 1024 / 1024);
-        info!("  - Пиковое использование: {} MB", stats.peak_memory_usage / 1024 / 1024);
-        info!("  - Allocations: {} (hits: {}, misses: {})", 
-            stats.allocations, stats.hits, stats.misses);
-        info!("  - Hit rate: {:.1}%", 
-            if stats.allocations > 0 { 
-                (stats.hits as f64 / stats.allocations as f64) * 100.0 
-            } else { 
-                0.0 
-            });
+        info!(
+            "  - Текущий размер: {} MB / {} MB",
+            current / 1024 / 1024,
+            self.max_pool_size / 1024 / 1024
+        );
+        info!(
+            "  - Пиковое использование: {} MB",
+            stats.peak_memory_usage / 1024 / 1024
+        );
+        info!(
+            "  - Allocations: {} (hits: {}, misses: {})",
+            stats.allocations, stats.hits, stats.misses
+        );
+        info!(
+            "  - Hit rate: {:.1}%",
+            if stats.allocations > 0 {
+                (stats.hits as f64 / stats.allocations as f64) * 100.0
+            } else {
+                0.0
+            }
+        );
         info!("  - Текущих буферов: {}", stats.current_buffers);
         Ok(())
     }
@@ -239,7 +281,7 @@ lazy_static::lazy_static! {
         } else {
             512 * 1024 * 1024 // 512MB по умолчанию
         };
-        
+
         GpuMemoryPool::new(pool_size)
     };
 }
@@ -247,25 +289,25 @@ lazy_static::lazy_static! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_memory_pool() {
         let pool = GpuMemoryPool::new(10 * 1024 * 1024); // 10MB
-        
+
         // Тест простого выделения
         let result = pool.with_buffer(1024, |buffer| {
             buffer.extend_from_slice(&[1, 2, 3, 4]);
             Ok(buffer.len())
         });
         assert!(result.is_ok());
-        
+
         // Тест повторного использования
         let _ = pool.acquire_buffer(1024).expect("Failed to acquire buffer");
         let _ = pool.acquire_buffer(1024).expect("Failed to acquire buffer");
-        
+
         let stats = pool.get_stats().expect("Failed to get stats");
         assert!(stats.allocations >= 2);
-        
+
         let _ = pool.print_stats(); // Игнорируем ошибку print для тестов
     }
 }

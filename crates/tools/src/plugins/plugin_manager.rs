@@ -24,28 +24,28 @@ pub struct PluginMetadata {
     pub repository: Option<String>,
     pub license: String,
     pub keywords: Vec<String>,
-    
+
     // Plugin configuration
     pub plugin_type: PluginType,
     pub entry_point: String,
     pub configuration_schema: serde_json::Value,
     pub default_config: serde_json::Value,
-    
+
     // Runtime requirements
     pub runtime_requirements: RuntimeRequirements,
     pub dependencies: Vec<PluginDependency>,
-    
+
     // Security and permissions
     pub required_permissions: ToolPermissions,
     pub security_level: SecurityLevel,
     pub signed: bool,
     pub signature: Option<String>,
-    
+
     // Installation and lifecycle
     pub installed_at: Option<u64>,
     pub last_updated: Option<u64>,
     pub installation_path: Option<PathBuf>,
-    
+
     // Plugin state
     pub state: PluginState,
     pub load_count: u64,
@@ -73,19 +73,19 @@ impl PluginVersion {
             build_metadata: None,
         }
     }
-    
+
     pub fn is_compatible(&self, required: &PluginVersion) -> bool {
         // Major version must match, minor/patch must be >= required
         if self.major != required.major {
             return false;
         }
-        
+
         if self.minor > required.minor {
             return true;
         } else if self.minor == required.minor {
             return self.patch >= required.patch;
         }
-        
+
         false
     }
 }
@@ -93,15 +93,15 @@ impl PluginVersion {
 impl std::fmt::Display for PluginVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
-        
+
         if let Some(ref pre) = self.pre_release {
             write!(f, "-{}", pre)?;
         }
-        
+
         if let Some(ref build) = self.build_metadata {
             write!(f, "+{}", build)?;
         }
-        
+
         Ok(())
     }
 }
@@ -109,11 +109,11 @@ impl std::fmt::Display for PluginVersion {
 /// Plugin types supported by the system
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum PluginType {
-    Wasm,                    // WebAssembly plugin
-    ExternalProcess,         // External process plugin
-    SharedLibrary,           // Dynamic library (.so/.dll/.dylib)
-    Script(String),          // Script plugin (Python, JS, etc.)
-    Container,               // Container-based plugin
+    Wasm,            // WebAssembly plugin
+    ExternalProcess, // External process plugin
+    SharedLibrary,   // Dynamic library (.so/.dll/.dylib)
+    Script(String),  // Script plugin (Python, JS, etc.)
+    Container,       // Container-based plugin
 }
 
 /// Runtime requirements for plugins
@@ -212,22 +212,22 @@ impl PluginRegistry {
             config_directory: config_dir,
         }
     }
-    
+
     /// Register a new plugin
     pub async fn register_plugin(&self, mut metadata: PluginMetadata) -> Result<()> {
         // Validate metadata
         self.validate_plugin_metadata(&metadata)?;
-        
+
         // Set installation timestamp
         metadata.installed_at = Some(self.current_timestamp());
         metadata.state = PluginState::Installed;
-        
+
         // Store in registry
         {
             let mut plugins = self.plugins.write().await;
             plugins.insert(metadata.id.clone(), metadata.clone());
         }
-        
+
         // Create default configuration
         let default_config = PluginConfiguration {
             plugin_id: metadata.id.clone(),
@@ -237,116 +237,121 @@ impl PluginRegistry {
             auto_start: false,
             auto_reload: false,
         };
-        
+
         {
             let mut configs = self.configurations.write().await;
             configs.insert(metadata.id.clone(), default_config);
         }
-        
+
         // Persist to filesystem
         self.save_plugin_metadata(&metadata).await?;
-        
-        info!("📝 Registered plugin: {} v{}", metadata.name, metadata.version);
+
+        info!(
+            "📝 Registered plugin: {} v{}",
+            metadata.name, metadata.version
+        );
         Ok(())
     }
-    
+
     /// Get plugin metadata by ID
     pub async fn get_plugin(&self, plugin_id: &str) -> Option<PluginMetadata> {
         let plugins = self.plugins.read().await;
         plugins.get(plugin_id).cloned()
     }
-    
+
     /// Get all plugins with optional filtering
     pub async fn list_plugins(&self, filter: Option<PluginFilter>) -> Vec<PluginMetadata> {
         let plugins = self.plugins.read().await;
-        
+
         match filter {
-            Some(filter) => {
-                plugins.values()
-                    .filter(|p| filter.matches(p))
-                    .cloned()
-                    .collect()
-            }
+            Some(filter) => plugins
+                .values()
+                .filter(|p| filter.matches(p))
+                .cloned()
+                .collect(),
             None => plugins.values().cloned().collect(),
         }
     }
-    
+
     /// Update plugin state
     pub async fn update_plugin_state(&self, plugin_id: &str, state: PluginState) -> Result<()> {
         let mut plugins = self.plugins.write().await;
-        let plugin = plugins.get_mut(plugin_id)
+        let plugin = plugins
+            .get_mut(plugin_id)
             .ok_or_else(|| anyhow!("Plugin not found: {}", plugin_id))?;
-        
+
         let old_state = plugin.state.clone();
         plugin.state = state.clone();
-        
-        debug!("🔄 Plugin {} state changed: {:?} -> {:?}", plugin_id, old_state, state);
-        
+
+        debug!(
+            "🔄 Plugin {} state changed: {:?} -> {:?}",
+            plugin_id, old_state, state
+        );
+
         // Update error count on error states
         if let PluginState::Error(_) = state {
             plugin.error_count += 1;
         }
-        
+
         Ok(())
     }
-    
+
     /// Get plugin configuration
     pub async fn get_plugin_configuration(&self, plugin_id: &str) -> Option<PluginConfiguration> {
         let configs = self.configurations.read().await;
         configs.get(plugin_id).cloned()
     }
-    
+
     /// Update plugin configuration
     pub async fn update_plugin_configuration(
-        &self, 
-        plugin_id: &str, 
-        config: PluginConfiguration
+        &self,
+        plugin_id: &str,
+        config: PluginConfiguration,
     ) -> Result<()> {
         // Validate configuration against schema
         self.validate_plugin_configuration(&config).await?;
-        
+
         {
             let mut configs = self.configurations.write().await;
             configs.insert(plugin_id.to_string(), config.clone());
         }
-        
+
         // Persist to filesystem
         self.save_plugin_configuration(&config).await?;
-        
+
         debug!("⚙️ Updated configuration for plugin: {}", plugin_id);
         Ok(())
     }
-    
+
     /// Check plugin dependencies
     pub async fn check_dependencies(&self, plugin_id: &str) -> Result<Vec<String>> {
         let plugins = self.plugins.read().await;
-        let plugin = plugins.get(plugin_id)
+        let plugin = plugins
+            .get(plugin_id)
             .ok_or_else(|| anyhow!("Plugin not found: {}", plugin_id))?;
-        
+
         let mut missing_deps = Vec::new();
-        
+
         for dependency in &plugin.dependencies {
             if dependency.optional {
                 continue;
             }
-            
+
             if let Some(dep_plugin) = plugins.get(&dependency.plugin_id) {
                 if !dep_plugin.version.is_compatible(&dependency.min_version) {
                     missing_deps.push(format!(
                         "Incompatible dependency: {} requires {} but {} is installed",
-                        dependency.plugin_id,
-                        dependency.min_version,
-                        dep_plugin.version
+                        dependency.plugin_id, dependency.min_version, dep_plugin.version
                     ));
                 }
             } else {
                 missing_deps.push(format!("Missing dependency: {}", dependency.plugin_id));
             }
         }
-        
+
         Ok(missing_deps)
     }
-    
+
     /// Remove plugin from registry
     pub async fn unregister_plugin(&self, plugin_id: &str) -> Result<()> {
         // Check if other plugins depend on this one
@@ -358,55 +363,57 @@ impl PluginRegistry {
                 dependents
             ));
         }
-        
+
         // Remove from registry
         let metadata = {
             let mut plugins = self.plugins.write().await;
-            plugins.remove(plugin_id)
+            plugins
+                .remove(plugin_id)
                 .ok_or_else(|| anyhow!("Plugin not found: {}", plugin_id))?
         };
-        
+
         // Remove configuration
         {
             let mut configs = self.configurations.write().await;
             configs.remove(plugin_id);
         }
-        
+
         // Clean up filesystem
         self.cleanup_plugin_files(&metadata).await?;
-        
+
         info!("🗑️ Unregistered plugin: {}", metadata.name);
         Ok(())
     }
-    
+
     /// Find plugins that depend on the given plugin
     async fn find_dependent_plugins(&self, plugin_id: &str) -> Vec<String> {
         let plugins = self.plugins.read().await;
-        
-        plugins.values()
+
+        plugins
+            .values()
             .filter(|p| p.dependencies.iter().any(|dep| dep.plugin_id == plugin_id))
             .map(|p| p.id.clone())
             .collect()
     }
-    
+
     /// Validate plugin metadata
     fn validate_plugin_metadata(&self, metadata: &PluginMetadata) -> Result<()> {
         if metadata.id.is_empty() {
             return Err(anyhow!("Plugin ID cannot be empty"));
         }
-        
+
         if metadata.name.is_empty() {
             return Err(anyhow!("Plugin name cannot be empty"));
         }
-        
+
         if metadata.version == PluginVersion::new(0, 0, 0) {
             return Err(anyhow!("Plugin version must be specified"));
         }
-        
+
         if metadata.entry_point.is_empty() {
             return Err(anyhow!("Plugin entry point cannot be empty"));
         }
-        
+
         // Validate plugin type specific requirements
         match metadata.plugin_type {
             PluginType::Wasm => {
@@ -421,32 +428,39 @@ impl PluginRegistry {
                     "typescript" => vec![".ts"],
                     _ => return Err(anyhow!("Unsupported script language: {}", lang)),
                 };
-                
-                if !valid_extensions.iter().any(|ext| metadata.entry_point.ends_with(ext)) {
-                    return Err(anyhow!("Script entry point has invalid extension for {}", lang));
+
+                if !valid_extensions
+                    .iter()
+                    .any(|ext| metadata.entry_point.ends_with(ext))
+                {
+                    return Err(anyhow!(
+                        "Script entry point has invalid extension for {}",
+                        lang
+                    ));
                 }
             }
             _ => {} // Other types have different validation rules
         }
-        
+
         Ok(())
     }
-    
+
     /// Validate plugin configuration against schema
     async fn validate_plugin_configuration(&self, config: &PluginConfiguration) -> Result<()> {
         let plugins = self.plugins.read().await;
-        let _plugin = plugins.get(&config.plugin_id)
+        let _plugin = plugins
+            .get(&config.plugin_id)
             .ok_or_else(|| anyhow!("Plugin not found: {}", config.plugin_id))?;
-        
+
         // In production, use a proper JSON schema validator
         // For now, just check if it's a valid JSON object
         if !config.config.is_object() {
             return Err(anyhow!("Plugin configuration must be a JSON object"));
         }
-        
+
         Ok(())
     }
-    
+
     /// Save plugin metadata to filesystem
     async fn save_plugin_metadata(&self, metadata: &PluginMetadata) -> Result<()> {
         let metadata_path = self.plugin_directory.join(format!("{}.json", metadata.id));
@@ -454,63 +468,72 @@ impl PluginRegistry {
         tokio::fs::write(metadata_path, json).await?;
         Ok(())
     }
-    
+
     /// Save plugin configuration to filesystem
     async fn save_plugin_configuration(&self, config: &PluginConfiguration) -> Result<()> {
-        let config_path = self.config_directory.join(format!("{}.json", config.plugin_id));
+        let config_path = self
+            .config_directory
+            .join(format!("{}.json", config.plugin_id));
         let json = serde_json::to_string_pretty(config)?;
         tokio::fs::write(config_path, json).await?;
         Ok(())
     }
-    
+
     /// Load plugins from filesystem
     pub async fn load_from_filesystem(&self) -> Result<usize> {
         let mut loaded_count = 0;
-        
+
         // Load plugin metadata
         if self.plugin_directory.exists() {
             let mut entries = tokio::fs::read_dir(&self.plugin_directory).await?;
-            
+
             while let Some(entry) = entries.next_entry().await? {
                 if let Some(extension) = entry.path().extension() {
                     if extension == "json" {
-                        if let Ok(metadata) = self.load_plugin_metadata_from_file(&entry.path()).await {
+                        if let Ok(metadata) =
+                            self.load_plugin_metadata_from_file(&entry.path()).await
+                        {
                             let plugin_id = metadata.id.clone();
-                            
+
                             // Load configuration if exists
-                            if let Ok(config) = self.load_plugin_configuration_from_file(&plugin_id).await {
+                            if let Ok(config) =
+                                self.load_plugin_configuration_from_file(&plugin_id).await
+                            {
                                 let mut configs = self.configurations.write().await;
                                 configs.insert(plugin_id.clone(), config);
                             }
-                            
+
                             // Add to registry
                             let mut plugins = self.plugins.write().await;
                             plugins.insert(plugin_id.clone(), metadata);
-                            
+
                             loaded_count += 1;
                         }
                     }
                 }
             }
         }
-        
+
         info!("📚 Loaded {} plugins from filesystem", loaded_count);
         Ok(loaded_count)
     }
-    
+
     async fn load_plugin_metadata_from_file(&self, path: &Path) -> Result<PluginMetadata> {
         let contents = tokio::fs::read_to_string(path).await?;
         let metadata: PluginMetadata = serde_json::from_str(&contents)?;
         Ok(metadata)
     }
-    
-    async fn load_plugin_configuration_from_file(&self, plugin_id: &str) -> Result<PluginConfiguration> {
+
+    async fn load_plugin_configuration_from_file(
+        &self,
+        plugin_id: &str,
+    ) -> Result<PluginConfiguration> {
         let config_path = self.config_directory.join(format!("{}.json", plugin_id));
         let contents = tokio::fs::read_to_string(config_path).await?;
         let config: PluginConfiguration = serde_json::from_str(&contents)?;
         Ok(config)
     }
-    
+
     /// Clean up plugin files
     async fn cleanup_plugin_files(&self, metadata: &PluginMetadata) -> Result<()> {
         // Remove metadata file
@@ -518,23 +541,23 @@ impl PluginRegistry {
         if metadata_path.exists() {
             tokio::fs::remove_file(metadata_path).await?;
         }
-        
+
         // Remove configuration file
         let config_path = self.config_directory.join(format!("{}.json", metadata.id));
         if config_path.exists() {
             tokio::fs::remove_file(config_path).await?;
         }
-        
+
         // Remove plugin installation directory if exists
         if let Some(ref install_path) = metadata.installation_path {
             if install_path.exists() {
                 tokio::fs::remove_dir_all(install_path).await?;
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn current_timestamp(&self) -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -559,31 +582,34 @@ impl PluginFilter {
                 return false;
             }
         }
-        
+
         if let Some(ref state) = self.state {
             if &plugin.state != state {
                 return false;
             }
         }
-        
+
         if let Some(ref security_level) = self.security_level {
             if &plugin.security_level != security_level {
                 return false;
             }
         }
-        
+
         if !self.keywords.is_empty() {
             let has_keyword = self.keywords.iter().any(|keyword| {
-                plugin.keywords.iter().any(|pk| pk.contains(keyword)) ||
-                plugin.name.to_lowercase().contains(&keyword.to_lowercase()) ||
-                plugin.description.to_lowercase().contains(&keyword.to_lowercase())
+                plugin.keywords.iter().any(|pk| pk.contains(keyword))
+                    || plugin.name.to_lowercase().contains(&keyword.to_lowercase())
+                    || plugin
+                        .description
+                        .to_lowercase()
+                        .contains(&keyword.to_lowercase())
             });
-            
+
             if !has_keyword {
                 return false;
             }
         }
-        
+
         true
     }
 }
@@ -615,7 +641,7 @@ pub trait PluginLoader: Send + Sync {
         metadata: &PluginMetadata,
         config: &PluginConfiguration,
     ) -> Result<Box<dyn PluginInstance>>;
-    
+
     fn supports_type(&self) -> PluginType;
     async fn unload_plugin(&self, instance: Box<dyn PluginInstance>) -> Result<()>;
 }
@@ -628,7 +654,7 @@ impl PluginManager {
             plugin_loaders: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-    
+
     /// Register a plugin loader for a specific plugin type
     pub async fn register_loader(&self, loader: Box<dyn PluginLoader>) {
         let plugin_type = loader.supports_type();
@@ -636,73 +662,95 @@ impl PluginManager {
         loaders.insert(plugin_type.clone(), loader);
         info!("🔌 Registered plugin loader for: {:?}", plugin_type);
     }
-    
+
     /// Load and activate a plugin
     pub async fn load_plugin(&self, plugin_id: &str) -> Result<()> {
         // Get plugin metadata and configuration
-        let metadata = self.registry.get_plugin(plugin_id).await
+        let metadata = self
+            .registry
+            .get_plugin(plugin_id)
+            .await
             .ok_or_else(|| anyhow!("Plugin not found: {}", plugin_id))?;
-        
-        let config = self.registry.get_plugin_configuration(plugin_id).await
+
+        let config = self
+            .registry
+            .get_plugin_configuration(plugin_id)
+            .await
             .ok_or_else(|| anyhow!("Plugin configuration not found: {}", plugin_id))?;
-        
+
         // Check dependencies
         let missing_deps = self.registry.check_dependencies(plugin_id).await?;
         if !missing_deps.is_empty() {
             return Err(anyhow!("Missing dependencies: {:?}", missing_deps));
         }
-        
+
         // Update state to loading
-        self.registry.update_plugin_state(plugin_id, PluginState::Loading).await?;
-        
+        self.registry
+            .update_plugin_state(plugin_id, PluginState::Loading)
+            .await?;
+
         // Get appropriate loader
         let loaders = self.plugin_loaders.read().await;
-        let loader = loaders.get(&metadata.plugin_type)
-            .ok_or_else(|| anyhow!("No loader available for plugin type: {:?}", metadata.plugin_type))?;
-        
+        let loader = loaders.get(&metadata.plugin_type).ok_or_else(|| {
+            anyhow!(
+                "No loader available for plugin type: {:?}",
+                metadata.plugin_type
+            )
+        })?;
+
         // Load plugin instance
         match loader.load_plugin(&metadata, &config).await {
             Ok(instance) => {
                 // Start the plugin
                 let mut instance = instance;
                 instance.start().await?;
-                
+
                 // Store active instance
                 {
                     let mut active = self.active_plugins.write().await;
                     active.insert(plugin_id.to_string(), Arc::from(instance));
                 }
-                
+
                 // Update state
-                self.registry.update_plugin_state(plugin_id, PluginState::Active).await?;
-                
+                self.registry
+                    .update_plugin_state(plugin_id, PluginState::Active)
+                    .await?;
+
                 info!("✅ Loaded and activated plugin: {}", metadata.name);
                 Ok(())
             }
             Err(e) => {
                 let error_msg = format!("Failed to load plugin: {}", e);
-                self.registry.update_plugin_state(plugin_id, PluginState::Error(error_msg.clone())).await?;
+                self.registry
+                    .update_plugin_state(plugin_id, PluginState::Error(error_msg.clone()))
+                    .await?;
                 Err(anyhow!(error_msg))
             }
         }
     }
-    
+
     /// Unload and deactivate a plugin
     pub async fn unload_plugin(&self, plugin_id: &str) -> Result<()> {
         // Get active instance
         let _instance = {
             let mut active = self.active_plugins.write().await;
-            active.remove(plugin_id)
+            active
+                .remove(plugin_id)
                 .ok_or_else(|| anyhow!("Plugin not active: {}", plugin_id))?
         };
-        
+
         // Update state to unloading
-        self.registry.update_plugin_state(plugin_id, PluginState::Unloading).await?;
-        
+        self.registry
+            .update_plugin_state(plugin_id, PluginState::Unloading)
+            .await?;
+
         // Get plugin metadata for loader type
-        let metadata = self.registry.get_plugin(plugin_id).await
+        let metadata = self
+            .registry
+            .get_plugin(plugin_id)
+            .await
             .ok_or_else(|| anyhow!("Plugin metadata not found: {}", plugin_id))?;
-        
+
         // Get appropriate loader for cleanup
         let loaders = self.plugin_loaders.read().await;
         if let Some(_loader) = loaders.get(&metadata.plugin_type) {
@@ -710,19 +758,21 @@ impl PluginManager {
             // This is a simplified approach - in production you'd need better instance management
             // loader.unload_plugin(instance_box).await?;
         }
-        
+
         // Update state
-        self.registry.update_plugin_state(plugin_id, PluginState::Installed).await?;
-        
+        self.registry
+            .update_plugin_state(plugin_id, PluginState::Installed)
+            .await?;
+
         info!("🔄 Unloaded plugin: {}", metadata.name);
         Ok(())
     }
-    
+
     /// Get reference to plugin registry
     pub fn registry(&self) -> &PluginRegistry {
         &self.registry
     }
-    
+
     /// Get list of active plugins
     pub async fn get_active_plugins(&self) -> Vec<String> {
         let active = self.active_plugins.read().await;
@@ -734,18 +784,18 @@ impl PluginManager {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    
+
     #[tokio::test]
     async fn test_plugin_registry() {
         let temp_dir = TempDir::new().unwrap();
         let plugin_dir = temp_dir.path().join("plugins");
         let config_dir = temp_dir.path().join("configs");
-        
+
         tokio::fs::create_dir_all(&plugin_dir).await.unwrap();
         tokio::fs::create_dir_all(&config_dir).await.unwrap();
-        
+
         let registry = PluginRegistry::new(plugin_dir, config_dir);
-        
+
         let metadata = PluginMetadata {
             id: "test_plugin".to_string(),
             name: "Test Plugin".to_string(),
@@ -774,25 +824,25 @@ mod tests {
             error_count: 0,
             last_error: None,
         };
-        
+
         // Test registration
         assert!(registry.register_plugin(metadata).await.is_ok());
-        
+
         // Test retrieval
         let retrieved = registry.get_plugin("test_plugin").await;
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().name, "Test Plugin");
     }
-    
+
     #[test]
     fn test_plugin_version() {
         let v1 = PluginVersion::new(1, 2, 3);
         let v2 = PluginVersion::new(1, 2, 0);
         let v3 = PluginVersion::new(2, 0, 0);
-        
+
         assert!(v1.is_compatible(&v2));
         assert!(!v1.is_compatible(&v3));
-        
+
         assert_eq!(v1.to_string(), "1.2.3");
     }
 }

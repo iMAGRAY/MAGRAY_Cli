@@ -1,11 +1,11 @@
-﻿use anyhow::Result;
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use colored::Colorize;
+use common::OperationTimer;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{info, warn, error};
-use colored::Colorize;
-use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
-use common::OperationTimer;
+use tracing::{error, info, warn};
 
 /// Результат проверки здоровья компонента
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,20 +48,18 @@ impl Default for HealthCheckSystem {
 
 impl HealthCheckSystem {
     pub fn new() -> Self {
-        Self {
-            checks: Vec::new(),
-        }
+        Self { checks: Vec::new() }
     }
-    
+
     /// Добавить проверку здоровья
     pub fn add_check(&mut self, check: Box<dyn HealthCheck>) {
         self.checks.push(check);
     }
-    
+
     /// Запуск всех проверок здоровья
     pub async fn run_all_checks(&self) -> Vec<HealthCheckResult> {
         let mut results = Vec::new();
-        
+
         for check in &self.checks {
             let timer = OperationTimer::new("health_check");
             match check.check().await {
@@ -81,10 +79,10 @@ impl HealthCheckSystem {
                 }
             }
         }
-        
+
         results
     }
-    
+
     /// Получить общий статус системы
     pub fn overall_status(results: &[HealthCheckResult]) -> HealthStatus {
         if results.iter().any(|r| r.status == HealthStatus::Unhealthy) {
@@ -95,20 +93,26 @@ impl HealthCheckSystem {
             HealthStatus::Healthy
         }
     }
-    
+
     /// Отформатировать результаты для вывода
     pub fn format_results(results: &[HealthCheckResult]) -> String {
         let mut output = String::new();
-        output.push_str(&format!("\n{}\n", "=== Health Check Results ===".bright_blue().bold()));
-        output.push_str(&format!("Timestamp: {}\n\n", Utc::now().format("%Y-%m-%d %H:%M:%S UTC")));
-        
+        output.push_str(&format!(
+            "\n{}\n",
+            "=== Health Check Results ===".bright_blue().bold()
+        ));
+        output.push_str(&format!(
+            "Timestamp: {}\n\n",
+            Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+        ));
+
         for result in results {
             let status_icon = match result.status {
                 HealthStatus::Healthy => "✓".green(),
                 HealthStatus::Degraded => "⚠".yellow(),
                 HealthStatus::Unhealthy => "✗".red(),
             };
-            
+
             output.push_str(&format!(
                 "{} {} [{}] - {} ({}ms)\n",
                 status_icon,
@@ -117,17 +121,21 @@ impl HealthCheckSystem {
                 result.message,
                 result.latency_ms
             ));
-            
+
             if !result.metadata.is_empty() {
                 for (key, value) in &result.metadata {
                     output.push_str(&format!("    {}: {}\n", key.cyan(), value));
                 }
             }
         }
-        
+
         let overall = Self::overall_status(results);
-        output.push_str(&format!("\n{}: {}\n", "Overall Status".bright_white().bold(), overall));
-        
+        output.push_str(&format!(
+            "\n{}: {}\n",
+            "Overall Status".bright_white().bold(),
+            overall
+        ));
+
         output
     }
 }
@@ -137,7 +145,7 @@ impl HealthCheckSystem {
 pub trait HealthCheck: Send + Sync {
     /// Имя компонента
     fn name(&self) -> String;
-    
+
     /// Выполнить проверку
     async fn check(&self) -> Result<HealthCheckResult>;
 }
@@ -160,7 +168,7 @@ impl HealthCheck for LlmHealthCheck {
     fn name(&self) -> String {
         "LLM Service".to_string()
     }
-    
+
     async fn check(&self) -> Result<HealthCheckResult> {
         let test_message = "ping";
         match self.llm_client.chat_simple(test_message).await {
@@ -200,22 +208,25 @@ impl HealthCheck for MemoryHealthCheck {
     fn name(&self) -> String {
         "Memory Service".to_string()
     }
-    
+
     async fn check(&self) -> Result<HealthCheckResult> {
         // Проверяем базовую функциональность поиска
         let test_query = "test health check query";
-        let search_result = self.memory_service.search(
-            test_query,
-            memory::Layer::Interact,
-            memory::SearchOptions::default()
-        ).await;
-        
+        let search_result = self
+            .memory_service
+            .search(
+                test_query,
+                memory::Layer::Interact,
+                memory::SearchOptions::default(),
+            )
+            .await;
+
         let mut metadata = HashMap::new();
-        
+
         // Добавляем базовые метрики без обращения к методам
         metadata.insert("status".to_string(), "operational".into());
         metadata.insert("layers".to_string(), "3".into());
-        
+
         match search_result {
             Ok(_) => Ok(HealthCheckResult {
                 component: self.name(),
@@ -245,20 +256,26 @@ impl HealthCheck for GpuHealthCheck {
     fn name(&self) -> String {
         "GPU Acceleration".to_string()
     }
-    
+
     async fn check(&self) -> Result<HealthCheckResult> {
         // Проверяем доступность GPU
         let gpu_info = ai::GpuInfo::detect();
         let mut metadata = HashMap::new();
-        
+
         if gpu_info.available {
             let device_name = gpu_info.device_name.clone();
             metadata.insert("gpu_name".to_string(), device_name.clone().into());
             metadata.insert("available".to_string(), gpu_info.available.into());
             metadata.insert("device_count".to_string(), gpu_info.device_count.into());
-            metadata.insert("total_memory".to_string(), (gpu_info.total_memory / 1024 / 1024).into());
-            metadata.insert("cuda_version".to_string(), gpu_info.cuda_version.clone().into());
-            
+            metadata.insert(
+                "total_memory".to_string(),
+                (gpu_info.total_memory / 1024 / 1024).into(),
+            );
+            metadata.insert(
+                "cuda_version".to_string(),
+                gpu_info.cuda_version.clone().into(),
+            );
+
             Ok(HealthCheckResult {
                 component: self.name(),
                 status: HealthStatus::Healthy,
@@ -296,36 +313,42 @@ impl HealthCheck for DiskSpaceCheck {
     fn name(&self) -> String {
         "Disk Space".to_string()
     }
-    
+
     async fn check(&self) -> Result<HealthCheckResult> {
         use sysinfo::System;
-        
+
         let mut system = System::new_all();
         system.refresh_all();
-        
+
         let mut total_free = 0u64;
         let mut total_size = 0u64;
-        
+
         // В новой версии sysinfo используется другой API
         let disks = sysinfo::Disks::new_with_refreshed_list();
         for disk in disks.iter() {
             total_free += disk.available_space();
             total_size += disk.total_space();
         }
-        
+
         let free_gb = total_free / (1024 * 1024 * 1024);
         let total_gb = total_size / (1024 * 1024 * 1024);
         let used_percent = ((total_size - total_free) as f64 / total_size as f64) * 100.0;
-        
+
         let mut metadata = HashMap::new();
         metadata.insert("free_gb".to_string(), free_gb.into());
         metadata.insert("total_gb".to_string(), total_gb.into());
-        metadata.insert("used_percent".to_string(), format!("{used_percent:.1}").into());
-        
+        metadata.insert(
+            "used_percent".to_string(),
+            format!("{used_percent:.1}").into(),
+        );
+
         let (status, message) = if free_gb < self.min_free_gb {
             (
                 HealthStatus::Unhealthy,
-                format!("Low disk space: {}GB free (minimum: {}GB)", free_gb, self.min_free_gb),
+                format!(
+                    "Low disk space: {}GB free (minimum: {}GB)",
+                    free_gb, self.min_free_gb
+                ),
             )
         } else if free_gb < self.min_free_gb * 2 {
             (
@@ -338,7 +361,7 @@ impl HealthCheck for DiskSpaceCheck {
                 format!("Disk space OK: {free_gb}GB free"),
             )
         };
-        
+
         Ok(HealthCheckResult {
             component: self.name(),
             status,
@@ -366,29 +389,35 @@ impl HealthCheck for MemoryUsageCheck {
     fn name(&self) -> String {
         "Memory Usage".to_string()
     }
-    
+
     async fn check(&self) -> Result<HealthCheckResult> {
         use sysinfo::System;
-        
+
         let mut system = System::new_all();
         system.refresh_memory();
-        
+
         let total_memory = system.total_memory();
         let used_memory = system.used_memory();
         let free_memory = system.free_memory();
-        
+
         let usage_percent = (used_memory as f64 / total_memory as f64) * 100.0;
-        
+
         let mut metadata = HashMap::new();
         metadata.insert("total_mb".to_string(), (total_memory / 1024).into());
         metadata.insert("used_mb".to_string(), (used_memory / 1024).into());
         metadata.insert("free_mb".to_string(), (free_memory / 1024).into());
-        metadata.insert("usage_percent".to_string(), format!("{usage_percent:.1}").into());
-        
+        metadata.insert(
+            "usage_percent".to_string(),
+            format!("{usage_percent:.1}").into(),
+        );
+
         let (status, message) = if usage_percent > self.max_usage_percent {
             (
                 HealthStatus::Unhealthy,
-                format!("High memory usage: {:.1}% (max: {:.1}%)", usage_percent, self.max_usage_percent),
+                format!(
+                    "High memory usage: {:.1}% (max: {:.1}%)",
+                    usage_percent, self.max_usage_percent
+                ),
             )
         } else if usage_percent > self.max_usage_percent * 0.9 {
             (
@@ -401,7 +430,7 @@ impl HealthCheck for MemoryUsageCheck {
                 format!("Memory usage OK: {usage_percent:.1}%"),
             )
         };
-        
+
         Ok(HealthCheckResult {
             component: self.name(),
             status,
@@ -419,28 +448,28 @@ pub async fn run_health_checks(
     memory_service: Option<Arc<memory::DIMemoryService>>,
 ) -> Result<()> {
     let mut health_system = HealthCheckSystem::new();
-    
+
     // Добавляем проверки в зависимости от доступных сервисов
     if let Some(llm) = llm_client {
         health_system.add_check(Box::new(LlmHealthCheck::new(llm)));
     }
-    
+
     if let Some(memory) = memory_service {
         health_system.add_check(Box::new(MemoryHealthCheck::new(memory)));
     }
-    
+
     // Всегда добавляем системные проверки
     health_system.add_check(Box::new(GpuHealthCheck));
     health_system.add_check(Box::new(DiskSpaceCheck::new(5))); // Минимум 5GB свободного места
     health_system.add_check(Box::new(MemoryUsageCheck::new(90.0))); // Максимум 90% использования памяти
-    
+
     // Запускаем все проверки
     info!("Running production health checks...");
     let results = health_system.run_all_checks().await;
-    
+
     // Выводим результаты
     println!("{}", HealthCheckSystem::format_results(&results));
-    
+
     // Логируем в structured format для мониторинга
     for result in &results {
         match result.status {
@@ -473,31 +502,31 @@ pub async fn run_health_checks(
             }
         }
     }
-    
+
     // Возвращаем ошибку если система unhealthy
     let overall = HealthCheckSystem::overall_status(&results);
     if overall == HealthStatus::Unhealthy {
         anyhow::bail!("System health check failed - one or more components are unhealthy");
     }
-    
+
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     struct MockHealthCheck {
         name: String,
         status: HealthStatus,
     }
-    
+
     #[async_trait::async_trait]
     impl HealthCheck for MockHealthCheck {
         fn name(&self) -> String {
             self.name.clone()
         }
-        
+
         async fn check(&self) -> Result<HealthCheckResult> {
             Ok(HealthCheckResult {
                 component: self.name.clone(),
@@ -509,24 +538,24 @@ mod tests {
             })
         }
     }
-    
+
     #[tokio::test]
     async fn test_health_check_system() {
         let mut system = HealthCheckSystem::new();
-        
+
         system.add_check(Box::new(MockHealthCheck {
             name: "Test1".to_string(),
             status: HealthStatus::Healthy,
         }));
-        
+
         system.add_check(Box::new(MockHealthCheck {
             name: "Test2".to_string(),
             status: HealthStatus::Degraded,
         }));
-        
+
         let results = system.run_all_checks().await;
         assert_eq!(results.len(), 2);
-        
+
         let overall = HealthCheckSystem::overall_status(&results);
         assert_eq!(overall, HealthStatus::Degraded);
     }

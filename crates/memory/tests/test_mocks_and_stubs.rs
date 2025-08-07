@@ -1,7 +1,7 @@
 //! Test file with various mocks, stubs and test doubles
 
-use mockall::*;
 use mockall::predicate::*;
+use mockall::*;
 
 /// Mock for memory service
 #[automock]
@@ -34,7 +34,7 @@ impl MemoryService for FakeMemoryService {
         self.storage.insert("test".to_string(), data);
         Ok(())
     }
-    
+
     fn retrieve(&self, id: &str) -> Result<Vec<u8>, String> {
         self.storage.get(id).cloned().ok_or("Not found".to_string())
     }
@@ -43,23 +43,21 @@ impl MemoryService for FakeMemoryService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_mock_memory_service() {
         let mut mock = MockMemoryService::new();
-        mock.expect_store()
-            .times(1)
-            .returning(|_| Ok(()));
-        
+        mock.expect_store().times(1).returning(|_| Ok(()));
+
         assert!(mock.store(vec![1, 2, 3]).is_ok());
     }
-    
+
     #[test]
     fn test_stub_database() {
         let stub = StubDatabase { data: vec![] };
         // Test with stub
     }
-    
+
     #[test]
     fn test_fake_implementation() {
         let mut fake = FakeMemoryService {

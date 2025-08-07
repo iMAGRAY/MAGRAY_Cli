@@ -1,7 +1,7 @@
 mod config;
-mod stats;
 mod index;
+mod stats;
 
 pub use config::HnswConfig;
-pub use stats::HnswStats;
 pub use index::VectorIndex;
+pub use stats::HnswStats;

@@ -52,7 +52,7 @@ impl Tool for GitStatus {
             })
         }
     }
-    
+
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         Ok(ToolInput {
             command: "git_status".to_string(),
@@ -92,7 +92,9 @@ impl Tool for GitCommit {
     }
 
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
-        let message = input.args.get("message")
+        let message = input
+            .args
+            .get("message")
             .ok_or_else(|| anyhow::anyhow!("Отсутствует параметр 'message'"))?;
 
         // Сначала проверяем, есть ли что коммитить
@@ -110,9 +112,7 @@ impl Tool for GitCommit {
         }
 
         // Добавляем все изменения
-        let add = Command::new("git")
-            .args(&["add", "."])
-            .output()?;
+        let add = Command::new("git").args(&["add", "."]).output()?;
 
         if !add.status.success() {
             let stderr = String::from_utf8_lossy(&add.stderr);
@@ -147,26 +147,26 @@ impl Tool for GitCommit {
             })
         }
     }
-    
+
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         let mut args = HashMap::new();
-        
+
         // Извлекаем сообщение коммита
         if let Some(start) = query.find('"') {
-            if let Some(end) = query[start+1..].find('"') {
-                let message = query[start+1..start+1+end].to_string();
+            if let Some(end) = query[start + 1..].find('"') {
+                let message = query[start + 1..start + 1 + end].to_string();
                 args.insert("message".to_string(), message);
             }
         } else {
             // Пытаемся использовать весь текст после ключевых слов
             let lower = query.to_lowercase();
             if let Some(pos) = lower.find("сообщением") {
-                args.insert("message".to_string(), query[pos+11..].trim().to_string());
+                args.insert("message".to_string(), query[pos + 11..].trim().to_string());
             } else {
                 args.insert("message".to_string(), query.to_string());
             }
         }
-        
+
         Ok(ToolInput {
             command: "git_commit".to_string(),
             args,
@@ -202,9 +202,7 @@ impl Tool for GitDiff {
     }
 
     async fn execute(&self, _input: ToolInput) -> Result<ToolOutput> {
-        let output = Command::new("git")
-            .args(&["diff"])
-            .output()?;
+        let output = Command::new("git").args(&["diff"]).output()?;
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -228,7 +226,7 @@ impl Tool for GitDiff {
             })
         }
     }
-    
+
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
         Ok(ToolInput {
             command: "git_diff".to_string(),
@@ -246,7 +244,7 @@ mod tests {
     fn test_git_status_creation() {
         let git_status = GitStatus::new();
         let spec = git_status.spec();
-        
+
         assert_eq!(spec.name, "git_status");
         assert!(spec.description.contains("статус git"));
         assert_eq!(spec.usage, "git_status");
@@ -257,19 +255,21 @@ mod tests {
     fn test_git_status_default() {
         let git_status1 = GitStatus::default();
         let git_status2 = GitStatus::new();
-        
+
         assert_eq!(git_status1.spec().name, git_status2.spec().name);
     }
 
     #[tokio::test]
     async fn test_git_status_natural_language_parsing() -> Result<()> {
         let git_status = GitStatus::new();
-        
-        let input = git_status.parse_natural_language("показать статус git").await?;
+
+        let input = git_status
+            .parse_natural_language("показать статус git")
+            .await?;
         assert_eq!(input.command, "git_status");
         assert!(input.args.is_empty());
         assert_eq!(input.context, Some("показать статус git".to_string()));
-        
+
         Ok(())
     }
 
@@ -277,7 +277,7 @@ mod tests {
     fn test_git_commit_creation() {
         let git_commit = GitCommit::new();
         let spec = git_commit.spec();
-        
+
         assert_eq!(spec.name, "git_commit");
         assert!(spec.description.contains("Создаёт коммит"));
         assert!(!spec.examples.is_empty());
@@ -287,7 +287,7 @@ mod tests {
     fn test_git_commit_default() {
         let git_commit1 = GitCommit::default();
         let git_commit2 = GitCommit::new();
-        
+
         assert_eq!(git_commit1.spec().name, git_commit2.spec().name);
     }
 
@@ -295,13 +295,13 @@ mod tests {
     async fn test_git_commit_missing_message() {
         let git_commit = GitCommit::new();
         let input_args = HashMap::new(); // Missing message
-        
+
         let input = ToolInput {
             command: "git_commit".to_string(),
             args: input_args,
             context: None,
         };
-        
+
         let result = git_commit.execute(input).await;
         assert!(result.is_err());
     }
@@ -309,17 +309,19 @@ mod tests {
     #[tokio::test]
     async fn test_git_commit_natural_language_parsing() -> Result<()> {
         let git_commit = GitCommit::new();
-        
+
         // Test valid format with quotes
-        let input = git_commit.parse_natural_language("закоммитить changes with message \"Fix bug\"").await?;
+        let input = git_commit
+            .parse_natural_language("закоммитить changes with message \"Fix bug\"")
+            .await?;
         assert_eq!(input.command, "git_commit");
         assert_eq!(input.args.get("message").unwrap(), "Fix bug");
-        
+
         // Test format without quotes (should use entire text)
         let input = git_commit.parse_natural_language("просто commit").await?;
         assert_eq!(input.command, "git_commit");
         assert_eq!(input.args.get("message").unwrap(), "просто commit");
-        
+
         Ok(())
     }
 
@@ -327,7 +329,7 @@ mod tests {
     fn test_git_diff_creation() {
         let git_diff = GitDiff::new();
         let spec = git_diff.spec();
-        
+
         assert_eq!(spec.name, "git_diff");
         assert!(spec.description.contains("Показывает изменения"));
         assert!(!spec.examples.is_empty());
@@ -337,19 +339,21 @@ mod tests {
     fn test_git_diff_default() {
         let git_diff1 = GitDiff::default();
         let git_diff2 = GitDiff::new();
-        
+
         assert_eq!(git_diff1.spec().name, git_diff2.spec().name);
     }
 
     #[tokio::test]
     async fn test_git_diff_natural_language_parsing() -> Result<()> {
         let git_diff = GitDiff::new();
-        
-        let input = git_diff.parse_natural_language("показать различия в git").await?;
+
+        let input = git_diff
+            .parse_natural_language("показать различия в git")
+            .await?;
         assert_eq!(input.command, "git_diff");
         assert!(input.args.is_empty());
         assert_eq!(input.context, Some("показать различия в git".to_string()));
-        
+
         Ok(())
     }
 }
