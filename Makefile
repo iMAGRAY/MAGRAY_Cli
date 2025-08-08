@@ -1,6 +1,9 @@
 # MAGRAY CLI Build System
 # Supports multiple feature configurations
 
+# Minimum coverage threshold for coverage-based CI runs (percentage)
+MIN_COVERAGE ?= 18
+
 .PHONY: help build-all build-cpu build-gpu build-minimal test test-all bench clean docker-build docker-test release rag-report rag-report-fast
 
 # Default target
@@ -20,7 +23,6 @@ help:
 	@echo "  make test-full     - Run CPU tests with extended-tests"
 	@echo "  make test-persistence - Run CPU+persistence+extended-tests"
 	@echo "  make test-gpu-full - Run GPU tests with extended-tests"
-	@echo "  make bench         - Run performance benchmarks"
 	@echo ""
 	@echo "🐳 Docker Commands:"
 	@echo "  make docker-build  - Build all Docker images"
@@ -29,6 +31,10 @@ help:
 	@echo "📊 Analysis Commands:"
 	@echo "  make size-analysis - Compare binary sizes"
 	@echo "  make perf-test     - Quick performance test"
+	@echo "  make coverage      - Coverage for CPU core"
+	@echo "  make coverage-full - Coverage for extended tests"
+	@echo "  make ci-local-extended-cov - Extended tests with coverage gate ($(MIN_COVERAGE)%)"
+	@echo "  make ci-local-cov-core    - Core coverage gate for 'common' crate ($(MIN_COVERAGE)%)"
 	@echo ""
 	@echo "🔧 Utility Commands:"
 	@echo "  make clean         - Clean build artifacts"
@@ -214,13 +220,13 @@ info:
 coverage:
 	@echo "📈 Running test coverage (tarpaulin) ..."
 	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --engine llvm --features=cpu --timeout 120 --out Html
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --config Tarpaulin.toml --engine llvm --features=cpu --timeout 120 --out Html
 	@echo "✅ Coverage report: tarpaulin-report.html"
 
 coverage-full:
 	@echo "📈 Running full coverage (extended-tests) ..."
 	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --engine llvm --features="cpu,extended-tests" --timeout 600 --out Html
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --config Tarpaulin.toml --engine llvm --features="cpu,extended-tests" --timeout 600 --out Html
 	@echo "✅ Coverage report: tarpaulin-report.html"
 
 ci-local-fast:
@@ -230,6 +236,20 @@ ci-local-fast:
 ci-local-extended:
 	@echo "🏃 CI-local: extended cpu tests"
 	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --no-fail-fast --quiet
+
+# Coverage-enforced extended suite (fails if coverage below MIN_COVERAGE)
+ci-local-extended-cov:
+	@echo "🏃 CI-local: extended cpu tests with coverage threshold >= $(MIN_COVERAGE)%"
+	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --config Tarpaulin.toml --engine llvm --features="cpu,extended-tests" --timeout 600 --fail-under $(MIN_COVERAGE) --out Html
+	@echo "✅ Coverage (>= $(MIN_COVERAGE)%) OK: tarpaulin-report.html"
+
+# Core coverage gate for common crate only (fast signal)
+ci-local-cov-core:
+	@echo "🏃 CI-local: core coverage (crate=common) threshold >= $(MIN_COVERAGE)%"
+	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin -p common --config Tarpaulin.toml --engine llvm --timeout 300 --fail-under $(MIN_COVERAGE) --out Html
+	@echo "✅ Core coverage (>= $(MIN_COVERAGE)%) OK: tarpaulin-report.html"
 
 ci-local-persistence:
 	@echo "🏃 CI-local: persistence suite"

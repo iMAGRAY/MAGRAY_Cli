@@ -1,0 +1,64 @@
+# Tarpaulin configuration for local coverage gating
+# Focus on core pathways; exclude framework/orchestrator layers for now
+
+engine = "llvm"
+skip-clean = true
+line_coverage = true
+fail-under = 35
+# valid duration strings
+timeout = "600s"
+
+# Exclude files (regex) not targeted by current extended suite
+exclude-files = [
+  # CLI orchestrators and handlers (interactive layers, orchestration)
+  "^crates/cli/src/orchestrator/.*",
+  "^crates/cli/src/handlers/.*",
+  "^crates/cli/src/commands/memory.rs$",
+  "^crates/cli/src/main.rs$",
+  "^crates/cli/src/health_checks.rs$",
+
+  # Tools frameworks and plugins
+  "^crates/tools/src/execution/.*",
+  "^crates/tools/src/execution_pipeline.rs$",
+  "^crates/tools/src/performance_monitor.rs$",
+  "^crates/tools/src/plugins/.*",
+  "^crates/tools/src/intelligent_selector.rs$",
+  "^crates/tools/src/enhanced_tool_system.rs$",
+  "^crates/tools/src/file_ops.rs$",
+  "^crates/tools/src/git_ops.rs$",
+
+  # Memory DI internals and orchestration layers
+  "^crates/memory/src/di/.*",
+  "^crates/memory/src/orchestration/.*",
+  "^crates/memory/src/services/.*",
+  "^crates/memory/src/health.rs$",
+  "^crates/memory/src/notifications.rs$",
+  "^crates/memory/src/api.rs$",
+  "^crates/memory/src/cache_lru.rs$",
+  "^crates/memory/src/streaming.rs$",
+  "^crates/memory/src/transaction.rs$",
+  "^crates/memory/src/simd_ultra_optimized.rs$",
+  "^crates/memory/src/simd_fixed.rs$",
+
+  # AI: drop legacy tokenization and non-target embeddings
+  "^crates/ai/src/embeddings_bge_m3.rs$",
+  "^crates/ai/src/tokenization/.*",
+
+  # LLM providers heavy paths
+  "^crates/llm/src/providers/.*",
+  "^crates/llm/src/multi_provider.rs$",
+
+  # Router/Application layers (out of scope now)
+  "^crates/router/src/.*",
+  "^crates/application/src/.*",
+
+  # Domain services/repos (to be covered via integration later)
+  "^crates/domain/src/repositories/.*",
+  "^crates/domain/src/services/.*"
+]
+
+# Exclude crates entirely from coverage (optional)
+exclude = [
+  "application",
+  "router"
+]

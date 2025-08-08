@@ -5,6 +5,7 @@ use memory::di::UnifiedContainer;
 use memory::types::Layer;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Instant;
 
 fn dcg(relevances: &[u8]) -> f64 {
     relevances
@@ -85,7 +86,11 @@ async fn rag_golden_suite_metrics() {
     let mut ndcg_sum = 0.0;
     let mut count = 0.0;
 
+    // latency tracking
+    let mut per_query_latencies_ms: Vec<u128> = Vec::new();
+
     for (q, labels) in queries {
+        let t0 = Instant::now();
         let results = api
             .recall(
                 q,
@@ -95,6 +100,8 @@ async fn rag_golden_suite_metrics() {
             )
             .await
             .expect("search ok");
+        let elapsed_ms = t0.elapsed().as_millis();
+        per_query_latencies_ms.push(elapsed_ms);
 
         // Build predicted relevance from labels occurrence in text
         let predicted_rel: Vec<u8> = results
@@ -153,21 +160,38 @@ async fn rag_golden_suite_metrics() {
     let rec_avg = rec_sum / count;
     let ndcg_avg = ndcg_sum / count;
 
+    // Latency SLOs (mock path should be fast)
+    let p95_ms = {
+        let mut v = per_query_latencies_ms.clone();
+        v.sort();
+        let idx = ((v.len() as f64) * 0.95).ceil() as usize - 1;
+        v[idx.min(v.len() - 1)]
+    };
+    let avg_latency_ms: f64 = if per_query_latencies_ms.is_empty() {
+        0.0
+    } else {
+        per_query_latencies_ms.iter().copied().map(|x| x as f64).sum::<f64>() / per_query_latencies_ms.len() as f64
+    };
+
     // Golden expectations tuned for mock embeddings
     assert!(prec_avg >= 0.3, "avg precision too low: {}", prec_avg);
     assert!(rec_avg >= 0.5, "avg recall too low: {}", rec_avg);
     assert!(ndcg_avg >= 0.5, "avg ndcg too low: {}", ndcg_avg);
     assert!(ap_avg >= 0.3, "avg AP too low: {}", ap_avg);
 
+    // Latency budgets
+    assert!(p95_ms < 2000, "p95 latency too high: {}ms", p95_ms);
+    assert!(avg_latency_ms < 1200.0, "avg latency too high: {:.1}ms", avg_latency_ms);
+
     // Print and persist report locally
     println!(
-        "RAG_METRICS_SUMMARY: precision_avg={:.3} recall_avg={:.3} ndcg_avg={:.3} ap_avg={:.3}",
-        prec_avg, rec_avg, ndcg_avg, ap_avg
+        "RAG_METRICS_SUMMARY: precision_avg={:.3} recall_avg={:.3} ndcg_avg={:.3} ap_avg={:.3} p95_ms={} avg_ms={:.1}",
+        prec_avg, rec_avg, ndcg_avg, ap_avg, p95_ms, avg_latency_ms
     );
     let _ = std::fs::create_dir_all("reports");
     let json = format!(
-        "{{\n  \"precision_avg\": {:.6},\n  \"recall_avg\": {:.6},\n  \"ndcg_avg\": {:.6},\n  \"ap_avg\": {:.6}\n}}",
-        prec_avg, rec_avg, ndcg_avg, ap_avg
+        "{{\n  \"precision_avg\": {:.6},\n  \"recall_avg\": {:.6},\n  \"ndcg_avg\": {:.6},\n  \"ap_avg\": {:.6},\n  \"p95_ms\": {},\n  \"avg_ms\": {:.6}\n}}",
+        prec_avg, rec_avg, ndcg_avg, ap_avg, p95_ms, avg_latency_ms
     );
     let _ = std::fs::write("reports/rag_metrics_summary.json", json);
 }
