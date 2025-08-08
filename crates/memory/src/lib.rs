@@ -70,28 +70,16 @@ pub mod transaction;
 pub mod types;
 #[cfg(not(feature = "minimal"))]
 mod vector_index_hnswlib; // Critical for vector storage
-                          // НОВАЯ УПРОЩЕННАЯ DI СИСТЕМА (заменяет сложную di/ папку)
-#[cfg(not(feature = "minimal"))]
-pub mod simple_di;
-
-// Экспорт DI: в минимальном профиле — лёгкая совместимая заглушка, иначе — полноценная система
-#[cfg(feature = "minimal")]
-pub mod di {
-    pub use crate::di_compatibility_stub::*;
-}
-#[cfg(not(feature = "minimal"))]
+                          
+// Экспорт единой DI-системы
 pub mod di;
-// Подключаем заглушку совместимости
-mod di_compatibility_stub;
 
-#[cfg(feature = "minimal")]
-pub use di::{DIMemoryService, LegacyMemoryConfig};
 #[cfg(not(feature = "minimal"))]
 pub use di::{
     ContainerConfiguration, ContainerFactory, ContainerPreset,
 };
 
-// ОСНОВНОЙ DI API
+// ОСНОВНОЙ DI API (в минимальном профиле доступен базовый контейнер)
 #[cfg(not(feature = "minimal"))]
 pub use di::{
     create_default_container as create_container,
@@ -99,9 +87,14 @@ pub use di::{
     DIContainerBuilder,
     Lifetime,
 };
+#[cfg(feature = "minimal")]
+pub use di::{
+    DIContainer,
+    DIContainerBuilder,
+    Lifetime,
+};
 
-// Legacy API types - перенаправляем на реальные типы из di, если доступны
-#[cfg(not(feature = "minimal"))]
+// Legacy API types - перенаправляем на реальные типы из di
 pub use di::{DIContainerStats, DIPerformanceMetrics};
 // Оркестрация системы памяти (отключаем по умолчанию для минимальной сборки)
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
@@ -131,6 +124,8 @@ pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 // Legacy MemoryService удален - используем DIMemoryService через unified_container
 #[cfg(not(feature = "minimal"))]
 pub use service_di::{BatchInsertResult, BatchSearchResult};
+#[cfg(not(feature = "minimal"))]
+pub use di::DIMemoryService;
 
 // NEW: Refactored services based on SOLID principles
 #[cfg(all(not(feature = "minimal"), feature = "services-modules"))]

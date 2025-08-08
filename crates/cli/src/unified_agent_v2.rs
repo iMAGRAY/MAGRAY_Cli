@@ -285,7 +285,7 @@ impl MemoryManagementTrait for MemoryManagementAdapter {
             .check_health()
             .await
             .map_err(|e| anyhow::anyhow!("Memory health check failed: {}", e))?;
-        use memory::di_compatibility_stub::SystemHealthStatusStub as SystemHealthStatus;
+        use memory::health::SystemHealthStatus;
         if !health.healthy {
             return Err(anyhow::anyhow!(
                 "Memory system unhealthy: {:?}",

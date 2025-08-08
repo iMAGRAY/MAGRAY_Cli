@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [features]
-default = ["minimal"]
+default = ["cpu"]
 
 # Minimal build - basic in-memory storage without persistence
 minimal = []
@@ -16,9 +16,7 @@ cpu = [
     "persistence", 
     "backup-restore",
     "vector-search",
-    "embeddings",
-    "orchestration-modules",
-    "services-modules",
+    "embeddings"
 ]
 
 # GPU build - full functionality with GPU acceleration

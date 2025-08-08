@@ -61,6 +61,7 @@
 
 // === НОВАЯ ЕДИНАЯ АРХИТЕКТУРА ===
 pub mod core_traits; // Single Source of Truth для всех DI abstractions
+#[cfg(not(feature = "minimal"))]
 pub mod unified_container_impl; // ЕДИНСТВЕННАЯ КОРРЕКТНАЯ РЕАЛИЗАЦИЯ DI Container
 
 // === Object Safety Solution ===
@@ -69,8 +70,11 @@ pub mod object_safe_resolver; // Type-erased resolver для dyn compatibility
 // === НОВЫЕ ДЕКОМПОЗИРОВАННЫЕ МОДУЛИ ===
 pub mod container_metrics_impl;
 pub mod dependency_graph_validator; // Валидация циклических зависимостей
+#[cfg(not(feature = "minimal"))]
 pub mod memory_configurator; // Настройка memory компонентов в DI
+#[cfg(not(feature = "minimal"))]
 pub mod service_registry_impl; // Регистрация сервисов
+#[cfg(not(feature = "minimal"))]
 pub mod service_resolver_impl; // Разрешение зависимостей // Сбор метрик производительности
 
 // === Старые модули (deprecated) ===
@@ -80,6 +84,7 @@ pub mod dependency_validator;
 pub mod errors;
 pub mod lifetime_manager;
 pub mod metrics_collector;
+#[cfg(not(feature = "minimal"))]
 pub mod migration_facade;
 pub mod traits;
 pub mod unified_container;
