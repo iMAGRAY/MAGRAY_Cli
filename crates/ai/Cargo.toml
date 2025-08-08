@@ -31,6 +31,7 @@ openai = ["reqwest", "futures-util"]
 
 # Tests feature to include extended/slow suites
 extended-tests = []
+legacy-tests = []
 
 [dependencies]
 # Internal dependencies
