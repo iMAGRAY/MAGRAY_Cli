@@ -17,7 +17,7 @@ pub mod health;
 #[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 pub mod hnsw_index; // Модульная HNSW архитектура
                     // pub mod layers; // ВРЕМЕННО ОТКЛЮЧЕНО для бенчмарка - проблемы с sqlx
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 #[cfg(not(feature = "minimal"))]
 mod metrics;
@@ -31,11 +31,11 @@ pub mod promotion;
 pub mod service_di; // REFACTORED модули в service_di/
 #[cfg(not(feature = "minimal"))]
 pub mod service_di_facade;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "num_cpus"))]
 pub mod simd_feature_detection; // Advanced CPU feature detection и adaptive algorithm selection
 #[cfg(not(feature = "minimal"))]
 pub mod simd_fixed; // Исправленная SIMD реализация для debugging
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "rayon"))]
 pub mod simd_optimized; // SIMD оптимизации для векторных операций
 #[cfg(not(feature = "minimal"))]
 pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance // FACADE для обратной совместимости
@@ -46,21 +46,21 @@ pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance
 pub use service_di::service_config::default_config;
 #[cfg(not(feature = "minimal"))]
 pub mod api;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
 mod backup;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 mod database_manager;
 #[cfg(not(feature = "minimal"))]
 mod flush_config;
 #[cfg(not(feature = "minimal"))]
 pub mod gpu_accelerated;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub mod migration;
 #[cfg(not(feature = "minimal"))]
 pub mod resource_manager;
 #[cfg(not(feature = "minimal"))]
 mod retry;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub mod storage;
 #[cfg(not(feature = "minimal"))]
 mod streaming;
@@ -212,11 +212,11 @@ pub use transaction::{Transaction, TransactionGuard, TransactionManager};
 // }
 
 // Профессиональная HNSW реализация - единственная векторная реализация
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 pub use vector_index_hnswlib::{HnswRsConfig, HnswRsStats, VectorIndexHnswRs};
 
 // HNSW index module exports
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 pub use hnsw_index::{HnswConfig, HnswStats, VectorIndex};
 
 // ML-based promotion system
