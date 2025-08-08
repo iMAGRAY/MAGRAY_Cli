@@ -832,6 +832,7 @@ pub struct ServiceStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "gpu")]
     use crate::GpuConfig;
 
     #[test]
@@ -861,19 +862,26 @@ mod tests {
             model_name: "bge-m3".to_string(),
             max_length: 512,
             batch_size: 32, // Больше batch для GPU
-            use_gpu: true,
+            use_gpu: false,
+            #[cfg(feature = "gpu")]
             gpu_config: Some(GpuConfig::default()),
+            #[cfg(not(feature = "gpu"))]
+            gpu_config: None,
             embedding_dim: Some(1024),
         };
 
         // Проверяем доступность GPU
-        let gpu_detector = crate::gpu_detector::GpuDetector::detect();
-        println!("GPU доступность: {}", gpu_detector.available);
-
-        if !gpu_detector.available {
-            println!("⚠️ GPU не доступен, тест будет использовать CPU fallback");
-            config.use_gpu = false;
-            config.gpu_config = None;
+        #[cfg(feature = "gpu")]
+        {
+            let gpu_detector = crate::gpu_detector::GpuDetector::detect();
+            println!("GPU доступность: {}", gpu_detector.available);
+            if !gpu_detector.available {
+                println!("⚠️ GPU не доступен, тест будет использовать CPU fallback");
+                config.use_gpu = false;
+                config.gpu_config = None;
+            } else {
+                config.use_gpu = true;
+            }
         }
 
         match CpuEmbeddingService::new(config) {

@@ -89,3 +89,25 @@ fn current_ts_ms() -> u128 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn publish_subscribe_basic() {
+        let bus: EventBus<String> = EventBus::new(8, Duration::from_millis(100));
+        let mut rx = bus.subscribe(Topic("test.topic")).await;
+        bus.publish(Topic("test.topic"), "hello".to_string()).await;
+        let evt = rx.recv().await.expect("should receive");
+        assert_eq!(evt.topic.0, "test.topic");
+        assert_eq!(evt.payload, "hello".to_string());
+    }
+
+    #[tokio::test]
+    async fn publish_to_empty_topic_does_not_panic() {
+        let bus: EventBus<u64> = EventBus::default();
+        // No subscribers
+        bus.publish(Topic("no.subscribers"), 42).await;
+    }
+}
