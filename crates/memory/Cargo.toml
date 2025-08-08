@@ -16,7 +16,9 @@ cpu = [
     "persistence", 
     "backup-restore",
     "vector-search",
-    "embeddings"
+    "embeddings",
+    "orchestration-modules",
+    "services-modules",
 ]
 
 # GPU build - full functionality with GPU acceleration
@@ -39,6 +41,9 @@ notifications = ["reqwest", "colored"]
 hot-reload = ["notify"]
 # Gate the deprecated legacy orchestrator behind a feature (off by default)
 legacy-orchestrator = []
+# New feature flags to enable orchestration and services modules
+orchestration-modules = []
+services-modules = []
 
 [dependencies]
 anyhow.workspace = true
