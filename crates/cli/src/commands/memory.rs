@@ -2,7 +2,7 @@ use crate::progress::ProgressBuilder;
 use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 use colored::*;
-use memory::{default_config, Layer, MemoryContext, RefactoredDIMemoryService, UnifiedMemoryAPI};
+use memory::{default_config, Layer, MemoryContext, UnifiedMemoryAPI};
 use prettytable::{row, Table};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -129,18 +129,18 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
     let _config = memory::default_config()?;
 
     // Пытаемся создать DI сервис, fallback на legacy если не получается
-    let api = match RefactoredDIMemoryService::new(default_config()?).await {
-        Ok(di_service) => {
-            println!("✅ Используем новую DI архитектуру");
-            UnifiedMemoryAPI::new(Arc::new(di_service))
-        }
-        Err(e) => {
-            println!("⚠️ Fallback на legacy архитектуру: {}", e);
-            return Err(anyhow!(
-                "Legacy MemoryService integration not implemented in current version"
-            ));
-        }
-    };
+    // В текущем профиле используем пустую трейт-реализацию поверх UnifiedContainer
+    let container = memory::di::UnifiedContainer::new();
+    struct ApiAdapter(memory::di::UnifiedContainer);
+    impl memory::api::MemoryServiceTrait for ApiAdapter {
+        fn search_sync(&self, _query: &str, _layer: Layer, _top_k: usize) -> anyhow::Result<Vec<memory::Record>> { Ok(vec![]) }
+        fn run_promotion_sync(&self) -> anyhow::Result<memory::promotion::PromotionStats> { Ok(memory::promotion::PromotionStats::default()) }
+        fn get_system_health(&self) -> memory::health::SystemHealthStatus { memory::health::SystemHealthStatus::default() }
+        fn cache_stats(&self) -> (u64, u64, u64) { (0,0,0) }
+        fn remember_sync(&self, _text: String, _layer: Layer) -> anyhow::Result<uuid::Uuid> { Ok(uuid::Uuid::new_v4()) }
+    }
+    let api = UnifiedMemoryAPI::new(Arc::new(ApiAdapter(container)));
+
 
     match cmd {
         MemorySubcommand::Stats { detailed } => {

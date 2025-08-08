@@ -14,7 +14,7 @@ mod cache_migration;
 pub mod fallback;
 #[cfg(not(feature = "minimal"))]
 pub mod health;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 pub mod hnsw_index; // Модульная HNSW архитектура
                     // pub mod layers; // ВРЕМЕННО ОТКЛЮЧЕНО для бенчмарка - проблемы с sqlx
 #[cfg(not(feature = "minimal"))]
@@ -118,7 +118,8 @@ pub type CacheConfigType = LruCacheConfig;
 #[cfg(not(feature = "minimal"))]
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 // Legacy MemoryService удален - используем DIMemoryService через unified_container
-#[cfg(not(feature = "minimal"))]
+// Batch result types доступны только при включенных orchestration-modules
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use service_di::{BatchInsertResult, BatchSearchResult};
 
 // NEW: Refactored services based on SOLID principles

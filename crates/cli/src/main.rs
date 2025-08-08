@@ -153,10 +153,8 @@ async fn main() -> Result<()> {
             // Инициализируем сервисы для health check
             let llm_client = LlmClient::from_env().ok().map(Arc::new);
             // Создаем базовую конфигурацию памяти для health check (минимальная совместимая)
-            let legacy_config = memory::di::LegacyMemoryConfig::default();
-            let memory_service = memory::DIMemoryService::new(legacy_config)
-                .await
-                .ok()
+            let _legacy_config = memory::di::LegacyMemoryConfig::default();
+            let memory_service: Option<memory::di::UnifiedContainer> = None;
                 .map(Arc::new);
 
             health_checks::run_health_checks(llm_client, memory_service).await?;

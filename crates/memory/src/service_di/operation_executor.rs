@@ -13,38 +13,35 @@ use std::{
 use tokio::sync::Semaphore;
 use tracing::{debug, error, info, warn};
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+use crate::orchestration::traits::Coordinator;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+use crate::orchestration::{HealthManager, ResourceController};
+
 use crate::{
     backup::BackupManager,
     batch_manager::BatchOperationManager,
-    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
+    di::{traits::DIResolver},
     metrics::MetricsCollector,
-    orchestration::traits::Coordinator,
-    orchestration::{
-        traits::{EmbeddingCoordinator, SearchCoordinator},
-        EmbeddingCoordinator as EmbeddingCoordinatorImpl, RetryHandler, RetryPolicy, RetryResult,
-        SearchCoordinator as SearchCoordinatorImpl,
-    },
-    storage::VectorStore,
-    types::{Layer, Record, SearchOptions},
 };
 
-use common::OperationTimer;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+use crate::di::unified_container_impl::UnifiedContainer as UnifiedDIContainer;
 
-/// Результат батчевой вставки
-#[derive(Debug, Clone)]
-pub struct BatchInsertResult {
-    pub inserted: usize,
-    pub failed: usize,
-    pub errors: Vec<String>,
-    pub total_time_ms: u64,
-}
+#[cfg(not(all(not(feature = "minimal"), feature = "orchestration-modules")))]
+pub trait OperationExecutor: Send + Sync {}
 
-/// Результат батчевого поиска
-#[derive(Debug, Clone)]
-pub struct BatchSearchResult {
-    pub queries: Vec<String>,
-    pub results: Vec<Vec<Record>>,
-    pub total_time_ms: u64,
+#[cfg(not(all(not(feature = "minimal"), feature = "orchestration-modules")))]
+pub type BatchInsertResult = (usize, usize);
+#[cfg(not(all(not(feature = "minimal"), feature = "orchestration-modules")))]
+pub type BatchSearchResult = (usize, usize);
+
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+pub trait OperationExecutor: Send + Sync {
+    async fn search(&self, query: &str, layer: crate::types::Layer, options: crate::types::SearchOptions) -> anyhow::Result<Vec<crate::types::Record>>;
+    async fn insert(&self, record: crate::types::Record) -> anyhow::Result<()>;
+    async fn run_promotion(&self) -> anyhow::Result<crate::promotion::PromotionStats>;
+    async fn get_stats(&self) -> crate::metrics::MemoryMetrics;
 }
 
 /// Конфигурация для выполнения операций
@@ -91,40 +88,7 @@ impl OperationConfig {
     }
 }
 
-/// Trait для выполнения операций (Dependency Inversion)
-#[async_trait]
-pub trait OperationExecutor: Send + Sync {
-    /// Инициализация executor
-    async fn initialize(&self) -> Result<()>;
-
-    /// Graceful shutdown executor
-    async fn shutdown(&self) -> Result<()>;
-
-    /// Базовые операции
-    async fn insert(&self, record: Record) -> Result<()>;
-    async fn search(
-        &self,
-        query: &str,
-        layer: Layer,
-        options: SearchOptions,
-    ) -> Result<Vec<Record>>;
-    async fn batch_insert(&self, records: Vec<Record>) -> Result<BatchInsertResult>;
-    async fn batch_search(
-        &self,
-        queries: Vec<String>,
-        layer: Layer,
-        options: SearchOptions,
-    ) -> Result<BatchSearchResult>;
-    async fn update(&self, record: Record) -> Result<()>;
-    async fn delete(&self, id: &uuid::Uuid, layer: Layer) -> Result<()>;
-
-    /// Расширенные операции
-    async fn flush_all(&self) -> Result<()>;
-    async fn run_promotion(&self) -> Result<crate::promotion::PromotionStats>;
-    async fn create_backup(&self, path: &str) -> Result<crate::backup::BackupMetadata>;
-}
-
-/// Production implementation операций с координаторами
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub struct ProductionOperationExecutor {
     /// DI контейнер
     container: Arc<UnifiedDIContainer>,
@@ -140,6 +104,7 @@ pub struct ProductionOperationExecutor {
     config: OperationConfig,
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 impl ProductionOperationExecutor {
     pub fn new(
         container: Arc<UnifiedDIContainer>,
@@ -228,6 +193,7 @@ impl ProductionOperationExecutor {
     }
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 #[async_trait]
 impl OperationExecutor for ProductionOperationExecutor {
     /// Production insert с координаторами и retry логикой

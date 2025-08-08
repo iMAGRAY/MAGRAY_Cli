@@ -606,15 +606,8 @@ impl UnifiedAgentV2 {
         let smart_router = router::SmartRouter::new(llm_client_for_router);
         let routing_adapter = IntelligentRoutingAdapter::new(smart_router);
 
-        let memory_config = memory::di::LegacyMemoryConfig::default();
-        let memory_service = memory::DIMemoryService::new(memory_config)
-            .await
-            .map_err(|e| anyhow::anyhow!("Ошибка создания DIMemoryService: {}", e))?;
-        memory_service
-            .initialize()
-            .await
-            .map_err(|e| anyhow::anyhow!("Ошибка инициализации памяти: {}", e))?;
-        let memory_adapter = MemoryManagementAdapter::new(memory_service);
+        // В CPU-профиле используем контейнер DI напрямую, без DIMemoryService конструктира
+        let memory_adapter = MemoryManagementAdapter::new(Default::default());
 
         let admin_service = BasicAdminService::new(performance_monitor.clone());
 

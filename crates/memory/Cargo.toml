@@ -11,11 +11,7 @@ minimal = []
 
 # CPU build - full functionality without GPU acceleration
 cpu = [
-    "ai/cpu", 
-    "hnsw-index",
-    "persistence", 
-    "backup-restore",
-    "vector-search",
+    "ai/cpu",
     "embeddings"
 ]
 

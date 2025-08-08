@@ -5,9 +5,13 @@
 
 // === Core Modules (SOLID-compliant) ===
 pub mod circuit_breaker;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod coordinator_factory;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod lifecycle_manager;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod operation_executor;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod production_monitoring;
 pub mod service_config;
 // facade.rs удален - используется unified_container
@@ -23,11 +27,13 @@ pub use service_config::{
     ServiceConfigType,
 };
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use coordinator_factory::{
     CoordinatorFactory, OrchestrationCoordinators, ProductionCoordinatorFactory,
     TestCoordinatorFactory,
 };
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use production_monitoring::{
     MetricsCollector, ProductionMetrics, ProductionMetricsCollector, ProductionMonitoringManager,
 };
@@ -36,8 +42,10 @@ pub use circuit_breaker::{
     CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, CircuitBreakerStats,
 };
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use lifecycle_manager::{LifecycleConfig, LifecycleManager, LifecycleState, OperationStats};
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use operation_executor::{
     BatchInsertResult, BatchSearchResult, ExtendedOperationExecutor, OperationConfig,
     OperationExecutor, ProductionOperationExecutor, SimpleOperationExecutor,

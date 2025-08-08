@@ -1,4 +1,4 @@
-﻿//! Service Orchestrator - координация между сервисами
+//! Service Orchestrator - координация между сервисами
 //! 
 //! Центральный оркестратор, который координирует взаимодействие
 //! между всеми специализированными сервисами. Реализует основную
@@ -7,7 +7,7 @@
 use anyhow::Result;
 use std::sync::Arc;
 use tracing::{debug, info};
-use memory::DIMemoryService;
+use memory::di::UnifiedContainer as DIMemoryService;
 use super::types::{RequestContext, AgentResponse, OperationResult};
 use super::{
     IntentAnalysisService, RequestRoutingService, 
