@@ -110,4 +110,19 @@ mod tests {
         // No subscribers
         bus.publish(Topic("no.subscribers"), 42).await;
     }
+
+    #[tokio::test]
+    async fn backpressure_and_timeout() {
+        let bus: EventBus<u64> = EventBus::new(1, Duration::from_millis(50));
+        let mut rx = bus.subscribe(Topic("bp.topic")).await;
+
+        // Fill buffer with one message, receiver not drained yet
+        bus.publish(Topic("bp.topic"), 1).await;
+        // This publish may hit timeout or warn due to full buffer
+        bus.publish(Topic("bp.topic"), 2).await;
+
+        // Drain one and ensure we at least get the first
+        let first = rx.recv().await.expect("recv first");
+        assert_eq!(first.payload, 1);
+    }
 }

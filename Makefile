@@ -16,6 +16,10 @@ help:
 	@echo "🧪 Test Commands:"
 	@echo "  make test          - Run tests for default features"
 	@echo "  make test-all      - Run tests for all feature combinations"
+	@echo "  make test-fast     - Run fast CPU tests"
+	@echo "  make test-full     - Run CPU tests with extended-tests"
+	@echo "  make test-persistence - Run CPU+persistence+extended-tests"
+	@echo "  make test-gpu-full - Run GPU tests with extended-tests"
 	@echo "  make bench         - Run performance benchmarks"
 	@echo ""
 	@echo "🐳 Docker Commands:"
@@ -65,6 +69,23 @@ test-gpu:
 test-minimal:
 	@echo "🧪 Testing minimal features..."
 	cargo test --features=minimal
+
+# New test matrix targets
+test-fast:
+	@echo "⚡ Running fast CPU tests..."
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features=cpu --no-fail-fast
+
+test-full:
+	@echo "🧪 Running full CPU tests (extended)..."
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --no-fail-fast
+
+test-persistence:
+	@echo "🧪 Running persistence tests (CPU + persistence + extended)..."
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,persistence,extended-tests" --no-fail-fast
+
+test-gpu-full:
+	@echo "🎮 Running full GPU tests (extended)..."
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="gpu,extended-tests" --no-fail-fast
 
 test-all: test-cpu test-gpu test-minimal
 	@echo "✅ All feature tests passed!"
