@@ -3,10 +3,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    di::DIMemoryService,
+    di::UnifiedContainer as DIMemoryService,
     health::{ComponentType, HealthStatus, SystemHealthStatus},
     promotion::PromotionStats,
-    services::RefactoredDIMemoryService,
+    // services::RefactoredDIMemoryService,
     types::SearchOptions as CoreSearchOptions,
     Layer, Record,
 };

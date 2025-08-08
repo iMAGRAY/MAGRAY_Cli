@@ -74,23 +74,19 @@ mod vector_index_hnswlib; // Critical for vector storage
 // Экспорт единой DI-системы
 pub mod di;
 
-#[cfg(not(feature = "minimal"))]
-pub use di::{
-    ContainerConfiguration, ContainerFactory, ContainerPreset,
-};
+// container factory/config are not exported from unified di; remove these re-exports
 
 // ОСНОВНОЙ DI API (в минимальном профиле доступен базовый контейнер)
 #[cfg(not(feature = "minimal"))]
 pub use di::{
-    create_default_container as create_container,
-    DIContainer,
-    DIContainerBuilder,
+    UnifiedContainer as DIContainer,
+    UnifiedContainerBuilder as DIContainerBuilder,
     Lifetime,
 };
 #[cfg(feature = "minimal")]
 pub use di::{
-    DIContainer,
-    DIContainerBuilder,
+    UnifiedContainer as DIContainer,
+    UnifiedContainerBuilder as DIContainerBuilder,
     Lifetime,
 };
 
@@ -124,8 +120,6 @@ pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 // Legacy MemoryService удален - используем DIMemoryService через unified_container
 #[cfg(not(feature = "minimal"))]
 pub use service_di::{BatchInsertResult, BatchSearchResult};
-#[cfg(not(feature = "minimal"))]
-pub use di::DIMemoryService;
 
 // NEW: Refactored services based on SOLID principles
 #[cfg(all(not(feature = "minimal"), feature = "services-modules"))]

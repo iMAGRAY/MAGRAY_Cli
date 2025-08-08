@@ -434,11 +434,12 @@ impl DependencyGraphValidator {
                     if let Some(cycle_start) = current_path.iter().position(|&x| x == neighbor) {
                         let mut cycle = current_path[cycle_start..].to_vec();
                         cycle.push(neighbor); // Замыкаем цикл
+                        let cycle_for_log = cycle.clone();
                         cycles.push(cycle);
 
                         debug!(
                             "🔄 Обнаружен цикл: {}",
-                            cycle
+                            cycle_for_log
                                 .iter()
                                 .map(|&t| dependency_graph.get_type_name(t))
                                 .collect::<Vec<_>>()
