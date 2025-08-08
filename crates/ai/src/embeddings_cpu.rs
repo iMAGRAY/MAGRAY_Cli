@@ -156,6 +156,7 @@ impl CpuEmbeddingService {
         }
 
         // Initialize ONNX Runtime
+        crate::ort_setup::configure_ort_env();
         ort::init().with_name("optimized_bge_m3").commit()?;
 
         // Проверяем доступность GPU

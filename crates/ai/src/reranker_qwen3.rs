@@ -79,6 +79,7 @@ impl OptimizedQwen3RerankerService {
         }
 
         // Initialize ONNX Runtime
+        crate::ort_setup::configure_ort_env();
         ort::init().with_name("optimized_qwen3_reranker").commit()?;
 
         // Проверяем доступность GPU

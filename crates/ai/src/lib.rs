@@ -42,6 +42,9 @@ pub mod model_registry;
 #[cfg(any(feature = "cpu", feature = "gpu"))]
 pub mod models;
 
+#[cfg(any(feature = "cpu", feature = "gpu"))]
+pub mod ort_setup;
+
 // Reranking for cpu/gpu builds
 #[cfg(feature = "reranking")]
 pub mod reranker_qwen3;

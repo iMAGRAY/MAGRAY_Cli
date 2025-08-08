@@ -105,6 +105,25 @@ impl ModelDownloader {
             }
         }
 
+        // Если есть известные контрольные суммы, проверим
+        // (Сейчас нет реестра checksum'ов здесь; поле sha256 на каждом файле может быть задано из get_model_info)
+        let info = self.get_model_info(model_path.file_name().and_then(|s| s.to_str()).unwrap_or(""));
+        if let Ok(info) = info {
+            for f in &info.files {
+                if let Some(sum) = &f.sha256 {
+                    let p = model_path.join(&f.filename);
+                    if p.exists() {
+                        if let Ok(valid) = verify_sha256(&p, sum).await {
+                            if !valid {
+                                warn!("Checksum mismatch for {}", p.display());
+                                return Ok(false);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(true)
     }
 
@@ -186,8 +205,17 @@ impl ModelDownloader {
         if dest_path.exists() {
             let metadata = fs::metadata(&dest_path).await?;
             if metadata.len() == file.size {
-                info!("✅ Файл {} уже загружен", file.filename);
-                return Ok(());
+                // Если указан sha256 — провалидируем
+                if let Some(sum) = &file.sha256 {
+                    if verify_sha256(&dest_path, sum).await? {
+                        info!("✅ Файл {} уже загружен (checksum ok)", file.filename);
+                        return Ok(());
+                    }
+                    warn!("Checksum mismatch for existing {}, re-downloading", file.filename);
+                } else {
+                    info!("✅ Файл {} уже загружен", file.filename);
+                    return Ok(());
+                }
             } else {
                 warn!(
                     "⚠️ Размер файла {} не совпадает, перезагружаем",
@@ -276,6 +304,13 @@ impl ModelDownloader {
 
         // Ждём завершения прогресса
         progress_task.abort();
+
+        // Верификация checksum если задана
+        if let Some(sum) = &file.sha256 {
+            if !verify_sha256(&temp_path, sum).await? {
+                return Err(anyhow::anyhow!("Checksum verification failed for {}", file.filename));
+            }
+        }
 
         // Переименовываем временный файл
         fs::rename(&temp_path, &dest_path).await?;
@@ -368,4 +403,20 @@ mod tests {
         let is_complete = downloader.is_model_complete(&model_path).await.unwrap();
         assert!(is_complete);
     }
+}
+
+async fn verify_sha256(path: &Path, expected_hex: &str) -> Result<bool> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::AsyncReadExt;
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 1024 * 1024];
+    loop {
+        let n = file.read(&mut buf).await?;
+        if n == 0 { break; }
+        hasher.update(&buf[..n]);
+    }
+    let result = hasher.finalize();
+    let hex = format!("{:x}", result);
+    Ok(hex.eq_ignore_ascii_case(expected_hex))
 }
