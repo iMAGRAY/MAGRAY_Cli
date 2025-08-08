@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand, CommandFactory};
+use clap::{Parser, Subcommand};
 use common::init_structured_logging;
 use console::{style, Term};
 use indicatif::ProgressStyle;
@@ -12,7 +12,6 @@ use tokio::time::sleep;
 mod commands;
 mod health_checks;
 mod progress;
-mod util;
 
 #[cfg(test)]
 mod status_tests;
@@ -20,7 +19,7 @@ mod status_tests;
 use cli::agent_traits::AgentResponse;
 use cli::agent_traits::{RequestContext, RequestProcessorTrait};
 use cli::unified_agent_v2::UnifiedAgentV2;
-use commands::{GpuCommand, MemoryCommand, ModelsCommand, ToolsCommand, SmartCommand, TasksCommand};
+use commands::{GpuCommand, MemoryCommand, ModelsCommand};
 
 // Иконки для CLI интерфейса
 static ROBOT_ICON: AnimatedIcon = AnimatedIcon::new(&["[AI]", "[▲I]", "[●I]", "[♦I]"]);
@@ -79,18 +78,17 @@ enum Commands {
         /// Описание действия на естественном языке
         action: String,
     },
-    /// [★] Умный планировщик (без LLM на данном этапе)
-    Smart(SmartCommand),
+    /// [★] Умный AI планировщик (анализ + планирование + выполнение)
+    Smart {
+        /// Сложная задача на естественном языке
+        task: String,
+    },
     /// [🎮] Управление GPU ускорением
     Gpu(GpuCommand),
     /// [🧠] Управление системой памяти
     Memory(MemoryCommand),
     /// [📦] Управление моделями AI
     Models(ModelsCommand),
-    /// [🛠] Управление инструментами (включая MCP)
-    Tools(ToolsCommand),
-    /// [☑] Управление задачами
-    Tasks(TasksCommand),
     /// [🏥] Проверка здоровья системы
     Health,
     /// [📊] Показать состояние системы
@@ -108,10 +106,8 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Красивое приветствие (в тестах можно отключить через MAGRAY_NO_ANIM)
-    if std::env::var("MAGRAY_NO_ANIM").is_err() {
-        show_welcome_animation().await?;
-    }
+    // Красивое приветствие
+    show_welcome_animation().await?;
 
     match cli.command {
         Some(Commands::Chat { message }) => {
@@ -140,8 +136,10 @@ async fn main() -> Result<()> {
             let response = process_agent_message(&agent, &action).await?;
             display_response(response).await;
         }
-        Some(Commands::Smart(cmd)) => {
-            cmd.execute().await?;
+        Some(Commands::Smart { task }) => {
+            let agent = create_unified_agent_v2().await?;
+            let response = process_agent_message(&agent, &task).await?;
+            display_response(response).await;
         }
         Some(Commands::Gpu(gpu_command)) => {
             gpu_command.execute().await?;
@@ -152,12 +150,16 @@ async fn main() -> Result<()> {
         Some(Commands::Health) => {
             // Инициализируем сервисы для health check
             let llm_client = LlmClient::from_env().ok().map(Arc::new);
-            // Создаем базовую конфигурацию памяти для health check (минимальная совместимая)
-            let legacy_config = memory::di::LegacyMemoryConfig::default();
-            let memory_service = memory::DIMemoryService::new(legacy_config)
-                .await
-                .ok()
-                .map(Arc::new);
+            // Создаем базовую конфигурацию памяти для health check
+            let memory_service = if let Ok(_config) = memory::default_config() {
+                let legacy_config = memory::di::LegacyMemoryConfig::default();
+                memory::DIMemoryService::new(legacy_config)
+                    .await
+                    .ok()
+                    .map(Arc::new)
+            } else {
+                None
+            };
 
             health_checks::run_health_checks(llm_client, memory_service).await?;
         }
@@ -165,9 +167,6 @@ async fn main() -> Result<()> {
             cmd.execute().await?;
         }
         Some(Commands::Models(cmd)) => {
-            cmd.execute().await?;
-        }
-        Some(Commands::Tasks(cmd)) => {
             cmd.execute().await?;
         }
         Some(Commands::Status) => {
@@ -179,12 +178,9 @@ async fn main() -> Result<()> {
         Some(Commands::Performance) => {
             show_performance_metrics().await?;
         }
-        Some(Commands::Tools(cmd)) => {
-            cmd.execute().await?;
-        }
         None => {
-            // По умолчанию показываем помощь
-            println!("{}", Cli::command().render_long_help());
+            // По умолчанию запускаем интерактивный чат
+            handle_chat(None).await?;
         }
     }
 
@@ -609,24 +605,61 @@ async fn show_system_status() -> Result<()> {
 
     let spinner = progress::ProgressBuilder::fast("Checking system status...");
 
-    // Безопасная проверка состояния памяти в минимальной сборке
-    let legacy_config = memory::di::LegacyMemoryConfig::default();
-    let memory_status = match tokio::time::timeout(Duration::from_secs(5), MemoryService::new(legacy_config)).await {
-        Ok(Ok(service)) => {
-            let service = Arc::new(service);
-            let status = service.check_health().await.ok();
-            let health_str = match status {
-                Some(s) if s.healthy => "healthy".to_string(),
-                Some(_) => "degraded".to_string(),
-                None => "error".to_string(),
-            };
-            Some((health_str, 0, 0.0))
+    // Безопасная проверка состояния памяти с graceful fallback
+    let memory_status = match memory::default_config() {
+        Ok(mut config) => {
+            info!("🔧 Trying to initialize memory service with fallback protection");
+
+            // Отключаем GPU для status команды если есть проблемы
+            config.ai_config.embedding.use_gpu = false;
+
+            let legacy_config = memory::di::LegacyMemoryConfig::default();
+            match tokio::time::timeout(Duration::from_secs(10), MemoryService::new(legacy_config))
+                .await
+            {
+                Ok(Ok(service)) => {
+                    info!("✅ Memory service initialized successfully");
+                    let service = Arc::new(service);
+
+                    // Используем DIMemoryService напрямую чтобы избежать вложенных runtime
+                    let stats = service.get_stats().await;
+                    let health_status = match service.check_health().await {
+                        Ok(h) => match h.overall_status {
+                            memory::health::HealthStatus::Healthy => "healthy",
+                            memory::health::HealthStatus::Degraded => "degraded",
+                            memory::health::HealthStatus::Unhealthy => "unhealthy",
+                            memory::health::HealthStatus::Down => "down",
+                        },
+                        Err(e) => {
+                            warn!("Health check failed: {}", e);
+                            "degraded"
+                        }
+                    };
+
+                    // Получаем статистику кэша
+                    let total = stats.cache_hits + stats.cache_misses;
+                    let hit_rate = if total > 0 {
+                        stats.cache_hits as f64 / total as f64
+                    } else {
+                        0.0
+                    };
+
+                    Some((health_status.to_string(), 0, hit_rate as f32))
+                }
+                Ok(Err(e)) => {
+                    warn!("⚠️ Memory service initialization failed: {}", e);
+                    Some(("error".to_string(), 0, 0.0))
+                }
+                Err(_) => {
+                    warn!("⚠️ Memory service initialization timeout");
+                    Some(("timeout".to_string(), 0, 0.0))
+                }
+            }
         }
-        Ok(Err(e)) => {
-            warn!("⚠️ Memory service init error: {}", e);
-            Some(("error".to_string(), 0, 0.0))
+        Err(e) => {
+            warn!("⚠️ Failed to create memory config: {}", e);
+            Some(("config-error".to_string(), 0, 0.0))
         }
-        Err(_) => Some(("timeout".to_string(), 0, 0.0)),
     };
 
     // Проверяем LLM соединение
@@ -795,13 +828,117 @@ async fn show_performance_metrics() -> Result<()> {
     );
     println!();
 
-    // В минимальной сборке детальные DI-метрики недоступны
+    // Получаем подробную статистику через новый API
+    let detailed_stats = agent.get_detailed_stats().await;
+    println!("{}", detailed_stats);
+
+    // Используем стандартную заглушку для metrics (так как старые methods не существуют)
+    // В будущем можно добавить специальный метод для получения performance метрик
     let mock_metrics = memory::DIPerformanceMetrics::default();
 
     if mock_metrics.total_resolutions > 0 {
         println!();
         println!("{}", style("=== Detailed Analysis ===").bold().yellow());
-        println!("ℹ️ Detailed DI metrics are not available in minimal build.");
+
+        // Анализ эффективности кэширования
+        let cache_efficiency = match mock_metrics.cache_hit_rate() {
+            rate if rate >= 80.0 => ("Excellent".green(), "🚀"),
+            rate if rate >= 60.0 => ("Good".yellow(), "👍"),
+            rate if rate >= 40.0 => ("Fair".yellow(), "⚠️"),
+            _ => ("Poor".red(), "🐌"),
+        };
+        println!(
+            "{} Cache Efficiency: {} ({:.1}%)",
+            cache_efficiency.1,
+            cache_efficiency.0,
+            mock_metrics.cache_hit_rate()
+        );
+
+        // Анализ скорости разрешения зависимостей
+        let speed_analysis = match mock_metrics.avg_resolve_time_us() {
+            time if time < 10.0 => ("Blazing Fast".green(), "⚡"),
+            time if time < 50.0 => ("Fast".green(), "🚀"),
+            time if time < 200.0 => ("Good".yellow(), "👍"),
+            time if time < 1000.0 => ("Slow".yellow(), "⚠️"),
+            _ => ("Very Slow".red(), "🐌"),
+        };
+        println!(
+            "{} Resolve Speed: {} ({:.1}μs avg)",
+            speed_analysis.1,
+            speed_analysis.0,
+            mock_metrics.avg_resolve_time_us()
+        );
+
+        // Показываем проблемные типы если есть
+        let slowest_types = mock_metrics.slowest_types(3);
+        if !slowest_types.is_empty() {
+            println!();
+            println!("{}", style("Slowest Dependencies:").bold().red());
+            for (i, (type_id, type_metrics)) in slowest_types.iter().enumerate() {
+                let short_name = format!("TypeId({:?})", type_id);
+                let avg_time = type_metrics.average_time.as_nanos() as f64 / 1000.0;
+                println!(
+                    "  {}. {} - {:.1}μs ({} resolves)",
+                    i + 1,
+                    short_name,
+                    avg_time,
+                    type_metrics.resolutions
+                );
+            }
+        }
+
+        // Показываем ошибки если есть
+        let total_errors: u64 = mock_metrics
+            .type_metrics
+            .values()
+            .map(|tm| tm.error_count)
+            .sum();
+
+        if total_errors > 0 {
+            println!();
+            println!("{} {} Total Errors Found", "❌".red(), total_errors);
+            for (type_id, type_metrics) in &mock_metrics.type_metrics {
+                if type_metrics.error_count > 0 {
+                    let short_name = format!("TypeId({:?})", type_id);
+                    println!("  • {} - {} errors", short_name, type_metrics.error_count);
+                }
+            }
+        }
+
+        // Рекомендации по оптимизации
+        println!();
+        println!(
+            "{}",
+            style("=== Optimization Recommendations ===").bold().green()
+        );
+
+        if mock_metrics.cache_hit_rate() < 50.0 {
+            println!(
+                "{} Consider using more Singleton lifetimes for frequently accessed services",
+                "💡".yellow()
+            );
+        }
+
+        if mock_metrics.avg_resolve_time_us() > 100.0 {
+            println!(
+                "{} Some dependencies are slow to create - consider pre-initialization",
+                "💡".yellow()
+            );
+        }
+
+        if total_errors > 0 {
+            println!(
+                "{} Fix dependency registration errors to improve system stability",
+                "💡".red()
+            );
+        }
+
+        if mock_metrics.factory_creates() as f64 / mock_metrics.total_resolves() as f64 > 0.7 {
+            println!(
+                "{} High factory creation rate - consider more singleton services",
+                "💡".yellow()
+            );
+        }
 
         println!();
         println!(

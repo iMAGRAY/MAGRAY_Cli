@@ -100,7 +100,7 @@ pub mod optimized_unified_container;
 // Re-export основных типов для удобства использования
 pub use traits::{
     DIContainerStats, DIPerformanceMetrics, DIRegistrar, DIResolver, Lifetime, LifetimeManager,
-    MetricsReporter,
+    MetricsReporter, TypeMetrics,
 };
 
 // Re-export Object Safety solution
@@ -115,7 +115,7 @@ pub use errors::{
 
 pub use container_builder::{DIContainer, DIContainerBuilder};
 pub use container_core::ContainerCore;
-pub use dependency_validator::{DependencyValidatorImpl};
+pub use dependency_validator::{DependencyGraph, DependencyGraphStats, DependencyValidatorImpl};
 pub use lifetime_manager::{ExtensibleLifetimeManager, LifetimeManagerImpl, LifetimeStrategy};
 pub use metrics_collector::{CompositeMetricsReporter, MetricsReporterImpl, TimingStatsReport};
 pub use migration_facade::{
@@ -124,10 +124,10 @@ pub use migration_facade::{
     DIMemoryServiceRefactoredCompatible, LegacyMemoryConfig,
 };
 pub use unified_container::{
-    ComponentFactory, UnifiedDIContainer,
+    ComponentFactory, UnifiedDIContainer, UnifiedDIContainerBuilder, UnifiedMemoryConfigurator,
 };
 
-// NEW UNIFIED CONFIGURATION SYSTEM - re-exports (minimal set)
+// NEW UNIFIED CONFIGURATION SYSTEM - re-exports
 pub use config_loader::{ConfigArgs, ConfigTemplateGenerator, ConfigurationLoader};
 pub use config_presets::{ConfigBuilder, ConfigPresets};
 pub use config_validation::ConfigurationValidator;
@@ -148,22 +148,27 @@ pub use unified_container::UnifiedDIContainer as DIContainerUnified;
 // OPTIMIZED MODULAR COMPONENTS - blazingly fast, separated concerns
 pub use container_cache::ContainerCache;
 pub use container_configuration::{
-    ContainerConfiguration,
+    CacheConfiguration, DIConfigurationBuilder, DIContainerConfiguration, LogLevel,
+    MonitoringConfiguration, PerformanceConfiguration, ValidationConfiguration,
 };
 
 // Уникальные exports из container_cache и configuration
 pub use container_cache::{CacheConfig, CacheStats};
+// DIContainerConfiguration уже импортируется выше в строке 145
+pub use traits::DependencyValidator;
 // LifetimeStrategy уже импортирован выше
 pub use optimized_unified_container::{
     ContainerPreset, OptimizedContainerBuilder, OptimizedUnifiedContainer,
 };
 
 // NEW: Container Factory exports
-pub use container_factory::{ContainerBuilder as FactoryContainerBuilder, ContainerFactory, ContainerPreset as FactoryPreset};
+pub use container_factory::{ContainerBuilder, ContainerFactory, ContainerPreset as FactoryPreset};
 
 // NEW: Decomposed Module exports
-pub use container_metrics_impl::{ContainerMetricsImpl};
-pub use dependency_graph_validator::{DependencyGraphValidator};
+pub use container_metrics_impl::{ContainerMetricsImpl, MetricsConfig, TypeMetrics};
+pub use dependency_graph_validator::{
+    DependencyGraph, DependencyGraphStats, DependencyGraphValidator,
+};
 pub use memory_configurator::UnifiedMemoryConfigurator;
 pub use service_registry_impl::{FactoryInfo, RegistryConfig, RegistryStats, ServiceRegistryImpl};
 pub use service_resolver_impl::{ResolverConfig, ResolverMetrics, ServiceResolverImpl};
@@ -292,6 +297,7 @@ pub use unified_container_impl::{
     development_builder,
     production_builder,
     UnifiedContainer,
+    UnifiedContainerBuilder,
 };
 
 // Дублированные factory функции - оставляем только из unified_container_impl
@@ -303,7 +309,7 @@ pub use unified_container_impl::{
 /// Стандартный DI контейнер для всего проекта
 pub type StandardContainer = UnifiedContainer;
 /// Стандартный builder для всего проекта  
-// Builder type alias removed due to non-exported builder in unified_container_impl
+pub type StandardContainerBuilder = UnifiedContainerBuilder;
 
 #[cfg(test)]
 mod integration_tests {

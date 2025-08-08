@@ -8,7 +8,6 @@ use parking_lot::Mutex;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::sync::Arc;
-use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tracing::{debug, info, instrument};
 use uuid::Uuid;
@@ -371,16 +370,6 @@ impl TodoServiceV2 {
 
         info!("Optimized caches and indexes");
         Ok(())
-    }
-
-    /// Обновить/добавить ключи в metadata задачи
-    pub async fn upsert_metadata(&self, id: &Uuid, meta: HashMap<String, serde_json::Value>) -> Result<()> {
-        self.store.update_metadata(id, meta).await
-    }
-
-    /// Добавить элемент в массив metadata задачи по ключу
-    pub async fn push_metadata_item(&self, id: &Uuid, key: &str, element: serde_json::Value) -> Result<()> {
-        self.store.append_metadata_array(id, key, element).await
     }
 }
 

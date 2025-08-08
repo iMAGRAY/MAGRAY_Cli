@@ -1,4 +1,3 @@
-#![cfg(not(feature = "minimal"))]
 use clap::Parser;
 use cli::commands::ModelsCommand;
 

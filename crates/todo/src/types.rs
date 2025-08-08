@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-#[cfg(not(feature = "minimal"))]
 use memory::{Layer, Record};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -19,7 +18,7 @@ impl MemoryReference {
         Self {
             layer: record.layer,
             record_id: record.id,
-            created_at: Utc::now(),
+            created_at: record.ts,
         }
     }
 }
@@ -267,20 +266,4 @@ pub struct TaskStats {
     pub done: usize,
     pub failed: usize,
     pub cancelled: usize,
-}
-
-#[cfg(feature = "minimal")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Layer {
-    Interact,
-    Insights,
-    Assets,
-}
-
-#[cfg(feature = "minimal")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Record {
-    pub id: uuid::Uuid,
-    pub text: String,
-    pub layer: Layer,
 }

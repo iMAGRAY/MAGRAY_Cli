@@ -1,0 +1,140 @@
+🚀 MAGRAY CLI - HNSW Performance Baseline Analysis
+=================================================
+🎯 Target: <5ms search latency for 1M vectors
+📊 Profiling all performance aspects...
+
+🔍 CPU Capabilities:
+  SSE:     ✅
+  SSE2:    ✅
+  AVX:     ✅
+  AVX2:    ✅
+  AVX-512: ❌
+  FMA:     ✅
+⚡ High SIMD performance available (AVX2 + FMA)
+
+🧮 SIMD Distance Performance Benchmark
+=====================================
+
+📊 Dimension: 384
+  📈 Scalar:
+    Duration: 14.1541ms
+    Avg per op: 141.54 ns
+    Result: 0.93036437
+  🚀 AVX2:
+    Duration: 2.5747ms
+    Avg per op: 25.75 ns
+    Result: 0.93036437
+    🚀 Speedup: 5.50x
+    🎯 Accuracy diff: 0.0000000000
+    ✅ Excellent SIMD speedup
+
+📊 Dimension: 512
+  📈 Scalar:
+    Duration: 18.677ms
+    Avg per op: 186.77 ns
+    Result: 1.07993042
+  🚀 AVX2:
+    Duration: 3.6053ms
+    Avg per op: 36.05 ns
+    Result: 1.07993042
+    🚀 Speedup: 5.18x
+    🎯 Accuracy diff: 0.0000000000
+    ✅ Excellent SIMD speedup
+
+📊 Dimension: 768
+  📈 Scalar:
+    Duration: 28.5072ms
+    Avg per op: 285.07 ns
+    Result: 0.99755102
+  🚀 AVX2:
+    Duration: 5.9355ms
+    Avg per op: 59.35 ns
+    Result: 0.99755102
+    🚀 Speedup: 4.80x
+    🎯 Accuracy diff: 0.0000000000
+    ✅ Excellent SIMD speedup
+
+📊 Dimension: 1024
+  📈 Scalar:
+    Duration: 37.1494ms
+    Avg per op: 371.49 ns
+    Result: 0.98959726
+  🚀 AVX2:
+    Duration: 8.5799ms
+    Avg per op: 85.80 ns
+    Result: 0.98959726
+    🚀 Speedup: 4.33x
+    🎯 Accuracy diff: 0.0000000000
+    ✅ Excellent SIMD speedup
+
+📊 Dimension: 1536
+  📈 Scalar:
+    Duration: 55.6983ms
+    Avg per op: 556.98 ns
+    Result: 0.98237771
+  🚀 AVX2:
+    Duration: 12.9031ms
+    Avg per op: 129.03 ns
+    Result: 0.98237771
+    🚀 Speedup: 4.32x
+    🎯 Accuracy diff: 0.0000000000
+    ✅ Excellent SIMD speedup
+
+🔍 HNSW Baseline Performance
+============================
+
+📋 Configuration: baseline (M=16, efC=200, efS=50)
+
+  🔢 Dataset size: 1000 vectors
+    🏗️ Build time: 1.0341622s (0.97 vectors/ms)
+    🔍 k=1: 0.57ms 🚀 < 1ms (excellent)
+    🔍 k=5: 0.57ms 🚀 < 1ms (excellent)
+    🔍 k=10: 0.58ms 🚀 < 1ms (excellent)
+    🔍 k=50: 0.59ms 🚀 < 1ms (excellent)
+
+  🔢 Dataset size: 5000 vectors
+    🏗️ Build time: 11.4116656s (0.44 vectors/ms)
+    🔍 k=1: 1.03ms ⚡ < 2ms (good)
+    🔍 k=5: 1.04ms ⚡ < 2ms (good)
+    🔍 k=10: 1.03ms ⚡ < 2ms (good)
+    🔍 k=50: 1.02ms ⚡ < 2ms (good)
+
+  🔢 Dataset size: 10000 vectors
+    🏗️ Build time: 33.3075358s (0.30 vectors/ms)
+    🔍 k=1: 1.06ms ⚡ < 2ms (good)
+    🔍 k=5: 1.06ms ⚡ < 2ms (good)
+    🔍 k=10: 1.06ms ⚡ < 2ms (good)
+    🔍 k=50: 1.09ms ⚡ < 2ms (good)
+
+  🔢 Dataset size: 50000 vectors
+ setting number of points 50000 
+    🏗️ Build time: 298.9778561s (0.17 vectors/ms)
+    🔍 k=1: 1.19ms ⚡ < 2ms (good)
+    🔍 k=5: 1.16ms ⚡ < 2ms (good)
+    🔍 k=10: 1.17ms ⚡ < 2ms (good)
+    🔍 k=50: 1.14ms ⚡ < 2ms (good)
+
+📋 Configuration: optimized (M=32, efC=400, efS=100)
+
+  🔢 Dataset size: 1000 vectors
+    🏗️ Build time: 1.3202465s (0.76 vectors/ms)
+    🔍 k=1: 0.73ms 🚀 < 1ms (excellent)
+    🔍 k=5: 0.73ms 🚀 < 1ms (excellent)
+    🔍 k=10: 0.73ms 🚀 < 1ms (excellent)
+    🔍 k=50: 0.74ms 🚀 < 1ms (excellent)
+
+  🔢 Dataset size: 5000 vectors
+    🏗️ Build time: 25.1308132s (0.20 vectors/ms)
+    🔍 k=1: 2.71ms ⚠️ > 2ms (acceptable)
+    🔍 k=5: 2.70ms ⚠️ > 2ms (acceptable)
+    🔍 k=10: 2.69ms ⚠️ > 2ms (acceptable)
+    🔍 k=50: 2.71ms ⚠️ > 2ms (acceptable)
+
+  🔢 Dataset size: 10000 vectors
+    🏗️ Build time: 71.0245207s (0.14 vectors/ms)
+    🔍 k=1: 3.93ms ⚠️ > 2ms (acceptable)
+    🔍 k=5: 3.88ms ⚠️ > 2ms (acceptable)
+    🔍 k=10: 3.88ms ⚠️ > 2ms (acceptable)
+    🔍 k=50: 3.95ms ⚠️ > 2ms (acceptable)
+
+  🔢 Dataset size: 50000 vectors

@@ -16,7 +16,6 @@ pub mod progress;
 pub mod refactored_unified_agent;
 pub mod strategies;
 pub mod unified_agent_v2;
-pub mod util;
 // pub mod services; // Временно отключено - архитектурная несовместимость
 
 #[cfg(test)]

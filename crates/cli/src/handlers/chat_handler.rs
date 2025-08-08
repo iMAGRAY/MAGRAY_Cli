@@ -12,8 +12,6 @@ use crate::agent_traits::{
     AgentResponse, CircuitBreakerTrait, ComponentLifecycleTrait, LlmServiceTrait, RequestContext,
 };
 
-use common::MagrayCoreError;
-
 pub struct ChatHandler<L, C>
 where
     L: LlmServiceTrait,
@@ -213,7 +211,7 @@ where
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
@@ -296,13 +294,75 @@ mod tests {
     }
 }
 
-// Упрощённая реализация базового сервиса для сборки
-impl<L, C> common::service_traits::BaseService for ChatHandler<L, C>
+// Реализуем ServiceMacroHelpers для использования макросов
+impl<L, C> ServiceMacroHelpers for ChatHandler<L, C>
 where
     L: LlmServiceTrait,
     C: CircuitBreakerTrait,
 {
-    fn name(&self) -> &'static str {
-        "ChatHandler"
+    type HealthData = String;
+    type Stats = HashMap<String, u64>;
+
+    async fn create_health_data(&self) -> Result<Self::HealthData, MagrayCoreError> {
+        Ok("ChatHandler is healthy".to_string())
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.initialized
+    }
+
+    fn set_initialized(&self, _initialized: bool) {
+        // На данный момент не можем изменять из-за немутабельной ссылки
+        // В будущем можно использовать AtomicBool
+    }
+
+    async fn perform_initialization<T>(&mut self, _config: T) -> Result<(), MagrayCoreError> {
+        info!("🚀 Инициализация ChatHandler");
+
+        // Проверяем доступность LLM сервиса
+        self.llm_service.health_check().await.map_err(|e| {
+            MagrayCoreError::ServiceInitializationFailed(format!("LLM сервис недоступен: {}", e))
+        })?;
+
+        self.initialized = true;
+        info!("✅ ChatHandler инициализирован");
+        Ok(())
+    }
+
+    async fn perform_shutdown(&self) -> Result<(), MagrayCoreError> {
+        info!("🛑 Остановка ChatHandler");
+        // Здесь можно добавить очистку ресурсов
+        info!("✅ ChatHandler остановлен");
+        Ok(())
+    }
+
+    fn collect_stats(&self) -> Self::Stats {
+        // В production версии здесь будут реальные метрики
+        let mut stats = HashMap::new();
+        stats.insert("requests_processed".to_string(), 0);
+        stats.insert("avg_response_time_ms".to_string(), 0);
+        stats.insert("circuit_breaker_trips".to_string(), 0);
+        stats
+    }
+
+    fn perform_stats_reset(&mut self) {
+        // Сброс статистики - реализация в будущем
+        debug!("🔄 Сброс статистики ChatHandler");
+    }
+
+    fn is_clearable(&self) -> bool {
+        true // ChatHandler можно очистить
+    }
+
+    async fn perform_clear(&mut self) -> Result<(), MagrayCoreError> {
+        info!("🧹 Очистка ChatHandler");
+        // Очистка кэша, статистики и т.д.
+        Ok(())
     }
 }
+
+// Применяем макросы для автоматической генерации service traits
+common::impl_health_check_service!(ChatHandler<L, C>, String);
+common::impl_statistics_provider!(ChatHandler<L, C>, HashMap<String, u64>);
+common::impl_clearable_service!(ChatHandler<L, C>);
+common::impl_service_defaults!(ChatHandler<L, C>, name: "ChatHandler", version: "1.0.0");

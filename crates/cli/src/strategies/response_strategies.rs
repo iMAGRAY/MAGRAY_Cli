@@ -507,7 +507,6 @@ mod tests {
         assert!(serde_json::from_str::<serde_json::Value>(&result).is_ok());
     }
 
-    #[cfg(not(feature = "minimal"))]
     #[tokio::test]
     async fn test_adaptive_formatter_technical_content() {
         let formatter = AdaptiveResponseFormatter::new();

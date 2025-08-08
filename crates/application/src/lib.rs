@@ -22,68 +22,6 @@
 //! Infrastructure → Application Layer (implements ports)
 //! ```
 
-use anyhow::Result;
-use async_trait::async_trait;
-use domain::orchestrator::{Executor, Goal, Orchestrator, Plan, Planner, StepResult};
-
-pub struct LlmPlanner;
-
-#[async_trait]
-impl Planner for LlmPlanner {
-    async fn create_plan(&self, goal: &Goal) -> Result<Plan> {
-        // TODO: integrate LLM to produce step list; return a minimal single-step plan for now
-        Ok(Plan {
-            steps: vec![domain::orchestrator::PlanStep {
-                id: "step-1".into(),
-                description: goal.title.clone(),
-                tool_hint: Some("tool".into()),
-                deps: vec![],
-            }],
-        })
-    }
-}
-
-pub struct TodoExecutor;
-
-#[async_trait]
-impl Executor for TodoExecutor {
-    async fn execute(&self, plan: &Plan) -> Result<Vec<StepResult>> {
-        // TODO: connect to todo::TodoService and map steps to tasks
-        Ok(plan
-            .steps
-            .iter()
-            .map(|s| StepResult {
-                step_id: s.id.clone(),
-                status: domain::orchestrator::StepStatus::Succeeded,
-                output: Some(format!("Executed: {}", s.description)),
-                artifacts: vec![],
-            })
-            .collect())
-    }
-}
-
-pub struct UnifiedOrchestrator<P: Planner, E: Executor> {
-    planner: P,
-    executor: E,
-}
-
-impl<P: Planner, E: Executor> UnifiedOrchestrator<P, E> {
-    pub fn new(planner: P, executor: E) -> Self {
-        Self { planner, executor }
-    }
-}
-
-#[async_trait]
-impl<P: Planner + Send + Sync, E: Executor + Send + Sync> Orchestrator for UnifiedOrchestrator<P, E> {
-    async fn plan(&self, goal: Goal) -> Result<Plan> {
-        self.planner.create_plan(&goal).await
-    }
-
-    async fn run(&self, plan: Plan) -> Result<Vec<StepResult>> {
-        self.executor.execute(&plan).await
-    }
-}
-
 pub mod dtos;
 pub mod errors;
 pub mod ports;

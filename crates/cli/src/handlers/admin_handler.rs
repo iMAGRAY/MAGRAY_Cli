@@ -281,7 +281,7 @@ where
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

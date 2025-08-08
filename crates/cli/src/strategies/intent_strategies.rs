@@ -366,22 +366,17 @@ where
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
 
     // Mock LLM service для тестирования
     struct MockLlmService;
 
     #[async_trait]
     impl LlmServiceTrait for MockLlmService {
-        async fn chat(&self, message: &str) -> Result<String> {
-            if message.contains("tools") || message.contains("git") {
-                Ok("tools:0.9".to_string())
-            } else {
-                Ok("chat:0.7".to_string())
-            }
+        async fn chat(&self, _message: &str) -> Result<String> {
+            Ok(r#"{"action_type": "tools", "confidence": 0.9, "reasoning": "File operation detected"}"#.to_string())
         }
 
         async fn chat_with_context(
