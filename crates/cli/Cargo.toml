@@ -46,6 +46,9 @@ cuda = ["ai/cuda", "memory/cuda"]
 tensorrt = ["ai/tensorrt"]
 gpu-acceleration = ["memory/gpu-acceleration"]
 
+# Tests feature to include extended/slow suites
+extended-tests = []
+
 [dependencies]
 llm = { path = "../llm" }
 router = { path = "../router" }
