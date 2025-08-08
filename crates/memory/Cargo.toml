@@ -72,6 +72,7 @@ sha2 = "0.10"
 sysinfo = "0.31"
 crossbeam-channel = "0.5"
 tempfile = "3.0"
+once_cell = "1.19"
 
 # Vector search (conditional)
 hnsw_rs = { version = "0.3", optional = true }

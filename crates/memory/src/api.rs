@@ -10,6 +10,8 @@ use crate::{
     types::SearchOptions as CoreSearchOptions,
     Layer, Record,
 };
+use common::event_bus::{EventBus, Topic, EventEnvelope};
+use once_cell::sync::Lazy;
 
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use crate::promotion::PromotionStats;
@@ -35,6 +37,15 @@ mod simple_engine {
     use ai::{OptimizedQwen3RerankerService, RerankBatch, RerankingConfig};
     use parking_lot::RwLock;
     use std::sync::OnceLock;
+
+    // EventBus for memory events (recorded globally)
+    #[derive(Debug, Clone)]
+    pub enum MemoryEventPayload {
+        Remember { id: uuid::Uuid, layer: Layer },
+        Search { query: String, layer: Layer, results: usize },
+    }
+
+    pub static MEMORY_EVENT_BUS: Lazy<EventBus<MemoryEventPayload>> = Lazy::new(|| EventBus::new(1024, std::time::Duration::from_millis(250)));
 
     #[derive(Clone)]
     struct StoredRecord {
@@ -109,6 +120,8 @@ mod simple_engine {
             // store score placeholder
             record.score = 0.0;
             self.records.write().push(StoredRecord { record: record.clone(), embedding: emb });
+            // fire event (non-blocking publish with timeout inside)
+            let _ = MEMORY_EVENT_BUS.publish(Topic("memory.upsert"), MemoryEventPayload::Remember { id: record.id, layer: record.layer });
             Ok(record.id)
         }
 
@@ -143,7 +156,7 @@ mod simple_engine {
                         let mut new_order = Vec::with_capacity(reranked.results.len());
                         for item in reranked.results {
                             // item.index corresponds to position in 'documents'
-                            if let Some((s, r)) = scored.get(item.index) {
+                            if let Some((_s, r)) = scored.get(item.index) {
                                 let mut rr = r.clone();
                                 rr.score = item.score;
                                 new_order.push((item.score, rr));
@@ -161,7 +174,10 @@ mod simple_engine {
             }
             // Return top_k finally
             let mut out: Vec<Record> = scored.into_iter().map(|(_, r)| r).collect();
+            let returned = out.len().min(top_k);
             out.truncate(top_k);
+            // fire event with summary
+            let _ = MEMORY_EVENT_BUS.publish(Topic("memory.search"), MemoryEventPayload::Search { query: query.to_string(), layer, results: returned });
             Ok(out)
         }
 
