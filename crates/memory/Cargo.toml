@@ -42,6 +42,7 @@ orchestration-modules = []
 services-modules = []
 # Tests feature to include extended/slow suites
 extended-tests = []
+legacy-tests = []
 
 [dependencies]
 anyhow.workspace = true

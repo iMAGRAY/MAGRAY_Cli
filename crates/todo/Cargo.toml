@@ -8,6 +8,7 @@ default = ["minimal"]
 minimal = []
 cpu = []
 extended-tests = []
+legacy-tests = []
 
 [dependencies]
 # Core

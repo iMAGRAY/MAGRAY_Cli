@@ -48,6 +48,7 @@ gpu-acceleration = ["memory/gpu-acceleration"]
 
 # Tests feature to include extended/slow suites
 extended-tests = []
+legacy-tests = []
 
 [dependencies]
 llm = { path = "../llm" }
