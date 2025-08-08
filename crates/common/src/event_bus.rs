@@ -179,4 +179,28 @@ mod tests {
             Err(e) => panic!("unexpected recv error: {:?}", e),
         }
     }
+
+    #[tokio::test]
+    async fn unsubscribe_drop_receiver() {
+        let bus: EventBus<u8> = EventBus::new(4, Duration::from_millis(50));
+        let rx = bus.subscribe(Topic("drop.topic")).await;
+        drop(rx);
+        // Publish should not panic when no receivers remain
+        bus.publish(Topic("drop.topic"), 7).await;
+    }
+
+    #[tokio::test]
+    async fn multi_topics_independent() {
+        let bus: EventBus<&'static str> = EventBus::new(8, Duration::from_millis(100));
+        let mut rx_a = bus.subscribe(Topic("topic.a")).await;
+        let mut rx_b = bus.subscribe(Topic("topic.b")).await;
+
+        bus.publish(Topic("topic.a"), "A1").await;
+        bus.publish(Topic("topic.b"), "B1").await;
+
+        let ea = rx_a.recv().await.unwrap().payload;
+        let eb = rx_b.recv().await.unwrap().payload;
+        assert_eq!(ea, "A1");
+        assert_eq!(eb, "B1");
+    }
 }
