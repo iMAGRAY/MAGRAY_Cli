@@ -5,6 +5,7 @@ use tempfile::TempDir;
 use uuid::Uuid;
 
 use ai::AiConfig;
+#![cfg(all(not(feature = "minimal")))]
 use memory::{
     promotion::PromotionEngine, storage::VectorStore, Layer, MemoryConfig, MemoryService,
     PromotionConfig, Record,

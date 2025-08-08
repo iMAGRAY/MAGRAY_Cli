@@ -276,6 +276,7 @@ impl BackgroundTaskManager {
 }
 
 // Применяем макрос для автоматической генерации Coordinator trait
+use crate::orchestration::traits;
 common::impl_coordinator!(BackgroundTaskManager, serde_json::Value);
 
 impl Default for BackgroundTaskManager {

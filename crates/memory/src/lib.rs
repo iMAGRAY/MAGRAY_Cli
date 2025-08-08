@@ -74,38 +74,35 @@ mod vector_index_hnswlib; // Critical for vector storage
 #[cfg(not(feature = "minimal"))]
 pub mod simple_di;
 
-// COMPATIBILITY STUB для старой di системы (используется в минимальной сборке)
+// Экспорт DI: в минимальном профиле — лёгкая совместимая заглушка, иначе — полноценная система
+#[cfg(feature = "minimal")]
 pub mod di {
     pub use crate::di_compatibility_stub::*;
 }
-
+#[cfg(not(feature = "minimal"))]
+pub mod di;
 // Подключаем заглушку совместимости
 mod di_compatibility_stub;
 
 #[cfg(feature = "minimal")]
 pub use di::{DIMemoryService, LegacyMemoryConfig};
-
-// ОСНОВНОЙ DI API - используем упрощенную систему
 #[cfg(not(feature = "minimal"))]
-pub use simple_di::{
-    create_container, create_default_container, DIContainer, DIContainerBuilder, Lifetime,
+pub use di::{
+    ContainerConfiguration, ContainerFactory, ContainerPreset,
 };
 
-// Legacy API types - заглушки для обратной совместимости
-#[derive(Debug, Default)]
-pub struct DIContainerStats {
-    pub total_resolutions: u64,
-    pub cache_hits: u64,
-    pub cache_misses: u64,
-}
+// ОСНОВНОЙ DI API
+#[cfg(not(feature = "minimal"))]
+pub use di::{
+    create_default_container as create_container,
+    DIContainer,
+    DIContainerBuilder,
+    Lifetime,
+};
 
-#[derive(Debug, Default)]
-pub struct DIPerformanceMetrics {
-    pub total_resolutions: u64,
-    pub average_resolution_time: std::time::Duration,
-    pub cache_hits: u64,
-    pub memory_usage: usize,
-}
+// Legacy API types - перенаправляем на реальные типы из di, если доступны
+#[cfg(not(feature = "minimal"))]
+pub use di::{DIContainerStats, DIPerformanceMetrics};
 // Оркестрация системы памяти (отключаем по умолчанию для минимальной сборки)
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod orchestration;

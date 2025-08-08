@@ -763,6 +763,7 @@ impl HealthChecker {
 }
 
 // Применяем макрос для автоматической генерации Coordinator trait
+use crate::orchestration::traits;
 common::impl_coordinator!(HealthChecker, serde_json::Value);
 
 impl Default for HealthChecker {
