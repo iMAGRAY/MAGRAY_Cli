@@ -12,7 +12,8 @@ minimal = []
 # CPU build - full functionality without GPU acceleration
 cpu = [
     "ai/cpu",
-    "embeddings"
+    "embeddings",
+    "reranking"
 ]
 
 # GPU build - full functionality with GPU acceleration
@@ -29,6 +30,7 @@ persistence = ["sled"]
 backup-restore = ["tar", "flate2"]
 vector-search = ["rayon", "num_cpus"]
 embeddings = ["ai/embeddings"]
+reranking = ["ai/reranking"]
 gpu-acceleration = []
 cuda = ["ai/cuda"]
 notifications = ["reqwest", "colored"]
