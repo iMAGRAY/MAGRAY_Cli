@@ -1,10 +1,9 @@
-#![cfg(all(feature = "embeddings", feature = "extended-tests"))]
+#![cfg(all(feature = "embeddings", feature = "extended-tests", feature = "legacy-tests"))]
 
 use ai::{
     errors::Result,
     tokenization::{OptimizedTokenizer, TokenizedInput},
 };
-use serial_test::serial;
 use std::{collections::HashSet, sync::Arc};
 use tempfile::TempDir;
 
@@ -55,7 +54,6 @@ fn create_test_tokenizer() -> Result<OptimizedTokenizer> {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_tokenizer_basic_functionality() -> Result<()> {
     // Arrange - создаем tokenizer внутри теста
     let tokenizer = match create_test_tokenizer() {

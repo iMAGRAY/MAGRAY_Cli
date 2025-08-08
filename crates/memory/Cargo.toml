@@ -116,7 +116,7 @@ tokio-test = "0.4"
 [[example]]
 name = "memory_demo"
 path = "examples/memory_demo.rs"
-required-features = ["extended-tests"]
+required-features = ["extended-tests", "legacy-tests"]
 
 [[bench]]
 name = "scalability_benchmarks"
@@ -129,17 +129,17 @@ harness = false
 [[example]]
 name = "di_best_practices"
 path = "examples/di_best_practices.rs"
-required-features = ["extended-tests"]
+required-features = ["extended-tests", "legacy-tests"]
 
 [[example]]
 name = "comprehensive_performance_validation"
 path = "examples/comprehensive_performance_validation.rs"
-required-features = ["extended-tests"]
+required-features = ["extended-tests", "hnsw-index", "gpu-acceleration"]
 
 [[example]]
 name = "simd_optimized_benchmark"
 path = "examples/simd_optimized_benchmark.rs"
-required-features = ["extended-tests"]
+required-features = ["extended-tests", "legacy-tests"]
 
 [[example]]
 name = "test_gpu_acceleration"

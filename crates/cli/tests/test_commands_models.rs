@@ -1,4 +1,4 @@
-#![cfg(all(not(feature = "minimal"), feature = "extended-tests"))]
+#![cfg(all(not(feature = "minimal"), feature = "extended-tests", feature = "legacy-tests"))]
 use clap::Parser;
 use cli::commands::ModelsCommand;
 

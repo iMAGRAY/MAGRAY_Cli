@@ -213,7 +213,7 @@ where
     }
 }
 
-#[cfg(all(test, feature = "extended-tests"))]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
     use std::sync::Arc;

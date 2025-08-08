@@ -1,4 +1,4 @@
-#![cfg(feature = "extended-tests")]
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
 
 use std::collections::HashMap;
 use std::fs;

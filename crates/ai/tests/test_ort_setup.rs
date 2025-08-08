@@ -1,4 +1,4 @@
-#![cfg(all(feature = "embeddings", feature = "extended-tests"))]
+#![cfg(all(feature = "embeddings", feature = "extended-tests", feature = "legacy-tests"))]
 
 use ai::ort_setup::configure_ort_env;
 

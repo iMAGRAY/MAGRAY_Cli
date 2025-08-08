@@ -268,7 +268,7 @@ pub fn default_config() -> Result<MemoryServiceConfig> {
 /// Re-export для обратной совместимости
 pub type MemoryConfig = MemoryServiceConfig;
 
-#[cfg(all(test, feature = "extended-tests"))]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
 

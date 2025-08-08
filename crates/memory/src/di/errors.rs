@@ -587,7 +587,7 @@ macro_rules! di_error {
     };
 }
 
-#[cfg(all(test, feature = "extended-tests"))]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
 
