@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 use colored::*;
 use memory::{default_config};
-use memory::api::{MemoryContext, UnifiedMemoryAPI, PromotionStats};
+use memory::api::{MemoryContext, UnifiedMemoryAPI, PromotionStats, MemoryServiceTrait};
 use memory::types::Layer;
 use prettytable::{row, Table};
 use std::path::PathBuf;
@@ -129,19 +129,8 @@ impl MemoryCommand {
 
 async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
     let _config = memory::default_config()?;
-
-    // Пытаемся создать DI сервис, fallback на legacy если не получается
-    // В текущем профиле используем пустую трейт-реализацию поверх UnifiedContainer
     let container = memory::di::UnifiedContainer::new();
-    struct ApiAdapter(memory::di::UnifiedContainer);
-    impl memory::api::MemoryServiceTrait for ApiAdapter {
-        fn search_sync(&self, _query: &str, _layer: Layer, _top_k: usize) -> anyhow::Result<Vec<memory::Record>> { Ok(vec![]) }
-        fn run_promotion_sync(&self) -> anyhow::Result<PromotionStats> { Ok(PromotionStats::default()) }
-        fn get_system_health(&self) -> memory::health::SystemHealthStatus { memory::health::SystemHealthStatus::default() }
-        fn cache_stats(&self) -> (u64, u64, u64) { (0,0,0) }
-        fn remember_sync(&self, _text: String, _layer: Layer) -> anyhow::Result<uuid::Uuid> { Ok(uuid::Uuid::new_v4()) }
-    }
-    let api = UnifiedMemoryAPI::new(Arc::new(ApiAdapter(container)));
+    let api = UnifiedMemoryAPI::new(Arc::new(container) as Arc<dyn MemoryServiceTrait>);
 
 
     match cmd {
