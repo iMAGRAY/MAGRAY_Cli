@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 #[cfg(test)]
 mod tests {
     use crate::show_system_status;

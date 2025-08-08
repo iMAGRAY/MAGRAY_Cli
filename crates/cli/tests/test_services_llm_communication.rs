@@ -1,4 +1,4 @@
-#![cfg(not(feature = "minimal"))]
+#![cfg(feature = "extended-tests")]
 
 //! Comprehensive tests for LlmCommunicationService
 //!

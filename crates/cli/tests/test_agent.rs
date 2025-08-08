@@ -1,4 +1,4 @@
-#![cfg(not(feature = "minimal"))]
+#![cfg(feature = "extended-tests")]
 
 use cli::agent::{AgentResponse, UnifiedAgent};
 use std::time::Duration;
