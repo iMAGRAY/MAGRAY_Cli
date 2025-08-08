@@ -1,0 +1,229 @@
+{
+  "main": {
+    "id": "d334b32678e24f1d",
+    "type": "split",
+    "children": [
+      {
+        "id": "7d9d0a6e884de6d2",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "94b790b6061f528c",
+            "type": "leaf",
+            "state": {
+              "type": "localgraph",
+              "state": {
+                "options": {
+                  "collapse-filter": true,
+                  "search": "",
+                  "localJumps": 1,
+                  "localBacklinks": true,
+                  "localForelinks": true,
+                  "localInterlinks": false,
+                  "showTags": false,
+                  "showAttachments": false,
+                  "hideUnresolved": false,
+                  "collapse-color-groups": true,
+                  "colorGroups": [],
+                  "collapse-display": true,
+                  "showArrow": false,
+                  "textFadeMultiplier": 0,
+                  "nodeSizeMultiplier": 1,
+                  "lineSizeMultiplier": 1,
+                  "collapse-forces": true,
+                  "centerStrength": 0.518713248970312,
+                  "repelStrength": 10,
+                  "linkStrength": 1,
+                  "linkDistance": 250,
+                  "scale": 2.755675960631089,
+                  "close": true
+                }
+              },
+              "icon": "lucide-git-fork",
+              "title": "Граф"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "02794bc967b38487",
+    "type": "split",
+    "children": [
+      {
+        "id": "41a3083f26b3749e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "2bf6384282e67534",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Файловый менеджер"
+            }
+          },
+          {
+            "id": "cf818d8a4ec285b8",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": true,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Поиск"
+            }
+          },
+          {
+            "id": "227031fbc7107912",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Закладки"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "82934d0d3a941963",
+    "type": "split",
+    "children": [
+      {
+        "id": "f81d5812a4e8affa",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "9ca044e001fff22c",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Обратные ссылки"
+            }
+          },
+          {
+            "id": "58ffe9da1be79718",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Исходящие ссылки"
+            }
+          },
+          {
+            "id": "b75523df1c36b939",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Теги"
+            }
+          },
+          {
+            "id": "4594ff3e7c0845f4",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Структура"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false
+    }
+  },
+  "active": "94b790b6061f528c",
+  "lastOpenFiles": [
+    "CTL_v3_Implementation_Guide.md",
+    "CTL_v3_Implementation_Guide.md.tmp.46824.1754427109897",
+    "Конфигурация компонентов.md",
+    "optimization-work-summary.md",
+    "optimization-work-summary.md.tmp.35796.1754396614305",
+    "di-optimization-summary.md",
+    "di-optimization-summary.md.tmp.35796.1754395943576",
+    "performance-optimization-report.md",
+    "performance-optimization-report.md.tmp.35796.1754395318469",
+    "obsidian-comprehensive/Состояние готовности компонентов.md.tmp.57240.1754365717957",
+    "obsidian-comprehensive/Состояние готовности компонентов.md.tmp.57240.1754365677543",
+    "obsidian-comprehensive/Состояние готовности компонентов.md.tmp.57240.1754365600275",
+    "troubleshooting/Troubleshooting Guide - Common Issues & Solutions.md.tmp.57240.1754365567984",
+    "GPU_ACCELERATION.md",
+    "BUILD_DEPLOYMENT.md",
+    "Без названия/ARCHITECTURE.md",
+    "obsidian-comprehensive/CLI Interface - Commands & User Experience.md.tmp.57240.1754365469141",
+    "obsidian-comprehensive/Performance Optimization Guide - Production Tuning.md.tmp.57240.1754365387689",
+    "obsidian-comprehensive/Security Architecture - Threat Model & Mitigations.md",
+    "obsidian-comprehensive/Performance Optimization Guide - Production Tuning.md",
+    "obsidian-comprehensive/MAGRAY CLI - Главная страница проекта.md",
+    "obsidian-comprehensive/Memory Crate - Трёхслойная система памяти.md",
+    "obsidian-comprehensive/LLM Integration - Multi-Provider AI Architecture.md",
+    "obsidian-comprehensive/Roadmap развития проекта.md",
+    "troubleshooting/Troubleshooting Guide - Common Issues & Solutions.md",
+    "obsidian-comprehensive/Router & Tools - Task Orchestration Layer.md",
+    "obsidian-comprehensive/Состояние готовности компонентов.md",
+    "obsidian-comprehensive/CLI Interface - Commands & User Experience.md",
+    "obsidian-comprehensive/README.md",
+    "obsidian-comprehensive/Конфигурационные схемы и настройки.md",
+    "obsidian-comprehensive/Production метрики и мониторинг.md",
+    "obsidian-comprehensive/Граф связей и зависимостей компонентов.md",
+    "obsidian-comprehensive/Полная архитектурная документация MAGRAY CLI.md",
+    "obsidian-v2/03_Features/_Features Hub - Центр возможностей системы.md",
+    "obsidian-comprehensive/Руководство по установке и использованию.md",
+    "obsidian-comprehensive/AI Crate - Embedding и модели.md",
+    "Без названия/Без названия.canvas"
+  ]
+}

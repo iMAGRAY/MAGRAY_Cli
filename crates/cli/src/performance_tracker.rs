@@ -626,7 +626,7 @@ mod tests {
     async fn test_system_metrics_aggregation() {
         let tracker = PerformanceTracker::default();
 
-        // Simulate operations for both components
+        // Execute multiple operations
         for i in 0..5 {
             let op_id = tracker.start_operation("component1", "operation").await;
             sleep(Duration::from_millis(5)).await;
@@ -643,7 +643,6 @@ mod tests {
 
         assert_eq!(system_metrics.total_operations, 8);
         assert!(system_metrics.error_rate > 0.0);
-        #[cfg(not(feature = "minimal"))]
         assert!(system_metrics.operations_per_second > 0.0);
         assert_eq!(system_metrics.components.len(), 2);
 
@@ -699,13 +698,13 @@ mod tests {
         };
 
         let tracker = PerformanceTrackerBuilder::new()
-            .with_warning_thresholds(thresholds)
-            .with_detailed_logging(true)
             .with_max_metrics(1000)
+            .with_detailed_logging(true)
+            .with_warning_thresholds(thresholds)
             .build();
 
-        // Verify configuration
-        assert!(tracker.config.enable_detailed_logging);
         assert_eq!(tracker.config.max_metrics_in_memory, 1000);
+        assert!(tracker.config.enable_detailed_logging);
+        assert_eq!(tracker.config.warning_thresholds.max_response_time_ms, 500);
     }
 }

@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name = "hnsw_benchmark"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "standalone_hnsw_benchmark"
+path = "standalone_hnsw_benchmark.rs"
+
+[dependencies]
+hnsw_rs = "0.3.0"
+fastrand = "2.3"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

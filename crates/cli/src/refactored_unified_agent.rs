@@ -630,7 +630,6 @@ mod tests {
         // Тестируем обработку запроса
         let context = RequestContext {
             message: "test message".to_string(),
-            session_id: "test_session".to_string(),
             metadata: HashMap::new(),
         };
 
@@ -683,7 +682,6 @@ mod tests {
 
         let context = RequestContext {
             message: "test".to_string(),
-            session_id: "test_session".to_string(),
             metadata: HashMap::new(),
         };
 
@@ -713,7 +711,6 @@ mod tests {
 
         let context = RequestContext {
             message: "performance test".to_string(),
-            session_id: "test_session".to_string(),
             metadata: HashMap::new(),
         };
 

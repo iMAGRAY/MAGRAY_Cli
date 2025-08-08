@@ -1,5 +1,3 @@
-#![cfg(not(feature = "minimal"))]
-
 //! Comprehensive tests for ResilienceService
 //!
 //! Покрывает:

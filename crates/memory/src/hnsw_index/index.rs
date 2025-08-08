@@ -11,11 +11,6 @@ use tracing::{debug, info, warn};
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-#[cfg(feature = "hnsw-index")]
-use rayon::slice::ParallelSlice;
-#[cfg(feature = "hnsw-index")]
-use rayon::iter::IntoParallelRefIterator;
-
 use super::config::HnswConfig;
 use super::stats::HnswStats;
 
@@ -142,11 +137,8 @@ mod simd_distance {
             queries.len().max(1)
         };
 
-        #[cfg(feature = "hnsw-index")]
-        let iter = queries.par_chunks(chunk_size);
-        #[cfg(not(feature = "hnsw-index"))]
-        let iter = queries.chunks(chunk_size);
-        iter
+        queries
+            .par_chunks(chunk_size)
             .flat_map(|chunk| batch_cosine_distance_avx2_ultra(chunk, target))
             .collect()
     }
@@ -286,10 +278,13 @@ impl VectorIndex {
                 actual_size, max_layers
             );
 
-            #[allow(unused_variables)]
-            let hnsw_instance = /* Hnsw::new */ {
-                ()
-            };
+            let hnsw_instance: Hnsw<'static, f32, DistCosine> = Hnsw::new(
+                self.config.max_connections, // M - максимальные соединения
+                actual_size,                 // max_nb_connection - размер
+                max_layers,                  // max_layer - максимальные слои
+                self.config.ef_construction, // ef_construction
+                DistCosine {},               // cosine distance
+            );
             *hnsw_guard = Some(hnsw_instance);
 
             info!(
@@ -343,8 +338,11 @@ impl VectorIndex {
             let mut hnsw_guard = self.hnsw.write();
             if let Some(ref mut hnsw) = hnsw_guard.as_mut() {
                 // Используем правильный API hnsw_rs
-                let _ = (&vector, point_id);
-                Ok::<_, anyhow::Error>(())
+                hnsw.insert_data(&vector, point_id);
+                debug!(
+                    "Вектор {} успешно добавлен в HNSW как point_id {}",
+                    id, point_id
+                );
             } else {
                 let error = anyhow!("HNSW не инициализирован");
                 self.stats.record_error();
@@ -486,8 +484,8 @@ impl VectorIndex {
             if let Some(ref mut hnsw) = hnsw_guard.as_mut() {
                 // Используем parallel_insert_data для максимальной эффективности
                 let data_refs: Vec<_> = data_items.iter().map(|(v, id)| (v, *id)).collect();
-                let _ = &data_refs;
-                Ok::<_, anyhow::Error>(())
+                hnsw.parallel_insert_data(&data_refs);
+                debug!("Параллельная вставка {} элементов успешна", batch_size);
             } else {
                 let error = anyhow!("HNSW не инициализирован для параллельной вставки");
                 self.stats.record_error();
@@ -548,8 +546,7 @@ impl VectorIndex {
         let results = {
             let hnsw_guard = self.hnsw.read();
             if let Some(ref hnsw) = hnsw_guard.as_ref() {
-                let _ = (query, k, ef_search);
-                Ok(Vec::new())
+                hnsw.search(query, k, ef_search)
             } else {
                 let error = anyhow!("HNSW не инициализирован для поиска");
                 self.stats.record_error();
@@ -743,21 +740,13 @@ impl VectorIndex {
         };
 
         // Оптимизированный параллельный поиск с cache-aware scheduling
-        #[cfg(feature = "hnsw-index")]
+        use rayon::prelude::*;
+
         let results: Result<Vec<_>> = queries
             .par_iter()
             .zip(query_norms.par_iter())
             .map(|(query, _norm)| {
                 // Используем optimized search path
-                self.search_optimized(query, k)
-            })
-            .collect();
-        #[cfg(not(feature = "hnsw-index"))]
-        let results: Result<Vec<_>> = queries
-            .iter()
-            .zip(query_norms.iter())
-            .map(|(query, _norm)| {
-                // Fallback to sequential search
                 self.search_optimized(query, k)
             })
             .collect();
@@ -791,11 +780,8 @@ impl VectorIndex {
 
             if can_use_batch && is_x86_feature_detected!("avx2") {
                 // Параллельное обработка с aligned vectors
-                #[cfg(feature = "hnsw-index")]
-                let iter = vectors.par_iter();
-                #[cfg(not(feature = "hnsw-index"))]
-                let iter = vectors.iter();
-                iter
+                vectors
+                    .par_iter()
                     .map(|v| {
                         let aligned_vec =
                             crate::simd_ultra_optimized::AlignedVector::new(v.clone());
@@ -808,11 +794,8 @@ impl VectorIndex {
                     .collect()
             } else {
                 // Fallback к оптимизированному scalar обработке
-                #[cfg(feature = "hnsw-index")]
-                let iter = vectors.par_iter();
-                #[cfg(not(feature = "hnsw-index"))]
-                let iter = vectors.iter();
-                iter
+                vectors
+                    .par_iter()
                     .map(|v| self.compute_norm_scalar(v))
                     .collect()
             }
@@ -838,8 +821,7 @@ impl VectorIndex {
         let results = {
             let hnsw_guard = self.hnsw.read();
             if let Some(ref hnsw) = hnsw_guard.as_ref() {
-                let _ = (query, k, ef_search);
-                Ok(Vec::new())
+                hnsw.search(query, k, ef_search)
             } else {
                 return Err(anyhow!("HNSW не инициализирован"));
             }

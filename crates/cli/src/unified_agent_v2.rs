@@ -14,7 +14,6 @@ use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 use crate::agent_traits::*;
-use crate::agent_traits::RequestProcessorTrait;
 use crate::handlers::*;
 use crate::orchestrator::*;
 use crate::strategies::*;
@@ -22,7 +21,6 @@ use tools::enhanced_tool_system::EnhancedToolSystemConfig;
 
 // Импорт общих трейтов для устранения дублирования
 use common::service_traits::{BaseService, HealthCheckService};
-use crate::agent_traits::RequestProcessorTrait as _;
 
 // ============================================================================
 // ADAPTER IMPLEMENTATIONS FOR EXISTING SERVICES
@@ -191,19 +189,16 @@ impl IntelligentRoutingTrait for IntelligentRoutingAdapter {
 }
 
 /// Adapter для DIMemoryService -> MemoryManagementTrait
-#[cfg(not(feature = "minimal"))]
 pub struct MemoryManagementAdapter {
     memory_service: memory::DIMemoryService,
 }
 
-#[cfg(not(feature = "minimal"))]
 impl MemoryManagementAdapter {
     pub fn new(memory_service: memory::DIMemoryService) -> Self {
         Self { memory_service }
     }
 }
 
-#[cfg(not(feature = "minimal"))]
 #[async_trait]
 impl MemoryManagementTrait for MemoryManagementAdapter {
     async fn store_message(&self, message: &str, context: &HashMap<String, String>) -> Result<()> {
@@ -285,49 +280,14 @@ impl MemoryManagementTrait for MemoryManagementAdapter {
             .check_health()
             .await
             .map_err(|e| anyhow::anyhow!("Memory health check failed: {}", e))?;
-        use memory::di_compatibility_stub::SystemHealthStatusStub as SystemHealthStatus;
-        if !health.healthy {
+
+        if !matches!(health.overall_status, memory::health::HealthStatus::Healthy) {
             return Err(anyhow::anyhow!(
                 "Memory system unhealthy: {:?}",
-                health
+                health.overall_status
             ));
         }
 
-        Ok(())
-    }
-}
-
-/// Минимальная заглушка для MemoryManagementTrait под feature "minimal"
-#[cfg(feature = "minimal")]
-pub struct MemoryManagementAdapter;
-
-#[cfg(feature = "minimal")]
-impl MemoryManagementAdapter {
-    pub fn new(_memory_service: memory::DIMemoryService) -> Self {
-        Self
-    }
-}
-
-#[cfg(feature = "minimal")]
-#[async_trait]
-impl MemoryManagementTrait for MemoryManagementAdapter {
-    async fn store_message(&self, _message: &str, _context: &HashMap<String, String>) -> Result<()> {
-        Ok(())
-    }
-
-    async fn search_memory(&self, _query: &str, _limit: usize) -> Result<Vec<String>> {
-        Ok(Vec::new())
-    }
-
-    async fn run_promotion(&self) -> Result<String> {
-        Ok("Promotion skipped in minimal build".to_string())
-    }
-
-    async fn get_memory_stats(&self) -> Result<String> {
-        Ok("Memory stats unavailable in minimal build".to_string())
-    }
-
-    async fn health_check(&self) -> Result<()> {
         Ok(())
     }
 }
@@ -907,7 +867,7 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
         self.admin_handler.shutdown().await?;
         self.memory_handler.shutdown().await?;
         self.tools_handler.shutdown().await?;
-        common::service_traits::BaseService::shutdown(&self.chat_handler).await?;
+        self.chat_handler.shutdown().await?;
         self.performance_monitor.shutdown().await?;
 
         info!("✅ UnifiedAgentV2 shutdown завершен");

@@ -1,7 +1,6 @@
 use anyhow::Result;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "persistence")]
 use sled::Db;
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
@@ -92,7 +91,6 @@ impl CacheConfig {
 }
 
 pub struct EmbeddingCacheLRU {
-    #[cfg(feature = "persistence")]
     db: Arc<Db>,
     stats: Arc<RwLock<CacheStats>>,
     lru_index: Arc<Mutex<LruIndex>>,
@@ -166,7 +164,6 @@ struct CacheStats {
 
 impl EmbeddingCacheLRU {
     /// Открывает sled БД для LRU кэша через DatabaseManager
-    #[cfg(feature = "persistence")]
     fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Arc<Db>> {
         let db_manager = crate::database_manager::DatabaseManager::global();
         let db = db_manager.get_cache_database(cache_path.as_ref())?;
@@ -190,11 +187,9 @@ impl EmbeddingCacheLRU {
             config.ttl_seconds()
         );
 
-        #[cfg(feature = "persistence")]
         let db = Self::open_cache_database(cache_path)?;
 
         let cache = Self {
-            #[cfg(feature = "persistence")]
             db,
             stats: Arc::new(RwLock::new(CacheStats::default())),
             lru_index: Arc::new(Mutex::new(LruIndex::new())),
@@ -239,7 +234,7 @@ impl EmbeddingCacheLRU {
             }
         };
         index.clear();
-        #[cfg(feature = "persistence")]
+
         for item in self.db.iter() {
             match item {
                 Ok((key, value)) => {
@@ -273,7 +268,7 @@ impl EmbeddingCacheLRU {
         }
 
         let key = self.make_key(text, model);
-        #[cfg(feature = "persistence")]
+
         match self.db.get(&key) {
             Ok(Some(bytes)) => {
                 match bincode::deserialize::<CachedEmbedding>(&bytes) {
@@ -343,12 +338,6 @@ impl EmbeddingCacheLRU {
                 None // Graceful degradation - treat as cache miss
             }
         }
-        #[cfg(not(feature = "persistence"))]
-        {
-            // Without persistence, no cached data
-            self.stats.write().misses += 1;
-            None
-        }
     }
 
     pub fn insert(&self, text: &str, model: &str, embedding: Vec<f32>) -> Result<()> {
@@ -383,7 +372,6 @@ impl EmbeddingCacheLRU {
             size_bytes,
         };
 
-        #[cfg(feature = "persistence")]
         match bincode::serialize(&cached) {
             Ok(bytes) => {
                 match self.db.insert(&key, bytes) {
@@ -412,15 +400,6 @@ impl EmbeddingCacheLRU {
                 error!("Failed to serialize embedding for cache: {}", e);
                 Err(e.into())
             }
-        }
-        #[cfg(not(feature = "persistence"))]
-        {
-            // Without persistence, just update index and stats
-            if let Some(mut index) = self.lru_index.try_lock() {
-                index.touch(key.to_vec(), size_bytes);
-            }
-            self.stats.write().inserts += 1;
-            Ok(())
         }
     }
 
@@ -473,7 +452,6 @@ impl EmbeddingCacheLRU {
 
             for key in entries_to_evict {
                 index.remove(&key);
-                #[cfg(feature = "persistence")]
                 let _ = self.db.remove(&key);
                 stats.evictions += 1;
             }
@@ -492,7 +470,6 @@ impl EmbeddingCacheLRU {
         }
 
         // Always try to remove from database
-        #[cfg(feature = "persistence")]
         if let Err(e) = self.db.remove(key) {
             warn!("Failed to remove entry from database: {}", e);
             // Don't propagate the error - this is not critical
@@ -534,7 +511,6 @@ impl EmbeddingCacheLRU {
         }
 
         // Try to flush, but don't fail if it doesn't work
-        #[cfg(feature = "persistence")]
         if let Err(e) = self.db.flush() {
             warn!("Failed to flush cache after batch insert: {}", e);
         }
@@ -608,13 +584,11 @@ impl EmbeddingCacheLRU {
 
     pub fn clear(&self) -> Result<()> {
         // Clear database first
-        #[cfg(feature = "persistence")]
         if let Err(e) = self.db.clear() {
             error!("Failed to clear cache database: {}", e);
             return Err(e.into());
         }
 
-        #[cfg(feature = "persistence")]
         if let Err(e) = self.db.flush() {
             warn!("Failed to flush after clear: {}", e);
             // Continue anyway - not critical
@@ -661,7 +635,6 @@ impl EmbeddingCacheLRU {
         let mut expired_count = 0;
         let mut keys_to_remove = Vec::new();
 
-        #[cfg(feature = "persistence")]
         for item in self.db.iter() {
             match item {
                 Ok((key, value)) => {

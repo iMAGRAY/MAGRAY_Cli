@@ -8,7 +8,8 @@ members = [
     "crates/todo",
     "crates/ai",
     "crates/common",
-    "crates/domain"
+    "crates/domain",
+    # "crates/application", # Temporarily excluded due to agent_202508080151_app work in progress
 ]
 exclude = [
     "fuzz"
@@ -104,6 +105,3 @@ features = ["cpu", "gpu", "minimal"]
 
 # Additional args for cargo test
 args = ["--", "--test-threads=1"]
-
-[patch.crates-io]
-# place for local patches if needed

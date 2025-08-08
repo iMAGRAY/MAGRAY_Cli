@@ -393,7 +393,7 @@ impl ComponentLifecycleTrait for PerformanceMonitor {
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use tokio::time::{sleep, Duration};
