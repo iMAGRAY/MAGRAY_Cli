@@ -26,6 +26,135 @@ pub struct PromotionStats {
     pub cleanup_time_ms: u64,
 }
 
+// ===== Simple in-memory engine for CPU profile =====
+#[cfg(feature = "embeddings")]
+mod simple_engine {
+    use super::*;
+    use ai::{CpuEmbeddingService, EmbeddingConfig};
+    use parking_lot::RwLock;
+    use std::sync::OnceLock;
+
+    #[derive(Clone)]
+    struct StoredRecord {
+        record: Record,
+        embedding: Vec<f32>,
+    }
+
+    pub struct SimpleMemoryEngine {
+        embedding_service: Option<CpuEmbeddingService>,
+        records: RwLock<Vec<StoredRecord>>,
+        embedding_dim: usize,
+    }
+
+    static ENGINE: OnceLock<SimpleMemoryEngine> = OnceLock::new();
+
+    impl SimpleMemoryEngine {
+        fn init() -> &'static SimpleMemoryEngine {
+            ENGINE.get_or_init(|| {
+                // Try to create real embedding service
+                let model_name = std::env::var("MAGRAY_EMBED_MODEL").unwrap_or_else(|_| "qwen3emb".to_string());
+                let cfg = EmbeddingConfig {
+                    model_name: model_name.clone(),
+                    max_length: 512,
+                    batch_size: 16,
+                    use_gpu: false,
+                    gpu_config: None,
+                    embedding_dim: Some(1024),
+                };
+                let embedding_service = CpuEmbeddingService::new(cfg).ok();
+                let embedding_dim = 1024;
+
+                SimpleMemoryEngine {
+                    embedding_service,
+                    records: RwLock::new(Vec::new()),
+                    embedding_dim,
+                }
+            })
+        }
+
+        pub fn health_status() -> SystemHealthStatus {
+            let engine = Self::init();
+            let mut status = SystemHealthStatus::default();
+            status.overall_status = if engine.embedding_service.is_some() {
+                HealthStatus::Healthy
+            } else {
+                HealthStatus::Degraded
+            };
+            status
+        }
+
+        pub fn insert(&self, mut record: Record) -> Result<Uuid> {
+            let emb = match &self.embedding_service {
+                Some(svc) => svc.embed(&record.text)?.embedding,
+                None => self.mock_embed(&record.text),
+            };
+            // store score placeholder
+            record.score = 0.0;
+            self.records.write().push(StoredRecord { record: record.clone(), embedding: emb });
+            Ok(record.id)
+        }
+
+        pub fn search(&self, query: &str, layer: Layer, top_k: usize) -> Result<Vec<Record>> {
+            let query_emb = match &self.embedding_service {
+                Some(svc) => svc.embed(query)?.embedding,
+                None => self.mock_embed(query),
+            };
+
+            let mut scored: Vec<(f32, Record)> = self
+                .records
+                .read()
+                .iter()
+                .filter(|sr| sr.record.layer == layer)
+                .map(|sr| (self.cosine(&query_emb, &sr.embedding), sr.record.clone()))
+                .collect();
+
+            scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+            scored.truncate(top_k);
+            for (s, r) in scored.iter_mut() {
+                r.score = *s;
+            }
+            Ok(scored.into_iter().map(|(_, r)| r).collect())
+        }
+
+        fn cosine(&self, a: &[f32], b: &[f32]) -> f32 {
+            let mut dot = 0.0f32;
+            let mut na = 0.0f32;
+            let mut nb = 0.0f32;
+            let len = a.len().min(b.len());
+            for i in 0..len {
+                let av = a[i];
+                let bv = b[i];
+                dot += av * bv;
+                na += av * av;
+                nb += bv * bv;
+            }
+            if na <= 1e-8 || nb <= 1e-8 { return 0.0; }
+            dot / (na.sqrt() * nb.sqrt())
+        }
+
+        fn mock_embed(&self, text: &str) -> Vec<f32> {
+            // Simple consistent hash-based embedding
+            let mut v = vec![0f32; self.embedding_dim];
+            let mut idx = 0usize;
+            for token in text.split_whitespace() {
+                let mut h: u64 = 1469598103934665603;
+                for b in token.as_bytes() { h = h ^ (*b as u64); h = h.wrapping_mul(1099511628211); }
+                let pos = (h as usize) % self.embedding_dim;
+                v[pos] += 1.0;
+                idx += 1;
+                if idx >= self.embedding_dim { break; }
+            }
+            // L2 normalize
+            let mut norm = 0.0f32; for x in &v { norm += *x * *x; }
+            if norm > 0.0 { let inv = 1.0 / norm.sqrt(); for x in &mut v { *x *= inv; } }
+            v
+        }
+    }
+
+    // Public facade used by trait impl
+    pub(super) fn engine() -> &'static SimpleMemoryEngine { SimpleMemoryEngine::init() }
+}
+
 /// Trait для абстракции над различными реализациями memory service
 pub trait MemoryServiceTrait: Send + Sync {
     /// Поиск записей (упрощенная версия без async проблем)
@@ -48,8 +177,16 @@ pub trait MemoryServiceTrait: Send + Sync {
 
 /// Реализация trait для DIMemoryService
 impl MemoryServiceTrait for DIMemoryService {
-    fn search_sync(&self, _query: &str, _layer: Layer, _top_k: usize) -> Result<Vec<Record>> {
-        Ok(vec![])
+    fn search_sync(&self, query: &str, layer: Layer, top_k: usize) -> Result<Vec<Record>> {
+        #[cfg(feature = "embeddings")]
+        {
+            let engine = simple_engine::engine();
+            engine.search(query, layer, top_k)
+        }
+        #[cfg(not(feature = "embeddings"))]
+        {
+            Ok(vec![])
+        }
     }
 
     fn run_promotion_sync(&self) -> Result<PromotionStats> {
@@ -57,15 +194,42 @@ impl MemoryServiceTrait for DIMemoryService {
     }
 
     fn get_system_health(&self) -> SystemHealthStatus {
-        SystemHealthStatus::default()
+        #[cfg(feature = "embeddings")]
+        { simple_engine::SimpleMemoryEngine::health_status() }
+        #[cfg(not(feature = "embeddings"))]
+        { SystemHealthStatus::default() }
     }
 
     fn cache_stats(&self) -> (u64, u64, u64) {
         (0, 0, 0)
     }
 
-    fn remember_sync(&self, _text: String, _layer: Layer) -> Result<Uuid> {
-        Ok(Uuid::new_v4())
+    fn remember_sync(&self, text: String, layer: Layer) -> Result<Uuid> {
+        #[cfg(feature = "embeddings")]
+        {
+            use chrono::Utc;
+            let id = Uuid::new_v4();
+            let record = Record {
+                id,
+                text,
+                embedding: vec![],
+                layer,
+                kind: "note".to_string(),
+                tags: vec![],
+                project: "magray".to_string(),
+                session: "default".to_string(),
+                ts: Utc::now(),
+                score: 0.0,
+                access_count: 0,
+                last_access: Utc::now(),
+            };
+            let engine = simple_engine::engine();
+            engine.insert(record)
+        }
+        #[cfg(not(feature = "embeddings"))]
+        {
+            Ok(Uuid::new_v4())
+        }
     }
 }
 
