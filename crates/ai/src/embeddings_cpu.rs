@@ -819,6 +819,95 @@ impl CpuEmbeddingService {
     }
 }
 
+/// Pure scalar mean pooling: sum across seq_len then divide by seq_len
+pub(crate) fn mean_pool_scalar(data: &[f32], seq_len: usize, hidden_size: usize) -> Vec<f32> {
+    let mut pooled = vec![0.0f32; hidden_size];
+    for s in 0..seq_len {
+        let base = s * hidden_size;
+        for h in 0..hidden_size {
+            if base + h < data.len() {
+                pooled[h] += data[base + h];
+            }
+        }
+    }
+    let inv = if seq_len > 0 { 1.0 / (seq_len as f32) } else { 0.0 };
+    for v in &mut pooled {
+        *v *= inv;
+    }
+    pooled
+}
+
+/// Pure scalar L2 normalization
+pub(crate) fn l2_normalize_scalar(mut v: Vec<f32>) -> Vec<f32> {
+    let mut norm_sq = 0.0f32;
+    for &x in &v { norm_sq += x * x; }
+    let norm = norm_sq.sqrt();
+    if norm > 1e-8 {
+        let inv = 1.0 / norm;
+        for x in &mut v { *x *= inv; }
+    }
+    v
+}
+
+/// Extract first item embedding from 3D [1, seq_len, hidden_size] using scalar helpers
+pub(crate) fn extract_embedding_from_3d_scalar(
+    shape_vec: &[i64],
+    data: &[f32],
+    seq_len: usize,
+    hidden_size: usize,
+) -> Option<Vec<f32>> {
+    if shape_vec.len() != 3 || shape_vec[0] != 1 || shape_vec[1] != seq_len as i64 || shape_vec[2] != hidden_size as i64 {
+        return None;
+    }
+    let need = seq_len.checked_mul(hidden_size)?;
+    if need > data.len() { return None; }
+    let pooled = mean_pool_scalar(&data[0..need], seq_len, hidden_size);
+    Some(l2_normalize_scalar(pooled))
+}
+
+#[cfg(test)]
+mod extra_scalar_tests {
+    use super::*;
+
+    #[test]
+    fn test_mean_pool_scalar_basic() {
+        // seq_len=2, hidden=4: rows [1,2,3,4] and [5,6,7,8]
+        let data = vec![1.0,2.0,3.0,4.0, 5.0,6.0,7.0,8.0];
+        let pooled = mean_pool_scalar(&data, 2, 4);
+        assert_eq!(pooled, vec![3.0,4.0,5.0,6.0]);
+    }
+
+    #[test]
+    fn test_l2_normalize_scalar_unit_norm() {
+        let v = vec![3.0, 4.0];
+        let n = l2_normalize_scalar(v);
+        let norm: f32 = n.iter().map(|x| x*x).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_extract_embedding_from_3d_scalar_ok() {
+        let seq_len = 2usize;
+        let hidden = 4usize;
+        let shape = [1i64, seq_len as i64, hidden as i64];
+        let data = vec![1.0,2.0,3.0,4.0, 5.0,6.0,7.0,8.0];
+        let emb = extract_embedding_from_3d_scalar(&shape, &data, seq_len, hidden).expect("ok");
+        assert_eq!(emb.len(), hidden);
+        // mean pooled = [3,4,5,6] → norm ~ sqrt(86) ≈ 9.2736 → normalized first ~ 0.323
+        let expected0 = 3.0f32 / 86.0f32.sqrt();
+        assert!((emb[0] - expected0).abs() < 1e-3);
+        let norm: f32 = emb.iter().map(|x| x*x).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_extract_embedding_from_3d_scalar_bad_shape() {
+        let shape = [2i64, 0, 0];
+        let data: Vec<f32> = vec![];
+        assert!(extract_embedding_from_3d_scalar(&shape, &data, 0, 0).is_none());
+    }
+}
+
 /// Service statistics
 #[derive(Debug, Clone)]
 pub struct ServiceStats {
