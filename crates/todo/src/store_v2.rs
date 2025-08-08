@@ -1,7 +1,7 @@
 use crate::types::*;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use memory::Layer;
+use crate::types::Layer;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, Connection, OptionalExtension, Row};
@@ -634,6 +634,68 @@ impl TodoStoreV2 {
         )?;
 
         debug!("Удалена зависимость: {} -> {}", task_id, depends_on);
+        Ok(())
+    }
+
+    /// Обновить metadata задачи (мердж по ключам)
+    pub async fn update_metadata(&self, id: &Uuid, new_meta: HashMap<String, serde_json::Value>) -> Result<()> {
+        let mut conn = self.pool.get()?;
+        let tx = conn.transaction()?;
+
+        // Получаем текущий metadata
+        let current_json: Option<String> = tx
+            .query_row("SELECT metadata FROM todos WHERE id = ?1", params![id.to_string()], |row| row.get(0))
+            .optional()?;
+
+        let mut meta_obj: serde_json::Map<String, serde_json::Value> = current_json
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|v| v.as_object().cloned())
+            .unwrap_or_default();
+
+        for (k, v) in new_meta.into_iter() {
+            meta_obj.insert(k, v);
+        }
+
+        let updated_json = serde_json::Value::Object(meta_obj).to_string();
+        tx.execute(
+            "UPDATE todos SET metadata = ?1 WHERE id = ?2",
+            params![updated_json, id.to_string()],
+        )?;
+
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Добавить элемент в массив внутри metadata по ключу (создает массив при отсутствии)
+    pub async fn append_metadata_array(&self, id: &Uuid, key: &str, element: serde_json::Value) -> Result<()> {
+        let mut conn = self.pool.get()?;
+        let tx = conn.transaction()?;
+
+        let current_json: Option<String> = tx
+            .query_row("SELECT metadata FROM todos WHERE id = ?1", params![id.to_string()], |row| row.get(0))
+            .optional()?;
+
+        let mut root: serde_json::Value = current_json
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .unwrap_or_else(|| serde_json::json!({}));
+
+        if !root.is_object() {
+            root = serde_json::json!({});
+        }
+
+        let obj = root.as_object_mut().unwrap();
+        let arr = obj.entry(key.to_string()).or_insert_with(|| serde_json::json!([]));
+        if !arr.is_array() {
+            *arr = serde_json::json!([]);
+        }
+        arr.as_array_mut().unwrap().push(element);
+
+        tx.execute(
+            "UPDATE todos SET metadata = ?1 WHERE id = ?2",
+            params![root.to_string(), id.to_string()],
+        )?;
+
+        tx.commit()?;
         Ok(())
     }
 }

@@ -1,3 +1,5 @@
+#![cfg(not(feature = "minimal"))]
+
 use cli::agent::{AgentResponse, UnifiedAgent};
 use std::time::Duration;
 use tokio;

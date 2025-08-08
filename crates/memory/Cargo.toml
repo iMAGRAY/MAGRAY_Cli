@@ -1,10 +1,10 @@
-﻿[package]
+[package]
 name = "memory"
 version.workspace = true
 edition.workspace = true
 
 [features]
-default = ["cpu"]
+default = ["minimal"]
 
 # Minimal build - basic in-memory storage without persistence
 minimal = []
@@ -36,7 +36,9 @@ embeddings = ["ai/embeddings"]
 gpu-acceleration = []
 cuda = ["ai/cuda"]
 notifications = ["reqwest", "colored"]
-hot-reload = []
+hot-reload = ["notify"]
+# Gate the deprecated legacy orchestrator behind a feature (off by default)
+legacy-orchestrator = []
 
 [dependencies]
 anyhow.workspace = true
@@ -86,6 +88,9 @@ flate2 = { version = "1.0", optional = true }
 # Configuration serialization (needed by config_loader)
 toml = "0.8"
 serde_yaml = "0.9"
+
+# Hot-reload watcher (optional)
+notify = { version = "6.1", optional = true }
 
 # Test dependencies
 [dev-dependencies]

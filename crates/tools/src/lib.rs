@@ -23,6 +23,9 @@ pub mod execution_pipeline;
 pub mod intelligent_selector;
 pub mod performance_monitor;
 
+// MCP integration
+pub mod mcp;
+
 // Базовые типы для системы инструментов
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolInput {
@@ -74,9 +77,12 @@ impl ToolRegistry {
         registry.register("file_read", Box::new(file_ops::FileReader::new()));
         registry.register("file_write", Box::new(file_ops::FileWriter::new()));
         registry.register("dir_list", Box::new(file_ops::DirLister::new()));
+        registry.register("file_search", Box::new(file_ops::FileSearcher::new()));
         registry.register("git_status", Box::new(git_ops::GitStatus::new()));
         registry.register("git_commit", Box::new(git_ops::GitCommit::new()));
+        registry.register("git_diff", Box::new(git_ops::GitDiff::new()));
         registry.register("web_search", Box::new(web_ops::WebSearch::new()));
+        registry.register("web_fetch", Box::new(web_ops::WebFetch::new()));
         registry.register("shell_exec", Box::new(shell_ops::ShellExec::new()));
 
         registry
@@ -94,8 +100,18 @@ impl ToolRegistry {
         self.tools.values().map(|tool| tool.spec()).collect()
     }
 
-    // Удалены захардкоженные методы find_tool_for_query и execute_natural
-    // Теперь используем специализированные агенты в SmartRouter
+    /// Зарегистрировать MCP tool, проксирующий удалённый MCP сервер/процесс по stdio
+    pub fn register_mcp_tool(
+        &mut self,
+        name: &str,
+        cmd: String,
+        args: Vec<String>,
+        remote_tool: String,
+        description: String,
+    ) {
+        let tool = mcp::McpTool::new(cmd, args, remote_tool, description);
+        self.register(name, Box::new(tool));
+    }
 }
 
 impl Default for ToolRegistry {

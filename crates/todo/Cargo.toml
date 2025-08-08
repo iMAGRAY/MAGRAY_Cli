@@ -3,6 +3,11 @@ name = "todo"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = ["minimal"]
+minimal = []
+cpu = []
+
 [dependencies]
 # Core
 tokio = { workspace = true }

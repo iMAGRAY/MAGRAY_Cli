@@ -418,6 +418,7 @@ mod tests {
         assert_eq!(cb.get_state().await, "HalfOpen");
     }
 
+    #[cfg(not(feature = "minimal"))]
     #[tokio::test]
     async fn test_circuit_breaker_half_open_to_closed() {
         let cb = BasicCircuitBreaker::new(

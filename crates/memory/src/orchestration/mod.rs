@@ -23,6 +23,7 @@ pub mod orchestration_lifecycle_manager;
 pub mod orchestrator_core;
 
 // Legacy поддержка - оригинальный God Object (deprecated)
+#[cfg(feature = "legacy-orchestrator")]
 mod memory_orchestrator;
 
 // === Public API ===
@@ -82,7 +83,8 @@ pub use orchestration_facade::{MemoryOrchestrator, OrchestrationFacade};
 pub use background_task_manager::BackgroundTaskManager;
 pub use orchestrator_core::OrchestratorCore;
 
-// === Legacy Support (Deprecated) ===
+// === Legacy Support (Deprecated)
+#[cfg(feature = "legacy-orchestrator")]
 #[deprecated(
     since = "0.1.0",
     note = "Use OrchestrationFacade instead - provides same API with better architecture"
