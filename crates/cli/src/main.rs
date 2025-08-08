@@ -118,6 +118,9 @@ async fn main() -> Result<()> {
     // Проверяем наличие дефолтных моделей и предлагаем установить при необходимости
     ensure_default_models_installed_interactive()?;
 
+    // Проверяем доступность ONNX Runtime и предлагаем установить
+    ensure_ort_installed_interactive()?;
+
     match cli.command {
         Some(Commands::Chat { message }) => {
             handle_chat(message).await?;
@@ -966,4 +969,87 @@ fn create_placeholder_models() {
             }
         }
     }
+}
+
+fn ensure_ort_installed_interactive() -> Result<()> {
+    // Быстрый ранний выход если уже сконфигурирован
+    if std::env::var("ORT_DYLIB_PATH").is_ok() {
+        return Ok(());
+    }
+
+    // Попробуем авто-конфиг (поиск библиотек в типичных путях)
+    ai::ort_setup::configure_ort_env();
+    if std::env::var("ORT_DYLIB_PATH").is_ok() {
+        return Ok(());
+    }
+
+    // Не нашли — спросим пользователя
+    let auto_env = std::env::var("MAGRAY_AUTO_INSTALL_ORT").unwrap_or_default();
+    let mut auto_choice: Option<bool> = None;
+    match auto_env.to_lowercase().as_str() {
+        "1" | "true" | "yes" | "y" => auto_choice = Some(true),
+        "0" | "false" | "no" | "n" => auto_choice = Some(false),
+        _ => {}
+    }
+
+    let install = if let Some(choice) = auto_choice {
+        choice
+    } else {
+        print!("ONNX Runtime не найден. Установить локально сейчас? [Y/n]: ");
+        io::stdout().flush().ok();
+        let mut answer = String::new();
+        if io::stdin().read_line(&mut answer).is_ok() {
+            let ans = answer.trim().to_lowercase();
+            !(ans == "n" || ans == "no")
+        } else {
+            true
+        }
+    };
+
+    if !install {
+        println!("Пропускаем установку ONNX Runtime. Некоторые функции AI могут быть недоступны.");
+        return Ok(());
+    }
+
+    // Ищем скрипт установки и запускаем
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    fn candidate_paths(script: &str) -> Vec<PathBuf> {
+        let mut paths = Vec::new();
+        paths.push(PathBuf::from(script));
+        paths.push(Path::new("..").join(script));
+        paths.push(Path::new("../..").join(script));
+        if let Ok(root) = std::env::var("MAGRAY_ROOT_DIR") {
+            paths.push(Path::new(&root).join(script));
+        }
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                let mut p = dir.to_path_buf();
+                for _ in 0..4 {
+                    p = p.join("..");
+                    paths.push(p.join(script));
+                }
+            }
+        }
+        paths
+    }
+
+    let scripts = candidate_paths("scripts/install_onnxruntime.sh");
+    for path in &scripts {
+        if path.exists() {
+            let status = Command::new("bash")
+                .arg(path)
+                .arg("./scripts/onnxruntime")
+                .status();
+            if matches!(status, Ok(s) if s.success()) {
+                // Применим настройки текущему процессу
+                // Попробуем прочитать setup_ort_env.sh и source нельзя здесь; поэтому перезапустим авто-конфиг
+                ai::ort_setup::configure_ort_env();
+                break;
+            }
+        }
+    }
+
+    Ok(())
 }

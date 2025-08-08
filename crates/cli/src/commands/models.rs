@@ -39,7 +39,6 @@ enum ModelsSubcommand {
     Recommendations,
 
     /// Проверить пути и конфигурацию моделей
-    #[command(visible_alias = "check")]
     Check,
 }
 

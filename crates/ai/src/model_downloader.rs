@@ -33,9 +33,20 @@ pub struct ModelFile {
 impl ModelDownloader {
     /// Создать новый загрузчик моделей
     pub fn new(base_path: impl AsRef<Path>) -> Result<Self> {
+        // Optional HF token for private/throttled downloads
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Ok(token) = std::env::var("HF_TOKEN") {
+            if !token.is_empty() {
+                if let Ok(value) = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token)) {
+                    headers.insert(reqwest::header::AUTHORIZATION, value);
+                }
+            }
+        }
+
         let client = reqwest::Client::builder()
             .user_agent("MAGRAY-CLI/1.0")
             .timeout(std::time::Duration::from_secs(300))
+            .default_headers(headers)
             .build()?;
 
         Ok(Self {
@@ -130,24 +141,25 @@ impl ModelDownloader {
     /// Получить информацию о модели
     fn get_model_info(&self, model_name: &str) -> Result<ModelInfo> {
         match model_name {
+            // Qwen3 Embedding 0.6B: будем пытаться вытянуть tokenizer/config с HF, а model.onnx — из нескольких кандидатных путей
             "qwen3emb" => Ok(ModelInfo {
                 name: "qwen3emb".to_string(),
                 files: vec![
                     ModelFile {
                         filename: "model.onnx".to_string(),
-                        url: "LOCAL_FILE".to_string(),
+                        url: "AUTO".to_string(),
                         size: 0,
                         sha256: None,
                     },
                     ModelFile {
                         filename: "tokenizer.json".to_string(),
-                        url: "LOCAL_FILE".to_string(),
+                        url: "AUTO".to_string(),
                         size: 0,
                         sha256: None,
                     },
                     ModelFile {
                         filename: "config.json".to_string(),
-                        url: "LOCAL_FILE".to_string(),
+                        url: "AUTO".to_string(),
                         size: 0,
                         sha256: None,
                     },
@@ -155,24 +167,25 @@ impl ModelDownloader {
                 total_size: 0,
             }),
 
+            // Qwen3 Reranker 0.6B
             "qwen3_reranker" => Ok(ModelInfo {
                 name: "qwen3_reranker".to_string(),
                 files: vec![
                     ModelFile {
                         filename: "model.onnx".to_string(),
-                        url: "LOCAL_FILE".to_string(),
+                        url: "AUTO".to_string(),
                         size: 0,
                         sha256: None,
                     },
                     ModelFile {
                         filename: "tokenizer.json".to_string(),
-                        url: "LOCAL_FILE".to_string(),
+                        url: "AUTO".to_string(),
                         size: 0,
                         sha256: None,
                     },
                     ModelFile {
                         filename: "config.json".to_string(),
-                        url: "LOCAL_FILE".to_string(),
+                        url: "AUTO".to_string(),
                         size: 0,
                         sha256: None,
                     },
@@ -182,6 +195,39 @@ impl ModelDownloader {
 
             _ => Err(anyhow::anyhow!("Неизвестная модель: {}", model_name)),
         }
+    }
+
+    /// Вернуть список кандидатных URL для конкретного файла модели
+    fn candidate_urls(&self, model_name: &str, filename: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        match (model_name, filename) {
+            ("qwen3emb", "tokenizer.json") => {
+                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/tokenizer.json".to_string());
+            }
+            ("qwen3emb", "config.json") => {
+                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/config.json".to_string());
+            }
+            ("qwen3emb", "model.onnx") => {
+                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/model.onnx".to_string());
+                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/onnx/model.onnx".to_string());
+                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/onnx/encoder_model.onnx".to_string());
+                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/model_fp16.onnx".to_string());
+            }
+            ("qwen3_reranker", "tokenizer.json") => {
+                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/tokenizer.json".to_string());
+            }
+            ("qwen3_reranker", "config.json") => {
+                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/config.json".to_string());
+            }
+            ("qwen3_reranker", "model.onnx") => {
+                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/model.onnx".to_string());
+                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/onnx/model.onnx".to_string());
+                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/onnx/encoder_model.onnx".to_string());
+                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/model_fp16.onnx".to_string());
+            }
+            _ => {}
+        }
+        out
     }
 
     /// Загрузить файл с прогрессом
@@ -199,6 +245,41 @@ impl ModelDownloader {
                     file.filename
                 ));
             }
+        }
+
+        // Если AUTO — попробуем несколько кандидатных URL
+        if file.url == "AUTO" {
+            let model_name = dest_dir
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let candidates = self.candidate_urls(&model_name, &file.filename);
+            if candidates.is_empty() {
+                warn!("Нет кандидатных URL для {}/{}", model_name, file.filename);
+                // Пытаемся продолжить дальше — файл может быть подготовлен скриптом отдельно
+                return Ok(());
+            }
+
+            let mut last_err: Option<anyhow::Error> = None;
+            for (idx, url) in candidates.iter().enumerate() {
+                match self.try_download_once(&url, file, &dest_path).await {
+                    Ok(()) => {
+                        info!("✅ {} загружен из {}", file.filename, url);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        warn!("Попытка {}/{}: не удалось скачать {} из {}: {}", idx + 1, candidates.len(), file.filename, url, e);
+                        last_err = Some(e);
+                        // небольшой backoff
+                        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                        continue;
+                    }
+                }
+            }
+            // Если ни один URL не сработал, возвращаем последнюю ошибку
+            if let Some(e) = last_err { return Err(e); }
+            return Err(anyhow::anyhow!("Не удалось скачать {}", file.filename));
         }
 
         // Проверяем существующий файл
@@ -230,10 +311,15 @@ impl ModelDownloader {
             file.size as f64 / 1024.0 / 1024.0
         );
 
+        // Попытка скачать напрямую из указанного URL
+        self.try_download_once(&file.url, file, &dest_path).await
+    }
+
+    async fn try_download_once(&self, url: &str, file: &ModelFile, dest_path: &Path) -> Result<()> {
         // Создаём запрос
         let response = self
             .client
-            .get(&file.url)
+            .get(url)
             .send()
             .await
             .context("Ошибка при запросе файла")?;
@@ -264,19 +350,20 @@ impl ModelDownloader {
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
                 let bytes = downloaded_clone.load(Ordering::Relaxed);
-                let progress = (bytes as f64 / total_size as f64) * 100.0;
-
-                if last_report.elapsed().as_secs() >= 2 {
-                    info!(
-                        "   📊 Прогресс: {:.1}% ({:.1} MB / {:.1} MB)",
-                        progress,
-                        bytes as f64 / 1024.0 / 1024.0,
-                        total_size as f64 / 1024.0 / 1024.0
-                    );
-                    last_report = std::time::Instant::now();
+                if total_size > 0 {
+                    let progress = (bytes as f64 / total_size as f64) * 100.0;
+                    if last_report.elapsed().as_secs() >= 2 {
+                        info!(
+                            "   📊 Прогресс: {:.1}% ({:.1} MB / {:.1} MB)",
+                            progress,
+                            bytes as f64 / 1024.0 / 1024.0,
+                            total_size as f64 / 1024.0 / 1024.0
+                        );
+                        last_report = std::time::Instant::now();
+                    }
                 }
 
-                if bytes >= total_size {
+                if total_size > 0 && bytes >= total_size {
                     break;
                 }
             }
