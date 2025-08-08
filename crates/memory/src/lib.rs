@@ -2,7 +2,7 @@
 
 #[cfg(not(feature = "minimal"))]
 mod batch_manager;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "vector-search"))]
 mod batch_optimized; // Ultra-optimized batch operations для 1000+ QPS
 #[cfg(not(feature = "minimal"))]
 mod cache_interface;
@@ -21,11 +21,11 @@ pub mod hnsw_index; // Модульная HNSW архитектура
 pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 #[cfg(not(feature = "minimal"))]
 mod metrics;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub mod ml_promotion; // Декомпозированная ML promotion система (SOLID compliant)
 #[cfg(not(feature = "minimal"))]
 mod notifications;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub mod promotion;
 #[cfg(not(feature = "minimal"))]
 pub mod service_di; // REFACTORED модули в service_di/
@@ -68,7 +68,7 @@ mod streaming;
 pub mod transaction;
 #[cfg(not(feature = "minimal"))]
 pub mod types;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 mod vector_index_hnswlib; // Critical for vector storage
                           
 // Экспорт единой DI-системы
@@ -101,12 +101,12 @@ pub mod services;
 // Utility functions и error handling
 #[cfg(not(feature = "minimal"))]
 pub mod utils;
-#[cfg(not(feature = "minimal"))]
-pub use batch_manager::{BatchConfig, BatchOperationBuilder, BatchOperationManager, BatchStats};
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "vector-search"))]
 pub use batch_optimized::{
     AlignedBatchVectors, BatchOptimizedConfig, BatchOptimizedProcessor, BatchOptimizedStats,
 };
+#[cfg(not(feature = "minimal"))]
+pub use batch_manager::{BatchConfig, BatchOperationBuilder, BatchOperationManager, BatchStats};
 #[cfg(not(feature = "minimal"))]
 pub use cache_lru::{
     CacheConfig as LruCacheConfig, CacheConfig, EmbeddingCacheLRU as EmbeddingCache,
@@ -160,14 +160,9 @@ pub use services::{RefactoredDIMemoryService, RefactoredDIMemoryServiceBuilder};
 //     LayerHealthStatus,
 // };
 // MemoryDIConfigurator moved to di/unified_container.rs
-#[cfg(not(feature = "minimal"))]
-pub use api::{
-    CacheStats, DetailedHealth, IndexSizes, MemoryContext, MemoryResult, OptimizationResult,
-    SearchOptions as ApiSearchOptions, SystemHealth, SystemStats, UnifiedMemoryAPI,
-};
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub use database_manager::DatabaseManager;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 pub use gpu_ultra_accelerated::{
     benchmark_gpu_vs_cpu, GpuCosineProcessor, GpuDevice, GpuDeviceManager,
 };
@@ -182,14 +177,14 @@ pub use metrics::{LatencyMetrics, LayerMetrics, MemoryMetrics, MetricsCollector}
 pub use notifications::{NotificationManager, NotificationManager as NotificationSystem};
 #[cfg(not(feature = "minimal"))]
 pub use resource_manager::{ResourceConfig, ResourceManager};
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "num_cpus"))]
 pub use simd_feature_detection::{
     get_adaptive_selector, quick_cpu_info, AdaptiveAlgorithmSelector, AlgorithmStrategy, CpuInfo,
     SimdLevel, WorkloadProfile,
 };
 #[cfg(not(feature = "minimal"))]
 pub use simd_fixed::debug_simd_performance;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "rayon"))]
 pub use simd_optimized::{
     batch_cosine_distance_optimized, cosine_distance_auto, cosine_distance_memory_optimized,
     run_comprehensive_benchmark,
@@ -199,7 +194,7 @@ pub use simd_ultra_optimized::{
     batch_cosine_distance_ultra, cosine_distance_ultra_optimized, test_ultra_optimized_performance,
     AlignedVector,
 };
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub use storage::VectorStore;
 #[cfg(not(feature = "minimal"))]
 pub use transaction::{Transaction, TransactionGuard, TransactionManager};
@@ -220,7 +215,7 @@ pub use vector_index_hnswlib::{HnswRsConfig, HnswRsStats, VectorIndexHnswRs};
 pub use hnsw_index::{HnswConfig, HnswStats, VectorIndex};
 
 // ML-based promotion system
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub use ml_promotion::{
     MLPromotionConfig, MLPromotionEngine, MLPromotionStats, PromotionDecision, PromotionFeatures,
     UsageTracker,

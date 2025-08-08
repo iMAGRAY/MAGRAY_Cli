@@ -5,11 +5,26 @@ use uuid::Uuid;
 use crate::{
     di::UnifiedContainer as DIMemoryService,
     health::{ComponentType, HealthStatus, SystemHealthStatus},
-    promotion::PromotionStats,
+    // promotion::PromotionStats,
     // services::RefactoredDIMemoryService,
     types::SearchOptions as CoreSearchOptions,
     Layer, Record,
 };
+
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::promotion::PromotionStats;
+#[cfg(any(feature = "minimal", not(feature = "persistence")))]
+#[derive(Default, Clone, Copy)]
+pub struct PromotionStats {
+    pub interact_to_insights: usize,
+    pub insights_to_assets: usize,
+    pub expired_interact: usize,
+    pub expired_insights: usize,
+    pub total_time_ms: u64,
+    pub index_update_time_ms: u64,
+    pub promotion_time_ms: u64,
+    pub cleanup_time_ms: u64,
+}
 
 /// Trait для абстракции над различными реализациями memory service
 pub trait MemoryServiceTrait: Send + Sync {

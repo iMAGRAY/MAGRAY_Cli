@@ -55,10 +55,24 @@ pub use operation_executor::{
 // DIMemoryService теперь в unified_container.rs
 
 // === Backward Compatibility Types ===
-use crate::{
-    batch_manager::BatchStats, gpu_accelerated::BatchProcessorStats, health::SystemHealthStatus,
-    promotion::PromotionStats,
-};
+use crate::batch_manager::BatchStats;
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+use crate::gpu_accelerated::BatchProcessorStats;
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::promotion::PromotionStats;
+#[cfg(any(feature = "minimal", not(feature = "persistence")))]
+#[derive(Default, Clone, Copy, Debug)]
+pub struct PromotionStats {
+    pub interact_to_insights: usize,
+    pub insights_to_assets: usize,
+    pub expired_interact: usize,
+    pub expired_insights: usize,
+    pub total_time_ms: u64,
+    pub index_update_time_ms: u64,
+    pub promotion_time_ms: u64,
+    pub cleanup_time_ms: u64,
+}
+use crate::health::SystemHealthStatus;
 
 /// Статистика всей memory системы (backward compatibility)
 #[derive(Debug)]
