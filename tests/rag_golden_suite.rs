@@ -158,4 +158,16 @@ async fn rag_golden_suite_metrics() {
     assert!(rec_avg >= 0.5, "avg recall too low: {}", rec_avg);
     assert!(ndcg_avg >= 0.5, "avg ndcg too low: {}", ndcg_avg);
     assert!(ap_avg >= 0.3, "avg AP too low: {}", ap_avg);
+
+    // Print and persist report locally
+    println!(
+        "RAG_METRICS_SUMMARY: precision_avg={:.3} recall_avg={:.3} ndcg_avg={:.3} ap_avg={:.3}",
+        prec_avg, rec_avg, ndcg_avg, ap_avg
+    );
+    let _ = std::fs::create_dir_all("reports");
+    let json = format!(
+        "{{\n  \"precision_avg\": {:.6},\n  \"recall_avg\": {:.6},\n  \"ndcg_avg\": {:.6},\n  \"ap_avg\": {:.6}\n}}",
+        prec_avg, rec_avg, ndcg_avg, ap_avg
+    );
+    let _ = std::fs::write("reports/rag_metrics_summary.json", json);
 }

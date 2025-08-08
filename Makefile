@@ -1,7 +1,7 @@
 # MAGRAY CLI Build System
 # Supports multiple feature configurations
 
-.PHONY: help build-all build-cpu build-gpu build-minimal test test-all bench clean docker-build docker-test release
+.PHONY: help build-all build-cpu build-gpu build-minimal test test-all bench clean docker-build docker-test release rag-report
 
 # Default target
 help:
@@ -238,3 +238,8 @@ ci-local-persistence:
 ci-local-gpu:
 	@echo "🏃 CI-local: gpu extended (if available)"
 	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="gpu,extended-tests" --no-fail-fast --quiet || true
+
+rag-report:
+	@echo "🧪 Running RAG golden suite (extended-tests) ..."
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --tests -q -- test rag_golden_suite_metrics --exact --nocapture
+	@echo "📄 Report: reports/rag_metrics_summary.json"
