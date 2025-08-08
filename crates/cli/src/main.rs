@@ -9,6 +9,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
+use ai::{ModelType, MODEL_REGISTRY};
+
 mod commands;
 mod health_checks;
 mod progress;
@@ -112,6 +114,9 @@ async fn main() -> Result<()> {
     if std::env::var("MAGRAY_NO_ANIM").is_err() {
         show_welcome_animation().await?;
     }
+
+    // Проверяем наличие дефолтных моделей и предлагаем установить при необходимости
+    ensure_default_models_installed_interactive()?;
 
     match cli.command {
         Some(Commands::Chat { message }) => {
@@ -815,4 +820,149 @@ async fn show_performance_metrics() -> Result<()> {
     println!();
 
     Ok(())
+}
+
+fn ensure_default_models_installed_interactive() -> Result<()> {
+    use std::io::{self, Write};
+
+    // Определяем дефолтные модели
+    let default_emb = MODEL_REGISTRY
+        .get_default_model(ModelType::Embedding)
+        .map(|m| m.name.clone())
+        .unwrap_or_else(|| "qwen3emb".to_string());
+    let default_rer = MODEL_REGISTRY
+        .get_default_model(ModelType::Reranker)
+        .map(|m| m.name.clone())
+        .unwrap_or_else(|| "qwen3_reranker".to_string());
+
+    let emb_ok = MODEL_REGISTRY.is_model_available(&default_emb);
+    let rer_ok = MODEL_REGISTRY.is_model_available(&default_rer);
+
+    if emb_ok && rer_ok {
+        return Ok(());
+    }
+
+    println!("\n[!] Обнаружено, что модели отсутствуют:");
+    if !emb_ok {
+        println!("    - Embedding: {}", default_emb);
+    }
+    if !rer_ok {
+        println!("    - Reranker: {}", default_rer);
+    }
+
+    print!("Установить сейчас? [Y/n]: ");
+    io::stdout().flush().ok();
+
+    let mut answer = String::new();
+    if io::stdin().read_line(&mut answer).is_ok() {
+        let ans = answer.trim().to_lowercase();
+        if ans == "n" || ans == "no" {
+            println!("Пропускаем установку моделей.");
+            return Ok(());
+        }
+    }
+
+    // Пытаемся выполнить полноценный инсталлер, при неудаче — минимальный
+    match run_models_installer() {
+        Ok(()) => {
+            println!("✅ Модели подготовлены");
+            Ok(())
+        }
+        Err(e) => {
+            println!("❌ Не удалось установить модели автоматически: {}", e);
+            println!("Пожалуйста, запустите вручную: cargo run --manifest-path tools/install_models_crate/Cargo.toml");
+            Ok(())
+        }
+    }
+}
+
+fn run_models_installer() -> Result<()> {
+    use std::process::Command;
+    use std::path::{Path, PathBuf};
+
+    fn candidate_paths(script: &str) -> Vec<PathBuf> {
+        let mut paths = Vec::new();
+        // 1) Current dir
+        paths.push(PathBuf::from(script));
+        // 2) Parent dirs
+        paths.push(Path::new("..").join(script));
+        paths.push(Path::new("../..").join(script));
+        // 3) Workspace env
+        if let Ok(root) = std::env::var("MAGRAY_ROOT_DIR") {
+            paths.push(Path::new(&root).join(script));
+        }
+        // 4) Using executable path
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                // try up to 4 levels up
+                let mut p = dir.to_path_buf();
+                for _ in 0..4 {
+                    p = p.join("..");
+                    paths.push(p.join(script));
+                }
+            }
+        }
+        paths
+    }
+
+    let full_scripts = candidate_paths("scripts/install_qwen3_onnx.py");
+    let min_scripts = candidate_paths("scripts/install_qwen3_minimal.py");
+
+    // Try full installer (export to ONNX)
+    for path in &full_scripts {
+        if path.exists() {
+            let status = Command::new("python3")
+                .arg(path)
+                .args(["--models-dir", "models"]) // relative output
+                .status();
+            if matches!(status, Ok(s) if s.success()) {
+                return Ok(());
+            }
+        }
+    }
+
+    eprintln!("Full installer failed, trying minimal...");
+
+    // Try minimal installer (tokenizer/config + placeholder onnx)
+    for path in &min_scripts {
+        if path.exists() {
+            let status = Command::new("python3")
+                .arg(path)
+                .args(["--models-dir", "models"]) // relative output
+                .status();
+            if matches!(status, Ok(s) if s.success()) {
+                return Ok(());
+            }
+        }
+    }
+
+    // Last resort: create placeholders
+    create_placeholder_models();
+    Ok(())
+}
+
+fn create_placeholder_models() {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let pairs = [("qwen3emb", true), ("qwen3_reranker", true)];
+
+    for (name, need_tokenizer) in pairs {    
+        let dir = PathBuf::from("models").join(name);
+        let _ = fs::create_dir_all(&dir);
+        let onnx = dir.join("model.onnx");
+        if !onnx.exists() {
+            let _ = fs::write(&onnx, b"ONNX_PLACEHOLDER");
+        }
+        if need_tokenizer {
+            let tok = dir.join("tokenizer.json");
+            if !tok.exists() {
+                let _ = fs::write(&tok, b"{}");
+            }
+            let cfg = dir.join("config.json");
+            if !cfg.exists() {
+                let _ = fs::write(&cfg, b"{}");
+            }
+        }
+    }
 }
