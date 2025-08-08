@@ -18,10 +18,30 @@ use crate::gpu_accelerated::GpuDeviceManager;
 use crate::notifications::NotificationConfig;
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use crate::{ml_promotion::MLPromotionConfig, promotion::PromotionConfig as MLPromotionCfg};
-use crate::{
-    batch_manager::BatchConfig, health::HealthMonitorConfig, streaming::StreamingConfig,
-    types::PromotionConfig, CacheConfigType,
-};
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::batch_manager::BatchConfig;
+use crate::{health::HealthMonitorConfig, streaming::StreamingConfig, types::PromotionConfig, CacheConfigType};
+
+// Fallback BatchConfig when persistence is disabled
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BatchConfig {
+    pub max_batch_size: usize,
+    pub flush_interval_ms: u64,
+}
+
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+impl Default for BatchConfig {
+    fn default() -> Self {
+        Self { max_batch_size: 64, flush_interval_ms: 100 }
+    }
+}
+
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+impl BatchConfig {
+    pub fn production() -> Self { Self { max_batch_size: 512, flush_interval_ms: 50 } }
+    pub fn minimal() -> Self { Self { max_batch_size: 16, flush_interval_ms: 250 } }
+}
 
 /// Типы конфигурации Memory Service
 #[derive(Debug, Clone)]

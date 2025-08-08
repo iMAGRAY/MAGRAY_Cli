@@ -2,7 +2,9 @@ use crate::progress::ProgressBuilder;
 use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 use colored::*;
-use memory::{default_config, Layer, MemoryContext, UnifiedMemoryAPI};
+use memory::{default_config};
+use memory::api::{MemoryContext, UnifiedMemoryAPI, PromotionStats};
+use memory::types::Layer;
 use prettytable::{row, Table};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -134,7 +136,7 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
     struct ApiAdapter(memory::di::UnifiedContainer);
     impl memory::api::MemoryServiceTrait for ApiAdapter {
         fn search_sync(&self, _query: &str, _layer: Layer, _top_k: usize) -> anyhow::Result<Vec<memory::Record>> { Ok(vec![]) }
-        fn run_promotion_sync(&self) -> anyhow::Result<memory::promotion::PromotionStats> { Ok(memory::promotion::PromotionStats::default()) }
+        fn run_promotion_sync(&self) -> anyhow::Result<PromotionStats> { Ok(PromotionStats::default()) }
         fn get_system_health(&self) -> memory::health::SystemHealthStatus { memory::health::SystemHealthStatus::default() }
         fn cache_stats(&self) -> (u64, u64, u64) { (0,0,0) }
         fn remember_sync(&self, _text: String, _layer: Layer) -> anyhow::Result<uuid::Uuid> { Ok(uuid::Uuid::new_v4()) }
@@ -410,7 +412,7 @@ async fn create_backup(api: &UnifiedMemoryAPI, name: Option<String>) -> Result<(
         let _ = api
             .remember(
                 format!("Backup request: {}", backup_name),
-                memory::MemoryContext::new("backup").with_layer(memory::Layer::Assets),
+                MemoryContext::new("backup").with_layer(memory::Layer::Assets),
             )
             .await;
         Ok::<PathBuf, anyhow::Error>(std::path::PathBuf::from(backup_name))

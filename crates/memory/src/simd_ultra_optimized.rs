@@ -25,6 +25,8 @@ use std::time::Instant;
 fn _compat_with_simd_optimized() {
     let _ = crate::simd_optimized::horizontal_sum_avx2_optimized as fn(&[f32]) -> f32;
 }
+#[cfg(not(all(not(feature = "minimal"), feature = "rayon")))]
+fn _compat_with_simd_optimized() {}
 
 /// Ultra-optimized horizontal sum using hadd instructions
 ///
@@ -571,7 +573,10 @@ pub fn benchmark_horizontal_sum_variants(iterations: usize, vector_size: usize) 
                         let v = _mm256_loadu_ps(chunk.as_ptr());
                         acc = _mm256_add_ps(acc, v);
                     }
+                    #[cfg(all(not(feature = "minimal"), feature = "rayon"))]
                     let _result = crate::simd_optimized::horizontal_sum_avx2_optimized(acc);
+                    #[cfg(not(all(not(feature = "minimal"), feature = "rayon")))]
+                    let _result = horizontal_sum_ultra_optimized(acc);
                 }
                 let shuffle_time = start.elapsed().as_nanos() as f64 / iterations as f64;
 

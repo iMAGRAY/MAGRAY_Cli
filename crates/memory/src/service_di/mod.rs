@@ -55,7 +55,14 @@ pub use operation_executor::{
 // DIMemoryService теперь в unified_container.rs
 
 // === Backward Compatibility Types ===
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use crate::batch_manager::BatchStats;
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+#[derive(Default, Debug, Clone, Copy)]
+pub struct BatchStats {
+    pub pending_batches: u64,
+    pub last_flush_ms: u64,
+}
 #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 use crate::gpu_accelerated::BatchProcessorStats;
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]

@@ -217,7 +217,7 @@ impl GpuCommand {
 
             info!("🚀 Создание оптимизированного сервиса...");
             use ai::auto_device_selector::SmartEmbeddingFactory;
-            let (service, decision) = SmartEmbeddingFactory::create_optimized(config).await?
+            let (service, decision) = SmartEmbeddingFactory::create_optimized(config).await?;
 
             info!("✅ Модель оптимизирована!");
             info!(

@@ -5,7 +5,7 @@ use common::OperationTimer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Результат проверки здоровья компонента
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -429,7 +429,8 @@ pub async fn run_health_checks(
     llm_client: Option<Arc<llm::LlmClient>>,
     memory_service: Option<Arc<memory::di::UnifiedContainer>>,
 ) -> Result<()> {
-    let mut health_system = crate::HealthCheckSystem::new();
+    use crate::health_checks::HealthCheckSystem;
+    let mut health_system = HealthCheckSystem::new();
 
     // Добавляем проверки в зависимости от доступных сервисов
     if let Some(llm) = llm_client {
@@ -448,7 +449,7 @@ pub async fn run_health_checks(
 
     // Запускаем все проверки
     info!("Running production health checks...");
-    let results = health_system.run_all_checks().await;
+    let results: Vec<HealthCheckResult> = health_system.run_all_checks().await;
 
     // Выводим результаты
     println!("{}", HealthCheckSystem::format_results(&results));

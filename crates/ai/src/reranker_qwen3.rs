@@ -1,5 +1,6 @@
 use crate::memory_pool::GLOBAL_MEMORY_POOL;
-use crate::RerankingConfig;
+use crate::{ModelLoader, RerankingConfig};
+use crate::tokenization::OptimizedTokenizer;
 #[cfg(feature = "gpu")]
 use crate::{GpuConfig, GpuInfo};
 use anyhow::Result as AnyhowResult;
@@ -47,10 +48,11 @@ pub struct BatchRerankResult {
 impl OptimizedQwen3RerankerService {
     /// Create new optimized Qwen3 reranker service with GPU support
     pub fn new_with_config(config: RerankingConfig) -> AnyhowResult<Self> {
-        let model_path = PathBuf::from(format!(
-            "crates/memory/models/{}/model.onnx",
-            config.model_name
-        ));
+        // Centralized models directory
+        let models_dir = std::env::var("MAGRAY_MODELS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("models"));
+        let model_path = models_dir.join(&config.model_name).join("model.onnx");
         let max_seq_length = config.max_length;
         let batch_size = config.batch_size;
         info!("Initializing OPTIMIZED Qwen3 reranker service");
@@ -155,13 +157,8 @@ impl OptimizedQwen3RerankerService {
         info!("   Inputs: {}", session.inputs.len());
         info!("   Outputs: {}", session.outputs.len());
 
-        // Verify it's the expected Qwen3 model (3 inputs for Qwen3)
-        if session.inputs.len() != 3 {
-            warn!(
-                "Expected 3 inputs for Qwen3 reranker, got {}",
-                session.inputs.len()
-            );
-        }
+        // Qwen3 reranker typically uses input_ids, attention_mask, position_ids
+        // We'll rely on dynamic input inspection during run
 
         Ok(Self {
             session: Arc::new(Mutex::new(session)),
@@ -265,8 +262,10 @@ impl OptimizedQwen3RerankerService {
         let batch_size = documents.len();
         debug!("Processing optimized batch of {} documents", batch_size);
 
-        // Tokenize all query-document pairs in batch
-        let batch_tokenized = self.tokenize_batch(query, documents);
+        // Tokenize all query-document pairs in batch using OptimizedTokenizer
+        let tokenizer = self.create_tokenizer()?;
+        let pairs: Vec<(&str, &str)> = documents.iter().map(|d| (query.as_ref(), d.as_str())).collect();
+        let mut batch_tokenized = tokenizer.encode_batch_pairs(&pairs)?;
 
         // Find maximum sequence length for padding
         let max_len = batch_tokenized
@@ -279,6 +278,9 @@ impl OptimizedQwen3RerankerService {
 
         debug!("Batch max length: {}, padded to: {}", max_len, padded_len);
 
+        // Pad to uniform length
+        tokenizer.pad_batch(&mut batch_tokenized, Some(padded_len))?;
+
         // Use memory pools for batch data
         let total_elements = batch_size * padded_len;
         let mut flat_input_ids = GLOBAL_MEMORY_POOL.get_input_buffer(total_elements);
@@ -289,31 +291,13 @@ impl OptimizedQwen3RerankerService {
         for i in 0..batch_size {
             let input_ids = &batch_tokenized.input_ids[i];
             let attention_mask = &batch_tokenized.attention_masks[i];
-            let position_ids = &batch_tokenized.position_ids[i];
 
-            // Pad to uniform length
-            let actual_len = input_ids.len().min(padded_len);
+            flat_input_ids.extend_from_slice(&input_ids[..padded_len]);
+            flat_attention_masks.extend_from_slice(&attention_mask[..padded_len]);
 
-            // Add padded input_ids
-            flat_input_ids.extend_from_slice(&input_ids[..actual_len]);
-            if actual_len < padded_len {
-                flat_input_ids.extend(vec![1i64; padded_len - actual_len]); // PAD token
-            }
-
-            // Add padded attention_mask
-            flat_attention_masks.extend_from_slice(&attention_mask[..actual_len]);
-            if actual_len < padded_len {
-                flat_attention_masks.extend(vec![0i64; padded_len - actual_len]);
-                // Ignore padded positions
-            }
-
-            // Add padded position_ids
-            flat_position_ids.extend_from_slice(&position_ids[..actual_len]);
-            if actual_len < padded_len {
-                // Continue position sequence for padding
-                for pos in actual_len..padded_len {
-                    flat_position_ids.push(pos as i64);
-                }
+            // Compute position ids [0..padded_len)
+            for pos in 0..padded_len {
+                flat_position_ids.push(pos as i64);
             }
         }
 
@@ -358,67 +342,14 @@ impl OptimizedQwen3RerankerService {
         Ok(results)
     }
 
-    /// Tokenize query with multiple documents in batch
-    fn tokenize_batch(&self, query: &str, documents: &[String]) -> BatchTokenizedPairs {
-        let mut batch_input_ids = Vec::with_capacity(documents.len());
-        let mut batch_attention_masks = Vec::with_capacity(documents.len());
-        let mut batch_position_ids = Vec::with_capacity(documents.len());
-
-        for document in documents {
-            let (input_ids, attention_mask, position_ids) =
-                self.tokenize_pair_optimized(query, document);
-
-            batch_input_ids.push(input_ids);
-            batch_attention_masks.push(attention_mask);
-            batch_position_ids.push(position_ids);
-        }
-
-        BatchTokenizedPairs {
-            input_ids: batch_input_ids,
-            attention_masks: batch_attention_masks,
-            position_ids: batch_position_ids,
-        }
-    }
-
-    /// Optimized tokenization for query-document pairs with memory pooling
-    fn tokenize_pair_optimized(
-        &self,
-        query: &str,
-        document: &str,
-    ) -> (Vec<i64>, Vec<i64>, Vec<i64>) {
-        // Use memory pools for tokenization buffers
-        let mut query_tokens = GLOBAL_MEMORY_POOL.get_input_buffer(128);
-        let mut doc_tokens = GLOBAL_MEMORY_POOL.get_input_buffer(256);
-
-        // Simple hash-based tokenization (can be replaced with real tokenizer later)
-        for word in query.split_whitespace().take(128) {
-            let word_hash = word.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
-            query_tokens.push((word_hash % 30000 + 1000) as i64);
-        }
-
-        for word in document.split_whitespace().take(256) {
-            let word_hash = word.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
-            doc_tokens.push((word_hash % 30000 + 1000) as i64);
-        }
-
-        // Create combined input: [CLS] query [SEP] document
-        let mut input_ids = vec![0i64]; // CLS token
-        input_ids.extend_from_slice(&query_tokens);
-        input_ids.push(2i64); // SEP token
-        input_ids.extend_from_slice(&doc_tokens);
-
-        // Truncate if too long
-        if input_ids.len() > self.max_seq_length {
-            input_ids.truncate(self.max_seq_length);
-        }
-
-        let seq_len = input_ids.len();
-        let attention_mask = vec![1i64; seq_len];
-        let position_ids: Vec<i64> = (0..seq_len as i64).collect();
-
-        // Buffers are automatically returned to pool via Drop trait
-
-        (input_ids, attention_mask, position_ids)
+    fn create_tokenizer(&self) -> AnyhowResult<OptimizedTokenizer> {
+        // Derive tokenizer path using ModelLoader to handle variants
+        let models_dir = std::env::var("MAGRAY_MODELS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("models"));
+        let loader = ModelLoader::new(&models_dir)?;
+        let tokenizer_path = loader.get_tokenizer_path("qwen3_reranker");
+        OptimizedTokenizer::new(tokenizer_path, self.max_seq_length)
     }
 
     /// Extract scores from batch outputs

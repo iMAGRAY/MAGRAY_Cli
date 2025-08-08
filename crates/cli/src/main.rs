@@ -157,10 +157,7 @@ async fn main() -> Result<()> {
         Some(Commands::Health) => {
             // Инициализируем сервисы для health check
             let llm_client = LlmClient::from_env().ok().map(Arc::new);
-            // Создаем базовую конфигурацию памяти для health check (минимальная совместимая)
-            let _legacy_config = memory::di::LegacyMemoryConfig::default();
-            let memory_service: Option<memory::di::UnifiedContainer> = None;
-                .map(Arc::new);
+            let memory_service: Option<Arc<memory::di::UnifiedContainer>> = None;
 
             health_checks::run_health_checks(llm_client, memory_service).await?;
         }
@@ -606,31 +603,12 @@ async fn show_goodbye_animation() -> Result<()> {
 
 async fn show_system_status() -> Result<()> {
     use colored::Colorize;
-    use memory::DIMemoryService as MemoryService;
-    use std::sync::Arc;
     use tracing::{info, warn};
 
     let spinner = progress::ProgressBuilder::fast("Checking system status...");
 
-    // Безопасная проверка состояния памяти в минимальной сборке
-    let legacy_config = memory::di::LegacyMemoryConfig::default();
-    let memory_status = match tokio::time::timeout(Duration::from_secs(5), MemoryService::new(legacy_config)).await {
-        Ok(Ok(service)) => {
-            let service = Arc::new(service);
-            let status = service.check_health().await.ok();
-            let health_str = match status {
-                Some(s) if s.healthy => "healthy".to_string(),
-                Some(_) => "degraded".to_string(),
-                None => "error".to_string(),
-            };
-            Some((health_str, 0, 0.0))
-        }
-        Ok(Err(e)) => {
-            warn!("⚠️ Memory service init error: {}", e);
-            Some(("error".to_string(), 0, 0.0))
-        }
-        Err(_) => Some(("timeout".to_string(), 0, 0.0)),
-    };
+    // В текущем профиле memory сервис не инициализируем напрямую
+    let memory_status: Option<(String, usize, f64)> = None;
 
     // Проверяем LLM соединение
     let llm_status = match LlmClient::from_env() {

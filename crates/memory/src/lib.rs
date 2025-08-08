@@ -105,7 +105,7 @@ pub mod utils;
 pub use batch_optimized::{
     AlignedBatchVectors, BatchOptimizedConfig, BatchOptimizedProcessor, BatchOptimizedStats,
 };
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub use batch_manager::{BatchConfig, BatchOperationBuilder, BatchOperationManager, BatchStats};
 #[cfg(not(feature = "minimal"))]
 pub use cache_lru::{

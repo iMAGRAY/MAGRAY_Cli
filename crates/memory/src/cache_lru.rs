@@ -659,7 +659,7 @@ impl EmbeddingCacheLRU {
         };
 
         let mut expired_count = 0;
-        let mut keys_to_remove = Vec::new();
+        let mut keys_to_remove: Vec<Vec<u8>> = Vec::new();
 
         #[cfg(feature = "persistence")]
         for item in self.db.iter() {
