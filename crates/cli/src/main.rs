@@ -121,73 +121,92 @@ async fn main() -> Result<()> {
     // Проверяем доступность ONNX Runtime и предлагаем установить
     ensure_ort_installed_interactive()?;
 
-    match cli.command {
-        Some(Commands::Chat { message }) => {
-            handle_chat(message).await?;
-        }
-        Some(Commands::Read { path }) => {
-            let agent = create_unified_agent_v2().await?;
-            let message = format!("прочитай файл {path}");
-            let response = process_agent_message(&agent, &message).await?;
-            display_response(response).await;
-        }
-        Some(Commands::Write { path, content }) => {
-            let agent = create_unified_agent_v2().await?;
-            let message = format!("создай файл {path} с содержимым: {content}");
-            let response = process_agent_message(&agent, &message).await?;
-            display_response(response).await;
-        }
-        Some(Commands::List { path }) => {
-            let agent = create_unified_agent_v2().await?;
-            let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
-            let response = process_agent_message(&agent, &message).await?;
-            display_response(response).await;
-        }
-        Some(Commands::Tool { action }) => {
-            let agent = create_unified_agent_v2().await?;
-            let response = process_agent_message(&agent, &action).await?;
-            display_response(response).await;
-        }
-        Some(Commands::Smart(cmd)) => {
-            cmd.execute().await?;
-        }
-        Some(Commands::Gpu(gpu_command)) => {
-            gpu_command.execute().await?;
-        }
-        // Some(Commands::Memory(memory_command)) => {
-        //     commands::memory::handle_memory_command(memory_command).await?;
-        // }
-        Some(Commands::Health) => {
-            // Инициализируем сервисы для health check
-            let llm_client = LlmClient::from_env().ok().map(Arc::new);
-            let memory_service: Option<Arc<memory::di::UnifiedContainer>> = None;
+    // Глобальный таймаут на выполнение команды (по умолчанию 300с)
+    let top_timeout_secs: u64 = std::env::var("MAGRAY_CMD_TIMEOUT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(300);
 
-            health_checks::run_health_checks(llm_client, memory_service).await?;
+    use tokio::time::{timeout, Duration};
+
+    let exec_fut = async {
+        match cli.command {
+            Some(Commands::Chat { message }) => {
+                handle_chat(message).await?
+            }
+            Some(Commands::Read { path }) => {
+                let agent = create_unified_agent_v2().await?;
+                let message = format!("прочитай файл {path}");
+                let response = process_agent_message(&agent, &message).await?;
+                display_response(response).await;
+            }
+            Some(Commands::Write { path, content }) => {
+                let agent = create_unified_agent_v2().await?;
+                let message = format!("создай файл {path} с содержимым: {content}");
+                let response = process_agent_message(&agent, &message).await?;
+                display_response(response).await;
+            }
+            Some(Commands::List { path }) => {
+                let agent = create_unified_agent_v2().await?;
+                let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
+                let response = process_agent_message(&agent, &message).await?;
+                display_response(response).await;
+            }
+            Some(Commands::Tool { action }) => {
+                let agent = create_unified_agent_v2().await?;
+                let response = process_agent_message(&agent, &action).await?;
+                display_response(response).await;
+            }
+            Some(Commands::Smart(cmd)) => {
+                cmd.execute().await?;
+            }
+            Some(Commands::Gpu(gpu_command)) => {
+                // Локальный таймаут 300с
+                timeout(Duration::from_secs(300), gpu_command.execute()).await.map_err(|_| anyhow::anyhow!("GPU command timeout"))??;
+            }
+            Some(Commands::Memory(cmd)) => {
+                timeout(Duration::from_secs(180), cmd.execute()).await.map_err(|_| anyhow::anyhow!("Memory command timeout"))??;
+            }
+            Some(Commands::Models(cmd)) => {
+                timeout(Duration::from_secs(120), cmd.execute()).await.map_err(|_| anyhow::anyhow!("Models command timeout"))??;
+            }
+            Some(Commands::Tasks(cmd)) => {
+                timeout(Duration::from_secs(180), cmd.execute()).await.map_err(|_| anyhow::anyhow!("Tasks command timeout"))??;
+            }
+            Some(Commands::Health) => {
+                // Инициализируем сервисы для health check
+                let llm_client = LlmClient::from_env().ok().map(Arc::new);
+                let memory_service: Option<Arc<memory::di::UnifiedContainer>> = None;
+
+                timeout(Duration::from_secs(60), health_checks::run_health_checks(llm_client, memory_service))
+                    .await
+                    .map_err(|_| anyhow::anyhow!("Health checks timeout"))??;
+            }
+            Some(Commands::Status) => {
+                timeout(Duration::from_secs(60), show_system_status()).await.map_err(|_| anyhow::anyhow!("Status command timeout"))??;
+            }
+            Some(Commands::LlmStatus) => {
+                timeout(Duration::from_secs(60), show_llm_status()).await.map_err(|_| anyhow::anyhow!("LLM status timeout"))??;
+            }
+            Some(Commands::Performance) => {
+                timeout(Duration::from_secs(120), show_performance_metrics()).await.map_err(|_| anyhow::anyhow!("Performance command timeout"))??;
+            }
+            Some(Commands::Tools(cmd)) => {
+                timeout(Duration::from_secs(300), cmd.execute()).await.map_err(|_| anyhow::anyhow!("Tools command timeout"))??;
+            }
+            None => {
+                // По умолчанию показываем помощь
+                println!("{}", Cli::command().render_long_help());
+            }
         }
-        Some(Commands::Memory(cmd)) => {
-            cmd.execute().await?;
-        }
-        Some(Commands::Models(cmd)) => {
-            cmd.execute().await?;
-        }
-        Some(Commands::Tasks(cmd)) => {
-            cmd.execute().await?;
-        }
-        Some(Commands::Status) => {
-            show_system_status().await?;
-        }
-        Some(Commands::LlmStatus) => {
-            show_llm_status().await?;
-        }
-        Some(Commands::Performance) => {
-            show_performance_metrics().await?;
-        }
-        Some(Commands::Tools(cmd)) => {
-            cmd.execute().await?;
-        }
-        None => {
-            // По умолчанию показываем помощь
-            println!("{}", Cli::command().render_long_help());
+        Ok::<(), anyhow::Error>(())
+    };
+
+    match timeout(Duration::from_secs(top_timeout_secs), exec_fut).await {
+        Ok(res) => res?,
+        Err(_) => {
+            eprintln!("[✗] Команда превысила общий таймаут {}с", top_timeout_secs);
+            return Err(anyhow::anyhow!("Global command timeout"));
         }
     }
 
@@ -912,28 +931,66 @@ fn run_models_installer() -> Result<()> {
     let full_scripts = candidate_paths("scripts/install_qwen3_onnx.py");
     let min_scripts = candidate_paths("scripts/install_qwen3_minimal.py");
 
-    // Try full installer (export to ONNX)
+    // Try full installer (export to ONNX) with timeout
     for path in &full_scripts {
         if path.exists() {
-            let status = Command::new("python3")
+            let status = std::process::Command::new("python3")
                 .arg(path)
                 .args(["--models-dir", "models"]) // relative output
-                .status();
+                .env("PYTHONUNBUFFERED", "1")
+                .spawn()
+                .and_then(|mut child| {
+                    // wait with timeout 600s
+                    let start = std::time::Instant::now();
+                    let timeout = std::time::Duration::from_secs(600);
+                    loop {
+                        match child.try_wait()? {
+                            Some(status) => break Ok(status),
+                            None => {
+                                if start.elapsed() > timeout {
+                                    let _ = child.kill();
+                                    // wait for process to exit and return its status (likely non-success)
+                                    let status = child.wait()?;
+                                    break Ok(status);
+                                }
+                                std::thread::sleep(std::time::Duration::from_millis(200));
+                            }
+                        }
+                    }
+                });
             if matches!(status, Ok(s) if s.success()) {
                 return Ok(());
             }
         }
     }
 
-    eprintln!("Full installer failed, trying minimal...");
+    eprintln!("Full installer failed or timed out, trying minimal...");
 
-    // Try minimal installer (tokenizer/config + placeholder onnx)
+    // Try minimal installer (tokenizer/config + placeholder onnx) with timeout
     for path in &min_scripts {
         if path.exists() {
             let status = Command::new("python3")
                 .arg(path)
-                .args(["--models-dir", "models"]) // relative output
-                .status();
+                .args(["--models-dir", "models"]) // prepare placeholders
+                .env("PYTHONUNBUFFERED", "1")
+                .spawn()
+                .and_then(|mut child| {
+                    let start = std::time::Instant::now();
+                    let timeout = std::time::Duration::from_secs(300);
+                    loop {
+                        match child.try_wait()? {
+                            Some(status) => break Ok(status),
+                            None => {
+                                if start.elapsed() > timeout {
+                                    let _ = child.kill();
+                                    let status = child.wait()?;
+                                    break Ok(status);
+                                }
+                                std::thread::sleep(std::time::Duration::from_millis(200));
+                            }
+                        }
+                    }
+                });
             if matches!(status, Ok(s) if s.success()) {
                 return Ok(());
             }
