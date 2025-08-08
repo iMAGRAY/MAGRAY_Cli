@@ -121,7 +121,8 @@ mod simple_engine {
             record.score = 0.0;
             self.records.write().push(StoredRecord { record: record.clone(), embedding: emb });
             // fire event (non-blocking publish with timeout inside)
-            let _ = MEMORY_EVENT_BUS.publish(Topic("memory.upsert"), MemoryEventPayload::Remember { id: record.id, layer: record.layer });
+            let payload = MemoryEventPayload::Remember { id: record.id, layer: record.layer };
+            tokio::spawn(MEMORY_EVENT_BUS.publish(Topic("memory.upsert"), payload));
             Ok(record.id)
         }
 
@@ -177,7 +178,8 @@ mod simple_engine {
             let returned = out.len().min(top_k);
             out.truncate(top_k);
             // fire event with summary
-            let _ = MEMORY_EVENT_BUS.publish(Topic("memory.search"), MemoryEventPayload::Search { query: query.to_string(), layer, results: returned });
+            let payload = MemoryEventPayload::Search { query: query.to_string(), layer, results: returned };
+            tokio::spawn(MEMORY_EVENT_BUS.publish(Topic("memory.search"), payload));
             Ok(out)
         }
 
@@ -729,5 +731,48 @@ impl SearchOptions {
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = Some(limit);
         self
+    }
+}
+
+#[cfg(all(test, feature = "embeddings"))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn emits_events_on_remember_and_search() {
+        if std::env::var("ORT_DYLIB_PATH").is_err() {
+            eprintln!("Skipping memory event test: ORT_DYLIB_PATH not set");
+            return;
+        }
+        use crate::types::Layer;
+        // Subscribe before actions
+        let mut rx_upsert = simple_engine::MEMORY_EVENT_BUS.subscribe(Topic("memory.upsert")).await;
+        let mut rx_search = simple_engine::MEMORY_EVENT_BUS.subscribe(Topic("memory.search")).await;
+
+        // Use public API to trigger events
+        let api = UnifiedMemoryAPI::new(Arc::new(DIMemoryService::new()));
+        let _id = api
+            .remember("event bus note".to_string(), MemoryContext::new("note").with_layer(Layer::Insights))
+            .await
+            .expect("remember ok");
+
+        // await upsert event (tolerate lag)
+        let upsert = tokio::time::timeout(std::time::Duration::from_secs(2), rx_upsert.recv())
+            .await
+            .expect("upsert timeout")
+            .expect("upsert recv");
+        assert_eq!(upsert.topic.0, "memory.upsert");
+
+        // Trigger search
+        let _ = api
+            .recall("note" , SearchOptions::default().in_layers(vec![Layer::Insights]).limit(1))
+            .await
+            .expect("recall ok");
+
+        let search = tokio::time::timeout(std::time::Duration::from_secs(2), rx_search.recv())
+            .await
+            .expect("search timeout")
+            .expect("search recv");
+        assert_eq!(search.topic.0, "memory.search");
     }
 }
