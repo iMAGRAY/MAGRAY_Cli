@@ -363,49 +363,8 @@ impl OptimizedQwen3RerankerService {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
 
-                // Qwen3 reranker outputs logits [batch_size, seq_len, vocab_size]
-                if shape_vec.len() == 3 && shape_vec[0] == batch_size as i64 {
-                    let seq_len = shape_vec[1] as usize;
-                    let vocab_size = shape_vec[2] as usize;
-
-                    debug!(
-                        "Extracting scores from batch output: [{}, {}, {}]",
-                        batch_size, seq_len, vocab_size
-                    );
-
-                    let mut scores = Vec::with_capacity(batch_size);
-
-                    // Extract score for each item in batch
-                    for batch_idx in 0..batch_size {
-                        let batch_offset = batch_idx * seq_len * vocab_size;
-                        let last_token_start = batch_offset + (seq_len - 1) * vocab_size;
-
-                        if last_token_start + 100 < data.len() {
-                            // Take average of some logits as proxy score
-                            let mut sum = 0.0f32;
-                            for i in 0..100 {
-                                sum += data[last_token_start + i];
-                            }
-                            let score = (sum / 100.0).tanh(); // Normalize to [-1, 1] range
-                            scores.push(score);
-                        } else {
-                            scores.push(0.0); // Fallback score
-                        }
-                    }
-
-                    debug!("Extracted {} batch scores", scores.len());
+                if let Some(scores) = try_extract_scores_from_shape_and_data(batch_size, &shape_vec, data) {
                     return Ok(scores);
-                } else if shape_vec.len() == 2 && shape_vec[0] == batch_size as i64 {
-                    // Direct score outputs [batch_size, num_classes]
-                    if shape_vec[1] == 1 {
-                        // Single score per batch item
-                        let scores: Vec<f32> = (0..batch_size).map(|i| data[i]).collect();
-                        return Ok(scores);
-                    } else if shape_vec[1] == 2 {
-                        // Binary classification logits [negative, positive]
-                        let scores: Vec<f32> = (0..batch_size).map(|i| data[i * 2 + 1]).collect(); // Take positive scores
-                        return Ok(scores);
-                    }
                 }
             }
         }
@@ -414,51 +373,77 @@ impl OptimizedQwen3RerankerService {
             "Could not extract batch reranking scores from model outputs"
         ))
     }
+}
 
-    /// Single document reranking (fallback for compatibility)
-    pub fn rerank(
-        &self,
-        query: &str,
-        documents: &[String],
-        top_k: Option<usize>,
-    ) -> AnyhowResult<Vec<OptimizedRerankResult>> {
-        let batch = RerankBatch {
-            query: query.to_string(),
-            documents: documents.to_vec(),
-            top_k,
-        };
+/// Pure helper: extract scores from a tensor described by shape and flat data
+pub(crate) fn try_extract_scores_from_shape_and_data(
+    batch_size: usize,
+    shape_vec: &[i64],
+    data: &[f32],
+) -> Option<Vec<f32>> {
+    // 3D logits [batch_size, seq_len, vocab_size]
+    if shape_vec.len() == 3 && shape_vec[0] == batch_size as i64 {
+        let seq_len = shape_vec[1] as usize;
+        let vocab_size = shape_vec[2] as usize;
+        if seq_len == 0 || vocab_size == 0 {
+            return None;
+        }
 
-        let batch_result = self.rerank_batch(&batch)?;
-        Ok(batch_result.results)
+        let mut scores = Vec::with_capacity(batch_size);
+        for batch_idx in 0..batch_size {
+            let batch_offset = batch_idx * seq_len * vocab_size;
+            let last_token_start = batch_offset + (seq_len.saturating_sub(1)) * vocab_size;
+            if last_token_start + 100 < data.len() {
+                let mut sum = 0.0f32;
+                for i in 0..100 {
+                    sum += data[last_token_start + i];
+                }
+                let score = (sum / 100.0).tanh();
+                scores.push(score);
+            } else {
+                scores.push(0.0);
+            }
+        }
+        return Some(scores);
     }
 
-    /// Get service statistics including memory pool stats
-    pub fn get_stats(&self) -> RerankServiceStats {
-        RerankServiceStats {
-            model_name: "qwen3-optimized".to_string(),
-            max_seq_length: self.max_seq_length,
-            batch_size: self.batch_size,
-            optimization_level: "Level3+MemoryPool+Batch".to_string(),
+    // 2D logits [batch_size, num_classes]
+    if shape_vec.len() == 2 && shape_vec[0] == batch_size as i64 {
+        let num_classes = shape_vec[1] as usize;
+        if num_classes == 1 {
+            let mut out = Vec::with_capacity(batch_size);
+            for i in 0..batch_size {
+                out.push(data.get(i).copied().unwrap_or(0.0));
+            }
+            return Some(out);
+        } else if num_classes == 2 {
+            let mut out = Vec::with_capacity(batch_size);
+            for i in 0..batch_size {
+                let idx = i * 2 + 1;
+                out.push(data.get(idx).copied().unwrap_or(0.0));
+            }
+            return Some(out);
         }
     }
 
-    /// Get memory pool statistics
-    pub fn get_pool_stats(&self) -> crate::memory_pool::PoolStats {
-        GLOBAL_MEMORY_POOL.get_stats()
-    }
-
-    /// Check if model is available
-    pub fn is_available(&self) -> bool {
-        self.model_path.exists()
-    }
+    None
 }
 
-/// Batch tokenized pairs
-#[derive(Debug)]
-struct BatchTokenizedPairs {
-    pub input_ids: Vec<Vec<i64>>,
-    pub attention_masks: Vec<Vec<i64>>,
-    pub position_ids: Vec<Vec<i64>>,
+/// Single document reranking (fallback for compatibility)
+pub fn rerank(
+    query: &str,
+    documents: &[String],
+    top_k: Option<usize>,
+) -> AnyhowResult<Vec<OptimizedRerankResult>> {
+    let batch = RerankBatch {
+        query: query.to_string(),
+        documents: documents.to_vec(),
+        top_k,
+    };
+
+    let service = OptimizedQwen3RerankerService::new(PathBuf::from("test_models/qwen3_reranker/model.onnx"), 512, 8)?;
+    let batch_result = service.rerank_batch(&batch)?;
+    Ok(batch_result.results)
 }
 
 /// Service statistics
@@ -511,5 +496,61 @@ mod tests {
         assert_eq!(batch.documents.len(), 3);
         assert_eq!(batch.top_k, Some(2));
         assert!(!batch.query.is_empty());
+    }
+
+    #[test]
+    fn test_try_extract_scores_3d_small_shape_returns_zero() {
+        // Shape [2, 3, 4] -> len(data)=24; last_token_start+100 will exceed len => zeros
+        let batch = 2usize;
+        let shape = [2i64, 3, 4];
+        let data = vec![0.5f32; (2 * 3 * 4) as usize];
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data).unwrap();
+        assert_eq!(scores.len(), 2);
+        assert_eq!(scores[0], 0.0);
+        assert_eq!(scores[1], 0.0);
+    }
+
+    #[test]
+    fn test_try_extract_scores_3d_large_shape_averages_and_tanh() {
+        // Shape [1, 2, 200] -> len=400; last_token_start=200; avg of next 100 values
+        let batch = 1usize;
+        let shape = [1i64, 2, 200];
+        let mut data = vec![0.0f32; (1 * 2 * 200) as usize];
+        // Fill last 100 values starting at 200 with 0..100
+        for i in 0..100usize {
+            data[200 + i] = i as f32;
+        }
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data).unwrap();
+        assert_eq!(scores.len(), 1);
+        // Average of 0..99 = 49.5, tanh(49.5) ~ 1.0
+        assert!(scores[0] > 0.99);
+    }
+
+    #[test]
+    fn test_try_extract_scores_2d_single_class() {
+        let batch = 3usize;
+        let shape = [3i64, 1];
+        let data = vec![0.1f32, 0.2, 0.3];
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data).unwrap();
+        assert_eq!(scores, vec![0.1, 0.2, 0.3]);
+    }
+
+    #[test]
+    fn test_try_extract_scores_2d_binary_class() {
+        let batch = 3usize;
+        let shape = [3i64, 2];
+        // [neg,pos] per row
+        let data = vec![0.0f32, 0.5, 0.2, 0.7, -0.1, 0.9];
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data).unwrap();
+        assert_eq!(scores, vec![0.5, 0.7, 0.9]);
+    }
+
+    #[test]
+    fn test_try_extract_scores_none_for_mismatched_shape() {
+        let batch = 2usize;
+        let shape = [2i64, 3, 0]; // invalid vocab size
+        let data = vec![0.0f32; 0];
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data);
+        assert!(scores.is_none());
     }
 }
