@@ -842,6 +842,22 @@ fn ensure_default_models_installed_interactive() -> Result<()> {
         return Ok(());
     }
 
+    // ENV overrides for non-interactive/CI
+    let auto_env = std::env::var("MAGRAY_AUTO_INSTALL_MODELS").unwrap_or_default();
+    let ci_env = std::env::var("CI").unwrap_or_default();
+
+    let mut auto_choice: Option<bool> = None; // Some(true)=yes, Some(false)=no
+    match auto_env.to_lowercase().as_str() {
+        "1" | "true" | "yes" | "y" => auto_choice = Some(true),
+        "0" | "false" | "no" | "n" => auto_choice = Some(false),
+        _ => {}
+    }
+
+    if auto_choice.is_none() && !ci_env.is_empty() {
+        // В CI по умолчанию пытаемся установить без вопросов
+        auto_choice = Some(true);
+    }
+
     println!("\n[!] Обнаружено, что модели отсутствуют:");
     if !emb_ok {
         println!("    - Embedding: {}", default_emb);
@@ -850,16 +866,23 @@ fn ensure_default_models_installed_interactive() -> Result<()> {
         println!("    - Reranker: {}", default_rer);
     }
 
-    print!("Установить сейчас? [Y/n]: ");
-    io::stdout().flush().ok();
-
-    let mut answer = String::new();
-    if io::stdin().read_line(&mut answer).is_ok() {
-        let ans = answer.trim().to_lowercase();
-        if ans == "n" || ans == "no" {
-            println!("Пропускаем установку моделей.");
-            return Ok(());
+    let install = if let Some(choice) = auto_choice {
+        choice
+    } else {
+        print!("Установить сейчас? [Y/n]: ");
+        io::stdout().flush().ok();
+        let mut answer = String::new();
+        if io::stdin().read_line(&mut answer).is_ok() {
+            let ans = answer.trim().to_lowercase();
+            !(ans == "n" || ans == "no")
+        } else {
+            true // по умолчанию да
         }
+    };
+
+    if !install {
+        println!("Пропускаем установку моделей.");
+        return Ok(());
     }
 
     // Пытаемся выполнить полноценный инсталлер, при неудаче — минимальный
