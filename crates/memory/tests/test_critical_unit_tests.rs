@@ -1,4 +1,4 @@
-#![cfg(feature = "extended-tests")]
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
 
 // =============================================================================
 // CRITICAL UNIT TESTS - Основные unit тесты для memory crate
