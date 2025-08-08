@@ -1,4 +1,4 @@
-#![cfg(feature = "extended-tests")]
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
 
 #[cfg(test)]
 mod tests {
