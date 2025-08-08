@@ -31,6 +31,8 @@ pub struct PromotionStats {
 mod simple_engine {
     use super::*;
     use ai::{CpuEmbeddingService, EmbeddingConfig};
+    #[cfg(feature = "reranking")]
+    use ai::{OptimizedQwen3RerankerService, RerankBatch, RerankingConfig};
     use parking_lot::RwLock;
     use std::sync::OnceLock;
 
@@ -42,6 +44,8 @@ mod simple_engine {
 
     pub struct SimpleMemoryEngine {
         embedding_service: Option<CpuEmbeddingService>,
+        #[cfg(feature = "reranking")]
+        reranker: Option<OptimizedQwen3RerankerService>,
         records: RwLock<Vec<StoredRecord>>,
         embedding_dim: usize,
     }
@@ -64,8 +68,22 @@ mod simple_engine {
                 let embedding_service = CpuEmbeddingService::new(cfg).ok();
                 let embedding_dim = 1024;
 
+                #[cfg(feature = "reranking")]
+                let reranker = {
+                    let rcfg = RerankingConfig {
+                        model_name: "qwen3_reranker".to_string(),
+                        batch_size: 32,
+                        max_length: 512,
+                        use_gpu: false,
+                        gpu_config: None,
+                    };
+                    OptimizedQwen3RerankerService::new_with_config(rcfg).ok()
+                };
+
                 SimpleMemoryEngine {
                     embedding_service,
+                    #[cfg(feature = "reranking")]
+                    reranker,
                     records: RwLock::new(Vec::new()),
                     embedding_dim,
                 }
@@ -100,6 +118,7 @@ mod simple_engine {
                 None => self.mock_embed(query),
             };
 
+            // First-stage ANN by cosine on embeddings
             let mut scored: Vec<(f32, Record)> = self
                 .records
                 .read()
@@ -109,11 +128,41 @@ mod simple_engine {
                 .collect();
 
             scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-            scored.truncate(top_k);
+            // Take a wider beam for reranking if available
+            let beam = top_k.max(16).min(scored.len());
+            scored.truncate(beam);
+
+            // Optional second-stage reranking
+            #[cfg(feature = "reranking")]
+            if let Some(reranker) = &self.reranker {
+                let documents: Vec<String> = scored.iter().map(|(_, r)| r.text.clone()).collect();
+                if !documents.is_empty() {
+                    let batch = RerankBatch { query: query.to_string(), documents, top_k: Some(top_k) };
+                    if let Ok(reranked) = reranker.rerank_batch(&batch) {
+                        // Map back according to returned order (top_k applied inside)
+                        let mut new_order = Vec::with_capacity(reranked.results.len());
+                        for item in reranked.results {
+                            // item.index corresponds to position in 'documents'
+                            if let Some((s, r)) = scored.get(item.index) {
+                                let mut rr = r.clone();
+                                rr.score = item.score;
+                                new_order.push((item.score, rr));
+                            }
+                        }
+                        if !new_order.is_empty() {
+                            scored = new_order;
+                        }
+                    }
+                }
+            }
+
             for (s, r) in scored.iter_mut() {
                 r.score = *s;
             }
-            Ok(scored.into_iter().map(|(_, r)| r).collect())
+            // Return top_k finally
+            let mut out: Vec<Record> = scored.into_iter().map(|(_, r)| r).collect();
+            out.truncate(top_k);
+            Ok(out)
         }
 
         fn cosine(&self, a: &[f32], b: &[f32]) -> f32 {
