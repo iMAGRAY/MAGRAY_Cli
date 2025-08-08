@@ -222,3 +222,19 @@ coverage-full:
 	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
 	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --engine llvm --features="cpu,extended-tests" --timeout 600 --out Html
 	@echo "✅ Coverage report: tarpaulin-report.html"
+
+ci-local-fast:
+	@echo "🏃 CI-local: fast cpu tests"
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features=cpu --no-fail-fast --quiet
+
+ci-local-extended:
+	@echo "🏃 CI-local: extended cpu tests"
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --no-fail-fast --quiet
+
+ci-local-persistence:
+	@echo "🏃 CI-local: persistence suite"
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,persistence,extended-tests" --no-fail-fast --quiet
+
+ci-local-gpu:
+	@echo "🏃 CI-local: gpu extended (if available)"
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="gpu,extended-tests" --no-fail-fast --quiet || true
