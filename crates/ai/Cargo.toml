@@ -29,6 +29,9 @@ openvino = ["ort/openvino"]
 # API integrations
 openai = ["reqwest", "futures-util"]
 
+# Tests feature to include extended/slow suites
+extended-tests = []
+
 [dependencies]
 # Internal dependencies
 common = { path = "../common" }

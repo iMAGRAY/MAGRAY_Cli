@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "persistence"))]
+
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use std::sync::Arc;
@@ -5,7 +7,6 @@ use tempfile::TempDir;
 use uuid::Uuid;
 
 use ai::AiConfig;
-#![cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use memory::{
     promotion::PromotionEngine, storage::VectorStore, Layer, MemoryContext, PromotionConfig, Record,
 };

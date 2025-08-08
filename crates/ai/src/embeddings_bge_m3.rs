@@ -236,6 +236,10 @@ mod tests {
 
     #[test]
     fn test_bge_m3_service_creation() {
+        if std::env::var("ORT_DYLIB_PATH").is_err() {
+            eprintln!("Skipping bge-m3 test: ORT_DYLIB_PATH not set");
+            return;
+        }
         let model_path = PathBuf::from("test_models/bge-m3/model.onnx");
         // This test will fail without actual model, but shows the API
         match BgeM3EmbeddingService::new(model_path) {
@@ -251,6 +255,10 @@ mod tests {
 
     #[test]
     fn test_xlmroberta_tokenization() {
+        if std::env::var("ORT_DYLIB_PATH").is_err() {
+            eprintln!("Skipping xlmroberta test: ORT_DYLIB_PATH not set");
+            return;
+        }
         // This test would require actual tokenizer file
         // Just verify that the service expects proper tokenizer now
         let model_path = PathBuf::from("test_models/bge-m3/model.onnx");

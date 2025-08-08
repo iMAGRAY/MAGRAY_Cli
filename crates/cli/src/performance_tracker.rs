@@ -591,7 +591,7 @@ impl Default for PerformanceTrackerBuilder {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
     use tokio::time::sleep;

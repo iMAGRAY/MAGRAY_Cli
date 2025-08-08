@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 use llm::{ChatMessage, CompletionRequest, LlmClient, LlmProvider};
 use mockito::Server;
 

@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 //! Comprehensive SIMD Optimization Benchmark
 //!
 //! Сравнивает производительность различных SIMD реализаций cosine distance

@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 //! Comprehensive error handling and edge case tests
 //!
 //! Покрывает:

@@ -3,6 +3,10 @@ name = "domain"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+extended-tests = []
+
 [dependencies]
 # Core dependencies - ONLY pure Rust, no external system dependencies
 anyhow.workspace = true

@@ -476,6 +476,10 @@ mod tests {
 
     #[test]
     fn test_optimized_reranker_creation() {
+        if std::env::var("ORT_DYLIB_PATH").is_err() {
+            eprintln!("Skipping reranker test: ORT_DYLIB_PATH not set");
+            return;
+        }
         let model_path = PathBuf::from("test_models/qwen3_reranker/model.onnx");
 
         match OptimizedQwen3RerankerService::new(model_path, 512, 8) {

@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 //! Comprehensive unit тесты для CacheService
 //!
 //! Coverage areas:

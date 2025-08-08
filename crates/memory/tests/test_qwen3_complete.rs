@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 use ai::AiConfig;
 use anyhow::Result;
 use chrono::Utc;

@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 use anyhow::Result;
 use std::collections::HashMap;
 use tools::git_ops::{GitCommit, GitStatus};

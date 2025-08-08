@@ -40,6 +40,8 @@ legacy-orchestrator = []
 # New feature flags to enable orchestration and services modules
 orchestration-modules = []
 services-modules = []
+# Tests feature to include extended/slow suites
+extended-tests = []
 
 [dependencies]
 anyhow.workspace = true
@@ -113,7 +115,7 @@ tokio-test = "0.4"
 [[example]]
 name = "memory_demo"
 path = "examples/memory_demo.rs"
-
+required-features = ["extended-tests"]
 
 [[bench]]
 name = "scalability_benchmarks"
@@ -122,3 +124,23 @@ harness = false
 [[bench]]
 name = "vector_benchmarks"
 harness = false
+
+[[example]]
+name = "di_best_practices"
+path = "examples/di_best_practices.rs"
+required-features = ["extended-tests"]
+
+[[example]]
+name = "comprehensive_performance_validation"
+path = "examples/comprehensive_performance_validation.rs"
+required-features = ["extended-tests"]
+
+[[example]]
+name = "simd_optimized_benchmark"
+path = "examples/simd_optimized_benchmark.rs"
+required-features = ["extended-tests"]
+
+[[example]]
+name = "test_gpu_acceleration"
+path = "examples/test_gpu_acceleration.rs"
+required-features = ["extended-tests", "gpu-acceleration"]

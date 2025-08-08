@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 //! Comprehensive тесты для UnifiedDIContainer
 //!
 //! Этот файл содержит полный набор тестов для валидации

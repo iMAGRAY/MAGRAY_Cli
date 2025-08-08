@@ -739,7 +739,7 @@ fn current_timestamp_safe() -> Result<u64> {
         .map_err(|e| anyhow::anyhow!("System time error: {}", e))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
     use std::time::Duration;

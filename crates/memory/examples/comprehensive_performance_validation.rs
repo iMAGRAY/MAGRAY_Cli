@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 //! Comprehensive Performance Validation - Ultimate HNSW Optimization Results
 //!
 //! Полная валидация всех оптимизаций:

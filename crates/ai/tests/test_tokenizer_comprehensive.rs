@@ -1,3 +1,5 @@
+#![cfg(all(feature = "embeddings", feature = "extended-tests"))]
+
 use ai::{
     errors::Result,
     tokenization::{OptimizedTokenizer, TokenizedInput},

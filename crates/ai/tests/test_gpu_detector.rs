@@ -1,4 +1,5 @@
-#[cfg(feature = "gpu")]
+#![cfg(feature = "gpu")]
+
 use ai::gpu_detector::GpuDetector;
 
 #[cfg(feature = "gpu")]

@@ -29,6 +29,9 @@ web-ops = ["reqwest"]
 plugins = ["llm/cpu"]
 security = []
 
+# Tests feature to include extended/slow suites
+extended-tests = []
+
 [dependencies]
 llm = { path = "../llm" }
 tokio = { workspace = true }

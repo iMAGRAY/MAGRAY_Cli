@@ -114,3 +114,8 @@ pub use tokenizer::{SpecialTokens, TokenizedInput, TokenizerService};
 
 /// Result type for AI operations
 pub type Result<T> = std::result::Result<T, AiError>;
+
+#[cfg(test)]
+fn _ort_available() -> bool {
+    std::env::var("ORT_DYLIB_PATH").is_ok()
+}

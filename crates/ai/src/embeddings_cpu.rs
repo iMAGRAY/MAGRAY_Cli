@@ -837,6 +837,10 @@ mod tests {
 
     #[test]
     fn test_optimized_service_creation() {
+        if std::env::var("ORT_DYLIB_PATH").is_err() {
+            eprintln!("Skipping embeddings test: ORT_DYLIB_PATH not set");
+            return;
+        }
         let config = EmbeddingConfig {
             model_name: "bge-m3".to_string(),
             max_length: 512,

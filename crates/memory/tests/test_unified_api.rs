@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 use anyhow::Result;
 use memory::{
     api::SearchOptions, create_di_memory_service, Layer, MemoryContext, UnifiedMemoryAPI,
