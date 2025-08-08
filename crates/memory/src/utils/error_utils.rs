@@ -146,6 +146,34 @@ pub mod production_helpers {
     }
 }
 
+#[cfg(feature = "persistence")]
+pub fn open_db_with_context(path: &std::path::Path) -> Result<sled::Db> {
+    sled::open(path).with_context_fmt("Failed to open database", &[&path.display(), &"sled open"])        
+}
+
+#[cfg(feature = "persistence")]
+pub fn flush_tree(tree: &sled::Tree, context: &str) -> Result<()> {
+    tree.flush()
+        .with_context_fmt("Failed to flush tree", &[&context])
+        .map(|_| ())
+}
+
+#[cfg(feature = "persistence")]
+pub fn insert_with_context<K, V>(
+    tree: &sled::Tree,
+    key: K,
+    value: V,
+    context: &str,
+) -> Result<()>
+where
+    K: AsRef<[u8]>,
+    V: Into<sled::IVec>,
+{
+    tree.insert(key, value)
+        .with_context_fmt("Failed to insert into sled", &[&context])?;
+    Ok(())
+}
+
 /// Macro для упрощения error conversion в тестах
 #[macro_export]
 macro_rules! test_ok {

@@ -29,31 +29,31 @@
 
 ## ⚠️ РЕАЛЬНОЕ СОСТОЯНИЕ ПРОЕКТА (ALPHA)
 
-**Автоматический анализ от 2025-08-07 20:57:57 UTC:**
+**Автоматический анализ от 2025-08-08 11:09:59 UTC:**
 
 ### 🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:
-- **Критических issues**: 117
-- **High priority issues**: 315  
+- **Критических issues**: 118
+- **High priority issues**: 319  
 - **Циклических зависимостей**: 0
-- **Технический долг**: 7829 часов
-- **Файлов с высокой сложностью**: 181
+- **Технический долг**: 7908 часов
+- **Файлов с высокой сложностью**: 182
 
 ### ❌ ЧТО НЕ РАБОТАЕТ:
 - **God Objects остаются**: 0 обнаружено
-- **Дублирование кода**: 996 случаев
-- **Покрытие тестами**: 24.7% (74/300 модулей, tests: 506, mocks: 30)
+- **Дублирование кода**: 999 случаев
+- **Покрытие тестами**: 25.1% (77/307 модулей, tests: 510, mocks: 30)
 
 ### 📊 СТАТИСТИКА ПРОЕКТА:
 - **Crates**: 10
-- **Файлов**: 420
-- **Структур**: 850
-- **Функций**: 1517
-- **Тестов**: 506
+- **Файлов**: 427
+- **Структур**: 868
+- **Функций**: 1540
+- **Тестов**: 510
 - **Моков**: 30
 
 ### 🧪 ДЕТАЛЬНОЕ ПОКРЫТИЕ ТЕСТАМИ
 
-**Покрыто тестами (24.7%):**
+**Покрыто тестами (25.1%):**
 - ✅ ai/src/auto_device_selector.rs
 - ✅ ai/src/config.rs
 - ✅ ai/src/embeddings_bge_m3.rs
@@ -65,9 +65,10 @@
 - ✅ ai/src/gpu_fallback.rs
 - ✅ ai/src/gpu_memory_pool.rs
 
-...и еще 64 модулей
+...и еще 67 модулей
 
-**НЕ покрыто тестами (75.3%):**
+**НЕ покрыто тестами (74.9%):**
+- ❌ ai/src/embeddings_qwen3.rs
 - ❌ ai/src/lib.rs
 - ❌ ai/src/reranker_qwen3.rs
 - ❌ ai/src/reranker_qwen3_optimized.rs
@@ -77,9 +78,8 @@
 - ❌ application/src/adapters/cache_service_adapter.rs
 - ❌ application/src/adapters/embedding_service_adapter.rs
 - ❌ application/src/adapters/memory_service_adapter.rs
-- ❌ application/src/adapters/metrics_collector_adapter.rs
 
-...и еще 216 модулей
+...и еще 220 модулей
 
 
 ### 🔄 ДЕТАЛЬНЫЙ АНАЛИЗ ДУБЛИКАТОВ
@@ -97,10 +97,10 @@
 - **common**: service_macros.rs, service_traits.rs
 - **memory**: batch_optimized.rs, database_manager.rs, migration_facade.rs, background_task_manager.rs, backup_coordinator.rs, coordinator_registry.rs, embedding_coordinator.rs, health_checker.rs, health_manager.rs, lifecycle_manager.rs, metrics_collector.rs, operation_executor.rs, orchestration_lifecycle_manager.rs, orchestrator_core.rs, promotion_coordinator.rs, resource_controller.rs, search_coordinator.rs, traits.rs, refactored_di_memory_service.rs, coordinator_factory.rs, lifecycle_manager.rs, operation_executor.rs, test_fixtures.rs
 
-**3. `fn initialize` (34 копий):**
+**3. `fn initialize` (35 копий):**
 - **cli**: agent_core.rs, agent_traits.rs, handler_registry.rs, refactored_unified_agent.rs, unified_agent_v2.rs, admin_handler.rs, chat_handler.rs, memory_handler.rs, performance_monitor.rs, tools_handler.rs, adaptive_orchestrator.rs
 - **common**: service_macros.rs, service_traits.rs
-- **memory**: migration_facade.rs, orchestrator.rs, background_task_manager.rs, backup_coordinator.rs, coordinator_registry.rs, embedding_coordinator.rs, health_checker.rs, health_manager.rs, lifecycle_manager.rs, metrics_collector.rs, operation_executor.rs, orchestration_lifecycle_manager.rs, orchestrator_core.rs, promotion_coordinator.rs, resource_controller.rs, search_coordinator.rs, traits.rs, refactored_di_memory_service.rs, coordinator_factory.rs, lifecycle_manager.rs, operation_executor.rs
+- **memory**: di_compatibility_stub.rs, migration_facade.rs, orchestrator.rs, background_task_manager.rs, backup_coordinator.rs, coordinator_registry.rs, embedding_coordinator.rs, health_checker.rs, health_manager.rs, lifecycle_manager.rs, metrics_collector.rs, operation_executor.rs, orchestration_lifecycle_manager.rs, orchestrator_core.rs, promotion_coordinator.rs, resource_controller.rs, search_coordinator.rs, traits.rs, refactored_di_memory_service.rs, coordinator_factory.rs, lifecycle_manager.rs, operation_executor.rs
 
 **4. `fn production` (31 копий):**
 - ai/src/config.rs
@@ -115,24 +115,25 @@
 - **todo**: service_v2.rs, store_v2.rs
 - **tools**: external_process.rs, wasm_plugin.rs
 
-**6. `fn build` (31 копий):**
+**6. `fn execute` (31 копий):**
+- **application**: lib.rs, mod.rs
+- **cli**: agent_traits.rs, test_services_resilience.rs, gpu.rs, memory.rs, memory_stub.rs, models.rs, smart.rs, tasks.rs, tools.rs, admin_handler.rs, chat_handler.rs, memory_handler.rs, tools_handler.rs, circuit_breaker.rs
+- **common**: service_macros.rs, service_traits.rs
+- domain/src/lib.rs
+- **memory**: transaction.rs, retry_handler.rs
+- router/tests/test_router_async.rs
+- **tools**: file_ops.rs, git_ops.rs, lib.rs, mcp.rs, shell_ops.rs, web_ops.rs, test_registry.rs, external_process.rs, wasm_plugin.rs
+
+**7. `fn build` (31 копий):**
 - application/src/cqrs/mod.rs
 - **cli**: agent_core.rs, circuit_breaker_manager.rs, container_traits.rs, handler_registry.rs, performance_tracker.rs, refactored_unified_agent.rs
 - **common**: macros.rs, service_macros.rs, service_traits.rs, test_utils.rs
 - **memory**: batch_manager.rs, di_container_legacy.rs, config_presets.rs, container_builder.rs, container_factory.rs, core_traits.rs, migration_facade.rs, optimized_unified_container.rs, unified_container_impl.rs, mod.rs, coordinator.rs, coordinator_registry.rs, retry_handler.rs, refactored_di_memory_service.rs, unified_factory.rs, service_config.rs, builder.rs, simple_config.rs, mod.rs, test_fixtures.rs
 
-**7. `fn minimal` (29 копий):**
+**8. `fn minimal` (29 копий):**
 - ai/src/config.rs
 - **common**: service_macros.rs, service_traits.rs
 - **memory**: batch_manager.rs, cache_lru.rs, health.rs, ml_promotion_original_backup.rs, notifications.rs, resource_manager.rs, streaming.rs, types.rs, container_configuration.rs, container_metrics_impl.rs, migration_facade.rs, optimized_unified_container.rs, service_registry_impl.rs, service_resolver_impl.rs, unified_config.rs, unified_container.rs, unified_container_impl.rs, types.rs, factory_traits.rs, refactored_di_memory_service.rs, unified_factory.rs, circuit_breaker.rs, coordinator_factory.rs, lifecycle_manager.rs, operation_executor.rs, simple_config.rs
-
-**8. `fn execute` (24 копий):**
-- application/src/cqrs/mod.rs
-- **cli**: agent_traits.rs, test_services_resilience.rs, gpu.rs, memory.rs, models.rs, admin_handler.rs, chat_handler.rs, memory_handler.rs, tools_handler.rs, circuit_breaker.rs
-- **common**: service_macros.rs, service_traits.rs
-- **memory**: transaction.rs, retry_handler.rs
-- router/tests/test_router_async.rs
-- **tools**: file_ops.rs, git_ops.rs, lib.rs, shell_ops.rs, web_ops.rs, test_registry.rs, external_process.rs, wasm_plugin.rs
 
 **9. `fn clear` (23 копий):**
 - ai/src/memory_pool.rs
@@ -145,25 +146,25 @@
 - **memory**: background_task_manager.rs, backup_coordinator.rs, coordinator_registry.rs, embedding_coordinator.rs, health_checker.rs, health_manager.rs, lifecycle_manager.rs, metrics_collector.rs, operation_executor.rs, orchestration_facade.rs, orchestration_lifecycle_manager.rs, orchestrator_core.rs, promotion_coordinator.rs, resource_controller.rs, search_coordinator.rs, traits.rs, lifecycle_manager.rs
 - todo/src/graph.rs
 
-...и еще 986 менее критичных дубликатов.
+...и еще 989 менее критичных дубликатов.
 **Серьезных дубликатов (>4 копий)**: 141
 
 
 ## 📊 РЕАЛЬНОЕ СОСТОЯНИЕ КОДА
 
 ⚠️ **КРИТИЧЕСКИЕ ПРОБЛЕМЫ:**
-- Критический долг: 1408 часов
+- Критический долг: 1415 часов
 - Цикломатическая сложность 41 (должна быть < 10)
 - Цикломатическая сложность 31 (должна быть < 10)
 - Цикломатическая сложность 97 (должна быть < 10)
-- ...и еще 114 критических issues
+- ...и еще 115 критических issues
 📋 **ДУБЛИКАТЫ:** 141 серьёзных случаев
 
 ---
 
 # ТЕКУЩЕЕ СОСТОЯНИЕ ПРОЕКТА:
 
-*Last updated: 2025-08-07 20:57:57 UTC*
+*Last updated: 2025-08-08 11:09:59 UTC*
 *Status: ALPHA - не готов к production использованию*
 
 ## АВТОМАТИЧЕСКИ ОБНОВЛЯЕТСЯ ПРИ РЕДАКТИРОВАНИИ ФАЙЛОВ
@@ -205,18 +206,20 @@ graph TB
     AI -.->|uses| COMMON
     APPLICATION -.->|uses| DOMAIN
     APPLICATION -.->|uses| COMMON
+    CLI -.->|uses| TODO
+    CLI -.->|uses| DOMAIN
     CLI -.->|uses| ROUTER
+    CLI -.->|uses| LLM
     CLI -.->|uses| COMMON
     CLI -.->|uses| TOOLS
-    CLI -.->|uses| LLM
     CLI -.->|uses| AI
     CLI -.->|uses| MEMORY
     MEMORY -.->|uses| COMMON
     MEMORY -.->|uses| AI
     ROUTER -.->|uses| TOOLS
     ROUTER -.->|uses| LLM
-    TODO -.->|uses| LLM
     TODO -.->|uses| MEMORY
+    TODO -.->|uses| LLM
     TOOLS -.->|uses| LLM
 
     classDef crate fill:#e3f2fd,stroke:#1976d2,stroke-width:2px

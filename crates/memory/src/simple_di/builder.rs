@@ -61,7 +61,7 @@ impl DIContainerBuilder {
     /// Зарегистрировать instance как singleton
     pub fn register_instance<T>(self, instance: T) -> Self
     where
-        T: Send + Sync + 'static,
+        T: Send + Sync + 'static + Clone,
     {
         self.register_singleton(move || Ok(instance.clone()))
     }
@@ -99,7 +99,7 @@ impl DIContainerBuilder {
     /// Зарегистрировать Arc-wrapped instance
     pub fn register_arc<T>(self, instance: Arc<T>) -> Self
     where
-        T: Send + Sync + 'static,
+        T: Send + Sync + 'static + Clone,
     {
         self.register_singleton(move || Ok((*instance).clone()))
     }

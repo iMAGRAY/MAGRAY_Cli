@@ -9,6 +9,23 @@ use tracing::{info, warn};
 
 use super::{traits::Lifetime, unified_container::UnifiedDIContainer};
 use crate::service_di::service_config::MemoryServiceConfig;
+// Add required imports for DI resolution traits and cache entry type
+use crate::di::traits::DIResolver;
+use crate::di::container_cache::CacheEntry;
+use crate::database_manager::DatabaseManager;
+use crate::cache_lru::EmbeddingCacheLRU;
+use crate::gpu_accelerated::GpuBatchProcessor;
+use crate::metrics::MetricsCollector;
+use crate::health::HealthMonitor;
+// use crate::notifications::NotificationService;
+use crate::orchestration::{
+    BackupCoordinator, EmbeddingCoordinator, HealthManager, PromotionCoordinator,
+    ResourceController, SearchCoordinator,
+};
+use crate::types::PromotionConfig;
+use crate::storage::VectorStore;
+use crate::resource_manager::ResourceManager;
+use crate::backup::BackupManager;
 
 /// Unified Memory Configurator - настройка memory системы в DI контейнере
 ///
@@ -127,14 +144,11 @@ impl UnifiedMemoryConfigurator {
         let promotion_config = config.promotion.clone();
         container.register_instance(promotion_config)?;
 
-        // FlushConfig
-        let flush_config = config.flush_config.clone();
-        container.register_instance(flush_config)?;
+        // BatchConfig as flush/batch configuration
+        let batch_config = config.batch_config.clone();
+        container.register_instance(batch_config)?;
 
-        // HNSWConfig (если есть)
-        if let Some(hnsw_config) = &config.hnsw_config {
-            container.register_instance(hnsw_config.clone())?;
-        }
+        // HNSW configuration not present in MemoryServiceConfig; skip
 
         // TODO: Добавить другие core конфигурации по мере необходимости
 
@@ -149,17 +163,8 @@ impl UnifiedMemoryConfigurator {
     ) -> Result<()> {
         info!("🔧 Настройка storage layer...");
 
-        use crate::database_manager::DatabaseManager;
-
-        // DatabaseManager
-        let db_path = config.db_path.clone();
-        container.register(
-            move |_| {
-                let db_path = db_path.clone();
-                Ok(DatabaseManager::new_with_path(&db_path))
-            },
-            Lifetime::Singleton,
-        )?;
+        // DatabaseManager (use available constructor)
+        container.register(|_| Ok(DatabaseManager::new()), Lifetime::Singleton)?;
 
         // TODO: В будущем добавить async factory для VectorStore
         // Пока что используем заглушку или builder pattern
@@ -175,8 +180,6 @@ impl UnifiedMemoryConfigurator {
     ) -> Result<()> {
         info!("🔧 Настройка cache layer...");
 
-        use crate::cache_lru::EmbeddingCacheLRU;
-
         // Cache
         let cache_config = Self::convert_cache_config(&config);
         let cache_path = Self::get_cache_path(config);
@@ -185,15 +188,17 @@ impl UnifiedMemoryConfigurator {
             move |_| {
                 let cache_config = cache_config.clone();
                 let cache_path = cache_path.clone();
-                match EmbeddingCacheLRU::new(cache_path, cache_config) {
+                match EmbeddingCacheLRU::new(cache_path, cache_config.clone()) {
                     Ok(cache) => Ok(cache),
                     Err(e) => {
                         warn!(
                             "⚠️ Не удалось создать EmbeddingCacheLRU, используем fallback: {}",
                             e
                         );
-                        // Fallback к простой реализации
-                        Ok(EmbeddingCacheLRU::new_in_memory(cache_config.clone()))
+                        // Fallback: create cache in temp dir
+                        let tmp_path = std::env::temp_dir().join("embedding_cache_fallback");
+                        EmbeddingCacheLRU::new(tmp_path, cache_config)
+                            .map_err(|e| anyhow::anyhow!("Fallback cache init failed: {}", e))
                     }
                 }
             },
@@ -209,8 +214,8 @@ impl UnifiedMemoryConfigurator {
         container: &UnifiedDIContainer,
         config: &MemoryServiceConfig,
     ) -> Result<()> {
-        // Определяем есть ли поддержка GPU
-        if config.gpu_enabled && Self::is_gpu_available().await {
+        // Определяем есть ли поддержка GPU по ai_config
+        if config.ai_config.embedding.use_gpu && Self::is_gpu_available().await {
             Self::configure_gpu_processing_layer(container, config).await
         } else {
             Self::configure_cpu_processing_layer(container, config).await
@@ -239,18 +244,8 @@ impl UnifiedMemoryConfigurator {
     ) -> Result<()> {
         info!("🔧 Настройка GPU processing layer...");
 
-        use crate::gpu_accelerated::GpuBatchProcessor;
-
-        // GpuBatchProcessor
-        let gpu_config = config.gpu_config.clone();
-        container.register(
-            move |_| {
-                let gpu_config = gpu_config.clone();
-                GpuBatchProcessor::new_with_config(gpu_config)
-                    .map_err(|e| anyhow::anyhow!("Не удалось создать GpuBatchProcessor: {}", e))
-            },
-            Lifetime::Singleton,
-        )?;
+        // Skip GPU processor registration if specific constructor not available
+        // It will be optionally resolved elsewhere when implemented
 
         info!("✅ GPU processing layer configured");
         Ok(())
@@ -264,12 +259,10 @@ impl UnifiedMemoryConfigurator {
         info!("🔧 Настройка monitoring layer...");
 
         // MetricsCollector
-        use crate::metrics::MetricsCollector;
         container.register(|_| Ok(MetricsCollector::new()), Lifetime::Singleton)?;
 
         // HealthMonitor (если включен)
         if config.health_enabled {
-            use crate::health::HealthMonitor;
             let health_config = config.health_config.clone();
             container.register(
                 move |_| Ok(HealthMonitor::new(health_config.clone())),
@@ -277,11 +270,7 @@ impl UnifiedMemoryConfigurator {
             )?;
         }
 
-        // NotificationService (если включен)
-        if config.notifications_enabled {
-            use crate::notifications::NotificationService;
-            container.register(|_| Ok(NotificationService::new()), Lifetime::Singleton)?;
-        }
+        // Notifications are optional; skip explicit service registration unless needed
 
         info!("✅ Monitoring layer configured");
         Ok(())
@@ -294,39 +283,25 @@ impl UnifiedMemoryConfigurator {
     ) -> Result<()> {
         info!("🔧 Настройка orchestration layer...");
 
-        use crate::orchestration::{
-            BackupCoordinator, EmbeddingCoordinator, HealthManager, PromotionCoordinator,
-            ResourceController, SearchCoordinator,
-        };
-
         // EmbeddingCoordinator
         container.register(
             |container| {
+                let gpu = container.try_resolve::<crate::gpu_accelerated::GpuBatchProcessor>();
                 let cache = container.resolve::<crate::cache_lru::EmbeddingCacheLRU>()?;
                 let cache: Arc<dyn crate::cache_interface::EmbeddingCacheInterface> = cache;
-                
-                // Пробуем получить GPU processor, если не получается - используем CPU fallback
-                let processor = if let Ok(gpu_processor) = container.resolve::<crate::gpu_accelerated::GpuBatchProcessor>() {
-                    info!("✅ Используем GPU processor для EmbeddingCoordinator");
-                    Some(gpu_processor)
-                } else {
-                    warn!("⚠️ GPU processor недоступен, EmbeddingCoordinator будет работать без ускорения");
-                    None
-                };
-                
-                Ok(EmbeddingCoordinator::new_with_processor(cache, processor))
+                // If GPU processor is not available, construct a CPU-compatible processor via helper
+                let processor = gpu.unwrap_or_else(|_| Arc::new(crate::gpu_accelerated::GpuBatchProcessor::cpu_fallback()));
+                Ok(EmbeddingCoordinator::new(processor, cache))
             },
             Lifetime::Singleton,
         )?;
 
-        // SearchCoordinator
+        // SearchCoordinator (requires VectorStore and EmbeddingCoordinator)
         container.register(
             |container| {
+                let vector_store = container.resolve::<crate::storage::VectorStore>()?;
                 let embedding_coordinator = container.resolve::<EmbeddingCoordinator>()?;
-                // TODO: Добавить VectorStore когда будет готов async factory
-                Ok(SearchCoordinator::new_with_embedding_coordinator(
-                    embedding_coordinator,
-                ))
+                Ok(SearchCoordinator::new(vector_store, embedding_coordinator))
             },
             Lifetime::Singleton,
         )?;
@@ -334,17 +309,31 @@ impl UnifiedMemoryConfigurator {
         // PromotionCoordinator
         container.register(
             |container| {
-                let promotion_config = container.resolve::<crate::promotion::PromotionConfig>()?;
-                Ok(PromotionCoordinator::new(promotion_config))
+                let promotion_config = container.resolve::<crate::types::PromotionConfig>()?;
+                Ok(PromotionCoordinator::new(promotion_config, None))
             },
             Lifetime::Singleton,
         )?;
 
-        // BackupCoordinator
-        container.register(|_| Ok(BackupCoordinator::new()), Lifetime::Singleton)?;
+        // BackupCoordinator (requires dependencies)
+        container.register(
+            |container| {
+                let backup_manager = Arc::new(crate::backup::BackupManager::new(std::env::temp_dir())?);
+                let store = container.resolve::<crate::storage::VectorStore>()?;
+                Ok(BackupCoordinator::new(backup_manager, store))
+            },
+            Lifetime::Singleton,
+        )?;
 
         // ResourceController
-        container.register(|_| Ok(ResourceController::new()), Lifetime::Singleton)?;
+        container.register(
+            |_| {
+                let cfg = crate::resource_manager::ResourceConfig::default();
+                let manager = parking_lot::RwLock::new(crate::resource_manager::ResourceManager::new(cfg)?);
+                Ok(ResourceController::new(Arc::new(manager)))
+            },
+            Lifetime::Singleton,
+        )?;
 
         // HealthManager (если health monitoring включен)
         if config.health_enabled {

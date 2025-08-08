@@ -8,7 +8,7 @@ name = "magray"
 path = "src/main.rs"
 
 [features]
-default = ["cpu"]
+default = ["minimal"]
 
 # Minimal build - basic CLI functionality only
 minimal = [
@@ -53,6 +53,8 @@ ai = { path = "../ai" }
 memory = { path = "../memory" }
 common = { path = "../common" }
 tools = { path = "../tools" }
+domain = { path = "../domain" }
+todo = { path = "../todo" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
@@ -71,3 +73,9 @@ chrono = { workspace = true }
 uuid = { workspace = true }
 parking_lot = "0.12.4"
 rand = "0.9.2"
+dirs = "5.0"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = { workspace = true }

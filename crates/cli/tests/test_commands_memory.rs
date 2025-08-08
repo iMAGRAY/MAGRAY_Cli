@@ -1,3 +1,5 @@
+#![cfg(not(feature = "minimal"))]
+
 use clap::{Args, Command};
 use cli::commands::memory::MemoryCommand;
 

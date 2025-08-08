@@ -32,7 +32,14 @@
       "Bash(true)",
       "Bash(cargo check:*)",
       "Bash(dir)",
-      "Bash(Remove-Item -Path \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\test_hook_trigger.rs\" -Force)"
+      "Bash(Remove-Item -Path \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\test_hook_trigger.rs\" -Force)",
+      "Bash(xcopy:*)",
+      "Bash(powershell:*)",
+      "Bash(copy:*)",
+      "Bash(cargo check:*)",
+      "mcp__archlens__export_ai_compact",
+      "Bash(where cargo)",
+      "mcp__archlens__analyze_project"
     ],
     "deny": []
   },
