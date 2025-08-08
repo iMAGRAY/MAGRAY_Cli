@@ -5,10 +5,9 @@ use tempfile::TempDir;
 use uuid::Uuid;
 
 use ai::AiConfig;
-#![cfg(all(not(feature = "minimal")))]
+#![cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use memory::{
-    promotion::PromotionEngine, storage::VectorStore, Layer, MemoryConfig, MemoryService,
-    PromotionConfig, Record,
+    promotion::PromotionEngine, storage::VectorStore, Layer, MemoryContext, PromotionConfig, Record,
 };
 
 #[tokio::test]

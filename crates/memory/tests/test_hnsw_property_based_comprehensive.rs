@@ -1,3 +1,5 @@
+#![cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "rayon"))]
+
 use arbitrary::{Arbitrary, Unstructured};
 use memory::{
     hnsw_index::{HnswConfig, HnswIndex, HnswStats},
