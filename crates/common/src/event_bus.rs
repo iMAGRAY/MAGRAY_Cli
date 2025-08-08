@@ -121,8 +121,62 @@ mod tests {
         // This publish may hit timeout or warn due to full buffer
         bus.publish(Topic("bp.topic"), 2).await;
 
-        // Drain one and ensure we at least get the first
-        let first = rx.recv().await.expect("recv first");
-        assert_eq!(first.payload, 1);
+        // First recv may return Lagged if oldest was overwritten
+        match rx.recv().await {
+            Ok(evt) => {
+                assert!(evt.payload == 1 || evt.payload == 2);
+            }
+            Err(broadcast::error::RecvError::Lagged(_)) => {
+                // After lag, next received should be the latest
+                let evt = rx.recv().await.expect("recv after lag");
+                assert_eq!(evt.payload, 2);
+            }
+            Err(e) => panic!("unexpected recv error: {:?}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn multi_subscribers_receive_all() {
+        let bus: EventBus<&'static str> = EventBus::new(8, Duration::from_millis(100));
+        let mut rx1 = bus.subscribe(Topic("fanout.topic")).await;
+        let mut rx2 = bus.subscribe(Topic("fanout.topic")).await;
+
+        bus.publish(Topic("fanout.topic"), "a").await;
+        bus.publish(Topic("fanout.topic"), "b").await;
+
+        let e1a = rx1.recv().await.unwrap().payload;
+        let e2a = rx2.recv().await.unwrap().payload;
+        let e1b = rx1.recv().await.unwrap().payload;
+        let e2b = rx2.recv().await.unwrap().payload;
+
+        assert_eq!(e1a, "a");
+        assert_eq!(e2a, "a");
+        assert_eq!(e1b, "b");
+        assert_eq!(e2b, "b");
+    }
+
+    #[tokio::test]
+    async fn slow_subscriber_does_not_block_fast_one() {
+        let bus: EventBus<&'static str> = EventBus::new(1, Duration::from_millis(50));
+        let mut rx_fast = bus.subscribe(Topic("nonblock.topic")).await;
+        let mut _rx_slow = bus.subscribe(Topic("nonblock.topic")).await;
+
+        // Ensure publish completes quickly (non-blocking semantics)
+        let t0 = std::time::Instant::now();
+        bus.publish(Topic("nonblock.topic"), "x1").await;
+        bus.publish(Topic("nonblock.topic"), "x2").await;
+        assert!(t0.elapsed() < std::time::Duration::from_millis(200));
+
+        // Fast receiver should eventually get a message; tolerate lag
+        match rx_fast.recv().await {
+            Ok(evt) => {
+                assert!(evt.payload == "x1" || evt.payload == "x2");
+            }
+            Err(broadcast::error::RecvError::Lagged(_)) => {
+                let evt = rx_fast.recv().await.expect("recv after lag");
+                assert_eq!(evt.payload, "x2");
+            }
+            Err(e) => panic!("unexpected recv error: {:?}", e),
+        }
     }
 }

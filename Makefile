@@ -210,3 +210,15 @@ info:
 	@echo "  - x86_64-pc-windows-msvc (Windows)"
 	@echo "  - x86_64-apple-darwin (macOS)"
 	@echo "  - x86_64-unknown-linux-musl (Alpine)"
+
+coverage:
+	@echo "📈 Running test coverage (tarpaulin) ..."
+	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --engine llvm --features=cpu --timeout 120 --out Html
+	@echo "✅ Coverage report: tarpaulin-report.html"
+
+coverage-full:
+	@echo "📈 Running full coverage (extended-tests) ..."
+	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --engine llvm --features="cpu,extended-tests" --timeout 600 --out Html
+	@echo "✅ Coverage report: tarpaulin-report.html"
