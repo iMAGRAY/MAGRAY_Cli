@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 use chrono::Utc;
 use memory::{Layer, Record};
 use std::collections::HashMap;

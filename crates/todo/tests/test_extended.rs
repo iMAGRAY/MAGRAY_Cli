@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 use anyhow::Result;
 use tempfile::NamedTempFile;
 use todo::graph::DependencyGraph;
