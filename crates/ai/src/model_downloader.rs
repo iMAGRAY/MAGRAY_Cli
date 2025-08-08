@@ -111,69 +111,13 @@ impl ModelDownloader {
     /// Получить информацию о модели
     fn get_model_info(&self, model_name: &str) -> Result<ModelInfo> {
         match model_name {
-            "bge-m3" => Ok(ModelInfo {
-                name: "bge-m3".to_string(),
-                files: vec![
-                    ModelFile {
-                        filename: "model.onnx".to_string(),
-                        url: "https://huggingface.co/BAAI/bge-m3/resolve/main/onnx/model.onnx".to_string(),
-                        size: 567_890_123, // ~540MB
-                        sha256: None,
-                    },
-                    ModelFile {
-                        filename: "tokenizer.json".to_string(),
-                        url: "https://huggingface.co/BAAI/bge-m3/resolve/main/tokenizer.json".to_string(),
-                        size: 17_098_043, // ~16MB
-                        sha256: None,
-                    },
-                    ModelFile {
-                        filename: "config.json".to_string(),
-                        url: "https://huggingface.co/BAAI/bge-m3/resolve/main/config.json".to_string(),
-                        size: 1024,
-                        sha256: None,
-                    },
-                    ModelFile {
-                        filename: "tokenizer_config.json".to_string(),
-                        url: "https://huggingface.co/BAAI/bge-m3/resolve/main/tokenizer_config.json".to_string(),
-                        size: 2048,
-                        sha256: None,
-                    },
-                ],
-                total_size: 585_000_000,
-            }),
-
-            "bge-reranker-v2-m3" | "bge-reranker-v2-m3_dynamic_int8_onnx" => Ok(ModelInfo {
-                name: model_name.to_string(),
-                files: vec![
-                    ModelFile {
-                        filename: "model.onnx".to_string(),
-                        url: "https://huggingface.co/BAAI/bge-reranker-v2-m3/resolve/main/onnx/model.onnx".to_string(),
-                        size: 1_123_456_789, // ~1.1GB
-                        sha256: None,
-                    },
-                    ModelFile {
-                        filename: "tokenizer.json".to_string(),
-                        url: "https://huggingface.co/BAAI/bge-reranker-v2-m3/resolve/main/tokenizer.json".to_string(),
-                        size: 17_098_043,
-                        sha256: None,
-                    },
-                    ModelFile {
-                        filename: "config.json".to_string(),
-                        url: "https://huggingface.co/BAAI/bge-reranker-v2-m3/resolve/main/config.json".to_string(),
-                        size: 1024,
-                        sha256: None,
-                    },
-                ],
-                total_size: 1_140_555_856,
-            }),
-
             "qwen3emb" => Ok(ModelInfo {
                 name: "qwen3emb".to_string(),
                 files: vec![
                     ModelFile {
                         filename: "model.onnx".to_string(),
-                        url: "LOCAL_FILE".to_string(), // Локальные файлы
-                        size: 0, // Будем использовать существующие
+                        url: "LOCAL_FILE".to_string(),
+                        size: 0,
                         sha256: None,
                     },
                     ModelFile {
@@ -197,8 +141,8 @@ impl ModelDownloader {
                 files: vec![
                     ModelFile {
                         filename: "model.onnx".to_string(),
-                        url: "LOCAL_FILE".to_string(), // Локальные файлы
-                        size: 0, // Будем использовать существующие
+                        url: "LOCAL_FILE".to_string(),
+                        size: 0,
                         sha256: None,
                     },
                     ModelFile {
@@ -394,10 +338,10 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let downloader = ModelDownloader::new(temp_dir.path()).unwrap();
 
-        let info = downloader.get_model_info("bge-m3").unwrap();
-        assert_eq!(info.name, "bge-m3");
+        let info = downloader.get_model_info("qwen3emb").unwrap();
+        assert_eq!(info.name, "qwen3emb");
         assert!(!info.files.is_empty());
-        assert!(info.total_size > 0);
+        assert!(info.total_size == 0);
     }
 
     #[tokio::test]
@@ -405,7 +349,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let downloader = ModelDownloader::new(temp_dir.path()).unwrap();
 
-        let model_path = temp_dir.path().join("bge-m3");
+        let model_path = temp_dir.path().join("qwen3emb");
         let is_complete = downloader.is_model_complete(&model_path).await.unwrap();
         assert!(!is_complete);
 
