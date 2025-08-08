@@ -83,7 +83,10 @@ pub struct MemorySystemStats {
     pub cache_size: u64,
     pub promotion_stats: PromotionStats,
     pub batch_stats: BatchStats,
+    #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
     pub gpu_stats: Option<BatchProcessorStats>,
+    #[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
+    pub gpu_stats: Option<()>,
     pub di_container_stats: crate::DIContainerStats,
 }
 

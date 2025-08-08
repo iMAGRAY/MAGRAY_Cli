@@ -21,6 +21,11 @@
 use std::arch::x86_64::*;
 use std::time::Instant;
 
+#[cfg(all(not(feature = "minimal"), feature = "rayon"))]
+fn _compat_with_simd_optimized() {
+    let _ = crate::simd_optimized::horizontal_sum_avx2_optimized as fn(&[f32]) -> f32;
+}
+
 /// Ultra-optimized horizontal sum using hadd instructions
 ///
 /// Achieves 50%+ better performance than traditional shuffle-based approach
