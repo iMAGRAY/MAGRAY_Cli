@@ -19,6 +19,7 @@ use crate::orchestration::traits::Coordinator;
 use crate::orchestration::{HealthManager, ResourceController};
 
 use crate::{
+    #[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
     backup::BackupManager,
     batch_manager::BatchOperationManager,
     di::traits::DIResolver,
@@ -80,7 +81,7 @@ pub trait OperationExecutor: Send + Sync {
     async fn initialize(&self) -> anyhow::Result<()>;
     async fn shutdown(&self) -> anyhow::Result<()>;
     async fn flush_all(&self) -> anyhow::Result<()>;
-    async fn create_backup(&self, path: &str) -> anyhow::Result<crate::backup::BackupMetadata>;
+    async fn create_backup(&self, path: &str) -> anyhow::Result<crate::orchestration::traits::BackupMetadata>;
 }
 
 /// Конфигурация для выполнения операций
