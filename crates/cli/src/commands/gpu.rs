@@ -48,7 +48,7 @@ enum GpuSubcommand {
     #[command(visible_alias = "o")]
     Optimize {
         /// Имя модели для оптимизации
-        #[arg(default_value = "bge-m3")]
+        #[arg(default_value = "qwen3emb")]
         model: String,
     },
 }
