@@ -778,6 +778,21 @@ async fn show_system_status() -> Result<()> {
         "default"
     };
     println!("{} {}: {} (rules: {})", "🔒", "Policy", src, rules_count);
+    // Risk aggregation
+    let mut low = 0usize; let mut med = 0usize; let mut high = 0usize;
+    for r in &effective.rules {
+        let risk = {
+            // mirror logic from infer_risk_from_reason
+            let reason = r.reason.as_deref();
+            if let Some(rr) = reason { let l = rr.to_lowercase();
+                if l.contains("high") || l.contains("critical") || l.contains("danger") { common::policy::RiskLevel::High }
+                else if l.contains("medium") || l.contains("moderate") { common::policy::RiskLevel::Medium }
+                else { common::policy::RiskLevel::Low }
+            } else { common::policy::RiskLevel::Low }
+        };
+        match risk { common::policy::RiskLevel::High => high+=1, common::policy::RiskLevel::Medium => med+=1, common::policy::RiskLevel::Low => low+=1 }
+    }
+    println!("  risks: low={} medium={} high={}", low, med, high);
     // Brief audit: list up to 5 rules
     let preview_len = effective.rules.len().min(5);
     if preview_len > 0 {
