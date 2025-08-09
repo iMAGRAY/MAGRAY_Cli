@@ -174,6 +174,25 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
                 tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
                 anyhow::bail!("Command 'memory backup' blocked by policy");
             }
+            if matches!(decision.action, common::policy::PolicyAction::Ask) {
+                let non_interactive = std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
+                if non_interactive {
+                    anyhow::bail!("Command 'memory backup' requires confirmation (ask), but running non-interactive");
+                }
+                let auto_approve = std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
+                if !auto_approve {
+                    use std::io::{self, Write};
+                    println!("\nОперация backup может занять время. Риск: {:?}", decision.risk);
+                    print!("Продолжить? [y/N]: ");
+                    let _ = io::stdout().flush();
+                    let mut answer = String::new();
+                    if io::stdin().read_line(&mut answer).is_err() { anyhow::bail!("confirmation failed"); }
+                    let ans = answer.trim().to_lowercase();
+                    if !(ans == "y" || ans == "yes" || ans == "д" || ans == "да") {
+                        anyhow::bail!("Отменено пользователем");
+                    }
+                }
+            }
             create_backup(&api, name).await?;
         }
 
@@ -184,6 +203,25 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
                 let evt = serde_json::json!({"command": "memory.restore", "reason": reason});
                 tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
                 anyhow::bail!("Command 'memory restore' blocked by policy");
+            }
+            if matches!(decision.action, common::policy::PolicyAction::Ask) {
+                let non_interactive = std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
+                if non_interactive {
+                    anyhow::bail!("Command 'memory restore' requires confirmation (ask), but running non-interactive");
+                }
+                let auto_approve = std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
+                if !auto_approve {
+                    use std::io::{self, Write};
+                    println!("\nОперация restore может перезаписать данные. Риск: {:?}", decision.risk);
+                    print!("Продолжить? [y/N]: ");
+                    let _ = io::stdout().flush();
+                    let mut answer = String::new();
+                    if io::stdin().read_line(&mut answer).is_err() { anyhow::bail!("confirmation failed"); }
+                    let ans = answer.trim().to_lowercase();
+                    if !(ans == "y" || ans == "yes" || ans == "д" || ans == "да") {
+                        anyhow::bail!("Отменено пользователем");
+                    }
+                }
             }
             restore_backup(&api, backup_path).await?;
         }
