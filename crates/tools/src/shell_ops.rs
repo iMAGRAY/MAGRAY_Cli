@@ -24,6 +24,7 @@ impl Tool for ShellExec {
                 "выполни команду pwd".to_string(),
             ],
             input_schema: r#"{"command": "string", "cwd": "string?", "max_output_kb": "number?"}"#.to_string(),
+            usage_guide: None,
         }
     }
 

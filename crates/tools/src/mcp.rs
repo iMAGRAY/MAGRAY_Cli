@@ -45,6 +45,7 @@ impl Tool for McpTool {
             usage: "Proxy tool to a MCP stdio server".to_string(),
             examples: vec![format!("mcp:{}: {{\"command\":\"run\", \"args\":{{}}}}", self.remote_tool)],
             input_schema: "{command: string, args: object, context?: string}".to_string(),
+            usage_guide: None,
         }
     }
 

@@ -578,6 +578,7 @@ impl Tool for ExternalProcessPlugin {
             ),
             examples: Vec::new(),
             input_schema: self.metadata.configuration_schema.to_string(),
+            usage_guide: None,
         }
     }
 

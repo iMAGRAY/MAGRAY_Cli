@@ -33,6 +33,7 @@ impl Tool for FileReader {
                 "показать содержимое config.toml".to_string(),
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
+            usage_guide: None,
         }
     }
 
@@ -109,6 +110,7 @@ impl Tool for FileWriter {
                 "создать файл config.json с содержимым {...}".to_string(),
             ],
             input_schema: r#"{"path": "string", "content": "string"}"#.to_string(),
+            usage_guide: None,
         }
     }
 
@@ -204,6 +206,7 @@ impl Tool for DirLister {
                 "показать содержимое папки".to_string(),
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
+            usage_guide: None,
         }
     }
 
@@ -311,6 +314,7 @@ impl Tool for FileSearcher {
                 "найти все файлы .toml".to_string(),
             ],
             input_schema: r#"{"pattern": "string", "path": "string?"}"#.to_string(),
+            usage_guide: None,
         }
     }
 
@@ -445,6 +449,7 @@ impl Tool for FileDeleter {
                 "удалить файл build.log".to_string(),
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
+            usage_guide: None,
         }
     }
 

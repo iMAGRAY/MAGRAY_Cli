@@ -398,37 +398,31 @@ impl IntelligentToolSelector {
         let query_lower = context.user_query.to_lowercase();
 
         // Check tool name relevance
-        if query_lower.contains(&tool_spec.name.to_lowercase()) {
-            score += 0.4;
-        }
+        if query_lower.contains(&tool_spec.name.to_lowercase()) { score += 0.4; }
 
         // Check description relevance
         let desc_lower = tool_spec.description.to_lowercase();
         let desc_words: Vec<&str> = desc_lower.split_whitespace().collect();
         let query_words: Vec<&str> = query_lower.split_whitespace().collect();
+        let matching_words = desc_words.iter().filter(|&w| query_words.contains(w)).count();
+        if !desc_words.is_empty() { score += 0.2 * (matching_words as f32 / desc_words.len() as f32); }
 
-        let matching_words = desc_words
-            .iter()
-            .filter(|&word| query_words.contains(word))
-            .count();
-
-        if !desc_words.is_empty() {
-            score += 0.3 * (matching_words as f32 / desc_words.len() as f32);
+        // UsageGuide relevance boost
+        if let Some(guide) = &tool_spec.usage_guide {
+            // tags/capabilities overlap
+            let caps_match = guide.capabilities.iter().filter(|c| query_lower.contains(&c.to_lowercase())).count();
+            let tags_match = guide.tags.iter().filter(|t| query_lower.contains(&t.to_lowercase())).count();
+            let good_for_match = guide.good_for.iter().filter(|g| query_lower.contains(&g.to_lowercase())).count();
+            let total = (caps_match + tags_match + good_for_match) as f32;
+            if total > 0.0 { score += 0.3 * (1.0 - (1.0 / (1.0 + total))); }
         }
 
         // Check examples relevance
         for example in &tool_spec.examples {
             let example_lower = example.to_lowercase();
             let example_words: Vec<&str> = example_lower.split_whitespace().collect();
-            let common_count = example_words
-                .iter()
-                .filter(|&word| query_words.contains(word))
-                .count();
-
-            if !example_words.is_empty() {
-                score += 0.3 * (common_count as f32 / example_words.len() as f32);
-                break; // Only count first matching example
-            }
+            let common_count = example_words.iter().filter(|&w| query_words.contains(w)).count();
+            if !example_words.is_empty() { score += 0.1 * (common_count as f32 / example_words.len() as f32); break; }
         }
 
         score.min(1.0)
@@ -437,16 +431,26 @@ impl IntelligentToolSelector {
     /// Calculate capability match based on task complexity
     async fn calculate_capability_match(
         &self,
-        _tool_spec: &ToolSpec,
+        tool_spec: &ToolSpec,
         context: &ToolSelectionContext,
     ) -> f32 {
-        // For now, simple heuristic based on task complexity
-        match context.task_complexity {
-            TaskComplexity::Simple => 0.9,  // Most tools can handle simple tasks
-            TaskComplexity::Medium => 0.7,  // Some complexity consideration
-            TaskComplexity::Complex => 0.5, // Need to verify tool capabilities
-            TaskComplexity::Expert => 0.3,  // Requires specialized tools
+        // Base heuristic by complexity
+        let base = match context.task_complexity {
+            TaskComplexity::Simple => 0.7,
+            TaskComplexity::Medium => 0.6,
+            TaskComplexity::Complex => 0.5,
+            TaskComplexity::Expert => 0.4,
+        };
+        // UsageGuide-driven adjustments
+        if let Some(guide) = &tool_spec.usage_guide {
+            let mut bonus = 0.0f32;
+            // risk_score reduces suitability for high-risk contexts
+            if guide.risk_score <= 2 { bonus += 0.1; }
+            // latency_class fast => better for High/Critical urgency
+            if matches!(context.urgency_level, UrgencyLevel::High | UrgencyLevel::Critical) && guide.latency_class == "fast" { bonus += 0.1; }
+            return (base + bonus).min(1.0);
         }
+        base
     }
 
     /// Calculate performance factor based on historical data

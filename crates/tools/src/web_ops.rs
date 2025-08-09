@@ -41,6 +41,7 @@ impl Tool for WebSearch {
                 "найди информацию о машинном обучении".to_string(),
             ],
             input_schema: r#"{"query": "string"}"#.to_string(),
+            usage_guide: None,
         }
     }
 
@@ -183,6 +184,7 @@ impl Tool for WebFetch {
                 "загрузи страницу rust-lang.org".to_string(),
             ],
             input_schema: r#"{"url": "string"}"#.to_string(),
+            usage_guide: None,
         }
     }
 

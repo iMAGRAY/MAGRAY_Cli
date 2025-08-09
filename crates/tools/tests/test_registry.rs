@@ -30,6 +30,7 @@ impl Tool for MockTool {
             usage: format!("mock_{} <args>", self.name),
             examples: vec![format!("mock_{} test", self.name)],
             input_schema: "{}".to_string(),
+            usage_guide: None,
         }
     }
 

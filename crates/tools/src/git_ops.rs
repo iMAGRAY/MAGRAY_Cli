@@ -26,6 +26,7 @@ impl Tool for GitStatus {
             usage: "git_status".to_string(),
             examples: vec!["git_status".to_string()],
             input_schema: r#"{}"#.to_string(),
+            usage_guide: None,
         }
     }
 
@@ -92,6 +93,7 @@ impl Tool for GitCommit {
                 "создать коммит с сообщением \"исправил баг\"".to_string(),
             ],
             input_schema: r#"{"message": "string"}"#.to_string(),
+            usage_guide: None,
         }
     }
 
@@ -258,6 +260,7 @@ impl Tool for GitDiff {
             usage: "git_diff".to_string(),
             examples: vec!["git_diff".to_string()],
             input_schema: r#"{}"#.to_string(),
+            usage_guide: None,
         }
     }
 
