@@ -3,11 +3,7 @@ use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
 fn net_allowlist() -> Vec<String> {
-    let env = std::env::var("MAGRAY_NET_ALLOW").unwrap_or_default();
-    env.split(',')
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.trim().to_lowercase())
-        .collect()
+    common::sandbox_config::SandboxConfig::from_env().net.allowlist
 }
 
 fn extract_domain(url: &str) -> Option<String> {

@@ -7,15 +7,15 @@ use walkdir::WalkDir;
 
 // ===== Filesystem Sandbox (env-driven) =====
 fn fs_sandbox_enabled() -> bool {
-    let v = std::env::var("MAGRAY_FS_SANDBOX").unwrap_or_default().to_lowercase();
-    matches!(v.as_str(), "1" | "true" | "on" | "enforce")
+    common::sandbox_config::SandboxConfig::from_env().fs.enabled
 }
 
 fn fs_sandbox_roots() -> Vec<PathBuf> {
-    let roots = std::env::var("MAGRAY_FS_ROOTS").unwrap_or_default();
-    if roots.trim().is_empty() { return Vec::new(); }
-    roots
-        .split(':')
+    let cfg = common::sandbox_config::SandboxConfig::from_env();
+    if cfg.fs.roots.is_empty() { return Vec::new(); }
+    cfg.fs
+        .roots
+        .iter()
         .filter(|s| !s.trim().is_empty())
         .filter_map(|s| {
             let p = PathBuf::from(s);
