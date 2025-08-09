@@ -81,4 +81,23 @@ mod tests {
         let n = counter.load(Ordering::Relaxed);
         assert!(n >= 2, "expected at least 2 ticks, got {}", n);
     }
+
+    #[tokio::test]
+    async fn multiple_jobs_isolated_and_shutdown() {
+        let sched = Scheduler::new();
+        let c1 = Arc::new(AtomicUsize::new(0));
+        let c2 = Arc::new(AtomicUsize::new(0));
+        let c1c = c1.clone();
+        let c2c = c2.clone();
+        let j1 = ScheduledJob { id: JobId("job.1"), interval: Duration::from_millis(15) };
+        let j2 = ScheduledJob { id: JobId("job.2"), interval: Duration::from_millis(22) };
+        sched.spawn_periodic(j1, move || { let cc = c1c.clone(); async move { cc.fetch_add(1, Ordering::Relaxed); } }).await;
+        sched.spawn_periodic(j2, move || { let cc = c2c.clone(); async move { cc.fetch_add(1, Ordering::Relaxed); } }).await;
+
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        sched.shutdown().await;
+        let n1 = c1.load(Ordering::Relaxed);
+        let n2 = c2.load(Ordering::Relaxed);
+        assert!(n1 > 0 && n2 > 0, "jobs must tick independently: n1={}, n2={}", n1, n2);
+    }
 }
