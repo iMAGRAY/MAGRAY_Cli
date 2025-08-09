@@ -9,11 +9,19 @@ pub struct BackupMetadata {
     pub version: u32,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub magray_version: String,
-    pub layers: Vec<crate::backup::LayerInfo>,
+    pub layers: Vec<LayerInfo>,
     pub total_records: usize,
     pub index_config: crate::vector_index_hnswlib::HnswRsConfig,
     pub checksum: Option<String>,
     pub layer_checksums: Option<std::collections::HashMap<String, String>>,
+}
+
+#[cfg(not(all(not(feature = "minimal"), feature = "backup-restore")))]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LayerInfo {
+    pub layer: crate::types::Layer,
+    pub record_count: usize,
+    pub size_bytes: usize,
 }
 
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
