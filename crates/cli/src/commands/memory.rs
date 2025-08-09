@@ -151,6 +151,7 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
 
     match cmd {
         MemorySubcommand::Stats { detailed } => {
+            tokio::spawn(events::publish(topics::TOPIC_INTENT, serde_json::json!({"command":"memory.stats","detailed":detailed })));
             show_memory_stats(&api, detailed).await?;
         }
 
@@ -193,6 +194,7 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
             if matches!(decision.action, common::policy::PolicyAction::Ask) {
                 let non_interactive = std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
                 if non_interactive {
+                    tokio::spawn(events::publish(topics::TOPIC_ERROR, serde_json::json!({"command":"memory.backup","error":"non-interactive ask"})));
                     anyhow::bail!("Command 'memory backup' requires confirmation (ask), but running non-interactive");
                 }
                 let auto_approve = std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
@@ -205,10 +207,12 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
                     if io::stdin().read_line(&mut answer).is_err() { anyhow::bail!("confirmation failed"); }
                     let ans = answer.trim().to_lowercase();
                     if !(ans == "y" || ans == "yes" || ans == "д" || ans == "да") {
+                        tokio::spawn(events::publish(topics::TOPIC_ERROR, serde_json::json!({"command":"memory.backup","error":"user-cancel"})));
                         anyhow::bail!("Отменено пользователем");
                     }
                 }
             }
+            tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({"job":"memory.backup","status":"started"})));
             create_backup(&api, name).await?;
             tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({
                 "job": "memory.backup", "status": "done"
@@ -229,6 +233,7 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
                 if non_interactive && auto_approve {
                     // proceed silently
                 } else if non_interactive && !auto_approve {
+                    tokio::spawn(events::publish(topics::TOPIC_ERROR, serde_json::json!({"command":"memory.restore","error":"non-interactive ask"})));
                     anyhow::bail!("Command 'memory restore' requires confirmation (ask), but running non-interactive");
                 }
                 if !auto_approve {
@@ -240,10 +245,12 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
                     if io::stdin().read_line(&mut answer).is_err() { anyhow::bail!("confirmation failed"); }
                     let ans = answer.trim().to_lowercase();
                     if !(ans == "y" || ans == "yes" || ans == "д" || ans == "да") {
+                        tokio::spawn(events::publish(topics::TOPIC_ERROR, serde_json::json!({"command":"memory.restore","error":"user-cancel"})));
                         anyhow::bail!("Отменено пользователем");
                     }
                 }
             }
+            tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({"job":"memory.restore","status":"started"})));
             restore_backup(&api, backup_path).await?;
             tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({
                 "job": "memory.restore", "status": "done"
