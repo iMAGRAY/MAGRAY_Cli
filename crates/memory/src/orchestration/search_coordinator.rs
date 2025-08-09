@@ -734,7 +734,7 @@ impl SearchCoordinator {
     /// Запуск worker'а для очистки cache
     async fn start_cache_cleanup_worker(&self) {
         let cache = self.query_cache.clone();
-
+        #[cfg(not(test))]
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60)); // Каждую минуту
 

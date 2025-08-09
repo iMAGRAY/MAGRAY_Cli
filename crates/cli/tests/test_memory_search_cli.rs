@@ -12,7 +12,7 @@ fn memory_search_rerank_fallback_cli() {
         .args(["memory","add","rust tokio async runtimes","--layer","interact"]) // 1
         .env("MAGRAY_SKIP_AUTO_INSTALL","1")
         .env("MAGRAY_FORCE_NO_ORT","1")
-        .env("CI","1");
+        .env("CI","1").env("MAGRAY_CMD_TIMEOUT","20");
     add.assert().success();
 
     let mut add2 = Command::cargo_bin("magray").expect("binary built");
@@ -20,7 +20,7 @@ fn memory_search_rerank_fallback_cli() {
         .args(["memory","add","python asyncio event loop","--layer","interact"]) // 2
         .env("MAGRAY_SKIP_AUTO_INSTALL","1")
         .env("MAGRAY_FORCE_NO_ORT","1")
-        .env("CI","1");
+        .env("CI","1").env("MAGRAY_CMD_TIMEOUT","20");
     add2.assert().success();
 
     let mut add3 = Command::cargo_bin("magray").expect("binary built");
@@ -28,7 +28,7 @@ fn memory_search_rerank_fallback_cli() {
         .args(["memory","add","rust ownership borrowing lifetimes","--layer","interact"]) // 3
         .env("MAGRAY_SKIP_AUTO_INSTALL","1")
         .env("MAGRAY_FORCE_NO_ORT","1")
-        .env("CI","1");
+        .env("CI","1").env("MAGRAY_CMD_TIMEOUT","20");
     add3.assert().success();
 
     // Run search with rerank flag
@@ -37,7 +37,7 @@ fn memory_search_rerank_fallback_cli() {
         .args(["memory","search","rust lifetimes borrowing","--layer","interact","--rerank","-k","3"]) // top-3
         .env("MAGRAY_SKIP_AUTO_INSTALL","1")
         .env("MAGRAY_FORCE_NO_ORT","1")
-        .env("CI","1")
+        .env("CI","1").env("MAGRAY_CMD_TIMEOUT","20")
         .assert();
     let output = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
     // We do not rely on exact formatting (colors/indices); verify ordering of results heuristically
