@@ -103,6 +103,15 @@ enum Commands {
     LlmStatus,
     /// [📈] Показать performance метрики DI системы
     Performance,
+    /// [🔒] Управление политиками (аудит/настройка)
+    Policy {
+        /// Показать текущие правила и источник
+        #[arg(long)]
+        list: bool,
+        /// Применить правило Allow для shell_exec через env JSON (демо)
+        #[arg(long)]
+        allow_shell: bool,
+    },
 }
 
 #[tokio::main]
@@ -148,6 +157,7 @@ async fn main() -> Result<()> {
             Some(Commands::Status) => "status",
             Some(Commands::LlmStatus) => "llm_status",
             Some(Commands::Performance) => "performance",
+            Some(Commands::Policy { .. }) => "policy",
             Some(Commands::Tools(_)) => "tools",
             None => "help",
         };
@@ -213,6 +223,21 @@ async fn main() -> Result<()> {
             }
             Some(Commands::Performance) => {
                 timeout(Duration::from_secs(120), show_performance_metrics()).await.map_err(|_| anyhow::anyhow!("Performance command timeout"))??;
+            }
+            Some(Commands::Policy { list, allow_shell }) => {
+                use common::policy::{load_effective_policy, PolicyDocument, PolicyRule, PolicyAction, PolicySubjectKind};
+                let mut home = util::magray_home(); home.push("policy.json");
+                if list {
+                    let effective = load_effective_policy(if home.exists() { Some(&home) } else { None });
+                    println!("=== Effective Policy ===\n{}", serde_json::to_string_pretty(&effective).unwrap_or_else(|_| "{}".into()));
+                }
+                if allow_shell {
+                    // Merge small override into MAGRAY_POLICY_JSON
+                    let override_doc = PolicyDocument { rules: vec![PolicyRule { subject_kind: PolicySubjectKind::Tool, subject_name: "shell_exec".into(), when_contains_args: None, action: PolicyAction::Allow, reason: Some("cli override".into()) }] };
+                    let json = serde_json::to_string(&override_doc)?;
+                    std::env::set_var("MAGRAY_POLICY_JSON", json);
+                    println!("Applied in-memory override: Allow shell_exec (MAGRAY_POLICY_JSON)\nNote: persist by writing ~/.magray/policy.json");
+                }
             }
             Some(Commands::Tools(cmd)) => {
                 timeout(Duration::from_secs(300), cmd.execute()).await.map_err(|_| anyhow::anyhow!("Tools command timeout"))??;
