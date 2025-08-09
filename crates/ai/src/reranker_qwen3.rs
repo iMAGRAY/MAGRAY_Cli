@@ -5,7 +5,7 @@ use crate::tokenization::OptimizedTokenizer;
 #[cfg(feature = "gpu")]
 use crate::{GpuConfig, GpuInfo};
 use anyhow::Result as AnyhowResult;
-use common::service_traits::StatisticsProvider;
+// use common::service_traits::StatisticsProvider;
 use ort::{inputs, session::Session, value::Tensor};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -14,10 +14,15 @@ use tracing::{debug, info, warn};
 
 /// Optimized Qwen3 Reranker Service with batch processing and memory pooling
 pub struct OptimizedQwen3RerankerService {
-    session: Arc<Mutex<Session>>,
+    inner: RerankerInner,
     model_path: PathBuf,
     max_seq_length: usize,
     batch_size: usize,
+}
+
+enum RerankerInner {
+    Ort(Arc<Mutex<Session>>),
+    Fallback,
 }
 
 /// Batch reranking input
@@ -79,31 +84,52 @@ impl OptimizedQwen3RerankerService {
             }
         }
 
-        // Initialize ONNX Runtime
-        if !should_disable_ort() {
+        // Initialize ONNX Runtime or fallback
+        let inner = if should_disable_ort() {
+            warn!("ORT disabled by MAGRAY_FORCE_NO_ORT; using fallback text-overlap reranker");
+            RerankerInner::Fallback
+        } else {
             crate::ort_setup::configure_ort_env();
             ort::init().with_name("optimized_qwen3_reranker").commit()?;
-        } else {
-            warn!("ORT disabled by MAGRAY_FORCE_NO_ORT; reranker will operate in mock/scoring-disabled mode");
-            // Return a mock with empty session to avoid using ORT; create a dummy Session via a minimal unsafe workaround is not desired.
-            // Instead, create a minimal placeholder by loading a tiny empty model path will fail; so we short-circuit with an error-tolerant stub.
-            let model_path = PathBuf::from("models/qwen3_reranker/model.onnx");
-            let session = Session::builder()? // build a minimal in-memory session not possible without file; avoid calling it.
-                .with_intra_threads(1)?
-                .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Disable)?
-                .commit_from_file(&model_path).unwrap_or_else(|_| {
-                    // Create a dummy session by leaking a zero-sized session via unsafe default. As a safer fallback, we just panic-free return Self with a poisoned Mutex by creating from a failed pointer is not possible.
-                    // Therefore, instead skip early with a placeholder using temp file
-                    let _ = std::fs::create_dir_all("models/qwen3_reranker");
-                    let _ = std::fs::write(&model_path, b"ONNX_PLACEHOLDER");
-                    // Try once; if fails, we still proceed with an erroring session – but in tests we will not call rerank.
-                    Session::builder().unwrap()
-                        .with_intra_threads(1).unwrap()
-                        .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Disable).unwrap()
-                        .commit_from_file(&model_path).unwrap_or_else(|_| panic!("ORT disabled and cannot create dummy session"))
-                });
-            return Ok(Self { session: Arc::new(Mutex::new(session)), model_path, max_seq_length, batch_size });
-        }
+            // Create optimized session
+            #[cfg(feature = "gpu")]
+            let mut session_builder = Session::builder()?
+                .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
+                .with_intra_threads(4)?
+                .with_memory_pattern(true)?; // Enable memory pattern optimization
+
+            #[cfg(not(feature = "gpu"))]
+            let session_builder = Session::builder()?
+                .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
+                .with_intra_threads(4)?
+                .with_memory_pattern(true)?; // Enable memory pattern optimization
+
+            // Добавляем GPU провайдеры если нужно
+            #[cfg(feature = "gpu")]
+            if config.use_gpu {
+                if let Some(ref gpu_config) = config.gpu_config {
+                    match gpu_config.create_providers() {
+                        Ok(providers) => {
+                            if !providers.is_empty() {
+                                info!(
+                                    "🚀 Добавляем {} GPU провайдеров для reranker",
+                                    providers.len()
+                                );
+                                session_builder =
+                                    session_builder.with_execution_providers(providers)?;
+                            }
+                        }
+                        Err(e) => {
+                            warn!("⚠️ Ошибка создания GPU провайдеров: {}. Используем CPU.", e);
+                        }
+                    }
+                }
+            }
+
+            let session = session_builder.commit_from_file(&model_path)?;
+            info!("✅ OPTIMIZED Qwen3 reranker session created");
+            RerankerInner::Ort(Arc::new(Mutex::new(session)))
+        };
 
         // Проверяем доступность GPU
         #[cfg(feature = "gpu")]
@@ -116,76 +142,8 @@ impl OptimizedQwen3RerankerService {
             }
         }
 
-        // Create optimized session
-        #[cfg(feature = "gpu")]
-        let mut session_builder = Session::builder()?
-            .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
-            .with_intra_threads(4)?
-            .with_memory_pattern(true)?; // Enable memory pattern optimization
-
-        #[cfg(not(feature = "gpu"))]
-        let session_builder = Session::builder()?
-            .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
-            .with_intra_threads(4)?
-            .with_memory_pattern(true)?; // Enable memory pattern optimization
-
-        // Добавляем GPU провайдеры если нужно
-        #[cfg(feature = "gpu")]
-        if config.use_gpu {
-            if let Some(ref gpu_config) = config.gpu_config {
-                match gpu_config.create_providers() {
-                    Ok(providers) => {
-                        if !providers.is_empty() {
-                            info!(
-                                "🚀 Добавляем {} GPU провайдеров для reranker",
-                                providers.len()
-                            );
-                            session_builder =
-                                session_builder.with_execution_providers(providers)?;
-                        } else {
-                            warn!("⚠️ GPU провайдеры не созданы для reranker, используем CPU");
-                        }
-                    }
-                    Err(e) => {
-                        warn!(
-                            "⚠️ Ошибка создания GPU провайдеров для reranker: {}. Используем CPU.",
-                            e
-                        );
-                    }
-                }
-            } else if config.use_gpu {
-                // Если use_gpu=true но gpu_config=None, создаём дефолтный
-                let default_gpu_config = GpuConfig::default();
-                match default_gpu_config.create_providers() {
-                    Ok(providers) => {
-                        if !providers.is_empty() {
-                            info!("🚀 Используем дефолтную GPU конфигурацию для reranker");
-                            session_builder =
-                                session_builder.with_execution_providers(providers)?;
-                        }
-                    }
-                    Err(e) => {
-                        warn!(
-                            "⚠️ Ошибка создания дефолтных GPU провайдеров для reranker: {}",
-                            e
-                        );
-                    }
-                }
-            }
-        }
-
-        let session = session_builder.commit_from_file(&model_path)?;
-
-        info!("✅ OPTIMIZED Qwen3 reranker session created");
-        info!("   Model: {}", model_path.display());
-        info!("   Inputs: {}", session.inputs.len());
-        info!("   Outputs: {}", session.outputs.len());
-
-        // Qwen3 reranker typically uses input_ids, attention_mask, position_ids
-        // We'll rely on dynamic input inspection during run
-
         Ok(Self {
-            session: Arc::new(Mutex::new(session)),
+            inner,
             model_path,
             max_seq_length,
             batch_size,
@@ -225,6 +183,26 @@ impl OptimizedQwen3RerankerService {
                 total_time_ms: 0,
                 throughput_docs_per_sec: 0.0,
             });
+        }
+
+        // Fallback path: simple token-overlap scoring
+        if matches!(self.inner, RerankerInner::Fallback) {
+            let mut results: Vec<OptimizedRerankResult> = documents
+                .iter()
+                .enumerate()
+                .map(|(i, d)| OptimizedRerankResult {
+                    query: query.clone(),
+                    document: d.clone(),
+                    score: fallback_overlap_score(query, d),
+                    index: i,
+                    processing_time_ms: 0,
+                })
+                .collect();
+            results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+            if let Some(k) = batch.top_k { results.truncate(k); }
+            let total_time = start_time.elapsed().as_millis();
+            let throughput = 1000.0 * documents.len() as f64 / (total_time.max(1)) as f64;
+            return Ok(BatchRerankResult { results, total_time_ms: total_time, throughput_docs_per_sec: throughput });
         }
 
         // Process documents in optimized batches
@@ -333,22 +311,25 @@ impl OptimizedQwen3RerankerService {
         let position_ids_tensor =
             Tensor::from_array(([batch_size, padded_len], flat_position_ids.to_vec()))?;
 
-        // Single ONNX call for entire batch
-        let mut session = self
-            .session
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
-
-        let outputs = session.run(inputs![
-            "input_ids" => input_ids_tensor,
-            "attention_mask" => attention_mask_tensor,
-            "position_ids" => position_ids_tensor
-        ])?;
-
-        // Buffers are automatically returned to pool via Drop trait
-
-        // Extract batch scores
-        let scores = self.extract_batch_scores(&outputs, batch_size)?;
+        // Single ONNX call for entire batch, extract scores while session is alive
+        let scores: Vec<f32> = match &self.inner {
+            RerankerInner::Ort(session_arc) => {
+                let mut session = session_arc
+                    .lock()
+                    .map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
+                let outputs = session.run(inputs![
+                    "input_ids" => input_ids_tensor,
+                    "attention_mask" => attention_mask_tensor,
+                    "position_ids" => position_ids_tensor
+                ])?;
+                // Extract while outputs borrows session internals
+                self.extract_batch_scores(&outputs, batch_size)?
+            }
+            RerankerInner::Fallback => {
+                // Should not reach here, rerank_batch handles fallback early
+                return Err(anyhow::anyhow!("Fallback path should not call process_batch_optimized"));
+            }
+        };
 
         // Create results
         let mut results = Vec::with_capacity(batch_size);
@@ -476,6 +457,22 @@ pub struct RerankServiceStats {
     pub max_seq_length: usize,
     pub batch_size: usize,
     pub optimization_level: String,
+}
+
+/// Very simple text-overlap scoring for fallback mode (Jaccard on lowercased token sets)
+fn fallback_overlap_score(query: &str, doc: &str) -> f32 {
+    fn tokenize(s: &str) -> std::collections::HashSet<String> {
+        s.split(|c: char| !c.is_alphanumeric())
+            .filter(|t| !t.is_empty())
+            .map(|t| t.to_lowercase())
+            .collect()
+    }
+    let q = tokenize(query);
+    let d = tokenize(doc);
+    if q.is_empty() || d.is_empty() { return 0.0; }
+    let inter = q.intersection(&d).count() as f32;
+    let union = q.union(&d).count() as f32;
+    if union <= 0.0 { 0.0 } else { inter / union }
 }
 
 #[cfg(test)]
