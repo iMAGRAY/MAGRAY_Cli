@@ -340,7 +340,10 @@ impl VectorIndex {
         // Добавляем в HNSW граф
         {
             let mut hnsw_guard = self.hnsw.write();
-            if hnsw_guard.is_none() {
+            if let Some(ref mut hnsw) = hnsw_guard.as_mut() {
+                // вставка в hnsw_rs: add_point takes &Vec<f32> and point_id
+                hnsw.insert((&vector, point_id));
+            } else {
                 let error = anyhow!("HNSW не инициализирован");
                 self.stats.record_error();
                 return Err(error);
@@ -537,9 +540,9 @@ impl VectorIndex {
 
         let results: Vec<(usize, f32)> = {
             let hnsw_guard = self.hnsw.read();
-            if let Some(_hnsw) = hnsw_guard.as_ref() {
-                let _ = (query, k, ef_search);
-                Vec::new()
+            if let Some(hnsw) = hnsw_guard.as_ref() {
+                let found = hnsw.search(&query.to_vec(), ef_search, k);
+                found.into_iter().map(|ne| (ne.d_id, ne.distance)).collect()
             } else {
                 let error = anyhow!("HNSW не инициализирован для поиска");
                 self.stats.record_error();
@@ -826,9 +829,9 @@ impl VectorIndex {
 
         let results: Vec<(usize, f32)> = {
             let hnsw_guard = self.hnsw.read();
-            if let Some(_hnsw) = hnsw_guard.as_ref() {
-                let _ = (query, k, ef_search);
-                Vec::new()
+            if let Some(hnsw) = hnsw_guard.as_ref() {
+                let found = hnsw.search(&query.to_vec(), ef_search, k);
+                found.into_iter().map(|ne| (ne.d_id, ne.distance)).collect()
             } else {
                 return Err(anyhow!("HNSW не инициализирован"));
             }
