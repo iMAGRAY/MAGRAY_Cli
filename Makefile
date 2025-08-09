@@ -245,6 +245,8 @@ ci-local-extended-cov:
 		--include-files crates/common/src/** \
 		--include-files crates/tools/src/file_ops.rs \
 		--include-files crates/tools/src/git_ops.rs \
+		--include-files crates/tools/src/web_ops.rs \
+		--include-files crates/tools/src/shell_ops.rs \
 		--include-files crates/tools/src/registry/** \
 		--include-files crates/tools/src/execution/resource_manager.rs \
 		--include-files crates/tools/src/execution/security_enforcer.rs \
