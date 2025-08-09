@@ -286,9 +286,10 @@ impl VectorIndex {
                 actual_size, max_layers
             );
 
-            // TODO: integrate real HNSW initialization. For now, leave uninitialized stub.
-            // Keep hnsw_guard as None to avoid incorrect type assignment.
-            let _ = (actual_size, max_layers);
+            let ef_c = self.config.ef_construction as usize;
+            let m = self.config.max_connections as usize;
+            let hnsw: Hnsw<f32, DistCosine> = Hnsw::new(m, actual_size, self.config.dimension, ef_c, DistCosine {});
+            *hnsw_guard = Some(hnsw);
 
             info!(
                 "✅ HNSW инициализирован успешно: max_elements={}, max_layers={}",
