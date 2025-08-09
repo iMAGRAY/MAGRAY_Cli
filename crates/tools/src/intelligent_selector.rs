@@ -416,33 +416,23 @@ impl IntelligentToolSelector {
         }
 
         // Prefilter by environment/network restrictions
-        let net_allow = std::env::var("MAGRAY_NET_ALLOW").unwrap_or_default();
-        let net_disabled = net_allow.trim().is_empty();
+        let sb = common::sandbox_config::SandboxConfig::from_env();
+        let net_disabled = sb.net.allowlist.is_empty();
         if net_disabled {
             candidates.retain(|t| t != "web_fetch" && t != "web_search");
         }
 
         // Prefilter by shell allowance in environment
-        let allow_shell_env = std::env::var("MAGRAY_ALLOW_SHELL").unwrap_or_default().to_lowercase();
-        let allow_shell = allow_shell_env == "1" || allow_shell_env == "true" || allow_shell_env == "yes";
+        let allow_shell = sb.shell.allow_shell;
         if !allow_shell {
             // Remove known shell tool by name
             candidates.retain(|t| t != "shell_exec");
         }
 
         // Permissions-aware filtering using ToolSpec.permissions
-        let net_allowed: Vec<String> = net_allow
-            .split(',')
-            .map(|s| s.trim().to_lowercase())
-            .filter(|s| !s.is_empty())
-            .collect();
-        let fs_sandbox_on = std::env::var("MAGRAY_FS_SANDBOX").unwrap_or_default() == "1";
-        let fs_roots_env = std::env::var("MAGRAY_FS_ROOTS").unwrap_or_default();
-        let fs_roots: Vec<String> = fs_roots_env
-            .split(':')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
+        let net_allowed: Vec<String> = sb.net.allowlist.clone();
+        let fs_sandbox_on = sb.fs.enabled;
+        let fs_roots: Vec<String> = sb.fs.roots.clone();
 
         let tools_map = self.available_tools.lock().await;
         let domain_matches = |allow: &str, needed: &str| -> bool {
