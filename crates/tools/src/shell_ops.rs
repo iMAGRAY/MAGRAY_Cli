@@ -49,33 +49,74 @@ impl Tool for ShellExec {
             });
         }
 
-        let (_cmd, _args) = parts.split_first().unwrap();
+        // Dry-run: не выполняем, а возвращаем эхо с превью
+        if input.dry_run {
+            let mut meta = HashMap::new();
+            meta.insert("dry_run".into(), "true".into());
+            return Ok(ToolOutput {
+                success: true,
+                result: format!("[dry-run] $ {}", command),
+                formatted_output: Some(format!("$ {}\n[dry-run: no side effects]", command)),
+                metadata: meta,
+            });
+        }
 
-        // Выполняем команду
-        let output = if cfg!(target_os = "windows") {
-            Command::new("cmd").args(&["/C", command]).output()
-        } else {
-            Command::new("sh").args(&["-c", command]).output()
+        // Выполняем команду с таймаутом если указан
+        let run = async move {
+            let output = if cfg!(target_os = "windows") {
+                Command::new("cmd").args(&["/C", command]).output()
+            } else {
+                Command::new("sh").args(&["-c", command]).output()
+            };
+            output
         };
 
-        match output {
+        let output_res = if let Some(ms) = input.timeout_ms {
+            match tokio::time::timeout(std::time::Duration::from_millis(ms), run).await {
+                Ok(res) => res,
+                Err(_) => {
+                    let mut meta = HashMap::new();
+                    meta.insert("timeout_ms".into(), ms.to_string());
+                    return Ok(ToolOutput {
+                        success: false,
+                        result: format!("Команда превысила таймаут {}ms", ms),
+                        formatted_output: None,
+                        metadata: meta,
+                    });
+                }
+            }
+        } else {
+            run.await
+        };
+
+        match output_res {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
+
+                let mut metadata = HashMap::new();
+                metadata.insert(
+                    "platform".to_string(),
+                    if cfg!(target_os = "windows") { "windows".to_string() } else { "unix".to_string() },
+                );
+                metadata.insert(
+                    "status_code".to_string(),
+                    output.status.code().unwrap_or(-1).to_string(),
+                );
 
                 if output.status.success() {
                     Ok(ToolOutput {
                         success: true,
                         result: stdout.to_string(),
-                        formatted_output: None,
-                        metadata: HashMap::new(),
+                        formatted_output: Some(format!("$ {}\n{}", command, stdout)),
+                        metadata,
                     })
                 } else {
                     Ok(ToolOutput {
                         success: false,
                         result: format!("Команда завершилась с ошибкой:\n{}", stderr),
                         formatted_output: Some(stdout.to_string()),
-                        metadata: HashMap::new(),
+                        metadata,
                     })
                 }
             }
@@ -104,6 +145,8 @@ impl Tool for ShellExec {
             command: "shell_exec".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }

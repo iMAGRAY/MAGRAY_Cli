@@ -63,6 +63,8 @@ impl Tool for WebSearch {
             command: "web_search".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -136,6 +138,8 @@ impl Tool for WebFetch {
             command: "web_fetch".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }

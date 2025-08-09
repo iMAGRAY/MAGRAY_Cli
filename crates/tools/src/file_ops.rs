@@ -76,6 +76,8 @@ impl Tool for FileReader {
             command: "file_read".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -117,13 +119,26 @@ impl Tool for FileWriter {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
         let content = input.args.get("content").map(|s| s.as_str()).unwrap_or("");
 
+        // Dry-run: показать что будет записано
+        if input.dry_run {
+            let mut meta = HashMap::new();
+            meta.insert("dry_run".into(), "true".into());
+            meta.insert("bytes".into(), content.len().to_string());
+            return Ok(ToolOutput {
+                success: true,
+                result: format!("[dry-run] write {} bytes to {}", content.len(), path),
+                formatted_output: Some(format!("$ echo '<content:{} bytes>' > {}\n[dry-run: no side effects]", content.len(), path)),
+                metadata: meta,
+            });
+        }
+
         fs::write(path, content)?;
 
         Ok(ToolOutput {
             success: true,
             result: format!("✅ Файл '{}' успешно создан", path),
             formatted_output: None,
-            metadata: HashMap::new(),
+            metadata: HashMap::from([("bytes".into(), content.len().to_string())]),
         })
     }
 
@@ -143,6 +158,8 @@ impl Tool for FileWriter {
             command: "file_write".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -248,6 +265,8 @@ impl Tool for DirLister {
             command: "dir_list".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -385,6 +404,8 @@ impl Tool for FileSearcher {
             command: "file_search".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -461,6 +482,8 @@ mod tests {
             command: "file_read".to_string(),
             args: input_args,
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = reader.execute(input).await;
@@ -483,6 +506,8 @@ mod tests {
             command: "file_read".to_string(),
             args: input_args,
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = reader.execute(input).await?;
@@ -544,6 +569,8 @@ mod tests {
             command: "file_write".to_string(),
             args: input_args,
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = writer.execute(input).await?;
@@ -566,6 +593,8 @@ mod tests {
             command: "file_write".to_string(),
             args: input_args,
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = writer.execute(input).await;

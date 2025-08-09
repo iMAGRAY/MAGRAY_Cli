@@ -42,6 +42,8 @@ async fn test_shell_exec_empty_command() -> Result<()> {
         command: "shell_exec".to_string(),
         args: HashMap::new(), // No command provided
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = shell_exec.execute(input).await?;
