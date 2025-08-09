@@ -162,6 +162,10 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
             rerank,
             hybrid,
         } => {
+            // intent event
+            tokio::spawn(events::publish(topics::TOPIC_INTENT, serde_json::json!({
+                "command": "memory.search", "query": query, "top_k": top_k, "rerank": rerank, "hybrid": hybrid
+            })));
             search_memory(&api, &query, layer, top_k, min_score, rerank, hybrid).await?;
         }
 
@@ -171,6 +175,9 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
             tags,
             kind,
         } => {
+            tokio::spawn(events::publish(topics::TOPIC_INTENT, serde_json::json!({
+                "command": "memory.add", "layer": layer, "kind": kind
+            })));
             add_to_memory(&api, text, &layer, tags, &kind).await?;
         }
 
@@ -203,6 +210,9 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
                 }
             }
             create_backup(&api, name).await?;
+            tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({
+                "job": "memory.backup", "status": "done"
+            })));
         }
 
         MemorySubcommand::Restore { backup_path } => {
@@ -235,6 +245,9 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
                 }
             }
             restore_backup(&api, backup_path).await?;
+            tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({
+                "job": "memory.restore", "status": "done"
+            })));
         }
 
         MemorySubcommand::ListBackups => {
