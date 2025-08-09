@@ -79,7 +79,7 @@ exclude-files = [
   "crates/memory/src/migration.rs",
 
   # AI: drop legacy tokenization and non-target embeddings
-  "crates/ai/src/embeddings_bge_m3.rs",
+
   "crates/ai/src/tokenization/**",
   "crates/ai/src/reranker_qwen3_optimized.rs",
   "crates/ai/src/reranking.rs",

@@ -102,7 +102,7 @@ Score = `sim * layer_weight * exp(-(now-ts)/τ)`; τ≈48 h.
 | **Executor** | execute DAG nodes, handle retries, timeout, capture outputs |
 | **Tool Registry** | WASI sandboxed plugins, introspect `spec()` |
 | **PromptBuilder** | gather context, format system/user/tool blocks |
-| **EmbedSvc** | BGE‑small‑en v3; batch + cache |
+| **EmbedSvc** | Qwen3 0.6B; batch + cache |
 | **MemorySvc** | CRUD tables, promotion/decay policies, hybrid query |
 | **Rerank** | CrossEncoder‐MS‑Marco or BG3 |
 | **LLM Client** | local GGUF or remote OpenAI via env flag |

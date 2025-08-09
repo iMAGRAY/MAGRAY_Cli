@@ -5,9 +5,6 @@ pub mod memory_pool;
 
 // Only include embeddings for cpu/gpu builds
 #[cfg(feature = "embeddings")]
-pub mod embeddings_bge_m3;
-
-#[cfg(feature = "embeddings")]
 pub mod embeddings_cpu;
 
 #[cfg(feature = "gpu")]
@@ -68,9 +65,6 @@ pub use config::{AiConfig, EmbeddingConfig, RerankingConfig};
 pub use errors::AiError;
 
 // Conditional exports based on features
-#[cfg(feature = "embeddings")]
-pub use embeddings_bge_m3::BgeM3EmbeddingService;
-
 #[cfg(feature = "embeddings")]
 pub use embeddings_cpu::{CpuEmbeddingService, OptimizedEmbeddingResult, ServiceStats};
 

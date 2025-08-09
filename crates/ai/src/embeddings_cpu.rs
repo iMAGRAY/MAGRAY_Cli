@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tracing::{debug, info, warn};
 
-/// CPU-based Embedding Service with real tokenization and batching (supports BGE-M3 and Qwen3)
+/// CPU-based Embedding Service with real tokenization and batching (Qwen3)
 pub struct CpuEmbeddingService {
     session: Arc<Mutex<Session>>,
     tokenizer: Arc<OptimizedTokenizer>,
@@ -32,7 +32,7 @@ pub struct OptimizedEmbeddingResult {
 }
 
 impl CpuEmbeddingService {
-    /// Create new optimized embedding service (supports BGE-M3 and Qwen3)
+    /// Create new optimized embedding service (Qwen3)
     pub fn new(config: EmbeddingConfig) -> AnyhowResult<Self> {
         if should_disable_ort() {
             warn!("ORT disabled by MAGRAY_FORCE_NO_ORT; CpuEmbeddingService not initialized");
@@ -49,7 +49,7 @@ impl CpuEmbeddingService {
         // Определяем путь к модели в зависимости от типа
         let (model_filename, hidden_size) = match config.model_name.as_str() {
             "qwen3emb" => ("model.onnx", 1024), // Исправлено: используем стандартное имя файла
-            "bge-m3" => ("model.onnx", 1024),
+            // legacy models removed; default to qwen3 configuration
             _ => ("model.onnx", config.embedding_dim.unwrap_or(1024)),
         };
 

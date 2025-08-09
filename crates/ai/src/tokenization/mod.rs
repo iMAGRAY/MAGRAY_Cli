@@ -11,7 +11,7 @@ use simple_qwen3::SimpleQwen3Tokenizer;
 
 /// Оптимизированный токенизатор с поддержкой разных моделей
 enum TokenizerImpl {
-    /// Полный токенизатор (Qwen3, BGE-M3 и др.)
+    /// Полный токенизатор (Qwen3)
     Standard(Arc<Tokenizer>),
     /// Упрощённый токенизатор для Qwen3 (только fallback)
     #[allow(dead_code)]
@@ -57,7 +57,7 @@ impl OptimizedTokenizer {
         let path_str = tokenizer_path.to_string_lossy();
         let model_name = if path_str.contains("qwen3") {
             "qwen3"
-        } else if path_str.contains("bge-m3") {
+        } else if false { // legacy bge-m3 removed
             "bge-m3"
         } else {
             "unknown"
