@@ -384,6 +384,14 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                     if !e.matched.tags.is_empty() { println!("  tags: {}", e.matched.tags.join(", ")); }
                     if !e.matched.capabilities.is_empty() { println!("  caps: {}", e.matched.capabilities.join(", ")); }
                     if !e.matched.good_for.is_empty() { println!("  good_for: {}", e.matched.good_for.join(", ")); }
+                    // Show safety-related breakdown
+                    println!(
+                        "  breakdown: latency_bonus={:.2} low_risk={:.2} perms_adj={:.2} dry_run={:.2}",
+                        e.breakdown.urgency_latency_bonus,
+                        e.breakdown.low_risk_bonus,
+                        e.breakdown.permissions_adjust,
+                        e.breakdown.dry_run_bonus
+                    );
                 }
             }
             Ok(())

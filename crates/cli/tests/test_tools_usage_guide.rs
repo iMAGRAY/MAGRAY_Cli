@@ -68,6 +68,20 @@ fn tools_select_json_structure() {
 }
 
 #[test]
+fn tools_select_json_contains_permissions_and_dryrun_breakdown() {
+    let mut cmd = Command::cargo_bin("magray").expect("built");
+    let out = cmd
+        .args(["tools","select","--query","скачай страницу","--json"]) // json
+        .env("CI","1").env("MAGRAY_NO_ANIM","1")
+        .output().expect("run ok");
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains("\"breakdown\""));
+    assert!(s.contains("permissions_adjust"));
+    assert!(s.contains("dry_run_bonus"));
+}
+
+#[test]
 fn fs_sandbox_blocks_outside_root() {
     let tmp = TempDir::new().unwrap();
     let allowed = tmp.path().canonicalize().unwrap();
