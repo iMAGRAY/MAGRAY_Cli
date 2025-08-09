@@ -109,3 +109,11 @@ fn ask_policy_requires_confirmation_and_env_override_allows() {
     let status2 = cmd2.status().expect("run ok");
     assert!(status2.success());
 }
+
+#[test]
+fn status_shows_policy_audit() {
+    let mut cmd = Command::cargo_bin("magray").expect("binary built");
+    cmd.args(["status"]).env("CI","1").env("MAGRAY_CMD_TIMEOUT","15");
+    let assert = cmd.assert();
+    assert.success();
+}

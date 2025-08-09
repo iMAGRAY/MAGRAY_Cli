@@ -82,7 +82,7 @@ impl PolicyEngine {
         if let Some(rule) = last_match.clone() {
             let action = rule.action.clone();
             let risk = infer_risk_from_reason(rule.reason.as_deref());
-            let allowed = matches!(action, PolicyAction::Allow);
+            let allowed = !matches!(action, PolicyAction::Deny);
             PolicyDecision { allowed, matched_rule: last_match, action, risk }
         } else {
             // default allow if no rule matched
@@ -171,6 +171,30 @@ mod tests {
         let d = engine.evaluate_tool("shell_exec", &HashMap::new());
         assert!(!d.allowed);
         assert_eq!(d.action, PolicyAction::Deny);
+    }
+
+    #[test]
+    fn risk_level_inference_high_medium_low() {
+        assert_eq!(super::infer_risk_from_reason(Some("HIGH risk operation")), RiskLevel::High);
+        assert_eq!(super::infer_risk_from_reason(Some("medium level")), RiskLevel::Medium);
+        assert_eq!(super::infer_risk_from_reason(Some("safe")), RiskLevel::Low);
+        assert_eq!(super::infer_risk_from_reason(None), RiskLevel::Low);
+    }
+
+    #[test]
+    fn ask_action_propagates_in_decision() {
+        let doc = PolicyDocument { rules: vec![PolicyRule {
+            subject_kind: PolicySubjectKind::Tool,
+            subject_name: "web_search".into(),
+            when_contains_args: None,
+            action: PolicyAction::Ask,
+            reason: Some("medium".into()),
+        }]};
+        let engine = PolicyEngine::from_document(doc);
+        let d = engine.evaluate_tool("web_search", &HashMap::new());
+        assert!(d.allowed, "Ask should not auto-deny in engine; caller handles prompt");
+        assert_eq!(d.action, PolicyAction::Ask);
+        assert_eq!(d.risk, RiskLevel::Medium);
     }
 
     #[test]
