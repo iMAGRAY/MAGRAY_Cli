@@ -151,12 +151,11 @@ where
 
     /// Получение статистики использования
     pub fn get_usage_stats(&self) -> HashMap<String, u64> {
-        // В production версии здесь будут реальные метрики
-        let mut stats = HashMap::new();
-        stats.insert("requests_processed".to_string(), 0);
-        stats.insert("avg_response_time_ms".to_string(), 0);
-        stats.insert("circuit_breaker_trips".to_string(), 0);
-        stats
+        super::standard_usage_stats(&[
+            ("requests_processed", 0),
+            ("avg_response_time_ms", 0),
+            ("circuit_breaker_trips", 0),
+        ])
     }
 }
 

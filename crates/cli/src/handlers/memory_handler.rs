@@ -181,13 +181,13 @@ where
 
     /// Получение статистики использования
     pub fn get_usage_stats(&self) -> HashMap<String, u64> {
-        let mut stats = HashMap::new();
-        stats.insert("messages_stored".to_string(), 0);
-        stats.insert("searches_performed".to_string(), 0);
-        stats.insert("promotions_run".to_string(), 0);
-        stats.insert("avg_search_time_ms".to_string(), 0);
-        stats.insert("circuit_breaker_trips".to_string(), 0);
-        stats
+        super::standard_usage_stats(&[
+            ("messages_stored", 0),
+            ("searches_performed", 0),
+            ("promotions_run", 0),
+            ("avg_search_time_ms", 0),
+            ("circuit_breaker_trips", 0),
+        ])
     }
 
     /// Проверка доступности памяти

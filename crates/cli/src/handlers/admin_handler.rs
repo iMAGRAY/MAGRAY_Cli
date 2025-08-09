@@ -218,13 +218,13 @@ where
 
     /// Получение статистики использования
     pub fn get_usage_stats(&self) -> HashMap<String, u64> {
-        let mut stats = HashMap::new();
-        stats.insert("admin_commands_executed".to_string(), 0);
-        stats.insert("health_checks_performed".to_string(), 0);
-        stats.insert("stats_requests".to_string(), 0);
-        stats.insert("metrics_requests".to_string(), 0);
-        stats.insert("circuit_breaker_trips".to_string(), 0);
-        stats
+        super::standard_usage_stats(&[
+            ("admin_commands_executed", 0),
+            ("health_checks_performed", 0),
+            ("stats_requests", 0),
+            ("metrics_requests", 0),
+            ("circuit_breaker_trips", 0),
+        ])
     }
 
     /// Проверка административных прав (в production версии)

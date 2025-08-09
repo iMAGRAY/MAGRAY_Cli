@@ -145,12 +145,12 @@ where
 
     /// Получение статистики использования
     pub fn get_usage_stats(&self) -> HashMap<String, u64> {
-        let mut stats = HashMap::new();
-        stats.insert("tools_executed".to_string(), 0);
-        stats.insert("avg_execution_time_ms".to_string(), 0);
-        stats.insert("success_rate_percent".to_string(), 0);
-        stats.insert("circuit_breaker_trips".to_string(), 0);
-        stats
+        super::standard_usage_stats(&[
+            ("tools_executed", 0),
+            ("avg_execution_time_ms", 0),
+            ("success_rate_percent", 0),
+            ("circuit_breaker_trips", 0),
+        ])
     }
 
     /// Проверка доступности конкретного инструмента
