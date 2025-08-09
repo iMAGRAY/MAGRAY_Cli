@@ -46,7 +46,11 @@ impl BgeM3EmbeddingService {
         }
 
         // Initialize ONNX Runtime
-        ort::init().with_name("bge_m3_embedding").commit()?;
+        if !crate::should_disable_ort() {
+            ort::init().with_name("bge_m3_embedding").commit()?;
+        } else {
+            warn!("ORT disabled by MAGRAY_FORCE_NO_ORT; BGE service inactive");
+        }
 
         // Create session
         let session = Session::builder()?

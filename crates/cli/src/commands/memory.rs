@@ -452,67 +452,64 @@ async fn add_to_memory(
 async fn create_backup(api: &UnifiedMemoryAPI, name: Option<String>) -> Result<()> {
     let spinner = ProgressBuilder::backup("Creating memory backup...");
 
-    // Используем фиктивное имя для API
-    let backup_name =
-        name.unwrap_or_else(|| format!("backup_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S")));
+    let backup_name = name.unwrap_or_else(|| format!("backup_{}.json", chrono::Utc::now().format("%Y%m%d_%H%M%S")));
+    let path = std::path::PathBuf::from("backups").join(backup_name);
 
-    // Попытка создать backup через API может не работать для всех реализаций
-    match tokio::time::timeout(std::time::Duration::from_secs(30), async {
-        let _ = api
-            .remember(
-                format!("Backup request: {}", backup_name),
-                MemoryContext::new("backup").with_layer(memory::Layer::Assets),
-            )
-            .await;
-        Ok::<PathBuf, anyhow::Error>(std::path::PathBuf::from(backup_name))
-    })
-    .await
-    {
-        Ok(Ok(path)) => {
+    match tokio::time::timeout(std::time::Duration::from_secs(30), api.backup_to_path(&path)).await {
+        Ok(Ok(count)) => {
             spinner.finish_success(Some("Backup created successfully!"));
             println!("{}: {}", "Path".cyan(), path.display());
+            println!("{}: {} records", "Included".cyan(), count);
         }
-        _ => {
-            spinner.finish_success(Some(
-                "Backup feature not fully implemented in current architecture",
-            ));
-            println!(
-                "{}",
-                "Note: Backup functionality requires legacy API".yellow()
-            );
+        Ok(Err(e)) => {
+            spinner.finish_error(&format!("Backup failed: {}", e));
+            anyhow::bail!(e);
+        }
+        Err(_) => {
+            spinner.finish_error("Backup timeout");
+            anyhow::bail!("Backup timeout");
         }
     }
 
     Ok(())
 }
 
-async fn restore_backup(_api: &UnifiedMemoryAPI, backup_path: PathBuf) -> Result<()> {
-    let file_name = backup_path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy();
+async fn restore_backup(api: &UnifiedMemoryAPI, backup_path: PathBuf) -> Result<()> {
+    let file_name = backup_path.file_name().unwrap_or_default().to_string_lossy();
     let spinner = ProgressBuilder::backup(&format!("Restoring from backup: {file_name}"));
 
-    // Restore не реализован в DIMemoryService trait
-    spinner.finish_success(Some("Restore feature not implemented"));
-    println!(
-        "{}",
-        "Note: Restore functionality requires legacy API".yellow()
-    );
-    println!("{}: {}", "Requested file".cyan(), file_name);
+    match tokio::time::timeout(std::time::Duration::from_secs(45), api.restore_from_path(&backup_path)).await {
+        Ok(Ok(inserted)) => {
+            spinner.finish_success(Some("Restore completed!"));
+            println!("{}: {}", "Path".cyan(), backup_path.display());
+            println!("{}: {} records", "Restored".cyan(), inserted);
+        }
+        Ok(Err(e)) => {
+            spinner.finish_error(&format!("Restore failed: {}", e));
+            anyhow::bail!(e);
+        }
+        Err(_) => {
+            spinner.finish_error("Restore timeout");
+            anyhow::bail!("Restore timeout");
+        }
+    }
 
     Ok(())
 }
 
 fn list_backups(_api: &UnifiedMemoryAPI) -> Result<()> {
-    // List backups не доступен через trait
+    use std::fs; use std::path::PathBuf;
+    let dir = PathBuf::from("backups");
     println!("{}", "Available backups:".bold());
-    println!("{}", "Note: Backup listing requires legacy API".yellow());
-    println!(
-        "{}",
-        "No backups found (feature not implemented in current architecture)".dimmed()
-    );
-
+    if let Ok(read) = fs::read_dir(&dir) {
+        let mut any = false;
+        for e in read.flatten() {
+            if let Ok(ft) = e.file_type() { if ft.is_file() { println!("- {}", e.path().display()); any = true; } }
+        }
+        if !any { println!("{}", "(no backups)".dimmed()); }
+    } else {
+        println!("{}", "(directory 'backups' not found)".dimmed());
+    }
     Ok(())
 }
 

@@ -261,6 +261,7 @@ ci-local-extended-cov:
 		--include-files crates/cli/src/commands/gpu.rs \
 		--include-files crates/cli/src/commands/models.rs \
 		--include-files crates/cli/src/commands/tools.rs \
+		--include-files crates/cli/src/commands/memory.rs \
 		--include-files crates/cli/src/progress.rs \
 		--include-files crates/memory/src/api.rs \
 		--include-files crates/memory/src/fallback.rs \

@@ -3,6 +3,7 @@ use crate::tokenization::{
     BatchTokenized, OptimizedTokenizer, TokenizedInput as OptTokenizedInput,
 };
 use crate::EmbeddingConfig;
+use crate::should_disable_ort;
 #[cfg(feature = "gpu")]
 use crate::{GpuConfig, GpuInfo};
 use anyhow::Result as AnyhowResult;
@@ -33,6 +34,10 @@ pub struct OptimizedEmbeddingResult {
 impl CpuEmbeddingService {
     /// Create new optimized embedding service (supports BGE-M3 and Qwen3)
     pub fn new(config: EmbeddingConfig) -> AnyhowResult<Self> {
+        if should_disable_ort() {
+            warn!("ORT disabled by MAGRAY_FORCE_NO_ORT; CpuEmbeddingService not initialized");
+            return Err(anyhow::anyhow!("ORT disabled"));
+        }
         info!(
             "Initializing CPU embedding service with model: {}",
             config.model_name
@@ -156,8 +161,12 @@ impl CpuEmbeddingService {
         }
 
         // Initialize ONNX Runtime
-        crate::ort_setup::configure_ort_env();
-        ort::init().with_name("optimized_bge_m3").commit()?;
+        if !should_disable_ort() {
+            crate::ort_setup::configure_ort_env();
+            ort::init().with_name("optimized_bge_m3").commit()?;
+        } else {
+            warn!("ORT disabled by MAGRAY_FORCE_NO_ORT; embeddings will not run actual inference");
+        }
 
         // Проверяем доступность GPU
         #[cfg(feature = "gpu")]

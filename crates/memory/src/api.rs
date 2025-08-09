@@ -76,11 +76,11 @@ mod simple_engine {
                     gpu_config: None,
                     embedding_dim: Some(1024),
                 };
-                let embedding_service = CpuEmbeddingService::new(cfg).ok();
+                let embedding_service = if ai::should_disable_ort() { None } else { CpuEmbeddingService::new(cfg).ok() };
                 let embedding_dim = 1024;
 
                 #[cfg(feature = "reranking")]
-                let reranker = {
+                let reranker = if ai::should_disable_ort() { None } else {
                     let rcfg = RerankingConfig {
                         model_name: "qwen3_reranker".to_string(),
                         batch_size: 32,
@@ -187,6 +187,36 @@ mod simple_engine {
             let json_evt = serde_json::json!({"query": query, "layer": format!("{:?}", layer), "results": returned});
             tokio::spawn(common::events::publish(common::topics::TOPIC_MEMORY_SEARCH, json_evt));
             Ok(out)
+        }
+
+        // Export/import helpers for backup/restore
+        pub fn export_records(&self) -> Vec<Record> {
+            self.records
+                .read()
+                .iter()
+                .map(|sr| sr.record.clone())
+                .collect()
+        }
+
+        pub fn import_records(&self, records: &[Record]) -> Result<usize> {
+            let mut inserted = 0usize;
+            for mut rec in records.iter().cloned() {
+                // Recompute embedding to keep index consistent
+                let emb = match &self.embedding_service {
+                    Some(svc) => svc.embed(&rec.text)?.embedding,
+                    None => self.mock_embed(&rec.text),
+                };
+                // Ensure score is sane
+                rec.score = 0.0;
+                self.records.write().push(StoredRecord { record: rec, embedding: emb });
+                inserted += 1;
+            }
+            Ok(inserted)
+        }
+
+        #[cfg(test)]
+        pub fn clear_all(&self) {
+            self.records.write().clear();
         }
 
         fn cosine(&self, a: &[f32], b: &[f32]) -> f32 {
@@ -366,6 +396,29 @@ impl UnifiedMemoryAPI {
         timeout(Duration::from_secs(30), search_future)
             .await
             .map_err(|_| anyhow::anyhow!("Search timeout after 30 seconds"))?
+    }
+
+    /// Экспорт всех записей в JSON и запись в файл
+    pub async fn backup_to_path<P: AsRef<std::path::Path>>(&self, path: P) -> Result<usize> {
+        use std::fs;
+        use std::path::Path;
+        let engine = simple_engine::engine();
+        let records = engine.export_records();
+        let json = serde_json::to_string_pretty(&records)?;
+        let p = path.as_ref();
+        if let Some(parent) = p.parent() { fs::create_dir_all(parent)?; }
+        fs::write(p, json)?;
+        Ok(records.len())
+    }
+
+    /// Импорт записей из JSON файла в память
+    pub async fn restore_from_path<P: AsRef<std::path::Path>>(&self, path: P) -> Result<usize> {
+        use std::fs;
+        let data = fs::read_to_string(path)?;
+        let records: Vec<Record> = serde_json::from_str(&data)?;
+        let engine = simple_engine::engine();
+        let n = engine.import_records(&records)?;
+        Ok(n)
     }
 
     /// Получить конкретную запись по ID

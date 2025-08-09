@@ -119,3 +119,12 @@ pub type Result<T> = std::result::Result<T, AiError>;
 fn _ort_available() -> bool {
     std::env::var("ORT_DYLIB_PATH").is_ok()
 }
+
+pub fn ort_available() -> bool {
+    std::env::var("ORT_DYLIB_PATH").is_ok()
+}
+
+pub fn should_disable_ort() -> bool {
+    std::env::var("MAGRAY_FORCE_NO_ORT").map(|v| matches!(v.to_lowercase().as_str(), "1"|"true"|"yes"|"y"))
+        .unwrap_or(false)
+}

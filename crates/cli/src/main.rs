@@ -127,10 +127,14 @@ async fn main() -> Result<()> {
     }
 
     // Проверяем наличие дефолтных моделей и предлагаем установить при необходимости
-    ensure_default_models_installed_interactive()?;
+    if std::env::var("MAGRAY_SKIP_AUTO_INSTALL").is_err() {
+        ensure_default_models_installed_interactive()?;
+    }
 
     // Проверяем доступность ONNX Runtime и предлагаем установить
-    ensure_ort_installed_interactive()?;
+    if std::env::var("MAGRAY_SKIP_AUTO_INSTALL").is_err() {
+        ensure_ort_installed_interactive()?;
+    }
 
     // Глобальный таймаут на выполнение команды (по умолчанию 300с)
     let top_timeout_secs: u64 = std::env::var("MAGRAY_CMD_TIMEOUT")
