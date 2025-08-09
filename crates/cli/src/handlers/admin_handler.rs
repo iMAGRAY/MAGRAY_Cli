@@ -253,17 +253,12 @@ where
     }
 
     async fn health_check(&self) -> Result<()> {
+        // Для Admin нет внешней зависимости, проверяем только breaker
         if !self.initialized {
             return Err(anyhow::anyhow!("AdminHandler не инициализирован"));
         }
-
-        // Проверяем состояние Circuit Breaker
-        let breaker_state = self.circuit_breaker.get_state().await;
-        if breaker_state == "Open" {
-            return Err(anyhow::anyhow!("Circuit breaker открыт"));
-        }
-
-        debug!("AdminHandler: health check прошел успешно");
+        let state = self.circuit_breaker.get_state().await;
+        if state == "Open" { return Err(anyhow::anyhow!("Circuit breaker открыт")); }
         Ok(())
     }
 

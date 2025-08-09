@@ -192,21 +192,13 @@ where
     }
 
     async fn health_check(&self) -> Result<()> {
-        if !self.initialized {
-            return Err(anyhow::anyhow!("ToolsHandler не инициализирован"));
-        }
-
-        // Проверяем все зависимости
-        self.routing_service.health_check().await?;
-
-        // Проверяем состояние Circuit Breaker
-        let breaker_state = self.circuit_breaker.get_state().await;
-        if breaker_state == "Open" {
-            return Err(anyhow::anyhow!("Circuit breaker открыт"));
-        }
-
-        debug!("ToolsHandler: health check прошел успешно");
-        Ok(())
+        super::standard_component_health_check(
+            "ToolsHandler",
+            self.initialized,
+            self.routing_service.health_check(),
+            self.circuit_breaker.get_state(),
+        )
+        .await
     }
 
     async fn shutdown(&self) -> Result<()> {

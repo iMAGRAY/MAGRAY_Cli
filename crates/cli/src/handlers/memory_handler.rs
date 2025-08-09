@@ -226,21 +226,13 @@ where
     }
 
     async fn health_check(&self) -> Result<()> {
-        if !self.initialized {
-            return Err(anyhow::anyhow!("MemoryHandler не инициализирован"));
-        }
-
-        // Проверяем все зависимости
-        self.memory_service.health_check().await?;
-
-        // Проверяем состояние Circuit Breaker
-        let breaker_state = self.circuit_breaker.get_state().await;
-        if breaker_state == "Open" {
-            return Err(anyhow::anyhow!("Circuit breaker открыт"));
-        }
-
-        debug!("MemoryHandler: health check прошел успешно");
-        Ok(())
+        super::standard_component_health_check(
+            "MemoryHandler",
+            self.initialized,
+            self.memory_service.health_check(),
+            self.circuit_breaker.get_state(),
+        )
+        .await
     }
 
     async fn shutdown(&self) -> Result<()> {
