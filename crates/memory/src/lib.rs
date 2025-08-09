@@ -70,6 +70,8 @@ pub mod transaction;
 pub mod types;
 #[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 mod vector_index_hnswlib; // Critical for vector storage
+#[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+pub mod keyword_index; // BM25/Tantivy индекс для гибридного поиска
                           
 // Экспорт единой DI-системы
 pub mod di;

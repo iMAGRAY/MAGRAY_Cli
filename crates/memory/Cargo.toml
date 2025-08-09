@@ -43,6 +43,8 @@ services-modules = []
 # Tests feature to include extended/slow suites
 extended-tests = []
 legacy-tests = []
+# New: keyword text search via Tantivy for hybrid search
+keyword-search = []
 
 [dependencies]
 anyhow.workspace = true
@@ -63,7 +65,7 @@ ai = { path = "../ai" }
 common = { path = "../common" }
 
 # Embedding cache and storage (conditional)
-sled = { version = "0.34", features = ["compression"], optional = true }
+sled = { version = "0.34", optional = true }
 
 # Utilities (always available)
 futures = "0.3"
@@ -96,6 +98,9 @@ serde_yaml = "0.9"
 
 # Hot-reload watcher (optional)
 notify = { version = "6.1", optional = true }
+
+# Tantivy removed to avoid zstd link conflicts; using in-memory BM25 instead
+
 
 # Test dependencies
 [dev-dependencies]

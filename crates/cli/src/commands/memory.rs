@@ -396,7 +396,12 @@ async fn search_memory(
     };
 
     if rerank { println!("{}", "[hint] Rerank enabled (Qwen3)".dimmed()); }
-    if hybrid { println!("{}", "[hint] Hybrid mode requested (text+vector)".dimmed()); }
+    if hybrid {
+        #[cfg(feature = "keyword-search")]
+        println!("{}", "[hint] Hybrid (vector + BM25 keyword)".dimmed());
+        #[cfg(not(feature = "keyword-search"))]
+        println!("{}", "[hint] Hybrid mode requested (vector-only fallback)".dimmed());
+    }
 
     // Orchestrated path (if enabled) uses SearchCoordinator with optional rerank
     #[cfg(feature = "orchestrated-search")]
