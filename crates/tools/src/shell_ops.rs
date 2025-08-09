@@ -25,6 +25,8 @@ impl Tool for ShellExec {
             ],
             input_schema: r#"{"command": "string", "cwd": "string?", "max_output_kb": "number?"}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: true,
         }
     }
 

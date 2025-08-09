@@ -31,6 +31,8 @@ impl Tool for MockTool {
             examples: vec![format!("mock_{} test", self.name)],
             input_schema: "{}".to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 

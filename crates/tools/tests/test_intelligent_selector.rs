@@ -30,6 +30,8 @@ fn mk_spec(name: &str, desc: &str, guide: Option<UsageGuide>) -> ToolSpec {
         examples: vec![format!("{} example", name)],
         input_schema: "{}".into(),
         usage_guide: guide,
+        permissions: None,
+        supports_dry_run: false,
     }
 }
 

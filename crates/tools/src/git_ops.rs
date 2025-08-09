@@ -27,6 +27,8 @@ impl Tool for GitStatus {
             examples: vec!["git_status".to_string()],
             input_schema: r#"{}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -94,6 +96,8 @@ impl Tool for GitCommit {
             ],
             input_schema: r#"{"message": "string"}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: true,
         }
     }
 
@@ -261,6 +265,8 @@ impl Tool for GitDiff {
             examples: vec!["git_diff".to_string()],
             input_schema: r#"{}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 

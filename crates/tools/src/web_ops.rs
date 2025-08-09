@@ -2,6 +2,36 @@ use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
+fn net_allowlist() -> Vec<String> {
+    let env = std::env::var("MAGRAY_NET_ALLOW").unwrap_or_default();
+    env.split(',')
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.trim().to_lowercase())
+        .collect()
+}
+
+fn extract_domain(url: &str) -> Option<String> {
+    if let Some(rest) = url.strip_prefix("http://").or_else(|| url.strip_prefix("https://")) {
+        let part = rest.split('/').next().unwrap_or("");
+        let domain = part.split('@').last().unwrap_or("");
+        let domain = domain.split(':').next().unwrap_or("");
+        if domain.is_empty() { None } else { Some(domain.to_lowercase()) }
+    } else { None }
+}
+
+fn ensure_net_allowed(url: &str) -> Result<()> {
+    let allow = net_allowlist();
+    if allow.is_empty() { return Err(anyhow!("Сеть запрещена: нет разрешённых доменов (установите MAGRAY_NET_ALLOW)")); }
+    if let Some(domain) = extract_domain(url) {
+        if allow.iter().any(|d| domain == *d || domain.ends_with(&format!(".{d}"))) {
+            return Ok(());
+        }
+        Err(anyhow!("Домен '{}' не входит в allowlist", domain))
+    } else {
+        Err(anyhow!("Некорректный URL для сетевого доступа"))
+    }
+}
+
 pub struct WebSearch;
 
 impl WebSearch {
@@ -42,6 +72,8 @@ impl Tool for WebSearch {
             ],
             input_schema: r#"{"query": "string"}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: true,
         }
     }
 
@@ -76,6 +108,7 @@ impl Tool for WebSearch {
             WebSearchProviderKind::DuckDuckGo => {
                 // Best-effort: HTML endpoint; in offline/CI this may fail, but policy/tests use mock provider by default
                 let url = format!("https://duckduckgo.com/html/?q={}", urlencoding::encode(&query));
+                ensure_net_allowed(&url)?;
                 let client = reqwest::Client::builder()
                     .user_agent("MagrayBot/0.1 (+https://example.local)")
                     .timeout(std::time::Duration::from_secs(input.timeout_ms.unwrap_or(10_000) as u64 / 1000 + 10))
@@ -185,6 +218,8 @@ impl Tool for WebFetch {
             ],
             input_schema: r#"{"url": "string"}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: true,
         }
     }
 
@@ -206,6 +241,7 @@ impl Tool for WebFetch {
         let timeout_ms = input.timeout_ms;
         let (success, result, formatted_output, mut metadata): (bool, String, Option<String>, HashMap<String, String>);
         if url.starts_with("http://") || url.starts_with("https://") {
+            ensure_net_allowed(&url)?;
             match fetch_http_with_limit(&url, timeout_ms, max_bytes).await {
                 Ok((status, content_type, body, bytes)) => {
                     let truncated = if body.len() > 100_000 { format!("{}\n... [truncated]", &body[..100_000]) } else { body };

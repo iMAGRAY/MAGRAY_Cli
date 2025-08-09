@@ -46,6 +46,8 @@ impl Tool for McpTool {
             examples: vec![format!("mcp:{}: {{\"command\":\"run\", \"args\":{{}}}}", self.remote_tool)],
             input_schema: "{command: string, args: object, context?: string}".to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 

@@ -78,6 +78,8 @@ fn test_tool_spec_creation() {
         examples: vec!["test_tool hello".to_string(), "test_tool world".to_string()],
         input_schema: r#"{"arg": "string"}"#.to_string(),
         usage_guide: None,
+        permissions: None,
+        supports_dry_run: true,
     };
 
     assert_eq!(spec.name, "test_tool");
@@ -209,6 +211,8 @@ fn test_tool_spec_empty_examples() {
         examples: Vec::new(),
         input_schema: "{}".to_string(),
         usage_guide: None,
+        permissions: None,
+        supports_dry_run: false,
     };
 
     assert!(spec.examples.is_empty());

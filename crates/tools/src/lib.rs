@@ -63,6 +63,14 @@ pub struct UsageGuide {
     pub tags: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ToolPermissions {
+    pub fs_read_roots: Vec<String>,
+    pub fs_write_roots: Vec<String>,
+    pub net_allowlist: Vec<String>,
+    pub allow_shell: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolSpec {
     pub name: String,
@@ -72,6 +80,9 @@ pub struct ToolSpec {
     pub input_schema: String,
     // Usage guide for tool selection and UX
     pub usage_guide: Option<UsageGuide>,
+    // Permissions and dry-run capability
+    pub permissions: Option<ToolPermissions>,
+    pub supports_dry_run: bool,
 }
 
 impl ToolSpec {

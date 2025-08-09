@@ -236,6 +236,8 @@ impl ExecutionPipeline {
                 .collect(),
             input_schema: metadata.input_schema.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         };
         let mut spec_with_guide = tool_spec.clone();
         spec_with_guide.usage_guide = Some(crate::generate_usage_guide(&tool_spec));

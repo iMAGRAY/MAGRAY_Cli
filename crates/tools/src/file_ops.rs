@@ -85,6 +85,8 @@ impl Tool for FileReader {
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -165,6 +167,8 @@ impl Tool for FileWriter {
             ],
             input_schema: r#"{"path": "string", "content": "string"}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: true,
         }
     }
 
@@ -263,6 +267,8 @@ impl Tool for DirLister {
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -373,6 +379,8 @@ impl Tool for FileSearcher {
             ],
             input_schema: r#"{"pattern": "string", "path": "string?"}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -511,6 +519,8 @@ impl Tool for FileDeleter {
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
             usage_guide: None,
+            permissions: None,
+            supports_dry_run: true,
         };
         // Mark as high risk and with side effects for policy dynamic Ask
         spec.usage_guide = Some(UsageGuide {
