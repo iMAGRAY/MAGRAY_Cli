@@ -98,7 +98,7 @@ fn apply_usage_guide_override(spec: &mut tools::ToolSpec, override_v: &serde_jso
         if let Some(v) = obj.get("cost_class").and_then(|v| v.as_str()) { guide.cost_class = v.into(); }
         if let Some(v) = obj.get("latency_class").and_then(|v| v.as_str()) { guide.latency_class = v.into(); }
         if let Some(v) = obj.get("side_effects").and_then(|v| v.as_array()) { guide.side_effects = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
-        if let Some(v) = obj.get("risk_score").and_then(|v| v.as_u64()) { guide.risk_score = (v as u8); }
+        if let Some(v) = obj.get("risk_score").and_then(|v| v.as_u64()) { guide.risk_score = v as u8; }
         if let Some(v) = obj.get("capabilities").and_then(|v| v.as_array()) { guide.capabilities = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
         if let Some(v) = obj.get("tags").and_then(|v| v.as_array()) { guide.tags = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
     }
@@ -216,10 +216,25 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 return Ok(());
             }
             println!("{}", "=== Registered Tools ===".bold().cyan());
+            if details {
+                // Effective sandbox summary from env
+                let fs_on = std::env::var("MAGRAY_FS_SANDBOX").unwrap_or_default();
+                let fs_roots = std::env::var("MAGRAY_FS_ROOTS").unwrap_or_default();
+                let net_allow = std::env::var("MAGRAY_NET_ALLOW").unwrap_or_default();
+                println!("  FS sandbox: {}  roots: {}", if fs_on.is_empty() { "off" } else { fs_on.as_str() }, if fs_roots.is_empty() { "<none>" } else { fs_roots.as_str() });
+                println!("  NET allow: {}", if net_allow.is_empty() { "<none>" } else { net_allow.as_str() });
+            }
             for spec in specs {
                 println!("- {}: {}", spec.name.bold(), spec.description);
                 if details {
                     println!("  usage: {}", spec.usage);
+                    println!("  supports_dry_run: {}", if spec.supports_dry_run { "true" } else { "false" });
+                    if let Some(perms) = &spec.permissions {
+                        if !perms.fs_read_roots.is_empty() { println!("  perm.fs_read: {}", perms.fs_read_roots.join(":")); }
+                        if !perms.fs_write_roots.is_empty() { println!("  perm.fs_write: {}", perms.fs_write_roots.join(":")); }
+                        if !perms.net_allowlist.is_empty() { println!("  perm.net_allow: {}", perms.net_allowlist.join(",")); }
+                        if perms.allow_shell { println!("  perm.shell: allow"); }
+                    }
                     if let Some(guide) = &spec.usage_guide {
                         if !guide.good_for.is_empty() { println!("  good_for: {}", guide.good_for.join(", ")); }
                         if !guide.tags.is_empty() { println!("  tags: {}", guide.tags.join(", ")); }
