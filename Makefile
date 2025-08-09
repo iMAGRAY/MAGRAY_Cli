@@ -304,3 +304,11 @@ rag-report-rerank:
 	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --tests -q -- test rag_golden_suite_metrics --exact --nocapture
 	@echo "📄 Baseline: reports/rag_metrics_summary.json"
 	@echo "📄 Rerank:   reports/rag_metrics_rerank.json"
+
+orchestrated-check:
+	@echo "🔎 Checking orchestrated build..."
+	cargo check --features="cpu,extended-tests,orchestrated-search"
+
+orchestrated-tests:
+	@echo "🧪 Running orchestrated CLI tests (extended)..."
+	cargo test --features="cpu,extended-tests,orchestrated-search" -q --test test_memory_orchestrated_cli -- --nocapture | cat
