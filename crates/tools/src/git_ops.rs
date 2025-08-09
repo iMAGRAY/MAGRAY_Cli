@@ -269,6 +269,15 @@ impl Tool for GitDiff {
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
+            // Publish a summarized diff event (non-blocking)
+            let sample = stdout.lines().take(50).collect::<Vec<_>>().join("\n");
+            tokio::spawn(async move {
+                let evt = serde_json::json!({
+                    "op": "diff",
+                    "lines": sample,
+                });
+                common::events::publish(common::topics::TOPIC_FS_DIFF, evt).await;
+            });
             Ok(ToolOutput {
                 success: true,
                 result: stdout.to_string(),
