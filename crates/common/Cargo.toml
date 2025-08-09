@@ -23,3 +23,6 @@ uuid = { version = "1.4", features = ["v4", "serde"] }
 lazy_static = "1.4"
 num_cpus = "1.16"
 rand = "0.8"
+
+[dev-dependencies]
+tempfile = { workspace = true }

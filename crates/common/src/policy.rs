@@ -108,6 +108,31 @@ pub fn merge_documents(mut base: PolicyDocument, mut overlay: PolicyDocument) ->
     base
 }
 
+/// Load effective policy considering default + optional file + env overrides.
+/// Precedence (last wins): default < file_path < MAGRAY_POLICY_PATH < MAGRAY_POLICY_JSON
+pub fn load_effective_policy(file_path: Option<&Path>) -> PolicyDocument {
+    let mut doc = default_document();
+    if let Some(p) = file_path {
+        if p.exists() {
+            if let Ok(d) = load_from_path(p) { doc = merge_documents(doc, d); }
+        }
+    }
+    if let Ok(path_str) = std::env::var("MAGRAY_POLICY_PATH") {
+        let p = Path::new(&path_str);
+        if p.exists() {
+            if let Ok(d) = load_from_path(p) { doc = merge_documents(doc, d); }
+        }
+    }
+    if let Ok(json_str) = std::env::var("MAGRAY_POLICY_JSON") {
+        if !json_str.trim().is_empty() {
+            if let Ok(d) = serde_json::from_str::<PolicyDocument>(&json_str) {
+                doc = merge_documents(doc, d);
+            }
+        }
+    }
+    doc
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,5 +199,22 @@ mod tests {
         let engine = PolicyEngine::from_document(merged);
         let d = engine.evaluate_tool("shell_exec", &HashMap::new());
         assert!(d.allowed); // overlay allow wins (appended after)
+    }
+
+    #[test]
+    fn env_json_wins_over_file() {
+        // Prepare a temporary file that denies, but env JSON allows
+        let tmp = tempfile::TempDir::new().unwrap();
+        let p = tmp.path().join("policy.json");
+        fs::write(&p, r#"{"rules":[{"subject_kind":"Tool","subject_name":"shell_exec","when_contains_args":null,"action":"Deny"}]}"#).unwrap();
+        std::env::set_var("MAGRAY_POLICY_PATH", p.to_string_lossy().to_string());
+        std::env::set_var("MAGRAY_POLICY_JSON", r#"{"rules":[{"subject_kind":"Tool","subject_name":"shell_exec","when_contains_args":null,"action":"Allow"}]}"#);
+        let effective = load_effective_policy(None);
+        let engine = PolicyEngine::from_document(effective);
+        let d = engine.evaluate_tool("shell_exec", &HashMap::new());
+        assert!(d.allowed);
+        // cleanup env
+        std::env::remove_var("MAGRAY_POLICY_PATH");
+        std::env::remove_var("MAGRAY_POLICY_JSON");
     }
 }
