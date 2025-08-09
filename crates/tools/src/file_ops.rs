@@ -2,8 +2,59 @@ use crate::{Tool, ToolInput, ToolOutput, ToolSpec, UsageGuide};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+
+// ===== Filesystem Sandbox (env-driven) =====
+fn fs_sandbox_enabled() -> bool {
+    let v = std::env::var("MAGRAY_FS_SANDBOX").unwrap_or_default().to_lowercase();
+    matches!(v.as_str(), "1" | "true" | "on" | "enforce")
+}
+
+fn fs_sandbox_roots() -> Vec<PathBuf> {
+    let roots = std::env::var("MAGRAY_FS_ROOTS").unwrap_or_default();
+    if roots.trim().is_empty() { return Vec::new(); }
+    roots
+        .split(':')
+        .filter(|s| !s.trim().is_empty())
+        .filter_map(|s| {
+            let p = PathBuf::from(s);
+            std::fs::canonicalize(&p).ok()
+        })
+        .collect()
+}
+
+fn err_outside_sandbox(path: &str) -> anyhow::Error {
+    anyhow!(
+        "Доступ к пути вне песочницы запрещён: {} (включите корни через MAGRAY_FS_ROOTS)",
+        path
+    )
+}
+
+fn ensure_read_allowed(path: &str) -> Result<()> {
+    if !fs_sandbox_enabled() { return Ok(()); }
+    let roots = fs_sandbox_roots();
+    if roots.is_empty() { return Err(anyhow!("FS песочница включена, но MAGRAY_FS_ROOTS не задан")); }
+    let canon = std::fs::canonicalize(Path::new(path))
+        .map_err(|e| anyhow!("Не удалось открыть '{}': {}", path, e))?;
+    if roots.iter().any(|r| canon.starts_with(r)) { Ok(()) } else { Err(err_outside_sandbox(path)) }
+}
+
+fn ensure_write_allowed(path: &str) -> Result<()> {
+    if !fs_sandbox_enabled() { return Ok(()); }
+    let roots = fs_sandbox_roots();
+    if roots.is_empty() { return Err(anyhow!("FS песочница включена, но MAGRAY_FS_ROOTS не задан")); }
+    let p = Path::new(path);
+    let check_path = if p.exists() {
+        std::fs::canonicalize(p).map_err(|e| anyhow!("Не удалось открыть '{}': {}", path, e))?
+    } else {
+        let parent = p.parent().unwrap_or(Path::new("."));
+        let parent_canon = std::fs::canonicalize(parent)
+            .map_err(|e| anyhow!("Не удалось открыть родителя '{}': {}", parent.display(), e))?;
+        parent_canon.join(p.file_name().unwrap_or_default())
+    };
+    if roots.iter().any(|r| check_path.starts_with(r)) { Ok(()) } else { Err(err_outside_sandbox(path)) }
+}
 
 // FileReader - чтение файлов с простым форматированием
 pub struct FileReader;
@@ -42,6 +93,9 @@ impl Tool for FileReader {
             .args
             .get("path")
             .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
+
+        // Enforce sandbox for read
+        ensure_read_allowed(path)?;
 
         let content = fs::read_to_string(path)?;
 
@@ -134,6 +188,8 @@ impl Tool for FileWriter {
             });
         }
 
+        // Enforce sandbox for write
+        ensure_write_allowed(path)?;
         fs::write(path, content)?;
 
         // Publish fs.diff event for timeline/observability
@@ -217,6 +273,8 @@ impl Tool for DirLister {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
 
         let path = Path::new(path);
+        // Enforce sandbox for read/list
+        ensure_read_allowed(&path.to_string_lossy())?;
         if !path.is_dir() {
             return Err(anyhow!("'{}' не является директорией", path.display()));
         }
@@ -324,6 +382,9 @@ impl Tool for FileSearcher {
             .get("pattern")
             .ok_or_else(|| anyhow!("Отсутствует параметр 'pattern'"))?;
         let search_path = input.args.get("path").map(|s| s.as_str()).unwrap_or(".");
+
+        // Enforce sandbox for traversal/search root
+        ensure_read_allowed(search_path)?;
 
         let mut results = Vec::new();
         let pattern_lower = pattern.to_lowercase();
@@ -489,6 +550,9 @@ impl Tool for FileDeleter {
                 metadata: meta,
             });
         }
+
+        // Enforce sandbox for delete
+        ensure_write_allowed(path)?;
 
         // Считываем размер до удаления (если есть)
         let bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0) as usize;
