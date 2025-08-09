@@ -12,6 +12,161 @@ use tracing::{debug, info};
 use crate::registry::{SecurityLevel, ToolPermissions};
 // use crate::{Tool, ToolInput, ToolOutput, ToolSpec}; // Не используется пока
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestPermissionsFs {
+    pub mode: String, // none|ro|rw|full|restricted
+    #[serde(default)]
+    pub allowed_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestPermissionsNet {
+    pub mode: String, // none|localhost|internal|internet|restricted
+    #[serde(default)]
+    pub allowed_hosts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestPermissionsSystem {
+    pub mode: String, // none|proc_query|proc_control|env_read|env_write|full
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ManifestPermissions {
+    #[serde(default)]
+    pub fs: Option<ManifestPermissionsFs>,
+    #[serde(default)]
+    pub net: Option<ManifestPermissionsNet>,
+    #[serde(default)]
+    pub system: Option<ManifestPermissionsSystem>,
+    #[serde(default)]
+    pub custom: std::collections::HashMap<String, bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolManifest {
+    pub id: String,
+    pub name: String,
+    pub version: String, // semver string
+    pub description: String,
+    pub author: String,
+    #[serde(default)]
+    pub homepage: Option<String>,
+    #[serde(default)]
+    pub repository: Option<String>,
+    #[serde(default = "default_mit")]
+    pub license: String,
+    #[serde(default)]
+    pub keywords: Vec<String>,
+
+    pub plugin_type: String, // wasm|external|shared|script:<lang>|container
+    pub entry_point: String,
+    #[serde(default)]
+    pub configuration_schema: serde_json::Value,
+    #[serde(default)]
+    pub default_config: serde_json::Value,
+
+    #[serde(default)]
+    pub permissions: ManifestPermissions,
+}
+
+fn default_mit() -> String { "MIT".into() }
+
+impl ToolManifest {
+    fn parse_version(&self) -> Result<PluginVersion> {
+        let mut parts = self.version.split('.');
+        let major = parts.next().ok_or_else(|| anyhow!("bad version"))?.parse::<u32>()?;
+        let minor = parts.next().ok_or_else(|| anyhow!("bad version"))?.parse::<u32>()?;
+        let patch = parts.next().unwrap_or("0").split(|c| c == '-' || c == '+').next().unwrap_or("0").parse::<u32>()?;
+        Ok(PluginVersion { major, minor, patch, pre_release: None, build_metadata: None })
+    }
+
+    fn parse_type(&self) -> PluginType {
+        let p = self.plugin_type.to_lowercase();
+        if p == "wasm" { PluginType::Wasm }
+        else if p == "external" { PluginType::ExternalProcess }
+        else if p == "container" { PluginType::Container }
+        else if p.starts_with("script:") { PluginType::Script(p[7..].to_string()) }
+        else { PluginType::SharedLibrary }
+    }
+
+    fn to_registry_permissions(&self) -> ToolPermissions {
+        use crate::registry::{FileSystemPermissions, NetworkPermissions, SystemPermissions};
+        let mut perms = ToolPermissions::default();
+        if let Some(fs) = &self.permissions.fs {
+            perms.file_system = match fs.mode.as_str() {
+                "none" => FileSystemPermissions::None,
+                "ro" => FileSystemPermissions::ReadOnly,
+                "rw" => FileSystemPermissions::ReadWrite,
+                "full" => FileSystemPermissions::FullAccess,
+                "restricted" => FileSystemPermissions::Restricted { allowed_paths: fs.allowed_paths.clone() },
+                _ => FileSystemPermissions::None,
+            };
+        }
+        if let Some(net) = &self.permissions.net {
+            perms.network = match net.mode.as_str() {
+                "none" => NetworkPermissions::None,
+                "localhost" => NetworkPermissions::LocalHost,
+                "internal" => NetworkPermissions::InternalNetworks,
+                "internet" => NetworkPermissions::Internet,
+                "restricted" => NetworkPermissions::Restricted { allowed_hosts: net.allowed_hosts.clone() },
+                _ => NetworkPermissions::None,
+            };
+        }
+        if let Some(sys) = &self.permissions.system {
+            perms.system = match sys.mode.as_str() {
+                "none" => SystemPermissions::None,
+                "proc_query" => SystemPermissions::ProcessQuery,
+                "proc_control" => SystemPermissions::ProcessControl,
+                "env_read" => SystemPermissions::EnvironmentRead,
+                "env_write" => SystemPermissions::EnvironmentWrite,
+                "full" => SystemPermissions::FullAccess,
+                _ => SystemPermissions::None,
+            };
+        }
+        perms.custom = self.permissions.custom.clone();
+        perms
+    }
+
+    fn into_plugin_metadata(self, installation_path: Option<PathBuf>) -> Result<PluginMetadata> {
+        // Compute derived fields before moving parts of self to avoid partial move borrow issues
+        let version = self.parse_version()?;
+        let plugin_type = self.parse_type();
+        let registry_permissions = self.to_registry_permissions();
+        let configuration_schema = if self.configuration_schema.is_null() { serde_json::json!({}) } else { self.configuration_schema.clone() };
+        let default_config = if self.default_config.is_null() { serde_json::json!({}) } else { self.default_config.clone() };
+        let metadata = PluginMetadata {
+            id: self.id,
+            name: self.name,
+            version,
+            description: self.description,
+            author: self.author,
+            homepage: self.homepage,
+            repository: self.repository,
+            license: self.license,
+            keywords: self.keywords,
+            plugin_type,
+            entry_point: self.entry_point,
+            configuration_schema,
+            default_config,
+            runtime_requirements: RuntimeRequirements::default(),
+            dependencies: Vec::new(),
+            required_permissions: registry_permissions,
+            security_level: SecurityLevel::Safe,
+            signed: false,
+            signature: None,
+            installed_at: None,
+            last_updated: None,
+            installation_path,
+            state: PluginState::Uninstalled,
+            load_count: 0,
+            error_count: 0,
+            last_error: None,
+        };
+        Ok(metadata)
+    }
+}
+
 /// Plugin metadata with comprehensive information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginMetadata {
@@ -518,6 +673,33 @@ impl PluginRegistry {
         Ok(loaded_count)
     }
 
+    /// Scan plugin_directory for tool.json manifests and register plugins
+    pub async fn load_manifests_from_directory(&self) -> Result<usize> {
+        let mut count = 0usize;
+        let root = self.plugin_directory.clone();
+        if !root.exists() { return Ok(0); }
+        let mut dirs = vec![root.clone()];
+        while let Some(dir) = dirs.pop() {
+            let mut rd = tokio::fs::read_dir(&dir).await?;
+            while let Ok(Some(entry)) = rd.next_entry().await {
+                let p = entry.path();
+                if p.is_dir() {
+                    dirs.push(p);
+                    continue;
+                }
+                if p.file_name().and_then(|s| s.to_str()).map(|s| s.eq_ignore_ascii_case("tool.json")).unwrap_or(false) {
+                    let parent = p.parent().map(|x| x.to_path_buf());
+                    let content = tokio::fs::read_to_string(&p).await?;
+                    let manifest: ToolManifest = serde_json::from_str(&content)?;
+                    let meta = manifest.into_plugin_metadata(parent)?;
+                    self.register_plugin(meta).await?;
+                    count += 1;
+                }
+            }
+        }
+        Ok(count)
+    }
+
     async fn load_plugin_metadata_from_file(&self, path: &Path) -> Result<PluginMetadata> {
         let contents = tokio::fs::read_to_string(path).await?;
         let metadata: PluginMetadata = serde_json::from_str(&contents)?;
@@ -844,5 +1026,43 @@ mod tests {
         assert!(!v1.is_compatible(&v3));
 
         assert_eq!(v1.to_string(), "1.2.3");
+    }
+
+    #[tokio::test]
+    async fn test_manifest_loader_registers_plugin() {
+        let temp_dir = TempDir::new().unwrap();
+        let plugin_dir = temp_dir.path().join("plugins");
+        let config_dir = temp_dir.path().join("configs");
+        tokio::fs::create_dir_all(plugin_dir.join("p1")).await.unwrap();
+        tokio::fs::create_dir_all(&config_dir).await.unwrap();
+
+        // Write tool.json
+        let manifest = serde_json::json!({
+            "id": "p1",
+            "name": "Plugin One",
+            "version": "1.0.0",
+            "description": "Test plugin",
+            "author": "ACME",
+            "plugin_type": "external",
+            "entry_point": "run.sh",
+            "permissions": {"net": {"mode": "restricted", "allowed_hosts": ["example.com"]}},
+            "configuration_schema": {}
+        });
+        let mp = plugin_dir.join("p1").join("tool.json");
+        tokio::fs::write(&mp, serde_json::to_string_pretty(&manifest).unwrap()).await.unwrap();
+
+        let registry = PluginRegistry::new(plugin_dir.clone(), config_dir);
+        let loaded = registry.load_manifests_from_directory().await.unwrap();
+        assert_eq!(loaded, 1);
+        let meta = registry.get_plugin("p1").await.expect("plugin registered");
+        assert_eq!(meta.name, "Plugin One");
+        // Check permissions mapping
+        match &meta.required_permissions.network {
+            crate::registry::NetworkPermissions::Restricted { allowed_hosts } => {
+                assert!(allowed_hosts.contains(&"example.com".into()));
+            }
+            _ => panic!("expected restricted network"),
+        }
+        assert!(meta.installation_path.is_some());
     }
 }
