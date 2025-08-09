@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
+use common::policy::{default_document, load_effective_policy};
 
 /// Результат проверки здоровья компонента
 #[derive(Debug, Clone, Serialize, Deserialize)]

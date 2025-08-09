@@ -158,6 +158,26 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 default_document()
             };
             let policy = PolicyEngine::from_document(effective_doc);
+            // Enrich args for policy checks (domain for web_fetch, query kw for web_search)
+            if name == "web_fetch" {
+                if let Some(url) = args_map.get("url").cloned() {
+                    let domain = url
+                        .split('/')
+                        .nth(2)
+                        .unwrap_or("")
+                        .split(':')
+                        .next()
+                        .unwrap_or("")
+                        .to_string();
+                    if !domain.is_empty() { args_map.insert("domain".into(), domain); }
+                }
+            } else if name == "web_search" {
+                if let Some(q) = args_map.get("query").cloned() {
+                    let lowered = q.to_lowercase();
+                    if lowered.contains("internal") { args_map.insert("keyword".into(), "internal".into()); }
+                    if lowered.contains("secret") { args_map.insert("keyword".into(), "secret".into()); }
+                }
+            }
             let decision = policy.evaluate_tool(&name, &args_map);
             if !decision.allowed {
                 let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());
