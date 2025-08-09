@@ -43,3 +43,13 @@ fn tools_run_file_delete_triggers_dynamic_ask_non_interactive() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("requires confirmation") || stderr.contains("Отменено пользователем"));
 }
+
+#[test]
+fn tools_metrics_json_shape() {
+    // Ask metrics snapshot JSON
+    let mut cmd = Command::cargo_bin("magray").expect("built");
+    let out = cmd.args(["tools","metrics","--json"]).env("CI","1").env("MAGRAY_NO_ANIM","1").output().expect("run ok");
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains("\"tools\""));
+}

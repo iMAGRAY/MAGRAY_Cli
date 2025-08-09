@@ -123,6 +123,14 @@ pub enum ToolsSubcommand {
         json: bool,
     },
 
+    /// Показать агрегированные метрики инструментов
+    #[command(name = "metrics")]
+    Metrics {
+        /// Вывести JSON (снимок метрик)
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Зарегистрировать MCP инструмент (stdio)
     #[command(name = "add-mcp")]
     AddMcp {
@@ -203,6 +211,26 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                         if !guide.capabilities.is_empty() { println!("  capabilities: {}", guide.capabilities.join(", ")); }
                         println!("  latency: {}  risk: {}", guide.latency_class, guide.risk_score);
                     }
+                }
+            }
+            Ok(())
+        }
+        ToolsSubcommand::Metrics { json } => {
+            let snap = events::tool_metrics_snapshot().await;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&snap)?);
+            } else {
+                println!("{}", "=== Tool Metrics ===".bold().cyan());
+                if let Some(obj) = snap.get("tools").and_then(|v| v.as_object()) {
+                    for (tool, v) in obj {
+                        let inv = v.get("invocations").and_then(|x| x.as_u64()).unwrap_or(0);
+                        let ok = v.get("successes").and_then(|x| x.as_u64()).unwrap_or(0);
+                        let ask = v.get("asks").and_then(|x| x.as_u64()).unwrap_or(0);
+                        let deny = v.get("denies").and_then(|x| x.as_u64()).unwrap_or(0);
+                        println!("- {}: invocations={}, successes={}, asks={}, denies={}", tool.bold(), inv, ok, ask, deny);
+                    }
+                } else {
+                    println!("(нет данных)");
                 }
             }
             Ok(())
