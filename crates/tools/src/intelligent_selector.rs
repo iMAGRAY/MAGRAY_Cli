@@ -529,6 +529,8 @@ impl IntelligentToolSelector {
             self.calculate_capability_match_explained(&tool_spec, context).await;
         breakdown.urgency_latency_bonus = cap_breakdown.urgency_latency_bonus;
         breakdown.low_risk_bonus = cap_breakdown.low_risk_bonus;
+        breakdown.permissions_adjust = cap_breakdown.permissions_adjust;
+        breakdown.dry_run_bonus = cap_breakdown.dry_run_bonus;
         let performance_factor = self.calculate_performance_factor(tool_name).await;
 
         let confidence_score = context_match * self.config.context_weight

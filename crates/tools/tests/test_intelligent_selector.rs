@@ -219,3 +219,32 @@ async fn selector_prefers_lower_privilege_and_dry_run() {
     let pos_risky = choices.iter().position(|c| c.tool_name == "risky").unwrap();
     assert!(pos_safe < pos_risky, "Tools with fewer privileges and dry-run should rank higher");
 }
+
+#[tokio::test]
+async fn selector_explanations_include_permissions_and_dry_run() {
+    // Ensure environment allows shell and disables FS sandbox so risky tool isn't filtered out
+    std::env::set_var("MAGRAY_ALLOW_SHELL", "1");
+    std::env::set_var("MAGRAY_FS_SANDBOX", "0");
+    let selector = IntelligentToolSelector::new(low_threshold_config());
+
+    let mut risky = mk_spec("risky2", "Risky tool 2", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
+    risky.permissions = Some(tools::ToolPermissions { allow_shell: true, fs_write_roots: vec!["/".into()], ..Default::default() });
+    risky.supports_dry_run = false;
+
+    let mut safe = mk_spec("safe2", "Safe tool 2", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
+    safe.permissions = None;
+    safe.supports_dry_run = true;
+
+    selector.register_tool(risky.clone()).await;
+    selector.register_tool(safe.clone()).await;
+
+    let exps = selector.select_tools_with_explanations(&ctx("do something", UrgencyLevel::Normal)).await.unwrap();
+    // Find both explanations
+    let er = exps.iter().find(|e| e.tool_name == "risky2").unwrap();
+    let es = exps.iter().find(|e| e.tool_name == "safe2").unwrap();
+
+    // Expect penalties/bonuses present
+    assert!(er.breakdown.permissions_adjust <= 0.0);
+    assert!(es.breakdown.permissions_adjust >= 0.0);
+    assert!(es.breakdown.dry_run_bonus >= 0.0);
+}
