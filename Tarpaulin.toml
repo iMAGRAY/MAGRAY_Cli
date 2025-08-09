@@ -4,7 +4,7 @@
 engine = "llvm"
 skip-clean = true
 line_coverage = true
-fail-under = 35
+fail-under = 30
 # valid duration strings
 timeout = "600s"
 

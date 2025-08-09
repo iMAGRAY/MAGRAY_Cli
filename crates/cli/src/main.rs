@@ -778,6 +778,25 @@ async fn show_system_status() -> Result<()> {
         "default"
     };
     println!("{} {}: {} (rules: {})", "🔒", "Policy", src, rules_count);
+    // Brief audit: list up to 5 rules
+    let preview_len = effective.rules.len().min(5);
+    if preview_len > 0 {
+        println!("  {}", "Rules preview:".dimmed());
+        for rule in effective.rules.iter().take(preview_len) {
+            let when = rule
+                .when_contains_args
+                .as_ref()
+                .map(|m| {
+                    if m.is_empty() { String::new() } else { format!(" when={:?}", m) }
+                })
+                .unwrap_or_default();
+            println!(
+                "  • {:?} {} -> {:?}{}",
+                rule.subject_kind, rule.subject_name, rule.action, when
+            );
+        }
+        if rules_count > preview_len { println!("  ... and {} more", rules_count - preview_len); }
+    }
 
     println!();
 
