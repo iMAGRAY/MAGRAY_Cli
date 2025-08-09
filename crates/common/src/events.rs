@@ -44,13 +44,16 @@ mod tests {
 
     #[tokio::test]
     async fn topic_isolation() {
-        let mut rx_a = subscribe(Topic("fs.diff")).await;
-        let mut rx_b = subscribe(Topic("tool.invoked")).await;
-        publish(Topic("fs.diff"), serde_json::json!({"op":"write"})).await;
+        // Use unique test-only topics to avoid interference from concurrent tests
+        const FS_T: &str = "test.fs.isolation";
+        const TOOL_T: &str = "test.tool.isolation";
+        let mut rx_a = subscribe(Topic(FS_T)).await;
+        let mut rx_b = subscribe(Topic(TOOL_T)).await;
+        publish(Topic(FS_T), serde_json::json!({"op":"write"})).await;
         let ea = rx_a.recv().await.unwrap();
-        // give chance, but b should not receive fs.diff
-        let maybe_b = tokio::time::timeout(Duration::from_millis(100), rx_b.recv()).await;
-        assert_eq!(ea.topic.0, "fs.diff");
-        assert!(maybe_b.is_err(), "unexpected cross-topic event on tool.invoked");
+        // give chance, but tool topic should not receive events for FS_T
+        let maybe_b = tokio::time::timeout(Duration::from_millis(120), rx_b.recv()).await;
+        assert_eq!(ea.topic.0, FS_T);
+        assert!(maybe_b.is_err(), "unexpected cross-topic event on {}", TOOL_T);
     }
 }

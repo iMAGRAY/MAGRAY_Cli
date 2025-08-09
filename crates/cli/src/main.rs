@@ -813,6 +813,13 @@ async fn show_system_status() -> Result<()> {
         if rules_count > preview_len { println!("  ... and {} more", rules_count - preview_len); }
     }
 
+    // Publish health summary event
+    tokio::spawn(events::publish(topics::TOPIC_HEALTH, serde_json::json!({
+        "llm": llm_status,
+        "policy_rules": rules_count,
+        "risk": {"low": low, "medium": med, "high": high}
+    })));
+
     println!();
 
     Ok(())

@@ -11,3 +11,4 @@ pub const TOPIC_POLICY_BLOCK: Topic = Topic("policy.block");
 pub const TOPIC_JOB_PROGRESS: Topic = Topic("job.progress");
 pub const TOPIC_LLM_TOKENS: Topic = Topic("llm.tokens");
 pub const TOPIC_ERROR: Topic = Topic("error");
+pub const TOPIC_HEALTH: Topic = Topic("health");
