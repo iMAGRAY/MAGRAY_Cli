@@ -1,7 +1,6 @@
 #![cfg(feature = "extended-tests")]
 
 use assert_cmd::prelude::*;
-use predicates::prelude::*;
 use std::process::Command;
 
 #[test]
@@ -34,15 +33,13 @@ fn tools_list_basic_and_details_and_json() {
 }
 
 #[test]
-fn tools_run_dynamic_ask_by_usage_guide_non_interactive() {
-    // We can't register new tools via CLI easily; validate that built-ins don't panic and policy path handles ask.
-    // Use web_search (default policy may be Ask depending on env). Force non-interactive and expect Ask error.
+fn tools_run_file_delete_triggers_dynamic_ask_non_interactive() {
+    // file_delete marked as high-risk with side effects -> dynamic Ask should trigger and fail in non-interactive
     let mut cmd = Command::cargo_bin("magray").expect("built");
-    let out = cmd.args(["tools","run","--name","web_search","--command","search","--arg","query=test"]) 
+    let out = cmd.args(["tools","run","--name","file_delete","--command","delete","--arg","path=/tmp/should_not_exist.txt"]) 
         .env("CI","1").env("MAGRAY_NO_ANIM","1").env("MAGRAY_NONINTERACTIVE","true")
         .output().expect("run ok");
-    // In non-interactive ask should error
     assert!(!out.status.success());
-    let s = String::from_utf8_lossy(&out.stderr);
-    assert!(s.contains("requires confirmation") || s.contains("blocked by policy") || s.contains("Ask"));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("requires confirmation") || stderr.contains("Отменено пользователем"));
 }
