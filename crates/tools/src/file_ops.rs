@@ -422,6 +422,87 @@ impl Tool for FileSearcher {
     }
 }
 
+// FileDeleter - удаление файлов с публикацией fs.diff
+pub struct FileDeleter;
+
+impl FileDeleter {
+    pub fn new() -> Self { FileDeleter }
+}
+
+impl Default for FileDeleter {
+    fn default() -> Self { Self::new() }
+}
+
+#[async_trait::async_trait]
+impl Tool for FileDeleter {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec {
+            name: "file_delete".to_string(),
+            description: "Удаляет файл по указанному пути".to_string(),
+            usage: "file_delete <путь>".to_string(),
+            examples: vec![
+                "file_delete tmp/test.txt".to_string(),
+                "удалить файл build.log".to_string(),
+            ],
+            input_schema: r#"{"path": "string"}"#.to_string(),
+        }
+    }
+
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
+        let path = input
+            .args
+            .get("path")
+            .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
+
+        // Dry-run: показать, что будет удалено
+        if input.dry_run {
+            let mut meta = HashMap::new();
+            meta.insert("dry_run".into(), "true".into());
+            return Ok(ToolOutput {
+                success: true,
+                result: format!("[dry-run] rm {}", path),
+                formatted_output: Some(format!("$ rm {}\n[dry-run: no side effects]", path)),
+                metadata: meta,
+            });
+        }
+
+        // Считываем размер до удаления (если есть)
+        let bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0) as usize;
+
+        // Удаляем файл
+        fs::remove_file(path)?;
+
+        // Публикуем событие fs.diff
+        let path_for_evt = path.clone();
+        tokio::spawn(async move {
+            let evt = serde_json::json!({
+                "path": path_for_evt,
+                "bytes": bytes,
+                "op": "delete",
+            });
+            common::events::publish(common::topics::TOPIC_FS_DIFF, evt).await;
+        });
+
+        Ok(ToolOutput {
+            success: true,
+            result: format!("✅ Файл '{}' удалён", path),
+            formatted_output: None,
+            metadata: HashMap::from([("bytes".into(), bytes.to_string())]),
+        })
+    }
+
+    async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
+        let mut args = HashMap::new();
+        // Пробуем извлечь путь как первое слово с разделителями
+        if let Some(p) = extract_path_from_query(query) {
+            args.insert("path".to_string(), p);
+        } else {
+            args.insert("path".to_string(), query.to_string());
+        }
+        Ok(ToolInput { command: "file_delete".to_string(), args, context: Some(query.to_string()), dry_run: false, timeout_ms: None })
+    }
+}
+
 // Вспомогательная функция для форматирования размера файла
 fn format_size(size: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
@@ -462,6 +543,7 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+    use common::{events, topics};
 
     #[tokio::test]
     async fn test_file_reader_creation() {
@@ -666,5 +748,36 @@ mod tests {
         assert_eq!(format_size(1024 * 1024), "1.0 MB");
         assert_eq!(format_size(1024 * 1024 * 1024), "1.0 GB");
         assert_eq!(format_size(2048 * 1024 * 1024), "2.0 GB");
+    }
+
+    #[tokio::test]
+    async fn test_file_delete_removes_and_emits_event() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("to_remove.txt");
+        let content = "bye";
+        fs::write(&file_path, content).unwrap();
+
+        // Подпишемся на события fs.diff до действия
+        let mut rx = events::subscribe(topics::TOPIC_FS_DIFF).await;
+
+        let deleter = FileDeleter::new();
+        let input = ToolInput {
+            command: "file_delete".to_string(),
+            args: HashMap::from([("path".to_string(), file_path.to_string_lossy().to_string())]),
+            context: None,
+            dry_run: false,
+            timeout_ms: None,
+        };
+
+        let out = deleter.execute(input).await?;
+        assert!(out.success);
+        assert!(!file_path.exists());
+
+        // Проверяем событие
+        let evt = tokio::time::timeout(std::time::Duration::from_millis(500), rx.recv()).await??;
+        assert_eq!(evt.topic.0, "fs.diff");
+        assert_eq!(evt.payload["op"], "delete");
+        assert!(evt.payload["bytes"].as_u64().unwrap_or(0) >= content.len() as u64);
+        Ok(())
     }
 }

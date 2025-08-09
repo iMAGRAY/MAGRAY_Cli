@@ -81,6 +81,7 @@ impl ToolRegistry {
         // Регистрируем базовые инструменты
         registry.register("file_read", Box::new(file_ops::FileReader::new()));
         registry.register("file_write", Box::new(file_ops::FileWriter::new()));
+        registry.register("file_delete", Box::new(file_ops::FileDeleter::new()));
         registry.register("dir_list", Box::new(file_ops::DirLister::new()));
         registry.register("file_search", Box::new(file_ops::FileSearcher::new()));
         registry.register("git_status", Box::new(git_ops::GitStatus::new()));
