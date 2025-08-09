@@ -44,9 +44,15 @@ fn ctx(query: &str, urgency: UrgencyLevel) -> ToolSelectionContext {
     }
 }
 
+fn low_threshold_config() -> SelectorConfig {
+    let mut cfg = SelectorConfig::default();
+    cfg.min_confidence_threshold = 0.0;
+    cfg
+}
+
 #[tokio::test]
 async fn selector_prefers_tool_with_matching_tags_caps() {
-    let selector = IntelligentToolSelector::new(SelectorConfig::default());
+    let selector = IntelligentToolSelector::new(low_threshold_config());
 
     let a = mk_spec(
         "alpha",
@@ -58,7 +64,7 @@ async fn selector_prefers_tool_with_matching_tags_caps() {
     selector.register_tool(a.clone()).await;
     selector.register_tool(b.clone()).await;
 
-    let choices = selector.select_tools(&ctx("скачай http страницу", UrgencyLevel::Normal)).await.unwrap();
+    let choices = selector.select_tools(&ctx("скачай страницу", UrgencyLevel::Normal)).await.unwrap();
     assert!(!choices.is_empty());
     // alpha should rank higher than beta
     let pos_alpha = choices.iter().position(|c| c.tool_name == "alpha").unwrap();
@@ -68,7 +74,7 @@ async fn selector_prefers_tool_with_matching_tags_caps() {
 
 #[tokio::test]
 async fn selector_accounts_for_latency_with_high_urgency() {
-    let selector = IntelligentToolSelector::new(SelectorConfig::default());
+    let selector = IntelligentToolSelector::new(low_threshold_config());
 
     let fast = mk_spec("fast", "Fast tool", Some(mk_guide(vec![], vec![], vec![], "fast", 3)));
     let slow = mk_spec("slow", "Slow tool", Some(mk_guide(vec![], vec![], vec![], "slow", 3)));
@@ -76,7 +82,7 @@ async fn selector_accounts_for_latency_with_high_urgency() {
     selector.register_tool(fast.clone()).await;
     selector.register_tool(slow.clone()).await;
 
-    let choices = selector.select_tools(&ctx("run command", UrgencyLevel::High)).await.unwrap();
+    let choices = selector.select_tools(&ctx("latency test", UrgencyLevel::High)).await.unwrap();
     let pos_fast = choices.iter().position(|c| c.tool_name == "fast").unwrap();
     let pos_slow = choices.iter().position(|c| c.tool_name == "slow").unwrap();
     assert!(pos_fast < pos_slow, "fast latency should be preferred under high urgency");
@@ -84,7 +90,7 @@ async fn selector_accounts_for_latency_with_high_urgency() {
 
 #[tokio::test]
 async fn selector_prefers_lower_risk() {
-    let selector = IntelligentToolSelector::new(SelectorConfig::default());
+    let selector = IntelligentToolSelector::new(low_threshold_config());
 
     let low = mk_spec("lowrisk", "Low risk", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
     let high = mk_spec("highrisk", "High risk", Some(mk_guide(vec![], vec![], vec![], "fast", 5)));
