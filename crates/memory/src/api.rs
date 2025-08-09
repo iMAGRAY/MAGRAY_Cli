@@ -37,6 +37,7 @@ mod simple_engine {
     use ai::{OptimizedQwen3RerankerService, RerankBatch, RerankingConfig};
     use parking_lot::RwLock;
     use std::sync::OnceLock;
+    use std::io::Write;
 
     // EventBus for memory events (recorded globally)
     #[derive(Debug, Clone)]
@@ -59,6 +60,7 @@ mod simple_engine {
         reranker: Option<OptimizedQwen3RerankerService>,
         records: RwLock<Vec<StoredRecord>>,
         embedding_dim: usize,
+        store_path: Option<std::path::PathBuf>,
     }
 
     static ENGINE: OnceLock<SimpleMemoryEngine> = OnceLock::new();
@@ -90,13 +92,35 @@ mod simple_engine {
                     };
                     OptimizedQwen3RerankerService::new_with_config(rcfg).ok()
                 };
+                let store_path = Some(std::env::var("MAGRAY_MEMORY_FILE").unwrap_or_else(|_| "magray_memory.jsonl".to_string()))
+                    .map(std::path::PathBuf::from);
+
+                // Preload existing JSONL if present
+                let mut initial_records: Vec<StoredRecord> = Vec::new();
+                if let Some(path) = store_path.as_ref() {
+                    if let Ok(text) = std::fs::read_to_string(path) {
+                        for line in text.lines() {
+                            if line.trim().is_empty() { continue; }
+                            if let Ok(mut rec) = serde_json::from_str::<Record>(line) {
+                                // Compute embedding
+                                let emb = match &embedding_service {
+                                    Some(svc) => svc.embed(&rec.text).map(|e| e.embedding).unwrap_or_else(|_| Self::mock_embed_static(&rec.text, embedding_dim)),
+                                    None => Self::mock_embed_static(&rec.text, embedding_dim),
+                                };
+                                rec.score = 0.0;
+                                initial_records.push(StoredRecord { record: rec, embedding: emb });
+                            }
+                        }
+                    }
+                }
 
                 SimpleMemoryEngine {
                     embedding_service,
                     #[cfg(feature = "reranking")]
                     reranker,
-                    records: RwLock::new(Vec::new()),
+                    records: RwLock::new(initial_records),
                     embedding_dim,
+                    store_path,
                 }
             })
         }
@@ -120,6 +144,12 @@ mod simple_engine {
             // store score placeholder
             record.score = 0.0;
             self.records.write().push(StoredRecord { record: record.clone(), embedding: emb });
+            // append to JSONL store for cross-process persistence
+            if let Some(path) = self.store_path.as_ref() {
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    if let Ok(line) = serde_json::to_string(&record) { let _ = writeln!(f, "{}", line); }
+                }
+            }
             // fire event (non-blocking publish with timeout inside)
             let payload = MemoryEventPayload::Remember { id: record.id, layer: record.layer };
             tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_UPSERT, payload));
@@ -248,6 +278,22 @@ mod simple_engine {
                 if idx >= self.embedding_dim { break; }
             }
             // L2 normalize
+            let mut norm = 0.0f32; for x in &v { norm += *x * *x; }
+            if norm > 0.0 { let inv = 1.0 / norm.sqrt(); for x in &mut v { *x *= inv; } }
+            v
+        }
+
+        fn mock_embed_static(text: &str, dim: usize) -> Vec<f32> {
+            let mut v = vec![0f32; dim];
+            let mut idx = 0usize;
+            for token in text.split_whitespace() {
+                let mut h: u64 = 1469598103934665603;
+                for b in token.as_bytes() { h = h ^ (*b as u64); h = h.wrapping_mul(1099511628211); }
+                let pos = (h as usize) % dim;
+                v[pos] += 1.0;
+                idx += 1;
+                if idx >= dim { break; }
+            }
             let mut norm = 0.0f32; for x in &v { norm += *x * *x; }
             if norm > 0.0 { let inv = 1.0 / norm.sqrt(); for x in &mut v { *x *= inv; } }
             v

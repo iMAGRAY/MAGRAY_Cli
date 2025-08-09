@@ -46,6 +46,13 @@ cuda = ["ai/cuda", "memory/cuda"]
 tensorrt = ["ai/tensorrt"]
 gpu-acceleration = ["memory/gpu-acceleration"]
 
+# Enable orchestrated search path in CLI (HNSW + sled VectorStore + coordinators)
+orchestrated-search = [
+    "memory/orchestration-modules",
+    "memory/persistence",
+    "memory/hnsw-index",
+]
+
 # Tests feature to include extended/slow suites
 extended-tests = []
 legacy-tests = []

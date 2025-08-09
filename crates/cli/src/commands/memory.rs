@@ -381,10 +381,54 @@ async fn search_memory(
         ..Default::default()
     };
 
-    // Примечание: текущий UnifiedMemoryAPI использует простой пайплайн в памяти.
-    // Флаги rerank/hybrid пока используются как hint (логируем), полноценная интеграция через Orchestrator — следующим шагом.
     if rerank { println!("{}", "[hint] Rerank enabled (Qwen3)".dimmed()); }
     if hybrid { println!("{}", "[hint] Hybrid mode requested (text+vector)".dimmed()); }
+
+    // Orchestrated path (if enabled) uses SearchCoordinator with optional rerank
+    #[cfg(feature = "orchestrated-search")]
+    {
+        use memory::orchestration::traits::SearchCoordinator as SearchCoordinatorTrait;
+        use memory::orchestration::SearchCoordinator;
+        let container = memory::di::UnifiedContainer::new();
+        if let Ok(search) = container.resolve::<SearchCoordinator>() {
+            let layer_to_use = options.layers.clone().and_then(|v| v.first().cloned()).unwrap_or(Layer::Interact);
+            let coord_opts = memory::types::SearchOptions { top_k, ..Default::default() };
+            let results = if rerank {
+                SearchCoordinatorTrait::search_with_rerank(&*search, query, layer_to_use, coord_opts, top_k).await?
+            } else if hybrid {
+                // hybrid: text embedding first; in future accept vector input
+                SearchCoordinatorTrait::hybrid_search(&*search, query, None, layer_to_use, coord_opts).await?
+            } else {
+                SearchCoordinatorTrait::search(&*search, query, layer_to_use, coord_opts).await?
+            };
+
+            if results.is_empty() {
+                println!("{}", "No results found.".yellow());
+                return Ok(());
+            }
+
+            println!("\n{} {} results:\n", "Found".green(), results.len());
+            for (i, r) in results.iter().enumerate() {
+                println!(
+                    "{}: {} (score: {:.3})",
+                    format!("{}.", i + 1).bold(),
+                    r.text.trim(),
+                    r.score
+                );
+                println!(
+                    "   {} {:?} | {} {} | {} {}",
+                    "Layer:".dimmed(),
+                    r.layer,
+                    "Kind:".dimmed(),
+                    r.kind,
+                    "Tags:".dimmed(),
+                    r.tags.join(", ")
+                );
+            }
+            return Ok(());
+        }
+        println!("{}", "[hint] Orchestrated search unavailable; falling back to unified API".dimmed());
+    }
 
     println!("{} '{}'...", "Searching for".cyan(), query.bold());
 
