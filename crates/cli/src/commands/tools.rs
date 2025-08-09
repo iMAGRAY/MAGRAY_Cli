@@ -185,7 +185,8 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 }
             }
             let decision = policy.evaluate_tool(&name, &args_map);
-            if !decision.allowed {
+            // Handle policy by action: Deny -> block, Ask -> confirm, Allow -> proceed
+            if matches!(decision.action, common::policy::PolicyAction::Deny) {
                 let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());
                 let evt = serde_json::json!({"tool": name, "reason": reason});
                 tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
