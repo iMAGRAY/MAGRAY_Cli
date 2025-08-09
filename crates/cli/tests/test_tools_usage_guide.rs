@@ -84,3 +84,28 @@ fn fs_sandbox_blocks_outside_root() {
     let s = String::from_utf8_lossy(&out.stderr);
     assert!(s.contains("песочницы"));
 }
+
+#[test]
+fn net_sandbox_blocks_and_allows() {
+    // Disallow all
+    let mut cmd = Command::cargo_bin("magray").expect("built");
+    let out = cmd
+        .args(["tools","run","--name","web_fetch","--command","get","--arg","url=https://example.com"]) // network
+        .env("CI","1").env("MAGRAY_NO_ANIM","1").env("MAGRAY_NONINTERACTIVE","true")
+        .env("MAGRAY_NET_ALLOW","") // no allowlist
+        .output().expect("run ok");
+    assert!(!out.status.success());
+    let s = String::from_utf8_lossy(&out.stderr);
+    assert!(s.to_lowercase().contains("сеть запрещена"));
+
+    // Allow example.com
+    let mut cmd2 = Command::cargo_bin("magray").expect("built");
+    let out2 = cmd2
+        .args(["tools","run","--name","web_fetch","--command","get","--arg","url=https://example.com"]) // network
+        .env("CI","1").env("MAGRAY_NO_ANIM","1").env("MAGRAY_NONINTERACTIVE","true")
+        .env("MAGRAY_NET_ALLOW","example.com")
+        .output().expect("run ok");
+    // It may fail due to network unavailability in test env, but should not be blocked by sandbox. Accept success=false but not the sandbox error message.
+    let s2e = String::from_utf8_lossy(&out2.stderr).to_lowercase();
+    assert!(!s2e.contains("сеть запрещена"));
+}
