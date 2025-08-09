@@ -122,7 +122,7 @@ mod simple_engine {
             self.records.write().push(StoredRecord { record: record.clone(), embedding: emb });
             // fire event (non-blocking publish with timeout inside)
             let payload = MemoryEventPayload::Remember { id: record.id, layer: record.layer };
-            tokio::spawn(MEMORY_EVENT_BUS.publish(Topic("memory.upsert"), payload));
+            tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_UPSERT, payload));
             Ok(record.id)
         }
 
@@ -179,7 +179,7 @@ mod simple_engine {
             out.truncate(top_k);
             // fire event with summary
             let payload = MemoryEventPayload::Search { query: query.to_string(), layer, results: returned };
-            tokio::spawn(MEMORY_EVENT_BUS.publish(Topic("memory.search"), payload));
+            tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_SEARCH, payload));
             Ok(out)
         }
 
@@ -746,8 +746,8 @@ mod tests {
         }
         use crate::types::Layer;
         // Subscribe before actions
-        let mut rx_upsert = simple_engine::MEMORY_EVENT_BUS.subscribe(Topic("memory.upsert")).await;
-        let mut rx_search = simple_engine::MEMORY_EVENT_BUS.subscribe(Topic("memory.search")).await;
+        let mut rx_upsert = simple_engine::MEMORY_EVENT_BUS.subscribe(common::topics::TOPIC_MEMORY_UPSERT).await;
+        let mut rx_search = simple_engine::MEMORY_EVENT_BUS.subscribe(common::topics::TOPIC_MEMORY_SEARCH).await;
 
         // Use public API to trigger events
         let api = UnifiedMemoryAPI::new(Arc::new(DIMemoryService::new()));
@@ -761,7 +761,7 @@ mod tests {
             .await
             .expect("upsert timeout")
             .expect("upsert recv");
-        assert_eq!(upsert.topic.0, "memory.upsert");
+        assert_eq!(upsert.topic.0, common::topics::TOPIC_MEMORY_UPSERT.0);
 
         // Trigger search
         let _ = api
@@ -773,6 +773,6 @@ mod tests {
             .await
             .expect("search timeout")
             .expect("search recv");
-        assert_eq!(search.topic.0, "memory.search");
+        assert_eq!(search.topic.0, common::topics::TOPIC_MEMORY_SEARCH.0);
     }
 }

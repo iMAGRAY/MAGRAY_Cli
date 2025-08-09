@@ -5,6 +5,7 @@ use tools::ToolRegistry;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use common::{events, topics};
+use common::policy::{PolicyDocument, PolicyEngine, PolicyRule, PolicySubjectKind, PolicyAction};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct McpToolConfig {
@@ -144,6 +145,23 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             let mut args_map = std::collections::HashMap::new();
             for (k, v) in arg {
                 args_map.insert(k, v);
+            }
+            // Policy evaluation (simple static for now; can be loaded from file later)
+            let policy = PolicyEngine::from_document(PolicyDocument { rules: vec![
+                PolicyRule {
+                    subject_kind: PolicySubjectKind::Tool,
+                    subject_name: "shell_exec".into(),
+                    when_contains_args: None,
+                    action: PolicyAction::Deny,
+                    reason: Some("Shell execution disabled by policy".into()),
+                }
+            ]});
+            let decision = policy.evaluate_tool(&name, &args_map);
+            if !decision.allowed {
+                let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());
+                let evt = serde_json::json!({"tool": name, "reason": reason});
+                tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
+                anyhow::bail!("Tool '{}' blocked by policy", name);
             }
             let input = tools::ToolInput { command, args: args_map, context };
             let output = tool.execute(input).await?;
