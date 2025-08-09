@@ -32,6 +32,8 @@ pub struct ScoreBreakdown {
     pub example_overlap: f32,
     pub urgency_latency_bonus: f32,
     pub low_risk_bonus: f32,
+    pub permissions_adjust: f32,
+    pub dry_run_bonus: f32,
 }
 
 /// Matched signals from UsageGuide
@@ -658,9 +660,31 @@ impl IntelligentToolSelector {
             if guide.risk_score <= 2 { bd.low_risk_bonus = 0.1; }
             if matches!(context.urgency_level, UrgencyLevel::High | UrgencyLevel::Critical)
                 && guide.latency_class == "fast" { bd.urgency_latency_bonus = 0.1; }
-            return ((base + bd.low_risk_bonus + bd.urgency_latency_bonus).min(1.0), bd);
         }
-        (base, bd)
+        // Permissions impact: prefer least-privilege and dry-run capable tools
+        let mut perm_adjust = 0.0f32;
+        if let Some(perms) = &tool_spec.permissions {
+            // Start neutral; subtract for riskier permissions
+            if perms.allow_shell { perm_adjust -= 0.08; }
+            if !perms.fs_write_roots.is_empty() { perm_adjust -= 0.06; }
+            if !perms.fs_read_roots.is_empty() { perm_adjust -= 0.03; }
+            if !perms.net_allowlist.is_empty() { perm_adjust -= 0.02; }
+        } else {
+            // No explicit permissions -> least-privilege by default
+            perm_adjust += 0.05;
+        }
+        // Dry-run support is a safety/UX plus
+        if tool_spec.supports_dry_run { bd.dry_run_bonus = 0.05; }
+        // Clamp and assign
+        bd.permissions_adjust = perm_adjust.clamp(-0.15, 0.1);
+
+        let total = (base
+            + bd.low_risk_bonus
+            + bd.urgency_latency_bonus
+            + bd.permissions_adjust
+            + bd.dry_run_bonus)
+            .clamp(0.0, 1.0);
+        (total, bd)
     }
 
     /// Calculate performance factor based on historical data

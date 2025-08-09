@@ -189,3 +189,30 @@ async fn selector_prefilters_fs_when_sandbox_on_and_roots_insufficient() {
     let choices = selector.select_tools(&ctx("write file", UrgencyLevel::Normal)).await.unwrap();
     assert!(choices.iter().all(|c| c.tool_name != "file_write"));
 }
+
+#[tokio::test]
+async fn selector_prefers_lower_privilege_and_dry_run() {
+    let selector = IntelligentToolSelector::new(low_threshold_config());
+
+    // Tool A: needs shell + write FS (riskier), no dry-run
+    let mut a = mk_spec("risky", "Risky tool", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
+    a.permissions = Some(tools::ToolPermissions {
+        allow_shell: true,
+        fs_write_roots: vec!["/".into()],
+        ..Default::default()
+    });
+    a.supports_dry_run = false;
+
+    // Tool B: no explicit permissions (least-privilege), supports dry-run
+    let mut b = mk_spec("safe", "Safe tool", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
+    b.permissions = None;
+    b.supports_dry_run = true;
+
+    selector.register_tool(a.clone()).await;
+    selector.register_tool(b.clone()).await;
+
+    let choices = selector.select_tools(&ctx("do something", UrgencyLevel::Normal)).await.unwrap();
+    let pos_safe = choices.iter().position(|c| c.tool_name == "safe").unwrap();
+    let pos_risky = choices.iter().position(|c| c.tool_name == "risky").unwrap();
+    assert!(pos_safe < pos_risky, "Tools with fewer privileges and dry-run should rank higher");
+}
