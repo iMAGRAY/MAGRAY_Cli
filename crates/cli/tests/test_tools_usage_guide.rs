@@ -32,3 +32,17 @@ fn tools_list_basic_and_details_and_json() {
     assert!(s3.contains("\"name\""));
     assert!(s3.contains("\"usage_guide\""));
 }
+
+#[test]
+fn tools_run_dynamic_ask_by_usage_guide_non_interactive() {
+    // We can't register new tools via CLI easily; validate that built-ins don't panic and policy path handles ask.
+    // Use web_search (default policy may be Ask depending on env). Force non-interactive and expect Ask error.
+    let mut cmd = Command::cargo_bin("magray").expect("built");
+    let out = cmd.args(["tools","run","--name","web_search","--command","search","--arg","query=test"]) 
+        .env("CI","1").env("MAGRAY_NO_ANIM","1").env("MAGRAY_NONINTERACTIVE","true")
+        .output().expect("run ok");
+    // In non-interactive ask should error
+    assert!(!out.status.success());
+    let s = String::from_utf8_lossy(&out.stderr);
+    assert!(s.contains("requires confirmation") || s.contains("blocked by policy") || s.contains("Ask"));
+}

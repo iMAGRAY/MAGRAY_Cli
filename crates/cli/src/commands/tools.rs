@@ -196,6 +196,20 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 }
             }
             let decision = policy.evaluate_tool(&name, &args_map);
+
+            // Dynamic guard based on UsageGuide if no explicit Ask/Deny matched
+            let mut require_ask_due_to_guide = false;
+            if matches!(decision.action, common::policy::PolicyAction::Allow) && decision.matched_rule.is_none() {
+                let spec = tool.spec();
+                if let Some(guide) = spec.usage_guide {
+                    let high_risk = guide.risk_score >= 4;
+                    let has_side_effects = !guide.side_effects.is_empty();
+                    if high_risk || has_side_effects {
+                        require_ask_due_to_guide = true;
+                    }
+                }
+            }
+
             // Handle policy by action: Deny -> block, Ask -> confirm, Allow -> proceed
             if matches!(decision.action, common::policy::PolicyAction::Deny) {
                 let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());
@@ -203,8 +217,8 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
                 anyhow::bail!("Tool '{}' blocked by policy", name);
             }
-            // Ask-mode: optional confirmation (non-interactive environments will deny)
-            if matches!(decision.action, common::policy::PolicyAction::Ask) {
+            // Ask-mode: explicit Ask or dynamic Ask due to guide
+            if matches!(decision.action, common::policy::PolicyAction::Ask) || require_ask_due_to_guide {
                 let non_interactive = std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
                 if non_interactive {
                     anyhow::bail!("Tool '{}' requires confirmation (ask), but running non-interactive", name);
@@ -216,7 +230,8 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                     let preview = tool.execute(preview_input).await.unwrap_or_else(|e| tools::ToolOutput { success: false, result: format!("preview error: {}", e), formatted_output: None, metadata: std::collections::HashMap::new() });
                     println!("\n=== Предпросмотр (dry-run) {} ===", name.bold());
                     if let Some(fmt) = preview.formatted_output { println!("{}", fmt); } else { println!("{}", preview.result); }
-                    println!("Риск: {:?}", decision.risk);
+                    if let Some(rule) = decision.matched_rule { println!("Политика: {:?}", rule.action); }
+                    if require_ask_due_to_guide { println!("Требуется подтверждение по UsageGuide (risk/side_effects)"); }
                     // Ask user
                     use std::io::{self, Write};
                     print!("Продолжить выполнение? [y/N]: ");
