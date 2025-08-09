@@ -167,19 +167,7 @@ where
     C: CircuitBreakerTrait,
 {
     async fn initialize(&self) -> Result<()> {
-        info!("ChatHandler: инициализация начата");
-
-        // Проверяем доступность LLM сервиса
-        self.llm_service
-            .health_check()
-            .await
-            .map_err(|e| anyhow::anyhow!("LLM сервис недоступен: {}", e))?;
-
-        // Здесь можно добавить дополнительную инициализацию
-        // unsafe { &mut *(self as *const _ as *mut Self) }.initialized = true;
-
-        info!("ChatHandler: инициализация завершена");
-        Ok(())
+        super::standard_component_initialize("ChatHandler", self.llm_service.health_check()).await
     }
 
     async fn health_check(&self) -> Result<()> {

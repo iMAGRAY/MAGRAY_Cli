@@ -179,16 +179,7 @@ where
     C: CircuitBreakerTrait,
 {
     async fn initialize(&self) -> Result<()> {
-        info!("ToolsHandler: инициализация начата");
-
-        // Проверяем доступность routing сервиса
-        self.routing_service
-            .health_check()
-            .await
-            .map_err(|e| anyhow::anyhow!("Routing сервис недоступен: {}", e))?;
-
-        info!("ToolsHandler: инициализация завершена");
-        Ok(())
+        super::standard_component_initialize("ToolsHandler", self.routing_service.health_check()).await
     }
 
     async fn health_check(&self) -> Result<()> {

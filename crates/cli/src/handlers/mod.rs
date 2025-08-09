@@ -16,6 +16,22 @@ pub use performance_monitor::*;
 pub use tools_handler::*;
 
 use anyhow::{anyhow, Result};
+use tracing::info;
+
+/// Общая инициализация компонента с проверкой зависимости
+pub async fn standard_component_initialize<DFut, D, E>(
+    component_name: &str,
+    dep_check: DFut,
+) -> Result<()>
+where
+    DFut: std::future::Future<Output = std::result::Result<D, E>>,
+    E: std::fmt::Display,
+{
+    info!("{}: инициализация начата", component_name);
+    dep_check.await.map(|_| ()).map_err(|e| anyhow!(e.to_string()))?;
+    info!("{}: инициализация завершена", component_name);
+    Ok(())
+}
 
 /// Общая реализация health_check для компонентных обработчиков с Circuit Breaker и зависимостью
 /// - Проверяет initialized

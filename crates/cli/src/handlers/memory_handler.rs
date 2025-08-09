@@ -213,16 +213,7 @@ where
     C: CircuitBreakerTrait,
 {
     async fn initialize(&self) -> Result<()> {
-        info!("MemoryHandler: инициализация начата");
-
-        // Проверяем доступность memory сервиса
-        self.memory_service
-            .health_check()
-            .await
-            .map_err(|e| anyhow::anyhow!("Memory сервис недоступен: {}", e))?;
-
-        info!("MemoryHandler: инициализация завершена");
-        Ok(())
+        super::standard_component_initialize("MemoryHandler", self.memory_service.health_check()).await
     }
 
     async fn health_check(&self) -> Result<()> {
