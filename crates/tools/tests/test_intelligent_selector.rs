@@ -192,6 +192,9 @@ async fn selector_prefilters_fs_when_sandbox_on_and_roots_insufficient() {
 
 #[tokio::test]
 async fn selector_prefers_lower_privilege_and_dry_run() {
+    // Ensure environment allows shell and disables FS sandbox so risky tool isn't filtered out
+    std::env::set_var("MAGRAY_ALLOW_SHELL", "1");
+    std::env::set_var("MAGRAY_FS_SANDBOX", "0");
     let selector = IntelligentToolSelector::new(low_threshold_config());
 
     // Tool A: needs shell + write FS (riskier), no dry-run
