@@ -199,8 +199,26 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 }
                 let auto_approve = std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
                 if !auto_approve {
-                    // For now deny if not auto-approved (TUI confirm to be added)
-                    anyhow::bail!("Tool '{}' requires confirmation (ask). Set MAGRAY_AUTO_APPROVE_ASK=true to allow.", name);
+                    // Run dry-run preview
+                    let preview_input = tools::ToolInput { command: command.clone(), args: args_map.clone(), context: context.clone(), dry_run: true, timeout_ms };
+                    let preview = tool.execute(preview_input).await.unwrap_or_else(|e| tools::ToolOutput { success: false, result: format!("preview error: {}", e), formatted_output: None, metadata: std::collections::HashMap::new() });
+                    println!("\n=== Предпросмотр (dry-run) {} ===", name.bold());
+                    if let Some(fmt) = preview.formatted_output {
+                        println!("{}", fmt);
+                    } else {
+                        println!("{}", preview.result);
+                    }
+                    println!("Риск: {:?}", decision.risk);
+                    // Ask user
+                    use std::io::{self, Write};
+                    print!("Продолжить выполнение? [y/N]: ");
+                    let _ = io::stdout().flush();
+                    let mut answer = String::new();
+                    if io::stdin().read_line(&mut answer).is_err() { anyhow::bail!("confirmation failed"); }
+                    let ans = answer.trim().to_lowercase();
+                    if !(ans == "y" || ans == "yes" || ans == "д" || ans == "да") {
+                        anyhow::bail!("Отменено пользователем");
+                    }
                 }
             }
             let input = tools::ToolInput { command, args: args_map, context, dry_run, timeout_ms };
