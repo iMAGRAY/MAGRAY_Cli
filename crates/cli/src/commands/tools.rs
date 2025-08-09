@@ -4,6 +4,7 @@ use colored::*;
 use tools::ToolRegistry;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use common::{events, topics};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct McpToolConfig {
@@ -147,6 +148,9 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             let input = tools::ToolInput { command, args: args_map, context };
             let output = tool.execute(input).await?;
             if output.success { println!("{} {}", "✓".green(), output.result); } else { println!("{} {}", "✗".red(), output.result); }
+            // Publish event for observability (non-blocking)
+            let evt = serde_json::json!({"tool": name, "success": output.success});
+            tokio::spawn(events::publish(topics::TOPIC_TOOL_INVOKED, evt));
             Ok(())
         }
     }
