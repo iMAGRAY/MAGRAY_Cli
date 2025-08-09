@@ -21,27 +21,66 @@ use crate::orchestration::{HealthManager, ResourceController};
 use crate::{
     backup::BackupManager,
     batch_manager::BatchOperationManager,
-    di::{traits::DIResolver},
+    di::traits::DIResolver,
     metrics::MetricsCollector,
 };
+use crate::di::core_traits::ServiceResolver;
+use crate::orchestration::traits::EmbeddingCoordinator as EmbeddingCoordinatorTrait;
 
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 use crate::di::unified_container_impl::UnifiedContainer as UnifiedDIContainer;
 
+// NEW: Bring commonly used types into scope
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+use crate::storage::VectorStore;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+use crate::types::{Layer, Record, SearchOptions};
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+use crate::orchestration::{RetryHandler, RetryPolicy, RetryResult};
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+use crate::orchestration::traits::SearchCoordinator as SearchCoordinatorTrait;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+use crate::orchestration::{EmbeddingCoordinator as EmbeddingCoordinatorImpl, SearchCoordinator as SearchCoordinatorImpl};
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+use common::OperationTimer;
+
 #[cfg(not(all(not(feature = "minimal"), feature = "orchestration-modules")))]
 pub trait OperationExecutor: Send + Sync {}
 
-#[cfg(not(all(not(feature = "minimal"), feature = "orchestration-modules")))]
-pub type BatchInsertResult = (usize, usize);
-#[cfg(not(all(not(feature = "minimal"), feature = "orchestration-modules")))]
-pub type BatchSearchResult = (usize, usize);
+// Replace tuple aliases with structured results when orchestration modules are enabled
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+#[derive(Debug, Clone)]
+pub struct BatchInsertResult {
+    pub inserted: usize,
+    pub failed: usize,
+    pub errors: Vec<String>,
+    pub total_time_ms: u64,
+}
 
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+#[derive(Debug, Clone)]
+pub struct BatchSearchResult {
+    pub queries: Vec<String>,
+    pub results: Vec<Vec<Record>>,
+    pub total_time_ms: u64,
+}
+
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
+#[async_trait]
 pub trait OperationExecutor: Send + Sync {
     async fn search(&self, query: &str, layer: crate::types::Layer, options: crate::types::SearchOptions) -> anyhow::Result<Vec<crate::types::Record>>;
     async fn insert(&self, record: crate::types::Record) -> anyhow::Result<()>;
     async fn run_promotion(&self) -> anyhow::Result<crate::promotion::PromotionStats>;
     async fn get_stats(&self) -> crate::metrics::MemoryMetrics;
+
+    async fn batch_insert(&self, records: Vec<crate::types::Record>) -> anyhow::Result<BatchInsertResult>;
+    async fn batch_search(&self, queries: Vec<String>, layer: crate::types::Layer, options: crate::types::SearchOptions) -> anyhow::Result<BatchSearchResult>;
+    async fn update(&self, record: crate::types::Record) -> anyhow::Result<()>;
+    async fn delete(&self, id: &uuid::Uuid, layer: crate::types::Layer) -> anyhow::Result<()>;
+    async fn initialize(&self) -> anyhow::Result<()>;
+    async fn shutdown(&self) -> anyhow::Result<()>;
+    async fn flush_all(&self) -> anyhow::Result<()>;
+    async fn create_backup(&self, path: &str) -> anyhow::Result<crate::backup::BackupMetadata>;
 }
 
 /// Конфигурация для выполнения операций
@@ -172,7 +211,7 @@ impl ProductionOperationExecutor {
     /// Записать метрики операции
     fn record_operation_metrics(&self, operation_type: &str, duration: Duration) {
         if self.config.enable_metrics {
-            if let Some(metrics) = self.container.try_resolve::<Arc<MetricsCollector>>() {
+            if let Some(metrics) = self.container.try_resolve::<MetricsCollector>() {
                 match operation_type {
                     "insert" => metrics.record_vector_insert(duration),
                     "search" => metrics.record_vector_search(duration),
@@ -215,7 +254,7 @@ impl OperationExecutor for ProductionOperationExecutor {
             .execute(|| async {
                 let store = self.container.resolve::<VectorStore>()?;
 
-                if let Ok(batch_manager) = self.container.resolve::<Arc<BatchOperationManager>>() {
+                if let Ok(batch_manager) = self.container.resolve::<BatchOperationManager>() {
                     debug!("🔄 Insert через batch manager");
                     batch_manager.add(record.clone()).await?;
                 } else {
@@ -342,7 +381,7 @@ impl OperationExecutor for ProductionOperationExecutor {
         debug!("Батчевая вставка {} записей", total_records);
 
         // Используем batch manager если доступен
-        if let Ok(batch_manager) = self.container.resolve::<Arc<BatchOperationManager>>() {
+        if let Ok(batch_manager) = self.container.resolve::<BatchOperationManager>() {
             for record in records {
                 match batch_manager.add(record).await {
                     Ok(_) => inserted += 1,
@@ -528,6 +567,14 @@ impl OperationExecutor for ProductionOperationExecutor {
         debug!("✅ Backup создан: {}", backup_path.display());
         Ok(metadata)
     }
+
+    async fn get_stats(&self) -> crate::metrics::MemoryMetrics {
+        if let Some(metrics) = self.container.try_resolve::<MetricsCollector>() {
+            metrics.snapshot()
+        } else {
+            crate::metrics::MemoryMetrics::default()
+        }
+    }
 }
 
 /// Простой executor без координаторов (для тестов)
@@ -672,6 +719,14 @@ impl OperationExecutor for SimpleOperationExecutor {
             layer_checksums: Some(std::collections::HashMap::new()),
         })
     }
+
+    async fn get_stats(&self) -> crate::metrics::MemoryMetrics {
+        if let Some(metrics) = self.container.try_resolve::<MetricsCollector>() {
+            metrics.snapshot()
+        } else {
+            crate::metrics::MemoryMetrics::default()
+        }
+    }
 }
 
 /// Дополнительные операции (backup, restore, etc.)
@@ -799,6 +854,17 @@ impl OperationExecutor for ExtendedOperationExecutor {
 
     async fn create_backup(&self, path: &str) -> Result<crate::backup::BackupMetadata> {
         self.base_executor.create_backup(path).await
+    }
+
+    async fn get_stats(&self) -> crate::metrics::MemoryMetrics {
+        // Делегируем, если базовый executor умеет возвращать метрики
+        // Иначе возвращаем пустые
+        // Прямого вызова нет из-за возвращаемого типа, используем контейнер
+        if let Some(metrics) = self.container.try_resolve::<MetricsCollector>() {
+            metrics.snapshot()
+        } else {
+            crate::metrics::MemoryMetrics::default()
+        }
     }
 }
 

@@ -13,14 +13,13 @@ use std::{
 use tokio::{sync::RwLock, task::JoinHandle, time::interval};
 use tracing::{debug, error, info, warn};
 
-use super::{
-    circuit_breaker_manager::CircuitBreakerManager,
-    metrics_collector::MetricsCollector,
-    traits::{Coordinator, HealthCoordinator},
-};
+use super::traits::{Coordinator, HealthCoordinator};
+#[cfg(feature = "legacy-orchestrator")]
+use super::{circuit_breaker_manager::CircuitBreakerManager, metrics_collector::MetricsCollector};
 use common::{service_macros::CoordinatorMacroHelpers, service_traits::*};
 
 /// Background Task Manager для управления фоновыми задачами
+#[derive(Debug)]
 pub struct BackgroundTaskManager {
     /// Handles активных задач
     task_handles: Arc<RwLock<Vec<JoinHandle<()>>>>,
@@ -89,7 +88,9 @@ impl BackgroundTaskManager {
     pub async fn start_all_tasks(
         &self,
         health_coordinator: Arc<dyn HealthCoordinator>,
+        #[cfg(feature = "legacy-orchestrator")]
         circuit_breaker_manager: Arc<CircuitBreakerManager>,
+        #[cfg(feature = "legacy-orchestrator")]
         metrics_collector: Arc<MetricsCollector>,
     ) -> Result<()> {
         info!("🔄 Запуск всех background задач");
@@ -102,15 +103,26 @@ impl BackgroundTaskManager {
         let mut tasks = self.task_handles.write().await;
 
         // Health monitoring task
+        #[cfg(feature = "legacy-orchestrator")]
         let health_task =
             self.create_health_monitoring_task(health_coordinator, metrics_collector.clone());
+        #[cfg(not(feature = "legacy-orchestrator"))]
+        let health_task = tokio::spawn(async move {
+            let _ = health_coordinator.health_check().await;
+        });
 
         // Circuit breaker monitoring task
+        #[cfg(feature = "legacy-orchestrator")]
         let circuit_breaker_task =
             self.create_circuit_breaker_monitoring_task(circuit_breaker_manager);
+        #[cfg(not(feature = "legacy-orchestrator"))]
+        let circuit_breaker_task = tokio::spawn(async move {});
 
         // Metrics collection task
+        #[cfg(feature = "legacy-orchestrator")]
         let metrics_task = self.create_metrics_collection_task(metrics_collector);
+        #[cfg(not(feature = "legacy-orchestrator"))]
+        let metrics_task = tokio::spawn(async move {});
 
         tasks.push(health_task);
         tasks.push(circuit_breaker_task);
@@ -123,6 +135,7 @@ impl BackgroundTaskManager {
     }
 
     /// Создать health monitoring task
+    #[cfg(feature = "legacy-orchestrator")]
     fn create_health_monitoring_task(
         &self,
         health_coordinator: Arc<dyn HealthCoordinator>,
@@ -163,6 +176,7 @@ impl BackgroundTaskManager {
     }
 
     /// Создать circuit breaker monitoring task
+    #[cfg(feature = "legacy-orchestrator")]
     fn create_circuit_breaker_monitoring_task(
         &self,
         circuit_breaker_manager: Arc<CircuitBreakerManager>,
@@ -184,6 +198,7 @@ impl BackgroundTaskManager {
     }
 
     /// Создать metrics collection task
+    #[cfg(feature = "legacy-orchestrator")]
     fn create_metrics_collection_task(
         &self,
         metrics_collector: Arc<MetricsCollector>,
@@ -275,9 +290,34 @@ impl BackgroundTaskManager {
     }
 }
 
-// Применяем макрос для автоматической генерации Coordinator trait
-use crate::orchestration::traits;
-common::impl_coordinator!(BackgroundTaskManager, serde_json::Value);
+// Ручная реализация Coordinator без макроса, чтобы избежать привязки к конкретным ошибкам
+use crate::orchestration::traits as _traits_mod;
+
+#[async_trait::async_trait]
+impl _traits_mod::Coordinator for BackgroundTaskManager {
+    async fn initialize(&self) -> anyhow::Result<()> {
+        self.perform_coordinator_init().await
+    }
+
+    async fn is_ready(&self) -> bool {
+        self.check_readiness().await
+    }
+
+    async fn health_check(&self) -> anyhow::Result<()> {
+        if !self.is_ready().await {
+            return Err(anyhow::anyhow!("BackgroundTaskManager не готов"));
+        }
+        Ok(())
+    }
+
+    async fn shutdown(&self) -> anyhow::Result<()> {
+        self.perform_coordinator_shutdown().await
+    }
+
+    async fn metrics(&self) -> serde_json::Value {
+        self.collect_coordinator_metrics().await
+    }
+}
 
 impl Default for BackgroundTaskManager {
     fn default() -> Self {
@@ -315,7 +355,7 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl crate::orchestration::traits::Coordinator for MockHealthCoordinator {
+    impl _traits_mod::Coordinator for MockHealthCoordinator {
         async fn initialize(&self) -> Result<()> {
             Ok(())
         }

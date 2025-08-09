@@ -17,7 +17,7 @@ use crate::gpu_accelerated::GpuDeviceManager;
 #[cfg(not(feature = "minimal"))]
 use crate::notifications::NotificationConfig;
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
-use crate::{ml_promotion::MLPromotionConfig, promotion::PromotionConfig as MLPromotionCfg};
+use crate::ml_promotion::MLPromotionConfig;
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use crate::batch_manager::BatchConfig;
 use crate::{health::HealthMonitorConfig, streaming::StreamingConfig, types::PromotionConfig, CacheConfigType};

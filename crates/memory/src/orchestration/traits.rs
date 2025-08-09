@@ -1,11 +1,22 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
+#[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
+use crate::backup::BackupMetadata;
+#[cfg(not(all(not(feature = "minimal"), feature = "backup-restore")))]
+pub type BackupMetadata = crate::backup::BackupMetadata;
+
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::ml_promotion::MLPromotionStats;
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::promotion::PromotionStats;
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+pub type PromotionStats = crate::service_di::PromotionStats;
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+pub type MLPromotionStats = ();
+
 use crate::{
-    backup::BackupMetadata,
     health::SystemHealthStatus,
-    ml_promotion::MLPromotionStats,
-    promotion::PromotionStats,
     resource_manager::ResourceUsage,
     types::{Layer, Record, SearchOptions},
 };

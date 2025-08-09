@@ -3,7 +3,9 @@ use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 use colored::*;
 use memory::{default_config};
-use memory::api::{MemoryContext, UnifiedMemoryAPI, PromotionStats, MemoryServiceTrait};
+use memory::api::{MemoryContext, UnifiedMemoryAPI, MemoryServiceTrait};
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use memory::promotion::PromotionStats;
 use memory::types::Layer;
 use prettytable::{row, Table};
 use std::path::PathBuf;
