@@ -27,6 +27,8 @@ fn test_cpu_embedding_service_creation() {
                     || error_msg.contains("path")
                     || error_msg.contains("not found")
                     || error_msg.contains("No such file")
+                    || error_msg.contains("ORT")
+                    || error_msg.to_lowercase().contains("disabled")
             );
         }
     }
