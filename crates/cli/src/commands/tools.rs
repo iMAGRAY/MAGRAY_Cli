@@ -146,6 +146,20 @@ pub enum ToolsSubcommand {
         json: bool,
     },
 
+    /// Управление песочницами (FS/NET/Shell)
+    #[command(name = "sandbox")]
+    Sandbox {
+        /// Показать эффективный конфиг (с учётом env) в JSON
+        #[arg(long, default_value_t = false)]
+        show: bool,
+        /// Сохранить конфиг в ~/.magray/sandbox.json (env имеет приоритет при чтении)
+        #[arg(long, default_value_t = false)]
+        save: bool,
+        /// JSON-строка с конфигом SandboxConfig (fs/net/shell)
+        #[arg(long)]
+        json: Option<String>,
+    },
+
     /// Зарегистрировать MCP инструмент (stdio)
     #[command(name = "add-mcp")]
     AddMcp {
@@ -217,12 +231,12 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             }
             println!("{}", "=== Registered Tools ===".bold().cyan());
             if details {
-                // Effective sandbox summary from env
-                let fs_on = std::env::var("MAGRAY_FS_SANDBOX").unwrap_or_default();
-                let fs_roots = std::env::var("MAGRAY_FS_ROOTS").unwrap_or_default();
-                let net_allow = std::env::var("MAGRAY_NET_ALLOW").unwrap_or_default();
-                println!("  FS sandbox: {}  roots: {}", if fs_on.is_empty() { "off" } else { fs_on.as_str() }, if fs_roots.is_empty() { "<none>" } else { fs_roots.as_str() });
-                println!("  NET allow: {}", if net_allow.is_empty() { "<none>" } else { net_allow.as_str() });
+                // Effective sandbox summary from env (centralized)
+                let cfg = common::sandbox_config::SandboxConfig::from_env();
+                println!("  FS sandbox: {}  roots: {}", if cfg.fs.enabled { "on" } else { "off" }, if cfg.fs.roots.is_empty() { "<none>" } else { &cfg.fs.roots.join(":") });
+                let net = if cfg.net.allowlist.is_empty() { "<none>".to_string() } else { cfg.net.allowlist.join(",") };
+                println!("  NET allow: {}", net);
+                println!("  SHELL allow: {}", if cfg.shell.allow_shell { "yes" } else { "no" });
             }
             for spec in specs {
                 println!("- {}: {}", spec.name.bold(), spec.description);
@@ -302,6 +316,25 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                     if !e.matched.good_for.is_empty() { println!("  good_for: {}", e.matched.good_for.join(", ")); }
                 }
             }
+            Ok(())
+        }
+        ToolsSubcommand::Sandbox { show, save, json } => {
+            let mut cfg = common::sandbox_config::SandboxConfig::from_env();
+            if let Some(js) = json {
+                let parsed: common::sandbox_config::SandboxConfig = serde_json::from_str(&js)?;
+                cfg = parsed;
+            }
+            if show {
+                println!("{}", serde_json::to_string_pretty(&cfg)?);
+                return Ok(());
+            }
+            if save {
+                cfg.save_to_file()?;
+                println!("{} Конфиг песочниц сохранён", "✓".green());
+                return Ok(());
+            }
+            // If neither flag provided, show help-like hint
+            println!("Использование: magray tools sandbox --show | --save --json '<SandboxConfig JSON>'");
             Ok(())
         }
         ToolsSubcommand::AddMcp { name, cmd, args, remote_tool, description } => {
