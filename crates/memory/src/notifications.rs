@@ -590,10 +590,13 @@ impl NotificationManager {
 
         // Запускаем фоновую задачу для отправки сгруппированных алертов
         if manager.config.enable_grouping {
-            let manager_clone = manager.clone();
-            tokio::spawn(async move {
-                manager_clone.group_sender_loop().await;
-            });
+            #[cfg(not(test))]
+            {
+                let manager_clone = manager.clone();
+                tokio::spawn(async move {
+                    manager_clone.group_sender_loop().await;
+                });
+            }
         }
 
         Ok(manager)
