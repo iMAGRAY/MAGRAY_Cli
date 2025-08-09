@@ -5,7 +5,7 @@ use tools::ToolRegistry;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use common::{events, topics};
-use common::policy::{PolicyDocument, PolicyEngine, PolicyRule, PolicySubjectKind, PolicyAction};
+use common::policy::{PolicyDocument, PolicyEngine, PolicyRule, PolicySubjectKind, PolicyAction, default_document, load_from_path, merge_documents};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct McpToolConfig {
@@ -146,16 +146,18 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             for (k, v) in arg {
                 args_map.insert(k, v);
             }
-            // Policy evaluation (simple static for now; can be loaded from file later)
-            let policy = PolicyEngine::from_document(PolicyDocument { rules: vec![
-                PolicyRule {
-                    subject_kind: PolicySubjectKind::Tool,
-                    subject_name: "shell_exec".into(),
-                    when_contains_args: None,
-                    action: PolicyAction::Deny,
-                    reason: Some("Shell execution disabled by policy".into()),
+            // Load policy from ~/.magray/policy.json if exists and merge with defaults
+            let mut home = crate::util::magray_home();
+            home.push("policy.json");
+            let effective_doc = if home.exists() {
+                match load_from_path(&home) {
+                    Ok(user_doc) => merge_documents(default_document(), user_doc),
+                    Err(_) => default_document(),
                 }
-            ]});
+            } else {
+                default_document()
+            };
+            let policy = PolicyEngine::from_document(effective_doc);
             let decision = policy.evaluate_tool(&name, &args_map);
             if !decision.allowed {
                 let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());

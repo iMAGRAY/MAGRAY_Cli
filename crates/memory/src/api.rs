@@ -123,6 +123,9 @@ mod simple_engine {
             // fire event (non-blocking publish with timeout inside)
             let payload = MemoryEventPayload::Remember { id: record.id, layer: record.layer };
             tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_UPSERT, payload));
+            // also forward to global JSON bus for cross-crate observability
+            let json_evt = serde_json::json!({"id": record.id, "layer": format!("{:?}", record.layer)});
+            tokio::spawn(common::events::publish(common::topics::TOPIC_MEMORY_UPSERT, json_evt));
             Ok(record.id)
         }
 
@@ -180,6 +183,9 @@ mod simple_engine {
             // fire event with summary
             let payload = MemoryEventPayload::Search { query: query.to_string(), layer, results: returned };
             tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_SEARCH, payload));
+            // also forward to global JSON bus
+            let json_evt = serde_json::json!({"query": query, "layer": format!("{:?}", layer), "results": returned});
+            tokio::spawn(common::events::publish(common::topics::TOPIC_MEMORY_SEARCH, json_evt));
             Ok(out)
         }
 
