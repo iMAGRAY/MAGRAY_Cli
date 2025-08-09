@@ -63,7 +63,14 @@ pub struct ToolsCommand {
 pub enum ToolsSubcommand {
     /// Показать зарегистрированные инструменты
     #[command(name = "list")]
-    List,
+    List {
+        /// Показать подробности (usage + ключевые поля UsageGuide)
+        #[arg(long, default_value_t = false)]
+        details: bool,
+        /// Вывести JSON (массив ToolSpec, включая UsageGuide)
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
 
     /// Зарегистрировать MCP инструмент (stdio)
     #[command(name = "add-mcp")]
@@ -127,11 +134,31 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
     preload_persisted_into_registry(&mut registry);
 
     match cmd {
-        ToolsSubcommand::List => {
+        ToolsSubcommand::List { details, json } => {
             let specs = registry.list_tools();
+            if json {
+                println!("{}", serde_json::to_string_pretty(&specs)?);
+                return Ok(());
+            }
             println!("{}", "=== Registered Tools ===".bold().cyan());
             for spec in specs {
                 println!("- {}: {}", spec.name.bold(), spec.description);
+                if details {
+                    println!("  usage: {}", spec.usage);
+                    if let Some(guide) = &spec.usage_guide {
+                        // краткий вывод ключевых полей гайда
+                        if !guide.good_for.is_empty() {
+                            println!("  good_for: {}", guide.good_for.join(", "));
+                        }
+                        if !guide.tags.is_empty() {
+                            println!("  tags: {}", guide.tags.join(", "));
+                        }
+                        if !guide.capabilities.is_empty() {
+                            println!("  capabilities: {}", guide.capabilities.join(", "));
+                        }
+                        println!("  latency: {}  risk: {}", guide.latency_class, guide.risk_score);
+                    }
+                }
             }
             Ok(())
         }
@@ -149,9 +176,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
         ToolsSubcommand::Run { name, command, arg, context, dry_run, timeout_ms } => {
             let tool = registry.get(&name).ok_or_else(|| anyhow::anyhow!("Tool not found: {}", name))?;
             let mut args_map = std::collections::HashMap::new();
-            for (k, v) in arg {
-                args_map.insert(k, v);
-            }
+            for (k, v) in arg { args_map.insert(k, v); }
             // Load effective policy with precedence: env-json > env-path/file > default
             let mut home = crate::util::magray_home();
             home.push("policy.json");
@@ -160,14 +185,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             // Enrich args for policy checks (domain for web_fetch, query kw for web_search)
             if name == "web_fetch" {
                 if let Some(url) = args_map.get("url").cloned() {
-                    let domain = url
-                        .split('/')
-                        .nth(2)
-                        .unwrap_or("")
-                        .split(':')
-                        .next()
-                        .unwrap_or("")
-                        .to_string();
+                    let domain = url.split('/').nth(2).unwrap_or("").split(':').next().unwrap_or("").to_string();
                     if !domain.is_empty() { args_map.insert("domain".into(), domain); }
                 }
             } else if name == "web_search" {
@@ -197,11 +215,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                     let preview_input = tools::ToolInput { command: command.clone(), args: args_map.clone(), context: context.clone(), dry_run: true, timeout_ms };
                     let preview = tool.execute(preview_input).await.unwrap_or_else(|e| tools::ToolOutput { success: false, result: format!("preview error: {}", e), formatted_output: None, metadata: std::collections::HashMap::new() });
                     println!("\n=== Предпросмотр (dry-run) {} ===", name.bold());
-                    if let Some(fmt) = preview.formatted_output {
-                        println!("{}", fmt);
-                    } else {
-                        println!("{}", preview.result);
-                    }
+                    if let Some(fmt) = preview.formatted_output { println!("{}", fmt); } else { println!("{}", preview.result); }
                     println!("Риск: {:?}", decision.risk);
                     // Ask user
                     use std::io::{self, Write};
@@ -210,9 +224,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                     let mut answer = String::new();
                     if io::stdin().read_line(&mut answer).is_err() { anyhow::bail!("confirmation failed"); }
                     let ans = answer.trim().to_lowercase();
-                    if !(ans == "y" || ans == "yes" || ans == "д" || ans == "да") {
-                        anyhow::bail!("Отменено пользователем");
-                    }
+                    if !(ans == "y" || ans == "yes" || ans == "д" || ans == "да") { anyhow::bail!("Отменено пользователем"); }
                 }
             }
             let input = tools::ToolInput { command, args: args_map, context, dry_run, timeout_ms };
