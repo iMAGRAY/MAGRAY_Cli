@@ -134,13 +134,11 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
     let container = memory::di::UnifiedContainer::new();
     let api = UnifiedMemoryAPI::new(Arc::new(container) as Arc<dyn MemoryServiceTrait>);
 
-    // Prepare effective policy for commands
+    // Prepare effective policy for commands (env-json > env-path/file > default)
     let mut home = crate::util::magray_home();
     home.push("policy.json");
-    let effective_doc = if home.exists() {
-        load_from_path(&home).map(|doc| merge_documents(default_document(), doc)).unwrap_or_else(|_| default_document())
-    } else { default_document() };
-    let policy = PolicyEngine::from_document(effective_doc);
+    let effective = common::policy::load_effective_policy(if home.exists() { Some(&home) } else { None });
+    let policy = PolicyEngine::from_document(effective);
 
     match cmd {
         MemorySubcommand::Stats { detailed } => {
