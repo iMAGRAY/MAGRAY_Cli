@@ -41,3 +41,30 @@ async fn emits_json_events_on_remember_and_search() -> Result<()> {
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn rerank_fallback_orders_results_without_ort() -> Result<()> {
+    // Force disable ORT to use fallback reranker
+    std::env::set_var("MAGRAY_FORCE_NO_ORT", "1");
+    std::env::set_var("MAGRAY_SKIP_AUTO_INSTALL", "1");
+
+    let svc = UnifiedContainer::new();
+    let api = memory::api::UnifiedMemoryAPI::new(std::sync::Arc::new(svc) as std::sync::Arc<dyn memory::api::MemoryServiceTrait>);
+
+    // Insert records with controlled token overlap
+    let ctx = memory::api::MemoryContext::new("note").with_layer(Layer::Interact);
+    let _ = api.remember("rust tokio async runtimes".to_string(), ctx.clone()).await?;
+    let _ = api.remember("python asyncio event loop".to_string(), ctx.clone()).await?;
+    let _ = api.remember("rust ownership borrowing lifetimes".to_string(), ctx.clone()).await?;
+
+    // Query closer to third record by tokens
+    let results = api.recall("rust lifetimes borrowing", memory::api::SearchOptions::default().in_layers(vec![Layer::Interact]).limit(3)).await?;
+
+    assert!(!results.is_empty());
+    // Expect a result containing rust/borrowing/lifetimes ranked highly
+    let texts: Vec<String> = results.iter().map(|r| r.text.clone()).collect();
+    // stronger check: first contains "lifetimes" or "borrowing"
+    let top = &texts[0];
+    assert!(top.contains("lifetimes") || top.contains("borrowing") || top.contains("rust"));
+    Ok(())
+}

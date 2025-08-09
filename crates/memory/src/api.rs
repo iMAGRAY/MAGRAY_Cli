@@ -80,7 +80,7 @@ mod simple_engine {
                 let embedding_dim = 1024;
 
                 #[cfg(feature = "reranking")]
-                let reranker = if ai::should_disable_ort() { None } else {
+                let reranker = {
                     let rcfg = RerankingConfig {
                         model_name: "qwen3_reranker".to_string(),
                         batch_size: 32,
