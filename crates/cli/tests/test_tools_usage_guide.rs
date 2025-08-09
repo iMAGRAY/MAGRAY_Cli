@@ -2,6 +2,7 @@
 
 use assert_cmd::prelude::*;
 use std::process::Command;
+use tempfile::TempDir;
 
 #[test]
 fn tools_list_basic_and_details_and_json() {
@@ -64,4 +65,22 @@ fn tools_select_json_structure() {
     assert!(s.contains("tool_name"));
     assert!(s.contains("confidence_score"));
     assert!(s.contains("breakdown"));
+}
+
+#[test]
+fn fs_sandbox_blocks_outside_root() {
+    let tmp = TempDir::new().unwrap();
+    let allowed = tmp.path().canonicalize().unwrap();
+    // Try write into /tmp (allowed) and into / (blocked) — we check blocked path deterministically using parent dir
+    let mut cmd = Command::cargo_bin("magray").expect("built");
+    let out = cmd
+        .args(["tools","run","--name","file_write","--command","write","--arg","path=/etc/shadow","--arg","content=oops"]) // obviously forbidden
+        .env("CI","1").env("MAGRAY_NO_ANIM","1")
+        .env("MAGRAY_NONINTERACTIVE","true")
+        .env("MAGRAY_FS_SANDBOX","1")
+        .env("MAGRAY_FS_ROOTS", allowed.to_string_lossy().to_string())
+        .output().expect("run ok");
+    assert!(!out.status.success());
+    let s = String::from_utf8_lossy(&out.stderr);
+    assert!(s.contains("песочницы"));
 }
