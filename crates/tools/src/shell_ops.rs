@@ -47,7 +47,7 @@ impl Tool for ShellExec {
             return Ok(ToolOutput {
                 success: true,
                 result: format!("[dry-run] $ {}", command),
-                formatted_output: Some(format!("$ {}\n[dry-run: no side effects]", command)),
+                formatted_output: Some(format!("$ {}\n[dry-run]", command)),
                 metadata: meta,
             });
         }
@@ -94,26 +94,33 @@ impl Tool for ShellExec {
         let read_future = async {
             let mut tmp_out = [0u8; 4096];
             let mut tmp_err = [0u8; 4096];
-            loop {
-                let mut progress = false;
+            let mut out_closed = false;
+            let mut err_closed = false;
+            let mut cap_out = false;
+            let mut cap_err = false;
+            while !(out_closed && err_closed) {
                 tokio::select! {
-                    read = stdout.read(&mut tmp_out) => {
-                        let n = read?; if n>0 {
-                            let take = n.min(max_bytes.saturating_sub(out_buf.len()));
-                            if take>0 { out_buf.extend_from_slice(&tmp_out[..take]); }
-                            progress = true;
+                    read = stdout.read(&mut tmp_out), if !out_closed => {
+                        let n = read?;
+                        if n == 0 { out_closed = true; } else {
+                            if !cap_out {
+                                let take = n.min(max_bytes.saturating_sub(out_buf.len()));
+                                if take>0 { out_buf.extend_from_slice(&tmp_out[..take]); }
+                                if out_buf.len() >= max_bytes { cap_out = true; }
+                            }
                         }
                     }
-                    read = stderr.read(&mut tmp_err) => {
-                        let n = read?; if n>0 {
-                            let take = n.min(max_bytes.saturating_sub(err_buf.len()));
-                            if take>0 { err_buf.extend_from_slice(&tmp_err[..take]); }
-                            progress = true;
+                    read = stderr.read(&mut tmp_err), if !err_closed => {
+                        let n = read?;
+                        if n == 0 { err_closed = true; } else {
+                            if !cap_err {
+                                let take = n.min(max_bytes.saturating_sub(err_buf.len()));
+                                if take>0 { err_buf.extend_from_slice(&tmp_err[..take]); }
+                                if err_buf.len() >= max_bytes { cap_err = true; }
+                            }
                         }
                     }
                 }
-                if out_buf.len() >= max_bytes { break; }
-                if !progress { break; }
             }
             Ok::<(), std::io::Error>(())
         };
