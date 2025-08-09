@@ -53,6 +53,57 @@ fn preload_persisted_into_registry(registry: &mut ToolRegistry) {
     }
 }
 
+// Load UsageGuide overrides from file path env and JSON env. Precedence: file < JSON env
+fn load_usage_guide_overrides() -> serde_json::Map<String, serde_json::Value> {
+    let mut map = serde_json::Map::new();
+    if let Ok(path) = std::env::var("MAGRAY_TOOL_GUIDE_PATH") {
+        if let Ok(content) = fs::read_to_string(path) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(obj) = json.as_object() {
+                    for (k, v) in obj { map.insert(k.clone(), v.clone()); }
+                }
+            }
+        }
+    }
+    if let Ok(json_str) = std::env::var("MAGRAY_TOOL_GUIDE_JSON") {
+        if !json_str.trim().is_empty() {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                if let Some(obj) = json.as_object() {
+                    for (k, v) in obj { map.insert(k.clone(), v.clone()); }
+                }
+            }
+        }
+    }
+    map
+}
+
+fn apply_usage_guide_override(spec: &mut tools::ToolSpec, override_v: &serde_json::Value) {
+    // Merge only known fields; create UsageGuide if absent
+    let mut guide = spec.usage_guide.clone().unwrap_or_else(|| tools::generate_usage_guide(spec));
+    if let Some(obj) = override_v.as_object() {
+        if let Some(v) = obj.get("usage_title").and_then(|v| v.as_str()) { guide.usage_title = v.into(); }
+        if let Some(v) = obj.get("usage_summary").and_then(|v| v.as_str()) { guide.usage_summary = v.into(); }
+        if let Some(v) = obj.get("preconditions").and_then(|v| v.as_array()) { guide.preconditions = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
+        if let Some(v) = obj.get("arguments_brief").and_then(|v| v.as_object()) {
+            let mut ab = std::collections::HashMap::new();
+            for (k, val) in v { if let Some(s) = val.as_str() { ab.insert(k.clone(), s.to_string()); } }
+            guide.arguments_brief = ab;
+        }
+        if let Some(v) = obj.get("good_for").and_then(|v| v.as_array()) { guide.good_for = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
+        if let Some(v) = obj.get("not_for").and_then(|v| v.as_array()) { guide.not_for = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
+        if let Some(v) = obj.get("constraints").and_then(|v| v.as_array()) { guide.constraints = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
+        if let Some(v) = obj.get("examples").and_then(|v| v.as_array()) { guide.examples = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
+        if let Some(v) = obj.get("platforms").and_then(|v| v.as_array()) { guide.platforms = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
+        if let Some(v) = obj.get("cost_class").and_then(|v| v.as_str()) { guide.cost_class = v.into(); }
+        if let Some(v) = obj.get("latency_class").and_then(|v| v.as_str()) { guide.latency_class = v.into(); }
+        if let Some(v) = obj.get("side_effects").and_then(|v| v.as_array()) { guide.side_effects = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
+        if let Some(v) = obj.get("risk_score").and_then(|v| v.as_u64()) { guide.risk_score = (v as u8); }
+        if let Some(v) = obj.get("capabilities").and_then(|v| v.as_array()) { guide.capabilities = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
+        if let Some(v) = obj.get("tags").and_then(|v| v.as_array()) { guide.tags = v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect(); }
+    }
+    spec.usage_guide = Some(guide);
+}
+
 #[derive(Debug, Args)]
 pub struct ToolsCommand {
     #[command(subcommand)]
@@ -117,25 +168,26 @@ pub enum ToolsSubcommand {
 }
 
 impl ToolsCommand {
-    pub async fn execute(self) -> Result<()> {
-        handle_tools_command(self.command).await
-    }
+    pub async fn execute(self) -> Result<()> { handle_tools_command(self.command).await }
 }
 
 fn parse_kv(s: &str) -> Result<(String, String), String> {
-    let (k, v) = s
-        .split_once('=')
-        .ok_or_else(|| "arg must be in key=value format".to_string())?;
+    let (k, v) = s.split_once('=').ok_or_else(|| "arg must be in key=value format".to_string())?;
     Ok((k.to_string(), v.to_string()))
 }
 
 async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
     let mut registry = ToolRegistry::new();
     preload_persisted_into_registry(&mut registry);
+    let guide_overrides = load_usage_guide_overrides();
 
     match cmd {
         ToolsSubcommand::List { details, json } => {
-            let specs = registry.list_tools();
+            let mut specs = registry.list_tools();
+            // Apply overrides
+            for spec in &mut specs {
+                if let Some(ov) = guide_overrides.get(&spec.name) { apply_usage_guide_override(spec, ov); }
+            }
             if json {
                 println!("{}", serde_json::to_string_pretty(&specs)?);
                 return Ok(());
@@ -146,16 +198,9 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 if details {
                     println!("  usage: {}", spec.usage);
                     if let Some(guide) = &spec.usage_guide {
-                        // краткий вывод ключевых полей гайда
-                        if !guide.good_for.is_empty() {
-                            println!("  good_for: {}", guide.good_for.join(", "));
-                        }
-                        if !guide.tags.is_empty() {
-                            println!("  tags: {}", guide.tags.join(", "));
-                        }
-                        if !guide.capabilities.is_empty() {
-                            println!("  capabilities: {}", guide.capabilities.join(", "));
-                        }
+                        if !guide.good_for.is_empty() { println!("  good_for: {}", guide.good_for.join(", ")); }
+                        if !guide.tags.is_empty() { println!("  tags: {}", guide.tags.join(", ")); }
+                        if !guide.capabilities.is_empty() { println!("  capabilities: {}", guide.capabilities.join(", ")); }
                         println!("  latency: {}  risk: {}", guide.latency_class, guide.risk_score);
                     }
                 }
@@ -163,11 +208,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             Ok(())
         }
         ToolsSubcommand::AddMcp { name, cmd, args, remote_tool, description } => {
-            let args_vec: Vec<String> = if args.trim().is_empty() {
-                Vec::new()
-            } else {
-                args.split_whitespace().map(|s| s.to_string()).collect()
-            };
+            let args_vec: Vec<String> = if args.trim().is_empty() { Vec::new() } else { args.split_whitespace().map(|s| s.to_string()).collect() };
             registry.register_mcp_tool(&name, cmd.clone(), args_vec.clone(), remote_tool.clone(), description.clone());
             upsert_mcp_config(McpToolConfig { name: name.clone(), cmd, args: args_vec, remote_tool, description })?;
             println!("{} Зарегистрирован MCP инструмент: {}", "✓".green(), name.bold());
@@ -177,12 +218,12 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             let tool = registry.get(&name).ok_or_else(|| anyhow::anyhow!("Tool not found: {}", name))?;
             let mut args_map = std::collections::HashMap::new();
             for (k, v) in arg { args_map.insert(k, v); }
-            // Load effective policy with precedence: env-json > env-path/file > default
+            // Load effective policy
             let mut home = crate::util::magray_home();
             home.push("policy.json");
             let effective = load_effective_policy(if home.exists() { Some(&home) } else { None });
             let policy = PolicyEngine::from_document(effective);
-            // Enrich args for policy checks (domain for web_fetch, query kw for web_search)
+            // Enrich policy args
             if name == "web_fetch" {
                 if let Some(url) = args_map.get("url").cloned() {
                     let domain = url.split('/').nth(2).unwrap_or("").split(':').next().unwrap_or("").to_string();
@@ -197,42 +238,34 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             }
             let decision = policy.evaluate_tool(&name, &args_map);
 
-            // Dynamic guard based on UsageGuide if no explicit Ask/Deny matched
+            // Dynamic guard based on UsageGuide overrides/spec
             let mut require_ask_due_to_guide = false;
+            let mut spec = tool.spec();
+            if let Some(ov) = guide_overrides.get(&name) { apply_usage_guide_override(&mut spec, ov); }
             if matches!(decision.action, common::policy::PolicyAction::Allow) && decision.matched_rule.is_none() {
-                let spec = tool.spec();
-                if let Some(guide) = spec.usage_guide {
+                if let Some(guide) = &spec.usage_guide {
                     let high_risk = guide.risk_score >= 4;
                     let has_side_effects = !guide.side_effects.is_empty();
-                    if high_risk || has_side_effects {
-                        require_ask_due_to_guide = true;
-                    }
+                    if high_risk || has_side_effects { require_ask_due_to_guide = true; }
                 }
             }
 
-            // Handle policy by action: Deny -> block, Ask -> confirm, Allow -> proceed
             if matches!(decision.action, common::policy::PolicyAction::Deny) {
                 let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());
                 let evt = serde_json::json!({"tool": name, "reason": reason});
                 tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
                 anyhow::bail!("Tool '{}' blocked by policy", name);
             }
-            // Ask-mode: explicit Ask or dynamic Ask due to guide
             if matches!(decision.action, common::policy::PolicyAction::Ask) || require_ask_due_to_guide {
                 let non_interactive = std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
-                if non_interactive {
-                    anyhow::bail!("Tool '{}' requires confirmation (ask), but running non-interactive", name);
-                }
+                if non_interactive { anyhow::bail!("Tool '{}' requires confirmation (ask), but running non-interactive", name); }
                 let auto_approve = std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
                 if !auto_approve {
-                    // Run dry-run preview
                     let preview_input = tools::ToolInput { command: command.clone(), args: args_map.clone(), context: context.clone(), dry_run: true, timeout_ms };
                     let preview = tool.execute(preview_input).await.unwrap_or_else(|e| tools::ToolOutput { success: false, result: format!("preview error: {}", e), formatted_output: None, metadata: std::collections::HashMap::new() });
                     println!("\n=== Предпросмотр (dry-run) {} ===", name.bold());
                     if let Some(fmt) = preview.formatted_output { println!("{}", fmt); } else { println!("{}", preview.result); }
-                    if let Some(rule) = decision.matched_rule { println!("Политика: {:?}", rule.action); }
                     if require_ask_due_to_guide { println!("Требуется подтверждение по UsageGuide (risk/side_effects)"); }
-                    // Ask user
                     use std::io::{self, Write};
                     print!("Продолжить выполнение? [y/N]: ");
                     let _ = io::stdout().flush();
@@ -245,7 +278,6 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             let input = tools::ToolInput { command, args: args_map, context, dry_run, timeout_ms };
             let output = tool.execute(input).await?;
             if output.success { println!("{} {}", "✓".green(), output.result); } else { println!("{} {}", "✗".red(), output.result); }
-            // Publish event for observability (non-blocking)
             let evt = serde_json::json!({"tool": name, "success": output.success});
             tokio::spawn(events::publish(topics::TOPIC_TOOL_INVOKED, evt));
             Ok(())
