@@ -116,6 +116,8 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Start events metrics aggregator (non-blocking)
+    events::start_tool_metrics_aggregator().await;
     // Настройка структурированного логирования
     init_structured_logging()?;
 
