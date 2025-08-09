@@ -200,6 +200,23 @@ impl Coordinator for SearchCoordinator {
             );
         }
 
+        // 2.5. Строим keyword индекс из VectorStore (если включен)
+        #[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+        {
+            if let Some(ref kw) = self.keyword_index {
+                info!("📚 Построение keyword индекса из VectorStore...");
+                for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+                    if let Ok(records) = self.store.iter_layer_records(layer).await {
+                        let mut guard = kw.clone(); // clone handle
+                        for rec in records {
+                            let _ = guard.add_document(&rec.id.to_string(), &rec.text, layer);
+                        }
+                    }
+                }
+                info!("✅ Keyword индекс инициализирован");
+            }
+        }
+
         // 3. Запускаем cache cleanup worker
         self.start_cache_cleanup_worker().await;
 
