@@ -65,12 +65,15 @@ pub trait Tool: Send + Sync {
 // Реестр инструментов
 pub struct ToolRegistry {
     tools: HashMap<String, Box<dyn Tool>>,
+    #[allow(dead_code)]
+    security_enforcer: Option<fn(&str, &ToolInput) -> bool>,
 }
 
 impl ToolRegistry {
     pub fn new() -> Self {
         let mut registry = Self {
             tools: HashMap::new(),
+            security_enforcer: None,
         };
 
         // Регистрируем базовые инструменты
@@ -111,6 +114,12 @@ impl ToolRegistry {
     ) {
         let tool = mcp::McpTool::new(cmd, args, remote_tool, description);
         self.register(name, Box::new(tool));
+    }
+
+    /// Опционально установить внешний проверяющий хук безопасности
+    pub fn with_security_enforcer(mut self, f: fn(&str, &ToolInput) -> bool) -> Self {
+        self.security_enforcer = Some(f);
+        self
     }
 }
 
