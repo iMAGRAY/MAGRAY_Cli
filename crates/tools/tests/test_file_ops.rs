@@ -26,6 +26,8 @@ async fn test_file_reader() {
         command: "file_read".to_string(),
         args: HashMap::from([("path".to_string(), test_file.to_str().unwrap().to_string())]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = reader.execute(input).await.unwrap();
@@ -48,6 +50,8 @@ async fn test_file_reader_nonexistent() {
         command: "file_read".to_string(),
         args: HashMap::from([("path".to_string(), "/nonexistent/file.txt".to_string())]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = reader.execute(input).await;
@@ -93,6 +97,8 @@ async fn test_file_writer() {
             ("content".to_string(), "Test content\nLine 2".to_string()),
         ]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = writer.execute(input).await.unwrap();
@@ -121,6 +127,8 @@ async fn test_file_writer_overwrite() {
             ("content".to_string(), "New content".to_string()),
         ]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = writer.execute(input).await.unwrap();
@@ -174,6 +182,8 @@ async fn test_dir_lister() {
             temp_dir.path().to_str().unwrap().to_string(),
         )]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = lister.execute(input).await.unwrap();
@@ -209,6 +219,8 @@ async fn test_dir_lister_with_pattern() {
             ("pattern".to_string(), "test*".to_string()),
         ]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = lister.execute(input).await.unwrap();

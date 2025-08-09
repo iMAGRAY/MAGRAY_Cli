@@ -58,6 +58,8 @@ impl Tool for GitStatus {
             command: "git_status".to_string(),
             args: HashMap::new(),
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -95,7 +97,21 @@ impl Tool for GitCommit {
         let message = input
             .args
             .get("message")
-            .ok_or_else(|| anyhow::anyhow!("Отсутствует параметр 'message'"))?;
+            .cloned()
+            .unwrap_or_else(|| "Auto-commit from MAGRAY".to_string());
+
+        // Dry-run: показать, что будет сделано
+        if input.dry_run {
+            let mut meta = HashMap::new();
+            meta.insert("dry_run".into(), "true".into());
+            meta.insert("message".into(), message.clone());
+            return Ok(ToolOutput {
+                success: true,
+                result: format!("[dry-run] git add . && git commit -m \"{}\"", message),
+                formatted_output: Some(format!("$ git add .\n$ git commit -m \"{}\"\n[dry-run: no side effects]", message)),
+                metadata: meta,
+            });
+        }
 
         // Сначала проверяем, есть ли что коммитить
         let status = Command::new("git")
@@ -126,7 +142,7 @@ impl Tool for GitCommit {
 
         // Создаем коммит
         let commit = Command::new("git")
-            .args(&["commit", "-m", message])
+            .args(&["commit", "-m", &message])
             .output()?;
 
         if commit.status.success() {
@@ -135,7 +151,7 @@ impl Tool for GitCommit {
                 success: true,
                 result: stdout.to_string(),
                 formatted_output: Some(format!("✅ Создан коммит:\n{}", stdout)),
-                metadata: HashMap::new(),
+                metadata: HashMap::from([("message".into(), message)]),
             })
         } else {
             let stderr = String::from_utf8_lossy(&commit.stderr);
@@ -171,6 +187,8 @@ impl Tool for GitCommit {
             command: "git_commit".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -232,6 +250,8 @@ impl Tool for GitDiff {
             command: "git_diff".to_string(),
             args: HashMap::new(),
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -300,10 +320,12 @@ mod tests {
             command: "git_commit".to_string(),
             args: input_args,
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = git_commit.execute(input).await;
-        assert!(result.is_err());
+        assert!(result.is_ok());
     }
 
     #[tokio::test]

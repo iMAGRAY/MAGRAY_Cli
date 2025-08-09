@@ -41,6 +41,8 @@ impl Tool for MockTool {
             command: self.name.clone(),
             args: HashMap::from([("test_param".to_string(), "test_value".to_string())]),
             context: Some("Mock context".to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }

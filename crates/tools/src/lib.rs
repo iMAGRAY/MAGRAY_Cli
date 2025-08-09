@@ -32,6 +32,8 @@ pub struct ToolInput {
     pub command: String,
     pub args: HashMap<String, String>,
     pub context: Option<String>,
+    pub dry_run: bool,
+    pub timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

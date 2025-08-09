@@ -763,6 +763,22 @@ async fn show_system_status() -> Result<()> {
     let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     println!("{} {}: {}", "ℹ".blue(), "Log Level".bold(), log_level);
 
+    // Policy audit
+    use common::policy::{load_effective_policy};
+    let mut home = crate::util::magray_home();
+    home.push("policy.json");
+    let has_file = home.exists();
+    let effective = load_effective_policy(if has_file { Some(&home) } else { None });
+    let rules_count = effective.rules.len();
+    let src = if std::env::var("MAGRAY_POLICY_JSON").ok().filter(|s| !s.trim().is_empty()).is_some() {
+        "env-json"
+    } else if std::env::var("MAGRAY_POLICY_PATH").is_ok() || has_file {
+        "file"
+    } else {
+        "default"
+    };
+    println!("{} {}: {} (rules: {})", "🔒", "Policy", src, rules_count);
+
     println!();
 
     Ok(())

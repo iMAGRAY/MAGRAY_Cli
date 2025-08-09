@@ -218,11 +218,11 @@ async fn execute_step(registry: &ToolRegistry, description: &str, hint: Option<S
             // Попробуем использовать парсер NL, иначе отправим пустые args
             let input = if tool.supports_natural_language() {
                 match tool.parse_natural_language(description).await {
-                    Ok(i) => i,
-                    Err(_) => ToolInput { command: name.clone(), args: HashMap::new(), context: Some(description.to_string()) },
+                    Ok(mut i) => { i.dry_run = false; i.timeout_ms = None; i },
+                    Err(_) => ToolInput { command: name.clone(), args: HashMap::new(), context: Some(description.to_string()), dry_run: false, timeout_ms: None },
                 }
             } else {
-                ToolInput { command: name.clone(), args: HashMap::new(), context: Some(description.to_string()) }
+                ToolInput { command: name.clone(), args: HashMap::new(), context: Some(description.to_string()), dry_run: false, timeout_ms: None }
             };
             return tool.execute(input).await;
         } else {
