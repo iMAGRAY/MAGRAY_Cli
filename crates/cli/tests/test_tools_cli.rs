@@ -34,3 +34,18 @@ fn tools_policy_block_shell_exec() {
     let status = cmd.status().expect("run ok");
     assert!(!status.success());
 }
+
+#[test]
+fn tools_run_file_delete_smoke() {
+    let mut cmd = Command::cargo_bin("magray").expect("binary built");
+    cmd.args([
+        "tools","run",
+        "--name","file_delete",
+        "--command","delete",
+        "--arg","path=/__definitely_not_exist__",
+    ])
+    .env("CI","1")
+    .env("MAGRAY_CMD_TIMEOUT","20")
+    .env("MAGRAY_NONINTERACTIVE","true");
+    let _ = cmd.status().expect("run ok");
+}
