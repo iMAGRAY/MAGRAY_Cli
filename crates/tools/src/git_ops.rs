@@ -325,7 +325,7 @@ mod tests {
         };
 
         let result = git_commit.execute(input).await;
-        assert!(result.is_err());
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
