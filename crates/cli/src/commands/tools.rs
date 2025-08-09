@@ -160,6 +160,23 @@ pub enum ToolsSubcommand {
         json: Option<String>,
     },
 
+    /// Управление плагинами инструментов
+    #[command(name = "plugins")]
+    Plugins {
+        /// Показать список плагинов
+        #[arg(long, default_value_t = false)]
+        list: bool,
+        /// Загрузить манифесты tool.json из каталога плагинов
+        #[arg(long, default_value_t = false)]
+        load_manifests: bool,
+        /// Корневой каталог плагинов (по умолчанию ~/.magray/plugins)
+        #[arg(long)]
+        dir: Option<String>,
+        /// Вывести JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Зарегистрировать MCP инструмент (stdio)
     #[command(name = "add-mcp")]
     AddMcp {
@@ -335,6 +352,34 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             }
             // If neither flag provided, show help-like hint
             println!("Использование: magray tools sandbox --show | --save --json '<SandboxConfig JSON>'");
+            Ok(())
+        }
+        ToolsSubcommand::Plugins { list, load_manifests, dir, json } => {
+            // Resolve plugin dir and config dir under ~/.magray
+            let mut home = crate::util::magray_home();
+            let plugins_dir = if let Some(d) = dir { std::path::PathBuf::from(d) } else { let mut p = home.clone(); p.push("plugins"); p };
+            let mut cfg_dir = home.clone(); cfg_dir.push("plugin-configs");
+            tokio::fs::create_dir_all(&plugins_dir).await.ok();
+            tokio::fs::create_dir_all(&cfg_dir).await.ok();
+
+            let registry = tools::plugins::plugin_manager::PluginRegistry::new(plugins_dir, cfg_dir);
+            if load_manifests {
+                let n = registry.load_manifests_from_directory().await?;
+                println!("{} Загрузено манифестов: {}", "✓".green(), n);
+            }
+            if list {
+                let items = registry.list_plugins(None).await;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&items)?);
+                } else {
+                    println!("{}", "=== Registered Plugins ===".bold().cyan());
+                    for p in items {
+                        println!("- {} v{} — {}", p.name.bold(), p.version, p.description);
+                        println!("  type: {:?}  entry: {}", p.plugin_type, p.entry_point);
+                        println!("  perms: fs={:?} net={:?} sys={:?}", p.required_permissions.file_system, p.required_permissions.network, p.required_permissions.system);
+                    }
+                }
+            }
             Ok(())
         }
         ToolsSubcommand::AddMcp { name, cmd, args, remote_tool, description } => {
