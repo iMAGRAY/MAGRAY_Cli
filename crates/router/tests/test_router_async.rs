@@ -20,6 +20,7 @@ impl Tool for MockTool {
             usage: "mock_tool <test_param>".to_string(),
             examples: vec!["mock_tool test".to_string()],
             input_schema: r#"{"test_param": "string"}"#.to_string(),
+            usage_guide: None,
         }
     }
 
