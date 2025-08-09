@@ -241,7 +241,28 @@ ci-local-extended:
 ci-local-extended-cov:
 	@echo "🏃 CI-local: extended cpu tests with coverage threshold >= $(MIN_COVERAGE)%"
 	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --config Tarpaulin.toml --engine llvm --features="cpu,extended-tests" --timeout 600 --fail-under $(MIN_COVERAGE) --out Html
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --engine llvm --workspace -p common -p tools -p ai -p memory -p cli --features="cpu,extended-tests" --timeout 600 \
+		--include-files crates/common/src/** \
+		--include-files crates/tools/src/file_ops.rs \
+		--include-files crates/tools/src/git_ops.rs \
+		--include-files crates/tools/src/registry/** \
+		--include-files crates/tools/src/execution/resource_manager.rs \
+		--include-files crates/tools/src/execution/security_enforcer.rs \
+		--include-files crates/tools/src/execution/pipeline.rs \
+		--include-files crates/ai/src/config.rs \
+		--include-files crates/ai/src/reranker_qwen3.rs \
+		--include-files crates/ai/src/embeddings_cpu.rs \
+		--include-files crates/ai/src/memory_pool.rs \
+		--include-files crates/ai/src/errors.rs \
+		--include-files crates/ai/src/auto_device_selector.rs \
+		--include-files crates/ai/src/model_registry.rs \
+		--include-files crates/cli/src/commands/gpu.rs \
+		--include-files crates/cli/src/commands/models.rs \
+		--include-files crates/cli/src/commands/tools.rs \
+		--include-files crates/memory/src/api.rs \
+		--include-files crates/memory/src/fallback.rs \
+		--include-files crates/memory/src/metrics.rs \
+		--fail-under $(MIN_COVERAGE) --out Html
 	@echo "✅ Coverage (>= $(MIN_COVERAGE)%) OK: tarpaulin-report.html"
 
 # Core coverage gate for common crate only (fast signal)
