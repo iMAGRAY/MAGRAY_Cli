@@ -53,3 +53,15 @@ fn tools_metrics_json_shape() {
     let s = String::from_utf8_lossy(&out.stdout);
     assert!(s.contains("\"tools\""));
 }
+
+#[test]
+fn tools_select_json_structure() {
+    let mut cmd = Command::cargo_bin("magray").expect("built");
+    let out = cmd.args(["tools","select","--query","скачай страницу","--json"]).env("CI","1").env("MAGRAY_NO_ANIM","1").output().expect("run ok");
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    // Expect array of explanations with keys
+    assert!(s.contains("tool_name"));
+    assert!(s.contains("confidence_score"));
+    assert!(s.contains("breakdown"));
+}

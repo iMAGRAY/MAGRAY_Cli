@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use common::{events, topics};
 use common::policy::{PolicyDocument, PolicyEngine, PolicyRule, PolicySubjectKind, PolicyAction, load_effective_policy};
+use tools::intelligent_selector::{IntelligentToolSelector, SelectorConfig, ToolSelectionContext, TaskComplexity, UrgencyLevel, UserExpertise};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct McpToolConfig {
@@ -131,6 +132,20 @@ pub enum ToolsSubcommand {
         json: bool,
     },
 
+    /// Подбор инструмента по запросу с объяснением скоринга
+    #[command(name = "select")]
+    Select {
+        /// Пользовательский запрос (натуральный язык)
+        #[arg(long)]
+        query: String,
+        /// Уровень срочности (low|normal|high|critical)
+        #[arg(long, default_value_t = String::from("normal"))]
+        urgency: String,
+        /// Вывести JSON (объяснения и скоринг)
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Зарегистрировать MCP инструмент (stdio)
     #[command(name = "add-mcp")]
     AddMcp {
@@ -231,6 +246,45 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                     }
                 } else {
                     println!("(нет данных)");
+                }
+            }
+            Ok(())
+        }
+        ToolsSubcommand::Select { query, urgency, json } => {
+            // Build selector and register all tools from registry's specs
+            let mut specs = registry.list_tools();
+            for spec in &mut specs {
+                if let Some(ov) = guide_overrides.get(&spec.name) { apply_usage_guide_override(spec, ov); }
+            }
+            let selector = IntelligentToolSelector::new(SelectorConfig::default());
+            for spec in specs.clone() {
+                selector.register_tool(spec).await;
+            }
+            let urgency_level = match urgency.to_lowercase().as_str() {
+                "low" => UrgencyLevel::Low,
+                "high" => UrgencyLevel::High,
+                "critical" => UrgencyLevel::Critical,
+                _ => UrgencyLevel::Normal,
+            };
+            let ctx = ToolSelectionContext {
+                user_query: query.clone(),
+                session_context: std::collections::HashMap::new(),
+                previous_tools_used: vec![],
+                task_complexity: TaskComplexity::Simple,
+                urgency_level,
+                user_expertise: UserExpertise::Advanced,
+            };
+            let explained = selector.select_tools_with_explanations(&ctx).await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&explained)?);
+            } else {
+                println!("{}", "=== Tool Selection ===".bold().cyan());
+                for e in explained {
+                    println!("- {}: score={:.2} (ctx {:.2}, cap {:.2}, perf {:.2})",
+                        e.tool_name.bold(), e.confidence_score, e.context_match, e.capability_match, e.performance_factor);
+                    if !e.matched.tags.is_empty() { println!("  tags: {}", e.matched.tags.join(", ")); }
+                    if !e.matched.capabilities.is_empty() { println!("  caps: {}", e.matched.capabilities.join(", ")); }
+                    if !e.matched.good_for.is_empty() { println!("  good_for: {}", e.matched.good_for.join(", ")); }
                 }
             }
             Ok(())
