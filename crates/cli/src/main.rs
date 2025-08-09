@@ -8,6 +8,8 @@ use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use common::{events, topics};
+use serde_json::json;
 
 use ai::{ModelType, MODEL_REGISTRY};
 
@@ -130,6 +132,27 @@ async fn main() -> Result<()> {
     use tokio::time::{timeout, Duration};
 
     let exec_fut = async {
+        // Publish intent event for observability
+        let cmd_name = match &cli.command {
+            Some(Commands::Chat { .. }) => "chat",
+            Some(Commands::Read { .. }) => "read",
+            Some(Commands::Write { .. }) => "write",
+            Some(Commands::List { .. }) => "list",
+            Some(Commands::Tool { .. }) => "tool",
+            Some(Commands::Smart(_)) => "smart",
+            Some(Commands::Gpu(_)) => "gpu",
+            Some(Commands::Memory(_)) => "memory",
+            Some(Commands::Models(_)) => "models",
+            Some(Commands::Tasks(_)) => "tasks",
+            Some(Commands::Health) => "health",
+            Some(Commands::Status) => "status",
+            Some(Commands::LlmStatus) => "llm_status",
+            Some(Commands::Performance) => "performance",
+            Some(Commands::Tools(_)) => "tools",
+            None => "help",
+        };
+        tokio::spawn(events::publish(topics::TOPIC_INTENT, json!({"command": cmd_name})));
+
         match cli.command {
             Some(Commands::Chat { message }) => {
                 handle_chat(message).await?
@@ -199,13 +222,21 @@ async fn main() -> Result<()> {
                 println!("{}", Cli::command().render_long_help());
             }
         }
+        // Publish job completion progress
+        tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, json!({"command": cmd_name, "stage": "done"})));
         Ok::<(), anyhow::Error>(())
     };
 
     match timeout(Duration::from_secs(top_timeout_secs), exec_fut).await {
-        Ok(res) => res?,
+        Ok(res) => {
+            if let Err(e) = res {
+                tokio::spawn(events::publish(topics::TOPIC_ERROR, json!({"error": e.to_string()})));
+                return Err(e);
+            }
+        }
         Err(_) => {
             eprintln!("[✗] Команда превысила общий таймаут {}с", top_timeout_secs);
+            tokio::spawn(events::publish(topics::TOPIC_ERROR, json!({"error": "global_timeout", "timeout_secs": top_timeout_secs})));
             return Err(anyhow::anyhow!("Global command timeout"));
         }
     }
