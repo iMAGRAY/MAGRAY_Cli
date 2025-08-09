@@ -9,6 +9,7 @@ pub mod topics;
 pub mod scheduler;
 pub mod events;
 pub mod policy;
+pub mod sandbox_config;
 
 #[cfg(test)]
 pub mod test_utils;
