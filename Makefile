@@ -312,3 +312,13 @@ orchestrated-check:
 orchestrated-tests:
 	@echo "🧪 Running orchestrated CLI tests (extended)..."
 	cargo test --features="cpu,extended-tests,orchestrated-search" -q --test test_memory_orchestrated_cli -- --nocapture | cat
+
+ci-local:
+	@echo "🧪 Running fast CI (cpu + extended tests, without legacy) with 12m timeout..."
+	CI=1 MAGRAY_NO_ANIM=1 MAGRAY_SKIP_AUTO_INSTALL=1 MAGRAY_FORCE_NO_ORT=1 timeout 720s \
+	cargo test -q --features="cpu,extended-tests" --tests -- --nocapture | cat
+
+ci-local-all:
+	@echo "🧪 Running full CI matrix locally with 20m timeout (non-interactive)..."
+	CI=1 MAGRAY_NO_ANIM=1 MAGRAY_SKIP_AUTO_INSTALL=1 MAGRAY_FORCE_NO_ORT=1 timeout 1200s \
+	cargo test -q --features="cpu,extended-tests,orchestrated-search,keyword-search,hnsw-index" --tests -- --nocapture | cat
