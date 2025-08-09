@@ -368,6 +368,62 @@ impl PluginRegistry {
         }
     }
 
+    /// Create a Tool instance from a registered plugin (supports: Wasm, ExternalProcess)
+    pub async fn materialize_as_tool(&self, plugin_id: &str) -> Result<Box<dyn crate::Tool>> {
+        use super::external_process::{ExternalProcessPlugin, ProcessConfig, ProcessIsolation, ProcessResourceLimits, StderrMode, StdinMode, StdoutMode};
+        use super::wasm_plugin::WasmPlugin;
+
+        let metadata = self
+            .get_plugin(plugin_id)
+            .await
+            .ok_or_else(|| anyhow!("Plugin not found: {}", plugin_id))?;
+        let config = self
+            .get_plugin_configuration(plugin_id)
+            .await
+            .ok_or_else(|| anyhow!("Plugin configuration not found: {}", plugin_id))?;
+
+        match metadata.plugin_type {
+            PluginType::Wasm => {
+                let wasm_path = metadata
+                    .installation_path
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("No installation path for WASM plugin"))?
+                    .join(&metadata.entry_point);
+                let mut instance = WasmPlugin::new(metadata.clone(), config.clone(), &wasm_path).await?;
+                instance.start().await?;
+                Ok(Box::new(instance))
+            }
+            PluginType::ExternalProcess => {
+                let executable_path = metadata
+                    .installation_path
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("No installation path for external process plugin"))?
+                    .join(&metadata.entry_point);
+                let process_config = ProcessConfig {
+                    executable_path,
+                    arguments: Vec::new(),
+                    working_directory: metadata.installation_path.clone(),
+                    environment_variables: HashMap::new(),
+                    stdin_mode: StdinMode::Pipe,
+                    stdout_mode: StdoutMode::Pipe,
+                    stderr_mode: StderrMode::Pipe,
+                    timeout: Duration::from_secs(60),
+                    kill_on_timeout: true,
+                };
+                let mut instance = ExternalProcessPlugin::new(
+                    metadata.clone(),
+                    config.clone(),
+                    process_config,
+                    ProcessResourceLimits::default(),
+                    ProcessIsolation::User,
+                );
+                instance.start().await?;
+                Ok(Box::new(instance))
+            }
+            other => Err(anyhow!("Plugin type {:?} not supported as Tool", other)),
+        }
+    }
+
     /// Register a new plugin
     pub async fn register_plugin(&self, mut metadata: PluginMetadata) -> Result<()> {
         // Validate metadata
@@ -669,7 +725,7 @@ impl PluginRegistry {
             }
         }
 
-        info!("📚 Loaded {} plugins from filesystem", loaded_count);
+        debug!("📚 Loaded {} plugins from filesystem", loaded_count);
         Ok(loaded_count)
     }
 
