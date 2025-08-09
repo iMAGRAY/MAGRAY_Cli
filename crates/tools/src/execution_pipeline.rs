@@ -575,6 +575,8 @@ impl ToolExecutionPipeline {
                 command: tool_name.to_string(),
                 args: HashMap::new(),
                 context: Some(context.user_query.clone()),
+                dry_run: false,
+                timeout_ms: None,
             })
         }
     }

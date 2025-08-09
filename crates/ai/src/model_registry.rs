@@ -57,35 +57,6 @@ impl ModelRegistry {
             description: "Qwen3 reranker - семантическое переранжирование".to_string(),
             is_default: true,
         });
-
-        // BGE модели (legacy support)
-        self.register_model(ModelInfo {
-            name: "bge-m3".to_string(),
-            model_type: ModelType::Embedding,
-            embedding_dim: 1024,
-            max_length: 512,
-            description: "BGE-M3 embedding model - мультиязычная поддержка".to_string(),
-            is_default: false,
-        });
-
-        self.register_model(ModelInfo {
-            name: "BGE-reranker-v2-m3".to_string(),
-            model_type: ModelType::Reranker,
-            embedding_dim: 0,
-            max_length: 512,
-            description: "BGE reranker v2-m3 - универсальный reranker".to_string(),
-            is_default: false,
-        });
-
-        // MxBai модели (альтернативные)
-        self.register_model(ModelInfo {
-            name: "mxbai_rerank_base_v2".to_string(),
-            model_type: ModelType::Reranker,
-            embedding_dim: 0,
-            max_length: 512,
-            description: "MxBai reranker base v2 - быстрый reranker".to_string(),
-            is_default: false,
-        });
     }
 
     /// Зарегистрировать модель

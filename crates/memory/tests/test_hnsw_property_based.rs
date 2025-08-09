@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "hnsw-index", feature = "rayon"))]
+
 //! Property-based tests for HNSW vector search
 //!
 //! Покрывает:

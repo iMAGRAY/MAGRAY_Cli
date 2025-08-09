@@ -11,6 +11,8 @@ fn test_tool_input_creation() {
         command: "test_command".to_string(),
         args: args.clone(),
         context: Some("test context".to_string()),
+        dry_run: false,
+        timeout_ms: None,
     };
 
     assert_eq!(input.command, "test_command");
@@ -24,6 +26,8 @@ fn test_tool_input_clone() {
         command: "test".to_string(),
         args: HashMap::new(),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let cloned = input.clone();
@@ -174,6 +178,8 @@ fn test_tool_input_empty_args() {
         command: "test".to_string(),
         args: HashMap::new(),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     assert!(input.args.is_empty());

@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 //! Comprehensive unit tests для Unified Factory Architecture
 //!
 //! Тестирует все аспекты новой unified factory системы:

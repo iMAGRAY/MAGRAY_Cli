@@ -16,11 +16,15 @@ use tracing::{debug, info, warn};
 
 use super::{
     container_cache::{CacheConfig, ContainerCache},
-    container_configuration::{DIContainerConfiguration, Environment},
+    container_configuration::ContainerConfiguration,
     container_core::ContainerCore,
     object_safe_resolver::ObjectSafeResolver,
     traits::{DIContainerStats, DIPerformanceMetrics, DIRegistrar, DIResolver, Lifetime},
 };
+use super::container_configuration as cc;
+use cc::ContainerConfiguration as DIContainerConfiguration;
+#[allow(unused)]
+use cc::ContainerConfiguration as Environment;
 
 /// Optimized Unified DI Container with separated concerns
 ///

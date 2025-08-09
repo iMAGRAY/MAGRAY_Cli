@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "gpu-acceleration"))]
+
 use ai::gpu_detector::GpuDetector;
 use anyhow::Result;
 use chrono::Utc;

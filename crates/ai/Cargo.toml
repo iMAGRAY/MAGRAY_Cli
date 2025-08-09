@@ -29,6 +29,10 @@ openvino = ["ort/openvino"]
 # API integrations
 openai = ["reqwest", "futures-util"]
 
+# Tests feature to include extended/slow suites
+extended-tests = []
+legacy-tests = []
+
 [dependencies]
 # Internal dependencies
 common = { path = "../common" }
@@ -59,12 +63,9 @@ num_cpus = "1.16"
 rand = "0.8"
 futures = "0.3"
 lazy_static = "1.4"
+sha2 = "0.10"
 
 [dev-dependencies]
 tempfile.workspace = true
 tracing-subscriber.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-
-[[example]]
-name = "test_qwen3_models"
-path = "examples/test_qwen3_models.rs"

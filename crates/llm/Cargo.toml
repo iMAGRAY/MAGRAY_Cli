@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "llm"
 version.workspace = true
 edition.workspace = true
@@ -27,6 +27,9 @@ openai = ["reqwest"]
 groq = ["reqwest"]
 azure = ["reqwest"]
 local = []
+
+# Tests feature to include extended/slow suites
+extended-tests = []
 
 [dependencies]
 tokio = { workspace = true }

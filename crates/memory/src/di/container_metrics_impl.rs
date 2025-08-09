@@ -667,7 +667,7 @@ mod tests {
     fn test_record_failure() {
         let metrics = ContainerMetricsImpl::new(MetricsConfig::development());
         let type_id = TypeId::of::<String>();
-        let error = DIError::TypeNotRegistered { type_id };
+        let error = DIError::validation_error("Type not registered", Some(format!("{:?}", type_id)), "resolution");
 
         metrics.record_resolution_failure(type_id, &error);
 

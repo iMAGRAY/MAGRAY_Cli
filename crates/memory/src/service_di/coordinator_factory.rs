@@ -10,36 +10,39 @@ use tracing::{debug, info, warn};
 // Import traits для методов координаторов
 use crate::orchestration::traits::EmbeddingCoordinator as EmbeddingCoordinatorTrait;
 
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+use crate::gpu_accelerated::GpuBatchProcessor;
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::storage::VectorStore;
 use crate::{
     cache_interface::EmbeddingCacheInterface,
-    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
-    gpu_accelerated::GpuBatchProcessor,
+    di::{traits::DIResolver, unified_container_impl::UnifiedContainer},
     health::HealthMonitor,
     orchestration::{EmbeddingCoordinator, HealthManager, ResourceController, SearchCoordinator},
-    storage::VectorStore,
 };
 
 use crate::orchestration::Coordinator;
+use crate::di::core_traits::ServiceResolver;
 
 /// Trait для создания координаторов (Dependency Inversion)
 #[allow(async_fn_in_trait)]
 pub trait CoordinatorFactory {
     async fn create_embedding_coordinator(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<Arc<EmbeddingCoordinator>>;
     async fn create_search_coordinator(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
         embedding_coordinator: &Arc<EmbeddingCoordinator>,
     ) -> Result<Arc<SearchCoordinator>>;
     async fn create_health_manager(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<Arc<HealthManager>>;
     async fn create_resource_controller(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<Arc<ResourceController>>;
 }
 
@@ -313,7 +316,7 @@ impl ProductionCoordinatorFactory {
     /// Создать все координаторы согласно конфигурации
     pub async fn create_all_coordinators(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<OrchestrationCoordinators> {
         info!("🎯 Создание orchestration координаторов...");
 
@@ -382,7 +385,7 @@ impl ProductionCoordinatorFactory {
 
         // Для facade мы создаем временный контейнер с proper error handling
         // В реальном использовании контейнер должен передаваться извне
-        let container = UnifiedDIContainer::new();
+        let container = UnifiedContainer::new();
 
         self.create_all_coordinators(&container)
             .await
@@ -390,7 +393,7 @@ impl ProductionCoordinatorFactory {
     }
 
     /// Конструктор с DI контейнером
-    pub fn with_container(_container: UnifiedDIContainer) -> Self {
+    pub fn with_container(_container: UnifiedContainer) -> Self {
         Self {
             create_embedding: true,
             create_search: true,
@@ -404,10 +407,11 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
     /// Создать embedding coordinator с proper error handling
     async fn create_embedding_coordinator(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<Arc<EmbeddingCoordinator>> {
         debug!("🔤 Начинаем создание EmbeddingCoordinator...");
 
+        #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
         let gpu_processor = container
             .try_resolve::<GpuBatchProcessor>()
             .ok_or_else(|| {
@@ -425,23 +429,33 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
                 })?,
         ) as Arc<dyn EmbeddingCacheInterface>;
 
-        let coordinator = Arc::new(EmbeddingCoordinator::new(gpu_processor, cache));
-        debug!("✅ EmbeddingCoordinator успешно создан");
-
-        Ok(coordinator)
+        #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+        {
+            let coordinator = Arc::new(EmbeddingCoordinator::new(gpu_processor, cache));
+            debug!("✅ EmbeddingCoordinator успешно создан");
+            Ok(coordinator)
+        }
+        #[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
+        {
+            Err(anyhow::anyhow!("GpuBatchProcessor недоступен без фичи gpu-acceleration"))
+        }
     }
 
     /// Создать search coordinator с dependency validation
     async fn create_search_coordinator(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
         embedding_coordinator: &Arc<EmbeddingCoordinator>,
     ) -> Result<Arc<SearchCoordinator>> {
         debug!("🔍 Начинаем создание SearchCoordinator...");
 
+        #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
         let store = container
             .try_resolve::<VectorStore>()
             .ok_or_else(|| anyhow::anyhow!("Не удалось resolve VectorStore из DI container"))?;
+
+        #[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+        return Err(anyhow::anyhow!("VectorStore недоступен без фичи persistence"));
 
         let coordinator = Arc::new(SearchCoordinator::new_production(
             store,
@@ -457,7 +471,7 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
     /// Создать health manager с error handling
     async fn create_health_manager(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<Arc<HealthManager>> {
         debug!("🏥 Начинаем создание HealthManager...");
 
@@ -474,7 +488,7 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
     /// Создать resource controller с validation
     async fn create_resource_controller(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<Arc<ResourceController>> {
         debug!("⚡ Начинаем создание ResourceController...");
 
@@ -495,7 +509,7 @@ pub struct TestCoordinatorFactory;
 impl CoordinatorFactory for TestCoordinatorFactory {
     async fn create_embedding_coordinator(
         &self,
-        _container: &UnifiedDIContainer,
+        _container: &UnifiedContainer,
     ) -> Result<Arc<EmbeddingCoordinator>> {
         // В тестах можем создавать mock координаторы
         Err(anyhow::anyhow!(
@@ -505,7 +519,7 @@ impl CoordinatorFactory for TestCoordinatorFactory {
 
     async fn create_search_coordinator(
         &self,
-        _container: &UnifiedDIContainer,
+        _container: &UnifiedContainer,
         _embedding_coordinator: &Arc<EmbeddingCoordinator>,
     ) -> Result<Arc<SearchCoordinator>> {
         Err(anyhow::anyhow!(
@@ -515,7 +529,7 @@ impl CoordinatorFactory for TestCoordinatorFactory {
 
     async fn create_health_manager(
         &self,
-        _container: &UnifiedDIContainer,
+        _container: &UnifiedContainer,
     ) -> Result<Arc<HealthManager>> {
         Err(anyhow::anyhow!(
             "Test coordinator factory - not implemented"
@@ -524,7 +538,7 @@ impl CoordinatorFactory for TestCoordinatorFactory {
 
     async fn create_resource_controller(
         &self,
-        _container: &UnifiedDIContainer,
+        _container: &UnifiedContainer,
     ) -> Result<Arc<ResourceController>> {
         Err(anyhow::anyhow!(
             "Test coordinator factory - not implemented"

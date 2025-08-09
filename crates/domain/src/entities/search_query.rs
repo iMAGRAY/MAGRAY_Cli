@@ -346,4 +346,47 @@ mod tests {
 
         assert!(complex_query.complexity_score() > simple_query.complexity_score());
     }
+
+    #[test]
+    fn test_filters_and_simplicity_and_threshold() {
+        let q = SearchQuery::new("hello".to_string())
+            .unwrap()
+            .with_project("proj".to_string())
+            .unwrap()
+            .with_tags(vec!["a".into(), "b".into()])
+            .unwrap()
+            .with_kind("note".to_string())
+            .unwrap()
+            .with_score_threshold(ScoreThreshold::high())
+            .with_layers(vec![LayerType::Interact, LayerType::Insights, LayerType::Assets]);
+        assert!(q.has_filters());
+        assert!(!q.is_simple());
+        assert_eq!(q.score_threshold().value(), ScoreThreshold::high().value());
+
+        // invalid tag
+        let bad = SearchQuery::new("hello".to_string()).unwrap().with_tags(vec!["".into()]);
+        assert!(bad.is_err());
+        // invalid kind
+        let badk = SearchQuery::new("hello".to_string()).unwrap().with_kind("".into());
+        assert!(badk.is_err());
+    }
+
+    #[test]
+    fn test_vector_presence_and_serde_roundtrip() {
+        // needs_vector_computation toggles after with_vector
+        let q0 = SearchQuery::new("xyz".to_string()).unwrap();
+        assert!(q0.needs_vector_computation());
+
+        // make normalized vector 2D
+        let v = EmbeddingVector::new(vec![1.0, 0.0], 2).unwrap();
+        let q1 = q0.with_vector(v);
+        assert!(!q1.needs_vector_computation());
+
+        // serde roundtrip
+        let j = serde_json::to_string(&q1).unwrap();
+        let q2: SearchQuery = serde_json::from_str(&j).unwrap();
+        assert_eq!(q2.query_text(), "xyz");
+        assert_eq!(q2.max_results(), 10);
+        assert!(q2.target_layers().contains(&LayerType::Interact));
+    }
 }

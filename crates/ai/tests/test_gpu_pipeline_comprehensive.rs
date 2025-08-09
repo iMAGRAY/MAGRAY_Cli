@@ -1,5 +1,7 @@
-use ai::{config::EmbeddingConfig, errors::Result};
-use serial_test::serial;
+#![cfg(feature = "gpu")]
+use ai::config::EmbeddingConfig;
+use anyhow::Result;
+// use serial_test::serial;
 use std::sync::Arc;
 
 // Helper function to create pipeline config
@@ -17,12 +19,11 @@ fn create_embedding_config() -> EmbeddingConfig {
         max_length: 512,
         use_gpu: false, // Use CPU for tests to avoid GPU dependencies
         gpu_config: None,
-        embedding_dim: 1024,
+        embedding_dim: Some(1024),
     }
 }
 
 #[tokio::test]
-#[serial]
 async fn test_embedding_config_creation() -> Result<()> {
     // Arrange - создаем конфигурации внутри теста
     let embedding_config = create_embedding_config();
@@ -32,7 +33,7 @@ async fn test_embedding_config_creation() -> Result<()> {
     assert_eq!(embedding_config.batch_size, 32);
     assert_eq!(embedding_config.max_length, 512);
     assert!(!embedding_config.use_gpu); // CPU for tests
-    assert_eq!(embedding_config.embedding_dim, 1024);
+    assert_eq!(embedding_config.embedding_dim, Some(1024));
 
     Ok(())
 }
@@ -69,7 +70,7 @@ async fn test_embedding_config_validation() -> Result<()> {
         "Max length should be positive"
     );
     assert!(
-        embedding_config.embedding_dim > 0,
+        embedding_config.embedding_dim.unwrap_or(0) > 0,
         "Embedding dimension should be positive"
     );
 
@@ -104,7 +105,7 @@ async fn test_different_model_configs() -> Result<()> {
             max_length: 128,
             use_gpu: false,
             gpu_config: None,
-            embedding_dim: 512,
+            embedding_dim: Some(512),
         };
 
         assert_eq!(config.model_name, model_name);
@@ -160,7 +161,7 @@ async fn stress_test_config_creation() -> Result<()> {
             max_length: (i % 1024) + 1,
             use_gpu: false,
             gpu_config: None,
-            embedding_dim: (i % 2048) + 1,
+            embedding_dim: Some((i % 2048) + 1),
         };
 
         configs.push(config);
@@ -173,7 +174,7 @@ async fn stress_test_config_creation() -> Result<()> {
         assert_eq!(config.model_name, format!("model-{}", i));
         assert!(config.batch_size > 0);
         assert!(config.max_length > 0);
-        assert!(config.embedding_dim > 0);
+        assert!(config.embedding_dim.unwrap_or(0) > 0);
     }
 
     Ok(())

@@ -782,6 +782,8 @@ impl ExecutionPipeline {
             command: candidate.tool_name.clone(),
             args: HashMap::new(),
             context: Some(context.user_query.clone()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 

@@ -25,9 +25,13 @@ gpu = ["cpu"]
 file-ops = []
 shell-ops = []
 git-ops = []
-web-ops = ["reqwest"]
+web-ops = ["reqwest", "futures-util", "base64"]
 plugins = ["llm/cpu"]
 security = []
+
+# Tests feature to include extended/slow suites
+extended-tests = []
+legacy-tests = []
 
 [dependencies]
 llm = { path = "../llm" }
@@ -46,3 +50,6 @@ urlencoding = "2.1"
 rand = "0.8"
 thiserror = { workspace = true }
 num_cpus = "1.15"
+common = { path = "../common" }
+futures-util = { version = "0.3", optional = true, default-features = false, features = ["std"] }
+base64 = { version = "0.22", optional = true }

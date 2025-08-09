@@ -1,0 +1,99 @@
+# Tarpaulin configuration for local coverage gating
+# Focus on core pathways; exclude framework/orchestrator layers for now
+
+engine = "llvm"
+skip-clean = true
+line_coverage = true
+fail-under = 30
+# valid duration strings
+timeout = "600s"
+
+# Limit coverage scope to core modules (only these files will be considered)
+include-files = [
+  # common (core infra)
+  "crates/common/src/**",
+
+  # tools: file/git ops and selected infra with tests
+  "crates/tools/src/file_ops.rs",
+  "crates/tools/src/git_ops.rs",
+  "crates/tools/src/shell_ops.rs",
+  "crates/tools/src/web_ops.rs",
+  "crates/tools/src/registry/**",
+  "crates/tools/src/execution/resource_manager.rs",
+  "crates/tools/src/execution/security_enforcer.rs",
+  "crates/tools/src/execution/pipeline.rs",
+
+  # ai: configs and CPU/reranker paths we validate in tests
+  "crates/ai/src/config.rs",
+  "crates/ai/src/reranker_qwen3.rs",
+  "crates/ai/src/embeddings_cpu.rs",
+  "crates/ai/src/memory_pool.rs",
+  "crates/ai/src/errors.rs",
+  "crates/ai/src/auto_device_selector.rs",
+  "crates/ai/src/model_registry.rs",
+
+  # cli: command surfaces (not main)
+  "crates/cli/src/commands/gpu.rs",
+  "crates/cli/src/commands/models.rs",
+  "crates/cli/src/commands/tools.rs",
+
+  # memory: API/fallback/metrics (fast, deterministic tests)
+  "crates/memory/src/api.rs",
+  "crates/memory/src/fallback.rs",
+  "crates/memory/src/metrics.rs"
+]
+
+# Exclude files (use glob patterns; * and ** supported)
+exclude-files = [
+  # CLI orchestrators and handlers (interactive layers, orchestration)
+  "crates/cli/src/orchestrator/**",
+  "crates/cli/src/handlers/**",
+  "crates/cli/src/commands/memory.rs",
+  "crates/cli/src/main.rs",
+  "crates/cli/src/health_checks.rs",
+
+  # Tools frameworks and plugins (keep file_ops/git_ops/shell_ops/web_ops included)
+  "crates/tools/src/execution/**",
+  "crates/tools/src/execution_pipeline.rs",
+  "crates/tools/src/performance_monitor.rs",
+  "crates/tools/src/plugins/**",
+  "crates/tools/src/intelligent_selector.rs",
+  "crates/tools/src/enhanced_tool_system.rs",
+
+  # Memory DI internals and orchestration layers
+  "crates/memory/src/di/**",
+  "crates/memory/src/orchestration/**",
+  "crates/memory/src/health.rs",
+  "crates/memory/src/notifications.rs",
+  "crates/memory/src/cache_lru.rs",
+  "crates/memory/src/streaming.rs",
+  "crates/memory/src/transaction.rs",
+  "crates/memory/src/simd_ultra_optimized.rs",
+  "crates/memory/src/simd_fixed.rs",
+  "crates/memory/src/backup.rs",
+  "crates/memory/src/cache_interface.rs",
+  "crates/memory/src/database_manager.rs",
+  "crates/memory/src/storage.rs",
+  "crates/memory/src/retry.rs",
+  "crates/memory/src/flush_config.rs",
+  "crates/memory/src/migration.rs",
+
+  # AI: drop legacy tokenization and non-target embeddings
+
+  "crates/ai/src/tokenization/**",
+  "crates/ai/src/reranker_qwen3_optimized.rs",
+  "crates/ai/src/reranking.rs",
+  "crates/ai/src/tensorrt_cache.rs",
+
+  # LLM providers heavy paths
+  "crates/llm/src/providers/**",
+  "crates/llm/src/multi_provider.rs",
+
+  # Router/Application layers (out of scope now)
+  "crates/router/**",
+  "crates/application/**",
+
+  # Domain services/repos (to be covered via integration later)
+  "crates/domain/src/repositories/**",
+  "crates/domain/src/services/**"
+]

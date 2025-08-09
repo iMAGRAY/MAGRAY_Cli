@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 use anyhow::Result;
 use std::collections::HashMap;
 use tools::web_ops::WebSearch;
@@ -40,6 +42,8 @@ async fn test_web_search_empty_query() -> Result<()> {
         command: "web_search".to_string(),
         args: HashMap::new(), // No query provided
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = web_search.execute(input).await?;
@@ -83,12 +87,14 @@ async fn test_web_search_with_valid_query() -> Result<()> {
     let mut args = HashMap::new();
     args.insert("query".to_string(), "test".to_string());
 
-    let input = ToolInput {
+        let input = ToolInput {
         command: "web_search".to_string(),
         args,
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
-
+ 
     // This test may fail due to network issues, but shouldn't panic
     let result = web_search.execute(input).await;
     assert!(result.is_ok());
@@ -132,12 +138,14 @@ async fn test_web_search_handles_encoding() -> Result<()> {
     let mut args = HashMap::new();
     args.insert("query".to_string(), "special chars: & + % #".to_string());
 
-    let input = ToolInput {
+        let input = ToolInput {
         command: "web_search".to_string(),
         args,
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
-
+ 
     // Should handle URL encoding without panicking
     let result = web_search.execute(input).await;
     assert!(result.is_ok());

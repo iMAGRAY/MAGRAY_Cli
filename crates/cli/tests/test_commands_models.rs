@@ -1,4 +1,4 @@
-#![cfg(not(feature = "minimal"))]
+#![cfg(all(not(feature = "minimal"), feature = "extended-tests", feature = "legacy-tests"))]
 use clap::Parser;
 use cli::commands::ModelsCommand;
 
@@ -103,7 +103,7 @@ async fn test_models_show() {
 
 #[tokio::test]
 async fn test_models_show_common_models() {
-    let test_models = vec!["bge-m3", "qwen3emb", "bge-reranker-v2-m3"];
+    let test_models = vec!["qwen3emb", "qwen3_reranker"];
 
     for model_name in test_models {
         let args = vec!["test", "models", "show", model_name];

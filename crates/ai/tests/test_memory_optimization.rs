@@ -1,3 +1,5 @@
+#![cfg(feature = "gpu")]
+
 use ai::{
     gpu_memory_pool::GPU_MEMORY_POOL,
     gpu_pipeline::{GpuPipelineManager, PipelineConfig},

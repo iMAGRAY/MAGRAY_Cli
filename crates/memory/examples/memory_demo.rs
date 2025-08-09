@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 use anyhow::Result;
 use chrono::Utc;
 use memory::{default_config, DIMemoryService, Layer, Record, SearchOptions};

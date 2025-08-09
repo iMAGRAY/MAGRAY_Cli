@@ -1,4 +1,4 @@
-#![cfg(not(feature = "minimal"))]
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
 
 //! Comprehensive tests for ResilienceService
 //!

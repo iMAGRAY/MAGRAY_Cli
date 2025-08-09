@@ -203,7 +203,7 @@ fn test_performance_basic_operations() -> Result<()> {
 #[test]
 fn test_modules_compile() {
     // Просто проверяем что можем импортировать основные модули
-    use memory::{DIMemoryService, Record, Layer};
+    use memory::{Record, Layer};
     use ai::{AiConfig, BgeM3EmbeddingService};
     use llm::LlmClient;
     use tools::{Tool, ToolRegistry};

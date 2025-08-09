@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::path::Path;
 use std::sync::Arc;
 use tokenizers::{PaddingDirection, PaddingParams, PaddingStrategy, Tokenizer, TruncationParams};
+use tokenizers::EncodeInput;
 use tracing::{debug, info, warn};
 
 // Подмодули
@@ -10,7 +11,7 @@ use simple_qwen3::SimpleQwen3Tokenizer;
 
 /// Оптимизированный токенизатор с поддержкой разных моделей
 enum TokenizerImpl {
-    /// Полный токенизатор (Qwen3, BGE-M3 и др.)
+    /// Полный токенизатор (Qwen3)
     Standard(Arc<Tokenizer>),
     /// Упрощённый токенизатор для Qwen3 (только fallback)
     #[allow(dead_code)]
@@ -56,7 +57,7 @@ impl OptimizedTokenizer {
         let path_str = tokenizer_path.to_string_lossy();
         let model_name = if path_str.contains("qwen3") {
             "qwen3"
-        } else if path_str.contains("bge-m3") {
+        } else if false { // legacy bge-m3 removed
             "bge-m3"
         } else {
             "unknown"
@@ -235,6 +236,46 @@ impl OptimizedTokenizer {
         }
     }
 
+    /// Tokenize a pair of texts (e.g., query and document) with special tokens
+    pub fn encode_pair(&self, text_a: &str, text_b: &str) -> Result<TokenizedInput> {
+        match &self.inner {
+            TokenizerImpl::SimpleQwen3(tokenizer) => {
+                // Fallback: concatenate with separator and use simple encode
+                let combined = format!("{} {} {}", text_a, "[SEP]", text_b);
+                Ok(tokenizer.encode(&combined))
+            }
+            TokenizerImpl::Standard(tokenizer) => {
+                let encoding = tokenizer
+                    .encode(EncodeInput::Dual(text_a.into(), text_b.into()), true)
+                    .map_err(|e| anyhow::anyhow!("Pair tokenization failed: {}", e))?;
+
+                let mut input_ids: Vec<i64> =
+                    encoding.get_ids().iter().map(|&id| id as i64).collect();
+                let mut attention_mask: Vec<i64> = encoding
+                    .get_attention_mask()
+                    .iter()
+                    .map(|&mask| mask as i64)
+                    .collect();
+
+                // Truncate if necessary
+                if input_ids.len() > self.max_length {
+                    input_ids.truncate(self.max_length);
+                    attention_mask.truncate(self.max_length);
+                }
+
+                let token_type_ids = vec![0i64; input_ids.len()];
+                let length = input_ids.len();
+
+                Ok(TokenizedInput {
+                    input_ids,
+                    attention_mask,
+                    token_type_ids,
+                    length,
+                })
+            }
+        }
+    }
+
     /// Batch tokenization - much more efficient than one-by-one
     pub fn encode_batch(&self, texts: &[&str]) -> Result<BatchTokenized> {
         if texts.is_empty() {
@@ -305,6 +346,96 @@ impl OptimizedTokenizer {
                     texts.len(),
                     max_seq_len
                 );
+
+                Ok(BatchTokenized {
+                    input_ids: batch_input_ids,
+                    attention_masks: batch_attention_masks,
+                    token_type_ids: batch_token_type_ids,
+                    lengths: batch_lengths,
+                    max_length: max_seq_len,
+                })
+            }
+        }
+    }
+
+    /// Batch tokenize pairs for efficient reranking
+    pub fn encode_batch_pairs(&self, pairs: &[(&str, &str)]) -> Result<BatchTokenized> {
+        if pairs.is_empty() {
+            return Ok(BatchTokenized {
+                input_ids: vec![],
+                attention_masks: vec![],
+                token_type_ids: vec![],
+                lengths: vec![],
+                max_length: 0,
+            });
+        }
+
+        match &self.inner {
+            TokenizerImpl::SimpleQwen3(tokenizer) => {
+                // Fallback: simple concatenation per pair
+                let mut batch_input_ids = Vec::with_capacity(pairs.len());
+                let mut batch_attention_masks = Vec::with_capacity(pairs.len());
+                let mut batch_token_type_ids = Vec::with_capacity(pairs.len());
+                let mut batch_lengths = Vec::with_capacity(pairs.len());
+                let mut max_seq_len = 0;
+
+                for (a, b) in pairs.iter() {
+                    let combined = format!("{} {} {}", a, "[SEP]", b);
+                    let tok = tokenizer.encode(&combined);
+                    max_seq_len = max_seq_len.max(tok.length);
+                    batch_lengths.push(tok.length);
+                    batch_token_type_ids.push(tok.token_type_ids.clone());
+                    batch_attention_masks.push(tok.attention_mask.clone());
+                    batch_input_ids.push(tok.input_ids.clone());
+                }
+
+                Ok(BatchTokenized {
+                    input_ids: batch_input_ids,
+                    attention_masks: batch_attention_masks,
+                    token_type_ids: batch_token_type_ids,
+                    lengths: batch_lengths,
+                    max_length: max_seq_len,
+                })
+            }
+            TokenizerImpl::Standard(tokenizer) => {
+                let inputs: Vec<EncodeInput> = pairs
+                    .iter()
+                    .map(|(a, b)| EncodeInput::Dual((*a).into(), (*b).into()))
+                    .collect();
+
+                let encodings = tokenizer
+                    .encode_batch(inputs, true)
+                    .map_err(|e| anyhow::anyhow!("Batch pair tokenization failed: {}", e))?;
+
+                let mut batch_input_ids = Vec::with_capacity(pairs.len());
+                let mut batch_attention_masks = Vec::with_capacity(pairs.len());
+                let mut batch_token_type_ids = Vec::with_capacity(pairs.len());
+                let mut batch_lengths = Vec::with_capacity(pairs.len());
+                let mut max_seq_len = 0;
+
+                for encoding in encodings {
+                    let mut input_ids: Vec<i64> =
+                        encoding.get_ids().iter().map(|&id| id as i64).collect();
+                    let mut attention_mask: Vec<i64> = encoding
+                        .get_attention_mask()
+                        .iter()
+                        .map(|&mask| mask as i64)
+                        .collect();
+
+                    if input_ids.len() > self.max_length {
+                        input_ids.truncate(self.max_length);
+                        attention_mask.truncate(self.max_length);
+                    }
+
+                    let token_type_ids = vec![0i64; input_ids.len()];
+                    let length = input_ids.len();
+                    max_seq_len = max_seq_len.max(length);
+
+                    batch_input_ids.push(input_ids);
+                    batch_attention_masks.push(attention_mask);
+                    batch_token_type_ids.push(token_type_ids);
+                    batch_lengths.push(length);
+                }
 
                 Ok(BatchTokenized {
                     input_ids: batch_input_ids,

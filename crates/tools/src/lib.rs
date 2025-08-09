@@ -32,6 +32,8 @@ pub struct ToolInput {
     pub command: String,
     pub args: HashMap<String, String>,
     pub context: Option<String>,
+    pub dry_run: bool,
+    pub timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,17 +67,21 @@ pub trait Tool: Send + Sync {
 // Реестр инструментов
 pub struct ToolRegistry {
     tools: HashMap<String, Box<dyn Tool>>,
+    #[allow(dead_code)]
+    security_enforcer: Option<fn(&str, &ToolInput) -> bool>,
 }
 
 impl ToolRegistry {
     pub fn new() -> Self {
         let mut registry = Self {
             tools: HashMap::new(),
+            security_enforcer: None,
         };
 
         // Регистрируем базовые инструменты
         registry.register("file_read", Box::new(file_ops::FileReader::new()));
         registry.register("file_write", Box::new(file_ops::FileWriter::new()));
+        registry.register("file_delete", Box::new(file_ops::FileDeleter::new()));
         registry.register("dir_list", Box::new(file_ops::DirLister::new()));
         registry.register("file_search", Box::new(file_ops::FileSearcher::new()));
         registry.register("git_status", Box::new(git_ops::GitStatus::new()));
@@ -111,6 +117,12 @@ impl ToolRegistry {
     ) {
         let tool = mcp::McpTool::new(cmd, args, remote_tool, description);
         self.register(name, Box::new(tool));
+    }
+
+    /// Опционально установить внешний проверяющий хук безопасности
+    pub fn with_security_enforcer(mut self, f: fn(&str, &ToolInput) -> bool) -> Self {
+        self.security_enforcer = Some(f);
+        self
     }
 }
 

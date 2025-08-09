@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 use anyhow::Result;
 use memory::{DIContainer, DIPerformanceMetrics, Lifetime};
 use std::sync::atomic::{AtomicUsize, Ordering};

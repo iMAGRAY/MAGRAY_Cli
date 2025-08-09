@@ -595,6 +595,8 @@ impl Tool for ExternalProcessPlugin {
             command: self.metadata.name.clone(),
             args: HashMap::from([("query".to_string(), query.to_string())]),
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }

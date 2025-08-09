@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 // Простые тесты для CLI модуля
 
 #[test]

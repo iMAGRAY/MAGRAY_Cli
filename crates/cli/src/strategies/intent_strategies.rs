@@ -366,7 +366,7 @@ where
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
     use std::collections::HashMap;

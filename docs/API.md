@@ -114,7 +114,7 @@ magray models info qwen3-embeddings
 magray models verify
 
 # Удаление модели
-magray models remove bge-m3
+magray models remove qwen3emb
 ```
 
 ### Системные команды
@@ -127,7 +127,7 @@ magray health
 # ✓ LLM Service: Connected
 # ✓ Memory Service: Healthy (87% cache hit)
 # ✓ GPU: Available (RTX 4070, 12GB)
-# ✓ Models: Loaded (Qwen3, BGE-M3)
+# ✓ Models: Loaded (Qwen3)
 ```
 
 #### `magray status`

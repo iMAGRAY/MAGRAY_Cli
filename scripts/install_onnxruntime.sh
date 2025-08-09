@@ -9,6 +9,11 @@ ONNX_VERSION="1.22.0"
 INSTALL_PATH="${1:-./onnxruntime}"
 ADD_TO_PROFILE="${2:-false}"
 
+# Allow skipping the Rust test stage via env var
+ORT_NO_TEST="${ORT_NO_TEST:-0}"
+# Timeout for the optional test stage (seconds)
+TIMEOUT_SECS="${TIMEOUT_SECS:-300}"
+
 # Detect OS and architecture
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -25,7 +30,7 @@ case "$ARCH" in
         echo "Unsupported architecture: $ARCH"
         exit 1
         ;;
-esac
+ esac
 
 # Set download URL based on OS
 case "$OS" in
@@ -41,11 +46,13 @@ case "$OS" in
         echo "Unsupported OS: $OS"
         exit 1
         ;;
-esac
+ esac
 
 echo "ONNX Runtime ${ONNX_VERSION} Installation Script"
 echo "============================================"
 echo "OS: $OS, Architecture: $ARCH"
+
+echo "ORT_NO_TEST=$ORT_NO_TEST, TIMEOUT_SECS=$TIMEOUT_SECS"
 
 # Check if already installed
 if [ -d "$INSTALL_PATH" ]; then
@@ -160,18 +167,19 @@ if [ "$ADD_TO_PROFILE" = "true" ]; then
     fi
 fi
 
-# Test with Rust
-echo -e "\nTesting ONNX Runtime with Rust..."
-TEST_DIR="/tmp/ort_test_$$"
-mkdir -p "$TEST_DIR"
-cd "$TEST_DIR"
+# Optional: Test with Rust (can be skipped)
+if [ "$ORT_NO_TEST" != "1" ]; then
+    echo -e "\nTesting ONNX Runtime with Rust (timeout ${TIMEOUT_SECS}s)..."
+    TEST_DIR="/tmp/ort_test_$$"
+    mkdir -p "$TEST_DIR"
+    cd "$TEST_DIR"
 
-# Create test project
-cargo init --name ort_test --quiet
-echo '[dependencies]' >> Cargo.toml
-echo 'ort = "2.0.0-rc.4"' >> Cargo.toml
+    # Create test project
+    cargo init --name ort_test --quiet
+    echo '[dependencies]' >> Cargo.toml
+    echo 'ort = "2.0.0-rc.4"' >> Cargo.toml
 
-cat > src/main.rs << 'EOF'
+    cat > src/main.rs << 'EOF'
 fn main() {
     println!("ORT_DYLIB_PATH: {:?}", std::env::var("ORT_DYLIB_PATH"));
     match ort::init() {
@@ -181,12 +189,17 @@ fn main() {
 }
 EOF
 
-# Run test
-cargo run --quiet 2>&1 || echo "Test failed - you may need to source the environment first"
+    # Run test with timeout; do not fail script on test errors
+    set +e
+    timeout "${TIMEOUT_SECS}s" cargo run --quiet 2>&1 || echo "Test failed or timed out - you may need to source the environment first"
+    set -e
 
-# Clean up
-cd - > /dev/null
-rm -rf "$TEST_DIR"
+    # Clean up
+    cd - > /dev/null
+    rm -rf "$TEST_DIR"
+else
+    echo -e "\nSkipping Rust ONNX Runtime test (ORT_NO_TEST=${ORT_NO_TEST})"
+fi
 
 # Instructions
 echo -e "\n============================================"

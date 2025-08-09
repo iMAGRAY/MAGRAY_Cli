@@ -41,7 +41,7 @@ pub struct SearchCoordinator {
     /// Circuit breaker для векторного поиска
     circuit_breaker: Arc<RwLock<SearchCircuitBreaker>>,
     /// Reranking model cache
-    rerank_model: Arc<RwLock<Option<ai::reranker_qwen3_optimized::OptimizedRerankingService>>>,
+    rerank_model: Arc<RwLock<Option<ai::OptimizedQwen3RerankerService>>>,
 }
 
 /// Query cache для быстрого доступа к результатам
@@ -459,37 +459,35 @@ impl SearchCoordinatorTrait for SearchCoordinator {
             return Ok(candidates);
         }
 
-        // 2. Применяем reranking если модель доступна
-        let rerank_model = self.rerank_model.read().await;
-        if let Some(ref model) = rerank_model.as_ref() {
+        // 2. Применяем reranking если модель доступна (лениво загружаем при первом вызове)
+        if self.rerank_model.read().await.is_none() {
+            let _ = self.initialize_rerank_model().await;
+        }
+        if let Some(model) = self.rerank_model.read().await.as_ref() {
             let start_time = Instant::now();
-
-            // Подготавливаем тексты для reranking
-            let texts: Vec<String> = candidates.iter().map(|r| r.text.clone()).collect();
-
-            match model.rerank(query, &texts).await {
-                Ok(rerank_results) => {
+            let documents: Vec<String> = candidates.iter().map(|r| r.text.clone()).collect();
+            let batch = ai::RerankBatch { query: query.to_string(), documents, top_k: Some(options.top_k) };
+            match model.rerank_batch(&batch) {
+                Ok(batch_out) => {
                     let rerank_latency = start_time.elapsed().as_millis();
                     debug!("✨ Reranking завершен за {}ms", rerank_latency);
-
-                    // Обновляем метрики
                     {
                         let mut metrics = self.performance_metrics.write().await;
                         metrics.rerank_operations += 1;
                     }
-
-                    // Возвращаем reranked результаты
-                    let reranked_results = rerank_results
-                        .into_iter()
-                        .take(options.top_k)
-                        .filter_map(|result| candidates.get(result.original_index).cloned())
-                        .collect();
-
-                    return Ok(reranked_results);
+                    let mut new_order = Vec::with_capacity(batch_out.results.len());
+                    for item in batch_out.results { // item.index соответствует позиции в candidates
+                        if let Some(r) = candidates.get(item.index) {
+                            let mut rr = r.clone();
+                            rr.score = item.score;
+                            new_order.push(rr);
+                        }
+                    }
+                    if !new_order.is_empty() {
+                        return Ok(new_order);
+                    }
                 }
-                Err(e) => {
-                    warn!("⚠️ Ошибка reranking: {}, возвращаем исходные результаты", e);
-                }
+                Err(e) => warn!("⚠️ Ошибка reranking: {}, возвращаем исходные результаты", e),
             }
         }
 
@@ -527,11 +525,25 @@ impl SearchCoordinator {
     /// Инициализация reranking модели
     #[allow(dead_code)]
     async fn initialize_rerank_model(&self) -> Result<()> {
-        // TODO: Загрузить реальную reranking модель
-        // let model = crate::ai::reranker_qwen3_optimized::RerankingService::new().await?;
-        // *self.rerank_model.write().await = Some(model);
-
-        info!("🎯 Reranking модель будет загружена при первом использовании");
+        // Ленивая загрузка Qwen3 reranker (с безопасным fallback при отключенном ORT)
+        if self.rerank_model.read().await.is_none() {
+            let cfg = ai::RerankingConfig {
+                model_name: "qwen3_reranker".to_string(),
+                batch_size: 32,
+                max_length: 512,
+                use_gpu: false,
+                gpu_config: None,
+            };
+            match ai::OptimizedQwen3RerankerService::new_with_config(cfg) {
+                Ok(svc) => {
+                    *self.rerank_model.write().await = Some(svc);
+                    info!("✅ Reranking модель инициализирована");
+                }
+                Err(e) => {
+                    info!("⚠️ Не удалось инициализировать reranker: {} (будет работать без reranking)", e);
+                }
+            }
+        }
         Ok(())
     }
 

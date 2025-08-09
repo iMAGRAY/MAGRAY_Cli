@@ -1,4 +1,5 @@
 use ai::{get_input_buffer, get_pool_stats, return_input_buffer, MemoryPool, PoolStats};
+use common::service_traits::StatisticsProvider;
 use std::sync::Arc;
 use std::thread;
 

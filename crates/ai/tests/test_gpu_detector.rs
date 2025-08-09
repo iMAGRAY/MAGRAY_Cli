@@ -1,4 +1,12 @@
-use ai::gpu_detector::*;
+#![cfg(feature = "gpu")]
+
+use ai::gpu_detector::GpuDetector;
+
+#[cfg(feature = "gpu")]
+#[test]
+fn test_gpu_detection_basic() {
+    let _ = GpuDetector::detect();
+}
 
 #[test]
 fn test_gpu_device_creation() {

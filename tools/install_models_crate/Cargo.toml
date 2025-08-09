@@ -1,0 +1,9 @@
+[package]
+name = "install_models_crate"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ai = { path = "../../crates/ai", features=["cpu"] }
+anyhow = "1"
+tokio = { version = "1", features=["rt-multi-thread","macros"] }

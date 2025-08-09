@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "persistence"))]
+
 use anyhow::Result;
 use memory::{
     migrate_cache_to_lru, recommend_cache_config, CacheConfig, EmbeddingCache, EmbeddingCacheLRU,

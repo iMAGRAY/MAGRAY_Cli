@@ -1,3 +1,5 @@
+#![cfg(feature = "gpu")]
+
 use ai::{
     auto_device_selector::SmartEmbeddingFactory, gpu_detector::GpuDetector,
     gpu_fallback::GpuFallbackManager, EmbeddingConfig, GpuConfig,

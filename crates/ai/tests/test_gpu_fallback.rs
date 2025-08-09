@@ -1,3 +1,5 @@
+#![cfg(feature = "gpu")]
+
 use ai::{EmbeddingConfig, FallbackPolicy, GpuFallbackManager};
 use std::time::Duration;
 use tokio;

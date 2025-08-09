@@ -1,4 +1,4 @@
-﻿//! DI Configuration для Services Layer
+//! DI Configuration для Services Layer
 //! 
 //! Регистрация всех сервисов в DI контейнере с правильными зависимостями
 //! и жизненными циклами. Интеграция с существующим memory DI контейнером.
@@ -8,7 +8,7 @@ use std::sync::Arc;
 use memory::{DIContainer, Lifetime};
 use llm::{LlmClient, IntentAnalyzerAgent};
 use router::SmartRouter;
-use memory::DIMemoryService;
+use memory::di::UnifiedContainer as DIMemoryService;
 
 use super::{
     IntentAnalysisService, RequestRoutingService, LlmCommunicationService,
@@ -133,7 +133,7 @@ pub async fn create_services_container() -> Result<DIContainer> {
 #[cfg(test)]
 pub mod test_helpers {
     use super::*;
-    use memory::DIMemoryService;
+    use memory::di::UnifiedContainer as DIMemoryService;
     
     pub async fn create_test_container() -> Result<DIContainer> {
         let container = DIContainerBuilder::new().build()?;
