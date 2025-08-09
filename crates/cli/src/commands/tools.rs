@@ -105,6 +105,29 @@ fn apply_usage_guide_override(spec: &mut tools::ToolSpec, override_v: &serde_jso
     spec.usage_guide = Some(guide);
 }
 
+fn map_plugin_perms_to_tools_permissions(p: &tools::registry::ToolPermissions) -> Option<tools::ToolPermissions> {
+    use tools::registry::{FileSystemPermissions, NetworkPermissions};
+    let mut fs_read = Vec::new();
+    let mut fs_write = Vec::new();
+    match &p.file_system {
+        FileSystemPermissions::None => {}
+        FileSystemPermissions::ReadOnly => { fs_read.push("/".into()); }
+        FileSystemPermissions::ReadWrite | FileSystemPermissions::FullAccess => { fs_read.push("/".into()); fs_write.push("/".into()); }
+        FileSystemPermissions::Restricted { allowed_paths } => {
+            for ap in allowed_paths { fs_read.push(ap.clone()); fs_write.push(ap.clone()); }
+        }
+    }
+    let mut net = Vec::new();
+    match &p.network {
+        NetworkPermissions::None => {}
+        NetworkPermissions::LocalHost => { net.push("localhost".into()); net.push("127.0.0.1".into()); }
+        NetworkPermissions::InternalNetworks => { /* keep empty to enforce env allowlist */ }
+        NetworkPermissions::Internet => { /* empty -> allow by env */ }
+        NetworkPermissions::Restricted { allowed_hosts } => { for h in allowed_hosts { net.push(h.clone()); } }
+    }
+    Some(tools::ToolPermissions { fs_read_roots: fs_read, fs_write_roots: fs_write, net_allowlist: net, allow_shell: false })
+}
+
 #[derive(Debug, Args)]
 pub struct ToolsCommand {
     #[command(subcommand)]
@@ -169,6 +192,9 @@ pub enum ToolsSubcommand {
         /// Загрузить манифесты tool.json из каталога плагинов
         #[arg(long, default_value_t = false)]
         load_manifests: bool,
+        /// Экспортировать плагины как инструменты (для списка инструментов)
+        #[arg(long, default_value_t = false)]
+        export_tools: bool,
         /// Корневой каталог плагинов (по умолчанию ~/.magray/plugins)
         #[arg(long)]
         dir: Option<String>,
@@ -354,7 +380,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             println!("Использование: magray tools sandbox --show | --save --json '<SandboxConfig JSON>'");
             Ok(())
         }
-        ToolsSubcommand::Plugins { list, load_manifests, dir, json } => {
+        ToolsSubcommand::Plugins { list, load_manifests, dir, json, export_tools } => {
             // Resolve plugin dir and config dir under ~/.magray
             let mut home = crate::util::magray_home();
             let plugins_dir = if let Some(d) = dir { std::path::PathBuf::from(d) } else { let mut p = home.clone(); p.push("plugins"); p };
@@ -365,7 +391,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             let registry = tools::plugins::plugin_manager::PluginRegistry::new(plugins_dir, cfg_dir);
             if load_manifests {
                 let n = registry.load_manifests_from_directory().await?;
-                println!("{} Загрузено манифестов: {}", "✓".green(), n);
+                println!("{} Загрузлено манифестов: {}", "✓".green(), n);
             }
             if list {
                 let items = registry.list_plugins(None).await;
@@ -373,10 +399,42 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                     println!("{}", serde_json::to_string_pretty(&items)?);
                 } else {
                     println!("{}", "=== Registered Plugins ===".bold().cyan());
-                    for p in items {
+                    for p in &items {
                         println!("- {} v{} — {}", p.name.bold(), p.version, p.description);
                         println!("  type: {:?}  entry: {}", p.plugin_type, p.entry_point);
                         println!("  perms: fs={:?} net={:?} sys={:?}", p.required_permissions.file_system, p.required_permissions.network, p.required_permissions.system);
+                    }
+                }
+                if export_tools {
+                    // Adapt to ToolSpec for visibility (not persisting to registry in this command)
+                    let mut specs: Vec<tools::ToolSpec> = Vec::new();
+                    for p in items {
+                        let perms_opt = map_plugin_perms_to_tools_permissions(&p.required_permissions);
+                        let spec = tools::ToolSpec {
+                            name: p.id.clone(),
+                            description: format!("[plugin:{:?}] {}", p.plugin_type, p.description),
+                            usage: format!("{} <args>", p.name),
+                            examples: vec![format!("{} example", p.name)],
+                            input_schema: p.configuration_schema.to_string(),
+                            usage_guide: None,
+                            permissions: perms_opt,
+                            supports_dry_run: false,
+                        };
+                        specs.push(spec);
+                    }
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&specs)?);
+                    } else {
+                        println!("{}", "=== Exported Plugin Tools (preview) ===".bold().cyan());
+                        for s in specs {
+                            println!("- {}: {}", s.name.bold(), s.description);
+                            if let Some(perms) = &s.permissions {
+                                println!("  perm.fs_read: {}", if perms.fs_read_roots.is_empty() { "-".into() } else { perms.fs_read_roots.join(":") });
+                                println!("  perm.fs_write: {}", if perms.fs_write_roots.is_empty() { "-".into() } else { perms.fs_write_roots.join(":") });
+                                println!("  perm.net_allow: {}", if perms.net_allowlist.is_empty() { "-".into() } else { perms.net_allowlist.join(",") });
+                                println!("  perm.shell: {}", if perms.allow_shell { "allow" } else { "deny" });
+                            }
+                        }
                     }
                 }
             }
