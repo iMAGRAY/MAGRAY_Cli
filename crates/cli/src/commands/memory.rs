@@ -4,6 +4,7 @@ use clap::{Args, Subcommand};
 use colored::*;
 use memory::{default_config};
 use memory::api::{MemoryContext, UnifiedMemoryAPI, MemoryServiceTrait};
+use memory::di::core_traits::ServiceResolver;
 use memory::types::Layer;
 use prettytable::{row, Table};
 use std::path::PathBuf;
