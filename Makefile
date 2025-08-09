@@ -4,7 +4,7 @@
 # Minimum coverage threshold for coverage-based CI runs (percentage)
 MIN_COVERAGE ?= 40
 
-.PHONY: help build-all build-cpu build-gpu build-minimal test test-all bench clean docker-build docker-test release rag-report rag-report-fast
+.PHONY: help build-all build-cpu build-gpu build-minimal test test-all bench clean docker-build docker-test release rag-report rag-report-fast rag-report-rerank
 
 # Default target
 help:
@@ -39,6 +39,9 @@ help:
 	@echo "🔧 Utility Commands:"
 	@echo "  make clean         - Clean build artifacts"
 	@echo "  make release       - Create release binaries"
+	@echo "  make rag-report      - Run RAG golden suite and save metrics"
+	@echo "  make rag-report-fast - Run only RAG test (fast path)"
+	@echo "  make rag-report-rerank - Run RAG golden suite and save rerank metrics"
 
 # Build commands
 build-cpu:
@@ -295,3 +298,9 @@ rag-report-fast:
 	@echo "🧪 Running RAG golden suite test only (extended-tests) ..."
 	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" -q -- tests::rag_golden_suite_metrics --exact --nocapture || true
 	@echo "📄 Report (if generated): reports/rag_metrics_summary.json"
+
+rag-report-rerank:
+	@echo "🧪 Running RAG golden suite with rerank variant (extended-tests) ..."
+	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --tests -q -- test rag_golden_suite_metrics --exact --nocapture
+	@echo "📄 Baseline: reports/rag_metrics_summary.json"
+	@echo "📄 Rerank:   reports/rag_metrics_rerank.json"
