@@ -422,6 +422,67 @@ impl IntelligentToolSelector {
             candidates.retain(|t| t != "web_fetch" && t != "web_search");
         }
 
+        // Prefilter by shell allowance in environment
+        let allow_shell_env = std::env::var("MAGRAY_ALLOW_SHELL").unwrap_or_default().to_lowercase();
+        let allow_shell = allow_shell_env == "1" || allow_shell_env == "true" || allow_shell_env == "yes";
+        if !allow_shell {
+            // Remove known shell tool by name
+            candidates.retain(|t| t != "shell_exec");
+        }
+
+        // Permissions-aware filtering using ToolSpec.permissions
+        let net_allowed: Vec<String> = net_allow
+            .split(',')
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let fs_sandbox_on = std::env::var("MAGRAY_FS_SANDBOX").unwrap_or_default() == "1";
+        let fs_roots_env = std::env::var("MAGRAY_FS_ROOTS").unwrap_or_default();
+        let fs_roots: Vec<String> = fs_roots_env
+            .split(':')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let tools_map = self.available_tools.lock().await;
+        let domain_matches = |allow: &str, needed: &str| -> bool {
+            let a = allow.to_lowercase();
+            let n = needed.to_lowercase();
+            n == a || n.ends_with(&format!(".{}", a))
+        };
+        let roots_cover = |reqs: &Vec<String>| -> bool {
+            if reqs.is_empty() { return true; }
+            if fs_roots.is_empty() { return false; }
+            // All required roots must fall under an allowed root
+            reqs.iter().all(|r| fs_roots.iter().any(|a| r.starts_with(a)))
+        };
+
+        candidates.retain(|name| {
+            if let Some(spec) = tools_map.get(name) {
+                if let Some(perms) = &spec.permissions {
+                    if perms.allow_shell && !allow_shell {
+                        return false;
+                    }
+                    if !perms.net_allowlist.is_empty() {
+                        if net_disabled { return false; }
+                        let mut ok = false;
+                        'outer: for need in &perms.net_allowlist {
+                            for allow in &net_allowed {
+                                if domain_matches(allow, need) { ok = true; break 'outer; }
+                            }
+                        }
+                        if !ok { return false; }
+                    }
+                    if fs_sandbox_on {
+                        if !roots_cover(&perms.fs_read_roots) { return false; }
+                        if !roots_cover(&perms.fs_write_roots) { return false; }
+                    }
+                }
+            }
+            true
+        });
+        drop(tools_map);
+
         candidates
     }
 

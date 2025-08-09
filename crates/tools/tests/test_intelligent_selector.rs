@@ -123,3 +123,69 @@ async fn selector_is_deterministic_for_same_input() {
     let names2: Vec<_> = c2.iter().map(|x| x.tool_name.clone()).collect();
     assert_eq!(names1, names2, "selection should be deterministic for same input");
 }
+
+#[tokio::test]
+async fn selector_prefilters_shell_when_disallowed() {
+    // Ensure environment disallows shell
+    std::env::set_var("MAGRAY_ALLOW_SHELL", "0");
+    let selector = IntelligentToolSelector::new(low_threshold_config());
+    let shell = ToolSpec {
+        name: "shell_exec".into(),
+        description: "Shell".into(),
+        usage: "shell_exec <cmd>".into(),
+        examples: vec![],
+        input_schema: "{}".into(),
+        usage_guide: None,
+        permissions: Some(tools::ToolPermissions { allow_shell: true, ..Default::default() }),
+        supports_dry_run: true,
+    };
+    let other = mk_spec("other", "Generic", None);
+    selector.register_tool(shell).await;
+    selector.register_tool(other.clone()).await;
+    let choices = selector.select_tools(&ctx("run command", UrgencyLevel::Normal)).await.unwrap();
+    // shell_exec must not appear
+    assert!(choices.iter().all(|c| c.tool_name != "shell_exec"));
+}
+
+#[tokio::test]
+async fn selector_prefilters_network_when_allowlist_empty() {
+    std::env::remove_var("MAGRAY_NET_ALLOW");
+    let selector = IntelligentToolSelector::new(low_threshold_config());
+    let web = ToolSpec {
+        name: "web_fetch".into(),
+        description: "Web".into(),
+        usage: "web_fetch <url>".into(),
+        examples: vec![],
+        input_schema: "{}".into(),
+        usage_guide: None,
+        permissions: Some(tools::ToolPermissions { net_allowlist: vec!["example.com".into()], ..Default::default() }),
+        supports_dry_run: true,
+    };
+    let other = mk_spec("other", "Generic", None);
+    selector.register_tool(web).await;
+    selector.register_tool(other.clone()).await;
+    let choices = selector.select_tools(&ctx("скачай страницу", UrgencyLevel::Normal)).await.unwrap();
+    assert!(choices.iter().all(|c| c.tool_name != "web_fetch"));
+}
+
+#[tokio::test]
+async fn selector_prefilters_fs_when_sandbox_on_and_roots_insufficient() {
+    std::env::set_var("MAGRAY_FS_SANDBOX", "1");
+    std::env::set_var("MAGRAY_FS_ROOTS", "/allowed/root");
+    let selector = IntelligentToolSelector::new(low_threshold_config());
+    let needs_fs = ToolSpec {
+        name: "file_write".into(),
+        description: "File writer".into(),
+        usage: "file_write".into(),
+        examples: vec![],
+        input_schema: "{}".into(),
+        usage_guide: None,
+        permissions: Some(tools::ToolPermissions { fs_write_roots: vec!["/other".into()], ..Default::default() }),
+        supports_dry_run: true,
+    };
+    let ok = mk_spec("file_read", "Reader", None);
+    selector.register_tool(needs_fs).await;
+    selector.register_tool(ok.clone()).await;
+    let choices = selector.select_tools(&ctx("write file", UrgencyLevel::Normal)).await.unwrap();
+    assert!(choices.iter().all(|c| c.tool_name != "file_write"));
+}
