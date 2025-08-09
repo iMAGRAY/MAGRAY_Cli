@@ -4,7 +4,17 @@ use async_trait::async_trait;
 #[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
 use crate::backup::BackupMetadata;
 #[cfg(not(all(not(feature = "minimal"), feature = "backup-restore")))]
-pub type BackupMetadata = crate::backup::BackupMetadata;
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BackupMetadata {
+    pub version: u32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub magray_version: String,
+    pub layers: Vec<crate::backup::LayerInfo>,
+    pub total_records: usize,
+    pub index_config: crate::vector_index_hnswlib::HnswRsConfig,
+    pub checksum: Option<String>,
+    pub layer_checksums: Option<std::collections::HashMap<String, String>>,
+}
 
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use crate::ml_promotion::MLPromotionStats;
