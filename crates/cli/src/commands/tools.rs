@@ -5,7 +5,7 @@ use tools::ToolRegistry;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use common::{events, topics};
-use common::policy::{PolicyDocument, PolicyEngine, PolicyRule, PolicySubjectKind, PolicyAction, default_document, load_from_path, merge_documents};
+use common::policy::{PolicyDocument, PolicyEngine, PolicyRule, PolicySubjectKind, PolicyAction, load_effective_policy};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct McpToolConfig {
@@ -152,18 +152,11 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             for (k, v) in arg {
                 args_map.insert(k, v);
             }
-            // Load policy from ~/.magray/policy.json if exists and merge with defaults
+            // Load effective policy with precedence: env-json > env-path/file > default
             let mut home = crate::util::magray_home();
             home.push("policy.json");
-            let effective_doc = if home.exists() {
-                match load_from_path(&home) {
-                    Ok(user_doc) => merge_documents(default_document(), user_doc),
-                    Err(_) => default_document(),
-                }
-            } else {
-                default_document()
-            };
-            let policy = PolicyEngine::from_document(effective_doc);
+            let effective = load_effective_policy(if home.exists() { Some(&home) } else { None });
+            let policy = PolicyEngine::from_document(effective);
             // Enrich args for policy checks (domain for web_fetch, query kw for web_search)
             if name == "web_fetch" {
                 if let Some(url) = args_map.get("url").cloned() {
