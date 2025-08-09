@@ -940,290 +940,81 @@ async fn show_performance_metrics() -> Result<()> {
 }
 
 fn ensure_default_models_installed_interactive() -> Result<()> {
-    use std::io::{self, Write};
+    use std::io::{stdin, stdout, Write};
+    use colored::Colorize;
 
-    // Определяем дефолтные модели
-    let default_emb = MODEL_REGISTRY
-        .get_default_model(ModelType::Embedding)
-        .map(|m| m.name.clone())
-        .unwrap_or_else(|| "qwen3emb".to_string());
-    let default_rer = MODEL_REGISTRY
-        .get_default_model(ModelType::Reranker)
-        .map(|m| m.name.clone())
-        .unwrap_or_else(|| "qwen3_reranker".to_string());
+    // Если в CI - не спрашиваем, ставим по умолчанию (или пропускаем если FORCE_NO_ORT)
+    let non_interactive = std::env::var("CI").is_ok() || std::env::var("MAGRAY_AUTO_YES").is_ok();
 
-    let emb_ok = MODEL_REGISTRY.is_model_available(&default_emb);
-    let rer_ok = MODEL_REGISTRY.is_model_available(&default_rer);
+    // Проверяем каталоги моделей
+    let models_dir = std::path::PathBuf::from("models");
+    let needs_emb = !models_dir.join("qwen3emb").exists();
+    let needs_rerank = !models_dir.join("qwen3_reranker").exists();
 
-    if emb_ok && rer_ok {
+    if !(needs_emb || needs_rerank) { return Ok(()); }
+
+    if non_interactive {
+        println!("{} Устанавливаю отсутствующие модели Qwen3 (non-interactive)", "📥".blue());
+        run_model_install_scripts(needs_emb, needs_rerank)?;
         return Ok(());
     }
 
-    // ENV overrides for non-interactive/CI
-    let auto_env = std::env::var("MAGRAY_AUTO_INSTALL_MODELS").unwrap_or_default();
-    let ci_env = std::env::var("CI").unwrap_or_default();
+    println!("{} Обнаружены отсутствующие модели Qwen3.", "ℹ".cyan());
+    println!("  - embedding: {}", if needs_emb { "missing".red() } else { "ok".green() });
+    println!("  - reranker: {}", if needs_rerank { "missing".red() } else { "ok".green() });
+    print!("Установить сейчас? [Y/n]: "); stdout().flush().ok();
 
-    let mut auto_choice: Option<bool> = None; // Some(true)=yes, Some(false)=no
-    match auto_env.to_lowercase().as_str() {
-        "1" | "true" | "yes" | "y" => auto_choice = Some(true),
-        "0" | "false" | "no" | "n" => auto_choice = Some(false),
-        _ => {}
-    }
-
-    if auto_choice.is_none() && !ci_env.is_empty() {
-        // В CI по умолчанию пытаемся установить без вопросов
-        auto_choice = Some(true);
-    }
-
-    println!("\n[!] Обнаружено, что модели отсутствуют:");
-    if !emb_ok {
-        println!("    - Embedding: {}", default_emb);
-    }
-    if !rer_ok {
-        println!("    - Reranker: {}", default_rer);
-    }
-
-    let install = if let Some(choice) = auto_choice {
-        choice
-    } else {
-        print!("Установить сейчас? [Y/n]: ");
-        io::stdout().flush().ok();
-        let mut answer = String::new();
-        if io::stdin().read_line(&mut answer).is_ok() {
-            let ans = answer.trim().to_lowercase();
-            !(ans == "n" || ans == "no")
-        } else {
-            true // по умолчанию да
-        }
-    };
-
-    if !install {
-        println!("Пропускаем установку моделей.");
-        return Ok(());
-    }
-
-    // Пытаемся выполнить полноценный инсталлер, при неудаче — минимальный
-    match run_models_installer() {
-        Ok(()) => {
-            println!("✅ Модели подготовлены");
-            Ok(())
-        }
-        Err(e) => {
-            println!("❌ Не удалось установить модели автоматически: {}", e);
-            println!("Пожалуйста, запустите вручную: cargo run --manifest-path tools/install_models_crate/Cargo.toml");
-            Ok(())
-        }
-    }
-}
-
-fn run_models_installer() -> Result<()> {
-    use std::process::Command;
-    use std::path::{Path, PathBuf};
-
-    fn candidate_paths(script: &str) -> Vec<PathBuf> {
-        let mut paths = Vec::new();
-        // 1) Current dir
-        paths.push(PathBuf::from(script));
-        // 2) Parent dirs
-        paths.push(Path::new("..").join(script));
-        paths.push(Path::new("../..").join(script));
-        // 3) Workspace env
-        if let Ok(root) = std::env::var("MAGRAY_ROOT_DIR") {
-            paths.push(Path::new(&root).join(script));
-        }
-        // 4) Using executable path
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(dir) = exe.parent() {
-                // try up to 4 levels up
-                let mut p = dir.to_path_buf();
-                for _ in 0..4 {
-                    p = p.join("..");
-                    paths.push(p.join(script));
-                }
-            }
-        }
-        paths
-    }
-
-    let full_scripts = candidate_paths("scripts/install_qwen3_onnx.py");
-    let min_scripts = candidate_paths("scripts/install_qwen3_minimal.py");
-
-    // Try full installer (export to ONNX) with timeout
-    for path in &full_scripts {
-        if path.exists() {
-            let status = std::process::Command::new("python3")
-                .arg(path)
-                .args(["--models-dir", "models"]) // relative output
-                .env("PYTHONUNBUFFERED", "1")
-                .spawn()
-                .and_then(|mut child| {
-                    // wait with timeout 600s
-                    let start = std::time::Instant::now();
-                    let timeout = std::time::Duration::from_secs(600);
-                    loop {
-                        match child.try_wait()? {
-                            Some(status) => break Ok(status),
-                            None => {
-                                if start.elapsed() > timeout {
-                                    let _ = child.kill();
-                                    // wait for process to exit and return its status (likely non-success)
-                                    let status = child.wait()?;
-                                    break Ok(status);
-                                }
-                                std::thread::sleep(std::time::Duration::from_millis(200));
-                            }
-                        }
-                    }
-                });
-            if matches!(status, Ok(s) if s.success()) {
-                return Ok(());
-            }
-        }
-    }
-
-    eprintln!("Full installer failed or timed out, trying minimal...");
-
-    // Try minimal installer (tokenizer/config + placeholder onnx) with timeout
-    for path in &min_scripts {
-        if path.exists() {
-            let status = Command::new("python3")
-                .arg(path)
-                .args(["--models-dir", "models"]) // prepare placeholders
-                .env("PYTHONUNBUFFERED", "1")
-                .spawn()
-                .and_then(|mut child| {
-                    let start = std::time::Instant::now();
-                    let timeout = std::time::Duration::from_secs(300);
-                    loop {
-                        match child.try_wait()? {
-                            Some(status) => break Ok(status),
-                            None => {
-                                if start.elapsed() > timeout {
-                                    let _ = child.kill();
-                                    let status = child.wait()?;
-                                    break Ok(status);
-                                }
-                                std::thread::sleep(std::time::Duration::from_millis(200));
-                            }
-                        }
-                    }
-                });
-            if matches!(status, Ok(s) if s.success()) {
-                return Ok(());
-            }
-        }
-    }
-
-    // Last resort: create placeholders
-    create_placeholder_models();
+    let mut answer = String::new();
+    let _ = stdin().read_line(&mut answer);
+    let yes = answer.trim().is_empty() || matches!(answer.trim().to_lowercase().as_str(), "y"|"yes");
+    if yes { run_model_install_scripts(needs_emb, needs_rerank)?; }
     Ok(())
 }
 
-fn create_placeholder_models() {
-    use std::fs;
-    use std::path::PathBuf;
-
-    let pairs = [("qwen3emb", true), ("qwen3_reranker", true)];
-
-    for (name, need_tokenizer) in pairs {    
-        let dir = PathBuf::from("models").join(name);
-        let _ = fs::create_dir_all(&dir);
-        let onnx = dir.join("model.onnx");
-        if !onnx.exists() {
-            let _ = fs::write(&onnx, b"ONNX_PLACEHOLDER");
-        }
-        if need_tokenizer {
-            let tok = dir.join("tokenizer.json");
-            if !tok.exists() {
-                let _ = fs::write(&tok, b"{}");
-            }
-            let cfg = dir.join("config.json");
-            if !cfg.exists() {
-                let _ = fs::write(&cfg, b"{}");
-            }
-        }
+fn run_model_install_scripts(emb: bool, rerank: bool) -> Result<()> {
+    use std::process::Command;
+    // prefer python installers for precise layout
+    if emb {
+        let _ = Command::new("python3").args(["scripts/install_qwen3_onnx.py", "--component", "embedding"]).status();
     }
+    if rerank {
+        let _ = Command::new("python3").args(["scripts/install_qwen3_onnx.py", "--component", "reranker"]).status();
+    }
+    Ok(())
 }
 
 fn ensure_ort_installed_interactive() -> Result<()> {
-    // Быстрый ранний выход если уже сконфигурирован
-    if std::env::var("ORT_DYLIB_PATH").is_ok() {
-        return Ok(());
+    use std::io::{stdin, stdout, Write};
+    use colored::Colorize;
+
+    if std::env::var("MAGRAY_FORCE_NO_ORT").ok().map(|s| s=="1"||s.to_lowercase()=="true").unwrap_or(false) { return Ok(()); }
+
+    // Если есть ORT_DYLIB_PATH или стандартная либра — выходим
+    if std::env::var("ORT_DYLIB_PATH").is_ok() { return Ok(()); }
+    let candidate = std::path::Path::new("scripts/onnxruntime/lib/libonnxruntime.so");
+    if candidate.exists() { std::env::set_var("ORT_DYLIB_PATH", candidate.display().to_string()); return Ok(()); }
+
+    let non_interactive = std::env::var("CI").is_ok() || std::env::var("MAGRAY_AUTO_YES").is_ok();
+    if non_interactive {
+        println!("{} Устанавливаю ONNX Runtime (non-interactive)", "📥".blue());
+        run_ort_install_script()?; return Ok(());
     }
 
-    // Попробуем авто-конфиг (поиск библиотек в типичных путях)
-    ai::ort_setup::configure_ort_env();
-    if std::env::var("ORT_DYLIB_PATH").is_ok() {
-        return Ok(());
-    }
+    println!("{} ONNX Runtime не найден.", "ℹ".cyan());
+    print!("Установить сейчас? [Y/n]: "); stdout().flush().ok();
+    let mut answer = String::new(); let _ = stdin().read_line(&mut answer);
+    let yes = answer.trim().is_empty() || matches!(answer.trim().to_lowercase().as_str(), "y"|"yes");
+    if yes { run_ort_install_script()?; }
+    Ok(())
+}
 
-    // Не нашли — спросим пользователя
-    let auto_env = std::env::var("MAGRAY_AUTO_INSTALL_ORT").unwrap_or_default();
-    let mut auto_choice: Option<bool> = None;
-    match auto_env.to_lowercase().as_str() {
-        "1" | "true" | "yes" | "y" => auto_choice = Some(true),
-        "0" | "false" | "no" | "n" => auto_choice = Some(false),
-        _ => {}
-    }
-
-    let install = if let Some(choice) = auto_choice {
-        choice
-    } else {
-        print!("ONNX Runtime не найден. Установить локально сейчас? [Y/n]: ");
-        io::stdout().flush().ok();
-        let mut answer = String::new();
-        if io::stdin().read_line(&mut answer).is_ok() {
-            let ans = answer.trim().to_lowercase();
-            !(ans == "n" || ans == "no")
-        } else {
-            true
-        }
-    };
-
-    if !install {
-        println!("Пропускаем установку ONNX Runtime. Некоторые функции AI могут быть недоступны.");
-        return Ok(());
-    }
-
-    // Ищем скрипт установки и запускаем
-    use std::path::{Path, PathBuf};
+fn run_ort_install_script() -> Result<()> {
     use std::process::Command;
-
-    fn candidate_paths(script: &str) -> Vec<PathBuf> {
-        let mut paths = Vec::new();
-        paths.push(PathBuf::from(script));
-        paths.push(Path::new("..").join(script));
-        paths.push(Path::new("../..").join(script));
-        if let Ok(root) = std::env::var("MAGRAY_ROOT_DIR") {
-            paths.push(Path::new(&root).join(script));
-        }
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(dir) = exe.parent() {
-                let mut p = dir.to_path_buf();
-                for _ in 0..4 {
-                    p = p.join("..");
-                    paths.push(p.join(script));
-                }
-            }
-        }
-        paths
+    let status = Command::new("bash").args(["scripts/install_onnxruntime.sh"]).status()?;
+    if status.success() {
+        // Try to set default path
+        let p = std::path::Path::new("scripts/onnxruntime/lib/libonnxruntime.so");
+        if p.exists() { std::env::set_var("ORT_DYLIB_PATH", p.display().to_string()); }
     }
-
-    let scripts = candidate_paths("scripts/install_onnxruntime.sh");
-    for path in &scripts {
-        if path.exists() {
-            let status = Command::new("bash")
-                .arg(path)
-                .arg("./scripts/onnxruntime")
-                .status();
-            if matches!(status, Ok(s) if s.success()) {
-                // Применим настройки текущему процессу
-                // Попробуем прочитать setup_ort_env.sh и source нельзя здесь; поэтому перезапустим авто-конфиг
-                ai::ort_setup::configure_ort_env();
-                break;
-            }
-        }
-    }
-
     Ok(())
 }
