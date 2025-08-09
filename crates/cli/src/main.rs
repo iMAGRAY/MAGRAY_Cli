@@ -138,6 +138,17 @@ async fn main() -> Result<()> {
         ensure_ort_installed_interactive()?;
     }
 
+    // Автозагрузка манифестов плагинов по флагу окружения
+    if std::env::var("MAGRAY_LOAD_PLUGIN_MANIFESTS").ok().map(|s| s=="1"||s.to_lowercase()=="true").unwrap_or(false) {
+        let mut home = util::magray_home();
+        let mut plugins_dir = home.clone(); plugins_dir.push("plugins");
+        let mut cfg_dir = home.clone(); cfg_dir.push("plugin-configs");
+        tokio::fs::create_dir_all(&plugins_dir).await.ok();
+        tokio::fs::create_dir_all(&cfg_dir).await.ok();
+        let registry = tools::plugins::plugin_manager::PluginRegistry::new(plugins_dir, cfg_dir);
+        let _ = registry.load_manifests_from_directory().await;
+    }
+
     // Глобальный таймаут на выполнение команды (по умолчанию 300с)
     let top_timeout_secs: u64 = std::env::var("MAGRAY_CMD_TIMEOUT")
         .ok()

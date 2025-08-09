@@ -469,6 +469,31 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                     if lowered.contains("secret") { args_map.insert("keyword".into(), "secret".into()); }
                 }
             }
+
+            // Pre-check: SandboxConfig + ToolSpec permissions
+            let spec = tool.spec();
+            if let Some(perms) = &spec.permissions {
+                let sandbox_cfg = common::sandbox_config::SandboxConfig::from_env();
+                let simple = common::policy::SimpleToolPermissions {
+                    fs_read_roots: perms.fs_read_roots.clone(),
+                    fs_write_roots: perms.fs_write_roots.clone(),
+                    net_allowlist: perms.net_allowlist.clone(),
+                    allow_shell: perms.allow_shell,
+                };
+                if let Some(pre) = common::policy::precheck_permissions(&name, &simple, &sandbox_cfg) {
+                    match pre.action {
+                        common::policy::PolicyAction::Deny => {
+                            anyhow::bail!("Инструмент '{}' заблокирован политикой (precheck)", name);
+                        }
+                        common::policy::PolicyAction::Ask => {
+                            let non_interactive = std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
+                            if non_interactive { anyhow::bail!("Инструмент '{}' требует подтверждения (precheck), но режим non-interactive", name); }
+                        }
+                        common::policy::PolicyAction::Allow => { /* continue */ }
+                    }
+                }
+            }
+
             let decision = policy.evaluate_tool(&name, &args_map);
 
             // Dynamic guard based on UsageGuide overrides/spec

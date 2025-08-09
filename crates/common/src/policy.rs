@@ -151,6 +151,50 @@ fn infer_risk_from_reason(reason: Option<&str>) -> RiskLevel {
     RiskLevel::Low
 }
 
+/// Simplified permissions DTO for policy prechecks (no dependency on tools crate)
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SimpleToolPermissions {
+    pub fs_read_roots: Vec<String>,
+    pub fs_write_roots: Vec<String>,
+    pub net_allowlist: Vec<String>,
+    pub allow_shell: bool,
+}
+
+/// Pre-check permissions against sandbox config (FS/NET/Shell)
+/// Returns: Some(decision) to enforce deny/ask; None to continue with normal policy evaluation
+pub fn precheck_permissions(_tool_name: &str, perms: &SimpleToolPermissions, cfg: &crate::sandbox_config::SandboxConfig) -> Option<PolicyDecision> {
+    // Shell precheck
+    if perms.allow_shell && !cfg.shell.allow_shell {
+        return Some(PolicyDecision { allowed: false, matched_rule: None, action: PolicyAction::Deny, risk: RiskLevel::High });
+    }
+    // Network precheck
+    if !perms.net_allowlist.is_empty() {
+        if cfg.net.allowlist.is_empty() {
+            return Some(PolicyDecision { allowed: false, matched_rule: None, action: PolicyAction::Deny, risk: RiskLevel::Medium });
+        }
+        let mut any_ok = false;
+        for need in &perms.net_allowlist {
+            for allow in &cfg.net.allowlist {
+                if need.eq_ignore_ascii_case(allow) || need.to_lowercase().ends_with(&format!(".{}", allow.to_lowercase())) { any_ok = true; break; }
+            }
+            if any_ok { break; }
+        }
+        if !any_ok { return Some(PolicyDecision { allowed: false, matched_rule: None, action: PolicyAction::Deny, risk: RiskLevel::Medium }); }
+    }
+    // FS precheck when sandbox is enabled: require coverage of requested roots
+    if cfg.fs.enabled {
+        let covers = |reqs: &Vec<String>| -> bool {
+            if reqs.is_empty() { return true; }
+            if cfg.fs.roots.is_empty() { return false; }
+            reqs.iter().all(|r| cfg.fs.roots.iter().any(|a| r.starts_with(a)))
+        };
+        if !covers(&perms.fs_read_roots) || !covers(&perms.fs_write_roots) {
+            return Some(PolicyDecision { allowed: false, matched_rule: None, action: PolicyAction::Deny, risk: RiskLevel::Medium });
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
