@@ -1,4 +1,4 @@
-use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
+use crate::{Tool, ToolInput, ToolOutput, ToolSpec, UsageGuide};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::fs;
@@ -440,7 +440,7 @@ impl Default for FileDeleter {
 #[async_trait::async_trait]
 impl Tool for FileDeleter {
     fn spec(&self) -> ToolSpec {
-        ToolSpec {
+        let mut spec = ToolSpec {
             name: "file_delete".to_string(),
             description: "Удаляет файл по указанному пути".to_string(),
             usage: "file_delete <путь>".to_string(),
@@ -450,7 +450,26 @@ impl Tool for FileDeleter {
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
             usage_guide: None,
-        }
+        };
+        // Mark as high risk and with side effects for policy dynamic Ask
+        spec.usage_guide = Some(UsageGuide {
+            usage_title: "file_delete".into(),
+            usage_summary: "Удаляет файл по указанному пути".into(),
+            preconditions: vec!["Файл должен существовать".into()],
+            arguments_brief: HashMap::from([(String::from("path"), String::from("Путь к файлу"))]),
+            good_for: vec!["cleanup".into(), "io".into()],
+            not_for: vec!["sensitive".into()],
+            constraints: vec!["Необратимая операция".into()],
+            examples: vec!["file_delete /tmp/file.txt".into()],
+            platforms: vec!["linux".into(), "mac".into(), "win".into()],
+            cost_class: "free".into(),
+            latency_class: "fast".into(),
+            side_effects: vec!["Удаление данных".into()],
+            risk_score: 5,
+            capabilities: vec!["delete".into(), "fs".into()],
+            tags: vec!["danger".into(), "destructive".into()],
+        });
+        spec
     }
 
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
