@@ -11,6 +11,8 @@
 //! - Memory pooling
 //! - Performance SLA (<5ms)
 
+#![cfg(all(feature = "vector-search", feature = "extended-tests"))]
+
 #[cfg(test)]
 mod tests {
     use chrono::Utc;

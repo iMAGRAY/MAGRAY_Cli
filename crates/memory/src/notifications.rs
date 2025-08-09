@@ -590,10 +590,13 @@ impl NotificationManager {
 
         // Запускаем фоновую задачу для отправки сгруппированных алертов
         if manager.config.enable_grouping {
-            let manager_clone = manager.clone();
-            tokio::spawn(async move {
-                manager_clone.group_sender_loop().await;
-            });
+            #[cfg(not(test))]
+            {
+                let manager_clone = manager.clone();
+                tokio::spawn(async move {
+                    manager_clone.group_sender_loop().await;
+                });
+            }
         }
 
         Ok(manager)
@@ -826,5 +829,83 @@ mod tests {
         };
 
         assert!(manager.handle_alert(alert).await.is_ok());
+    }
+
+    struct DummySender {
+        name: &'static str,
+        pub singles: Arc<parking_lot::RwLock<usize>>,
+        pub batches: Arc<parking_lot::RwLock<usize>>,
+    }
+
+    #[async_trait]
+    impl NotificationSender for DummySender {
+        fn channel_name(&self) -> &str { self.name }
+        async fn send_single(&self, _alert: &HealthAlert) -> Result<()> {
+            *self.singles.write() += 1;
+            Ok(())
+        }
+        async fn send_batch(&self, alerts: &[HealthAlert]) -> Result<()> {
+            *self.batches.write() += alerts.len();
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_filters_and_cooldown_and_grouping_paths() {
+        // config routes warnings to console+log; we'll override senders map by constructing manager then replacing
+        let mut routing = HashMap::new();
+        routing.insert(AlertSeverity::Warning, vec!["dummy".to_string()]);
+        routing.insert(AlertSeverity::Fatal, vec!["dummy".to_string()]);
+        let config = NotificationConfig {
+            channels: vec![NotificationChannel::Log], // will be ignored for dummy
+            routing,
+            cooldown_seconds: 60,
+            enable_grouping: true,
+            max_group_size: 2,
+            group_interval_seconds: 1,
+            component_filters: Some(vec![format!("{:?}", crate::health::ComponentType::Cache)]),
+            ignore_patterns: vec!["IGNORE".to_string()],
+        };
+
+        let mut manager = NotificationManager::new(config).unwrap();
+        // inject dummy sender
+        let singles = Arc::new(parking_lot::RwLock::new(0usize));
+        let batches = Arc::new(parking_lot::RwLock::new(0usize));
+        manager.senders.insert(
+            "dummy".to_string(),
+            Arc::new(DummySender { name: "dummy", singles: singles.clone(), batches: batches.clone() })
+        );
+
+        // filtered out by ignore pattern
+        let alert_ignored = HealthAlert {
+            id: "a1".into(),
+            component: crate::health::ComponentType::Cache,
+            severity: AlertSeverity::Warning,
+            title: "IGNORE please".into(),
+            description: "should be ignored".into(),
+            metric_value: None,
+            threshold: None,
+            timestamp: chrono::Utc::now(),
+            resolved: false,
+            resolved_at: None,
+        };
+        manager.handle_alert(alert_ignored).await.unwrap();
+        assert_eq!(*singles.read(), 0);
+
+        // passes filters and will be grouped (not sent yet)
+        let alert_ok = HealthAlert { id: "a2".into(), component: crate::health::ComponentType::Cache, severity: AlertSeverity::Warning, title: "ok1".into(), description: "d".into(), metric_value: None, threshold: None, timestamp: chrono::Utc::now(), resolved: false, resolved_at: None };
+        manager.handle_alert(alert_ok).await.unwrap();
+        assert_eq!(*singles.read(), 0);
+
+        // second one triggers group send (max_group_size=2)
+        let alert_ok2 = HealthAlert { id: "a3".into(), component: crate::health::ComponentType::Cache, severity: AlertSeverity::Warning, title: "ok2".into(), description: "d".into(), metric_value: None, threshold: None, timestamp: chrono::Utc::now(), resolved: false, resolved_at: None };
+        manager.handle_alert(alert_ok2).await.unwrap();
+        // batch path counts number of alerts sent
+        assert_eq!(*batches.read(), 2);
+
+        // cooldown: send immediate fatal bypass grouping
+        let alert_fatal = HealthAlert { id: "a4".into(), component: crate::health::ComponentType::Cache, severity: AlertSeverity::Fatal, title: "fatal".into(), description: "d".into(), metric_value: None, threshold: None, timestamp: chrono::Utc::now(), resolved: false, resolved_at: None };
+        manager.handle_alert(alert_fatal).await.unwrap();
+        assert_eq!(*singles.read(), 1);
     }
 }

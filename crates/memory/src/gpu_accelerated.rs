@@ -1,3 +1,5 @@
+#![cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};

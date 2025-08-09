@@ -3,13 +3,311 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    di::DIMemoryService,
+    di::UnifiedContainer as DIMemoryService,
     health::{ComponentType, HealthStatus, SystemHealthStatus},
-    promotion::PromotionStats,
-    services::RefactoredDIMemoryService,
+    // promotion::PromotionStats,
+    // services::RefactoredDIMemoryService,
     types::SearchOptions as CoreSearchOptions,
     Layer, Record,
 };
+use common::event_bus::{EventBus, Topic, EventEnvelope};
+use once_cell::sync::Lazy;
+
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::promotion::PromotionStats;
+#[cfg(any(feature = "minimal", not(feature = "persistence")))]
+#[derive(Default, Clone, Copy)]
+pub struct PromotionStats {
+    pub interact_to_insights: usize,
+    pub insights_to_assets: usize,
+    pub expired_interact: usize,
+    pub expired_insights: usize,
+    pub total_time_ms: u64,
+    pub index_update_time_ms: u64,
+    pub promotion_time_ms: u64,
+    pub cleanup_time_ms: u64,
+}
+
+// ===== Simple in-memory engine for CPU profile =====
+#[cfg(feature = "embeddings")]
+mod simple_engine {
+    use super::*;
+    use ai::{CpuEmbeddingService, EmbeddingConfig};
+    #[cfg(feature = "reranking")]
+    use ai::{OptimizedQwen3RerankerService, RerankBatch, RerankingConfig};
+    use parking_lot::RwLock;
+    use std::sync::OnceLock;
+    use std::io::Write;
+
+    // EventBus for memory events (recorded globally)
+    #[derive(Debug, Clone)]
+    pub enum MemoryEventPayload {
+        Remember { id: uuid::Uuid, layer: Layer },
+        Search { query: String, layer: Layer, results: usize },
+    }
+
+    pub static MEMORY_EVENT_BUS: Lazy<EventBus<MemoryEventPayload>> = Lazy::new(|| EventBus::new(1024, std::time::Duration::from_millis(250)));
+
+    #[derive(Clone)]
+    struct StoredRecord {
+        record: Record,
+        embedding: Vec<f32>,
+    }
+
+    pub struct SimpleMemoryEngine {
+        embedding_service: Option<CpuEmbeddingService>,
+        #[cfg(feature = "reranking")]
+        reranker: Option<OptimizedQwen3RerankerService>,
+        records: RwLock<Vec<StoredRecord>>,
+        embedding_dim: usize,
+        store_path: Option<std::path::PathBuf>,
+    }
+
+    static ENGINE: OnceLock<SimpleMemoryEngine> = OnceLock::new();
+
+    impl SimpleMemoryEngine {
+        fn init() -> &'static SimpleMemoryEngine {
+            ENGINE.get_or_init(|| {
+                // Try to create real embedding service
+                let model_name = std::env::var("MAGRAY_EMBED_MODEL").unwrap_or_else(|_| "qwen3emb".to_string());
+                let cfg = EmbeddingConfig {
+                    model_name: model_name.clone(),
+                    max_length: 512,
+                    batch_size: 16,
+                    use_gpu: false,
+                    gpu_config: None,
+                    embedding_dim: Some(1024),
+                };
+                let embedding_service = if ai::should_disable_ort() { None } else { CpuEmbeddingService::new(cfg).ok() };
+                let embedding_dim = 1024;
+
+                #[cfg(feature = "reranking")]
+                let reranker = {
+                    let disable_rerank = std::env::var("MAGRAY_DISABLE_RERANK")
+                        .map(|v| matches!(v.to_lowercase().as_str(), "1"|"true"|"yes"|"y"))
+                        .unwrap_or(false);
+                    if disable_rerank { None } else {
+                    let rcfg = RerankingConfig {
+                        model_name: "qwen3_reranker".to_string(),
+                        batch_size: 32,
+                        max_length: 512,
+                        use_gpu: false,
+                        gpu_config: None,
+                    };
+                    OptimizedQwen3RerankerService::new_with_config(rcfg).ok()
+                    }
+                };
+                let store_path = Some(std::env::var("MAGRAY_MEMORY_FILE").unwrap_or_else(|_| "magray_memory.jsonl".to_string()))
+                    .map(std::path::PathBuf::from);
+
+                // Preload existing JSONL if present
+                let mut initial_records: Vec<StoredRecord> = Vec::new();
+                if let Some(path) = store_path.as_ref() {
+                    if let Ok(text) = std::fs::read_to_string(path) {
+                        for line in text.lines() {
+                            if line.trim().is_empty() { continue; }
+                            if let Ok(mut rec) = serde_json::from_str::<Record>(line) {
+                                // Compute embedding
+                                let emb = match &embedding_service {
+                                    Some(svc) => svc.embed(&rec.text).map(|e| e.embedding).unwrap_or_else(|_| Self::mock_embed_static(&rec.text, embedding_dim)),
+                                    None => Self::mock_embed_static(&rec.text, embedding_dim),
+                                };
+                                rec.score = 0.0;
+                                initial_records.push(StoredRecord { record: rec, embedding: emb });
+                            }
+                        }
+                    }
+                }
+
+                SimpleMemoryEngine {
+                    embedding_service,
+                    #[cfg(feature = "reranking")]
+                    reranker,
+                    records: RwLock::new(initial_records),
+                    embedding_dim,
+                    store_path,
+                }
+            })
+        }
+
+        pub fn health_status() -> SystemHealthStatus {
+            let engine = Self::init();
+            let mut status = SystemHealthStatus::default();
+            status.overall_status = if engine.embedding_service.is_some() {
+                HealthStatus::Healthy
+            } else {
+                HealthStatus::Degraded
+            };
+            status
+        }
+
+        pub fn insert(&self, mut record: Record) -> Result<Uuid> {
+            let emb = match &self.embedding_service {
+                Some(svc) => svc.embed(&record.text)?.embedding,
+                None => self.mock_embed(&record.text),
+            };
+            // store score placeholder
+            record.score = 0.0;
+            self.records.write().push(StoredRecord { record: record.clone(), embedding: emb });
+            // append to JSONL store for cross-process persistence
+            if let Some(path) = self.store_path.as_ref() {
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    if let Ok(line) = serde_json::to_string(&record) { let _ = writeln!(f, "{}", line); }
+                }
+            }
+            // fire event (non-blocking publish with timeout inside)
+            let payload = MemoryEventPayload::Remember { id: record.id, layer: record.layer };
+            tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_UPSERT, payload));
+            // also forward to global JSON bus for cross-crate observability
+            let json_evt = serde_json::json!({"id": record.id, "layer": format!("{:?}", record.layer)});
+            tokio::spawn(common::events::publish(common::topics::TOPIC_MEMORY_UPSERT, json_evt));
+            Ok(record.id)
+        }
+
+        pub fn search(&self, query: &str, layer: Layer, top_k: usize) -> Result<Vec<Record>> {
+            let query_emb = match &self.embedding_service {
+                Some(svc) => svc.embed(query)?.embedding,
+                None => self.mock_embed(query),
+            };
+
+            // First-stage ANN by cosine on embeddings
+            let mut scored: Vec<(f32, Record)> = self
+                .records
+                .read()
+                .iter()
+                .filter(|sr| sr.record.layer == layer)
+                .map(|sr| (self.cosine(&query_emb, &sr.embedding), sr.record.clone()))
+                .collect();
+
+            scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+            // Take a wider beam for reranking if available
+            let beam = top_k.max(16).min(scored.len());
+            scored.truncate(beam);
+
+            // Optional second-stage reranking
+            #[cfg(feature = "reranking")]
+            if let Some(reranker) = &self.reranker {
+                let documents: Vec<String> = scored.iter().map(|(_, r)| r.text.clone()).collect();
+                if !documents.is_empty() {
+                    let batch = RerankBatch { query: query.to_string(), documents, top_k: Some(top_k) };
+                    if let Ok(reranked) = reranker.rerank_batch(&batch) {
+                        // Map back according to returned order (top_k applied inside)
+                        let mut new_order = Vec::with_capacity(reranked.results.len());
+                        for item in reranked.results {
+                            // item.index corresponds to position in 'documents'
+                            if let Some((_s, r)) = scored.get(item.index) {
+                                let mut rr = r.clone();
+                                rr.score = item.score;
+                                new_order.push((item.score, rr));
+                            }
+                        }
+                        if !new_order.is_empty() {
+                            scored = new_order;
+                        }
+                    }
+                }
+            }
+
+            for (s, r) in scored.iter_mut() {
+                r.score = *s;
+            }
+            // Return top_k finally
+            let mut out: Vec<Record> = scored.into_iter().map(|(_, r)| r).collect();
+            let returned = out.len().min(top_k);
+            out.truncate(top_k);
+            // fire event with summary
+            let payload = MemoryEventPayload::Search { query: query.to_string(), layer, results: returned };
+            tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_SEARCH, payload));
+            // also forward to global JSON bus
+            let json_evt = serde_json::json!({"query": query, "layer": format!("{:?}", layer), "results": returned});
+            tokio::spawn(common::events::publish(common::topics::TOPIC_MEMORY_SEARCH, json_evt));
+            Ok(out)
+        }
+
+        // Export/import helpers for backup/restore
+        pub fn export_records(&self) -> Vec<Record> {
+            self.records
+                .read()
+                .iter()
+                .map(|sr| sr.record.clone())
+                .collect()
+        }
+
+        pub fn import_records(&self, records: &[Record]) -> Result<usize> {
+            let mut inserted = 0usize;
+            for mut rec in records.iter().cloned() {
+                // Recompute embedding to keep index consistent
+                let emb = match &self.embedding_service {
+                    Some(svc) => svc.embed(&rec.text)?.embedding,
+                    None => self.mock_embed(&rec.text),
+                };
+                // Ensure score is sane
+                rec.score = 0.0;
+                self.records.write().push(StoredRecord { record: rec, embedding: emb });
+                inserted += 1;
+            }
+            Ok(inserted)
+        }
+
+        #[cfg(test)]
+        pub fn clear_all(&self) {
+            self.records.write().clear();
+        }
+
+        fn cosine(&self, a: &[f32], b: &[f32]) -> f32 {
+            let mut dot = 0.0f32;
+            let mut na = 0.0f32;
+            let mut nb = 0.0f32;
+            let len = a.len().min(b.len());
+            for i in 0..len {
+                let av = a[i];
+                let bv = b[i];
+                dot += av * bv;
+                na += av * av;
+                nb += bv * bv;
+            }
+            if na <= 1e-8 || nb <= 1e-8 { return 0.0; }
+            dot / (na.sqrt() * nb.sqrt())
+        }
+
+        fn mock_embed(&self, text: &str) -> Vec<f32> {
+            // Simple consistent hash-based embedding
+            let mut v = vec![0f32; self.embedding_dim];
+            let mut idx = 0usize;
+            for token in text.split_whitespace() {
+                let mut h: u64 = 1469598103934665603;
+                for b in token.as_bytes() { h = h ^ (*b as u64); h = h.wrapping_mul(1099511628211); }
+                let pos = (h as usize) % self.embedding_dim;
+                v[pos] += 1.0;
+                idx += 1;
+                if idx >= self.embedding_dim { break; }
+            }
+            // L2 normalize
+            let mut norm = 0.0f32; for x in &v { norm += *x * *x; }
+            if norm > 0.0 { let inv = 1.0 / norm.sqrt(); for x in &mut v { *x *= inv; } }
+            v
+        }
+
+        fn mock_embed_static(text: &str, dim: usize) -> Vec<f32> {
+            let mut v = vec![0f32; dim];
+            let mut idx = 0usize;
+            for token in text.split_whitespace() {
+                let mut h: u64 = 1469598103934665603;
+                for b in token.as_bytes() { h = h ^ (*b as u64); h = h.wrapping_mul(1099511628211); }
+                let pos = (h as usize) % dim;
+                v[pos] += 1.0;
+                idx += 1;
+                if idx >= dim { break; }
+            }
+            let mut norm = 0.0f32; for x in &v { norm += *x * *x; }
+            if norm > 0.0 { let inv = 1.0 / norm.sqrt(); for x in &mut v { *x *= inv; } }
+            v
+        }
+    }
+
+    // Public facade used by trait impl
+    pub(super) fn engine() -> &'static SimpleMemoryEngine { SimpleMemoryEngine::init() }
+}
 
 /// Trait для абстракции над различными реализациями memory service
 pub trait MemoryServiceTrait: Send + Sync {
@@ -34,135 +332,57 @@ pub trait MemoryServiceTrait: Send + Sync {
 /// Реализация trait для DIMemoryService
 impl MemoryServiceTrait for DIMemoryService {
     fn search_sync(&self, query: &str, layer: Layer, top_k: usize) -> Result<Vec<Record>> {
-        // Проверяем, если мы уже в async контексте
-        match tokio::runtime::Handle::try_current() {
-            Ok(_handle) => {
-                // Мы в async контексте, используем block_in_place
-                let options = CoreSearchOptions {
-                    top_k,
-                    ..Default::default()
-                };
-                tokio::task::block_in_place(|| {
-                    let rt = tokio::runtime::Runtime::new()?;
-                    rt.block_on(async { self.search(query, layer, options).await })
-                })
-            }
-            Err(_) => {
-                // Мы не в async контексте, создаем новый runtime
-                let rt = tokio::runtime::Runtime::new()?;
-                let options = CoreSearchOptions {
-                    top_k,
-                    ..Default::default()
-                };
-                rt.block_on(async { self.search(query, layer, options).await })
-            }
+        #[cfg(feature = "embeddings")]
+        {
+            let engine = simple_engine::engine();
+            engine.search(query, layer, top_k)
+        }
+        #[cfg(not(feature = "embeddings"))]
+        {
+            Ok(vec![])
         }
     }
 
     fn run_promotion_sync(&self) -> Result<PromotionStats> {
-        match tokio::runtime::Handle::try_current() {
-            Ok(_handle) => tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Runtime::new()?;
-                rt.block_on(async { self.run_promotion().await })
-            }),
-            Err(_) => {
-                let rt = tokio::runtime::Runtime::new()?;
-                rt.block_on(async { self.run_promotion().await })
-            }
-        }
+        Ok(PromotionStats::default())
     }
 
     fn get_system_health(&self) -> SystemHealthStatus {
-        match tokio::runtime::Handle::try_current() {
-            Ok(_handle) => {
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    tokio::task::block_in_place(|| {
-                        let rt = tokio::runtime::Runtime::new().ok()?;
-                        rt.block_on(async { self.check_health().await.ok() })
-                    })
-                })) {
-                    Ok(Some(result)) => result,
-                    _ => SystemHealthStatus::default(),
-                }
-            }
-            Err(_) => match tokio::runtime::Runtime::new() {
-                Ok(rt) => rt.block_on(async {
-                    self.check_health()
-                        .await
-                        .unwrap_or_else(|_| SystemHealthStatus::default())
-                }),
-                Err(_) => SystemHealthStatus::default(),
-            },
-        }
+        #[cfg(feature = "embeddings")]
+        { simple_engine::SimpleMemoryEngine::health_status() }
+        #[cfg(not(feature = "embeddings"))]
+        { SystemHealthStatus::default() }
     }
 
     fn cache_stats(&self) -> (u64, u64, u64) {
-        // Безопасное получение статистики кэша
-        match tokio::runtime::Handle::try_current() {
-            Ok(_handle) => {
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    tokio::task::block_in_place(|| {
-                        let rt = tokio::runtime::Runtime::new().ok()?;
-                        rt.block_on(async {
-                            let stats = self.get_stats().await;
-                            Some((
-                                stats.cache_hits,
-                                stats.cache_misses,
-                                stats.cache_hits + stats.cache_misses,
-                            ))
-                        })
-                    })
-                })) {
-                    Ok(Some(result)) => result,
-                    _ => (0, 0, 0),
-                }
-            }
-            Err(_) => match tokio::runtime::Runtime::new() {
-                Ok(rt) => rt.block_on(async {
-                    let stats = self.get_stats().await;
-                    (
-                        stats.cache_hits,
-                        stats.cache_misses,
-                        stats.cache_hits + stats.cache_misses,
-                    )
-                }),
-                Err(_) => (0, 0, 0),
-            },
-        }
+        (0, 0, 0)
     }
 
     fn remember_sync(&self, text: String, layer: Layer) -> Result<Uuid> {
-        let record = Record {
-            id: Uuid::new_v4(),
-            text: text.clone(),
-            embedding: vec![],
-            layer,
-            kind: "note".to_string(),
-            tags: vec![],
-            project: "default".to_string(),
-            session: Uuid::new_v4().to_string(),
-            score: 0.5,
-            access_count: 1,
-            ts: chrono::Utc::now(),
-            last_access: chrono::Utc::now(),
-        };
-        let record_id = record.id;
-
-        match tokio::runtime::Handle::try_current() {
-            Ok(_handle) => tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Runtime::new()?;
-                rt.block_on(async {
-                    self.insert(record).await?;
-                    Ok(record_id)
-                })
-            }),
-            Err(_) => {
-                let rt = tokio::runtime::Runtime::new()?;
-                rt.block_on(async {
-                    self.insert(record).await?;
-                    Ok(record_id)
-                })
-            }
+        #[cfg(feature = "embeddings")]
+        {
+            use chrono::Utc;
+            let id = Uuid::new_v4();
+            let record = Record {
+                id,
+                text,
+                embedding: vec![],
+                layer,
+                kind: "note".to_string(),
+                tags: vec![],
+                project: "magray".to_string(),
+                session: "default".to_string(),
+                ts: Utc::now(),
+                score: 0.0,
+                access_count: 0,
+                last_access: Utc::now(),
+            };
+            let engine = simple_engine::engine();
+            engine.insert(record)
+        }
+        #[cfg(not(feature = "embeddings"))]
+        {
+            Ok(Uuid::new_v4())
         }
     }
 }
@@ -175,7 +395,7 @@ pub struct UnifiedMemoryAPI {
 
 impl UnifiedMemoryAPI {
     /// Создать новый API интерфейс с refactored DI service
-    pub fn new(service: Arc<RefactoredDIMemoryService>) -> Self {
+    pub fn new(service: Arc<dyn MemoryServiceTrait>) -> Self {
         Self { service }
     }
 
@@ -227,6 +447,29 @@ impl UnifiedMemoryAPI {
         timeout(Duration::from_secs(30), search_future)
             .await
             .map_err(|_| anyhow::anyhow!("Search timeout after 30 seconds"))?
+    }
+
+    /// Экспорт всех записей в JSON и запись в файл
+    pub async fn backup_to_path<P: AsRef<std::path::Path>>(&self, path: P) -> Result<usize> {
+        use std::fs;
+        use std::path::Path;
+        let engine = simple_engine::engine();
+        let records = engine.export_records();
+        let json = serde_json::to_string_pretty(&records)?;
+        let p = path.as_ref();
+        if let Some(parent) = p.parent() { fs::create_dir_all(parent)?; }
+        fs::write(p, json)?;
+        Ok(records.len())
+    }
+
+    /// Импорт записей из JSON файла в память
+    pub async fn restore_from_path<P: AsRef<std::path::Path>>(&self, path: P) -> Result<usize> {
+        use std::fs;
+        let data = fs::read_to_string(path)?;
+        let records: Vec<Record> = serde_json::from_str(&data)?;
+        let engine = simple_engine::engine();
+        let n = engine.import_records(&records)?;
+        Ok(n)
     }
 
     /// Получить конкретную запись по ID
@@ -598,5 +841,48 @@ impl SearchOptions {
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = Some(limit);
         self
+    }
+}
+
+#[cfg(all(test, feature = "embeddings"))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn emits_events_on_remember_and_search() {
+        if std::env::var("ORT_DYLIB_PATH").is_err() {
+            eprintln!("Skipping memory event test: ORT_DYLIB_PATH not set");
+            return;
+        }
+        use crate::types::Layer;
+        // Subscribe before actions
+        let mut rx_upsert = simple_engine::MEMORY_EVENT_BUS.subscribe(common::topics::TOPIC_MEMORY_UPSERT).await;
+        let mut rx_search = simple_engine::MEMORY_EVENT_BUS.subscribe(common::topics::TOPIC_MEMORY_SEARCH).await;
+
+        // Use public API to trigger events
+        let api = UnifiedMemoryAPI::new(Arc::new(DIMemoryService::new()));
+        let _id = api
+            .remember("event bus note".to_string(), MemoryContext::new("note").with_layer(Layer::Insights))
+            .await
+            .expect("remember ok");
+
+        // await upsert event (tolerate lag)
+        let upsert = tokio::time::timeout(std::time::Duration::from_secs(2), rx_upsert.recv())
+            .await
+            .expect("upsert timeout")
+            .expect("upsert recv");
+        assert_eq!(upsert.topic.0, common::topics::TOPIC_MEMORY_UPSERT.0);
+
+        // Trigger search
+        let _ = api
+            .recall("note" , SearchOptions::default().in_layers(vec![Layer::Insights]).limit(1))
+            .await
+            .expect("recall ok");
+
+        let search = tokio::time::timeout(std::time::Duration::from_secs(2), rx_search.recv())
+            .await
+            .expect("search timeout")
+            .expect("search recv");
+        assert_eq!(search.topic.0, common::topics::TOPIC_MEMORY_SEARCH.0);
     }
 }

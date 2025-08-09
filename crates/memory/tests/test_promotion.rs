@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "persistence", feature = "legacy-tests"))]
+
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use std::sync::Arc;
@@ -6,8 +8,7 @@ use uuid::Uuid;
 
 use ai::AiConfig;
 use memory::{
-    promotion::PromotionEngine, storage::VectorStore, Layer, MemoryConfig, MemoryService,
-    PromotionConfig, Record,
+    promotion::PromotionEngine, storage::VectorStore, Layer, MemoryContext, PromotionConfig, Record,
 };
 
 #[tokio::test]

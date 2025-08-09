@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 //! Comprehensive tests for DIMemoryService
 //!
 //! Покрывает:

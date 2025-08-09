@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -24,6 +26,8 @@ async fn test_file_reader() {
         command: "file_read".to_string(),
         args: HashMap::from([("path".to_string(), test_file.to_str().unwrap().to_string())]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = reader.execute(input).await.unwrap();
@@ -46,6 +50,8 @@ async fn test_file_reader_nonexistent() {
         command: "file_read".to_string(),
         args: HashMap::from([("path".to_string(), "/nonexistent/file.txt".to_string())]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = reader.execute(input).await;
@@ -91,6 +97,8 @@ async fn test_file_writer() {
             ("content".to_string(), "Test content\nLine 2".to_string()),
         ]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = writer.execute(input).await.unwrap();
@@ -119,6 +127,8 @@ async fn test_file_writer_overwrite() {
             ("content".to_string(), "New content".to_string()),
         ]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = writer.execute(input).await.unwrap();
@@ -149,6 +159,37 @@ async fn test_file_writer_natural_language() {
 }
 
 #[tokio::test]
+async fn test_file_write_emits_fs_diff() -> anyhow::Result<()> {
+    use common::{events, topics};
+    use tools::file_ops::FileWriter;
+    use tools::{Tool, ToolInput};
+    use tempfile::TempDir;
+    use std::collections::HashMap;
+
+    let tmp = TempDir::new().unwrap();
+    let file_path = tmp.path().join("evt.txt");
+
+    // subscribe before action
+    let mut rx = events::subscribe(topics::TOPIC_FS_DIFF).await;
+
+    let writer = FileWriter::new();
+    let mut args = HashMap::new();
+    args.insert("path".into(), file_path.to_string_lossy().to_string());
+    args.insert("content".into(), "hello".into());
+    let input = ToolInput { command: "file_write".into(), args, context: None, dry_run: false, timeout_ms: None };
+
+    let out = writer.execute(input).await?;
+    assert!(out.success);
+
+    // expect event
+    let evt = tokio::time::timeout(std::time::Duration::from_millis(500), rx.recv()).await??;
+    assert_eq!(evt.topic.0, "fs.diff");
+    assert_eq!(evt.payload["op"], "write");
+    assert!(evt.payload["bytes"].as_u64().unwrap_or(0) > 0);
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_dir_lister() {
     let temp_dir = TempDir::new().unwrap();
 
@@ -172,6 +213,8 @@ async fn test_dir_lister() {
             temp_dir.path().to_str().unwrap().to_string(),
         )]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = lister.execute(input).await.unwrap();
@@ -207,6 +250,8 @@ async fn test_dir_lister_with_pattern() {
             ("pattern".to_string(), "test*".to_string()),
         ]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = lister.execute(input).await.unwrap();

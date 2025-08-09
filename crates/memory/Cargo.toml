@@ -4,21 +4,16 @@ version.workspace = true
 edition.workspace = true
 
 [features]
-default = ["minimal"]
+default = ["cpu"]
 
 # Minimal build - basic in-memory storage without persistence
 minimal = []
 
 # CPU build - full functionality without GPU acceleration
 cpu = [
-    "ai/cpu", 
-    "hnsw-index",
-    "persistence", 
-    "backup-restore",
-    "vector-search",
+    "ai/cpu",
     "embeddings",
-    "orchestration-modules",
-    "services-modules",
+    "reranking"
 ]
 
 # GPU build - full functionality with GPU acceleration
@@ -30,11 +25,12 @@ gpu = [
 ]
 
 # Individual memory features
-hnsw-index = ["hnsw_rs"]
+hnsw-index = ["hnsw_rs", "rayon", "num_cpus"]
 persistence = ["sled"]
 backup-restore = ["tar", "flate2"]
 vector-search = ["rayon", "num_cpus"]
 embeddings = ["ai/embeddings"]
+reranking = ["ai/reranking"]
 gpu-acceleration = []
 cuda = ["ai/cuda"]
 notifications = ["reqwest", "colored"]
@@ -44,6 +40,11 @@ legacy-orchestrator = []
 # New feature flags to enable orchestration and services modules
 orchestration-modules = []
 services-modules = []
+# Tests feature to include extended/slow suites
+extended-tests = []
+legacy-tests = []
+# New: keyword text search via Tantivy for hybrid search
+keyword-search = []
 
 [dependencies]
 anyhow.workspace = true
@@ -64,7 +65,7 @@ ai = { path = "../ai" }
 common = { path = "../common" }
 
 # Embedding cache and storage (conditional)
-sled = { version = "0.34", features = ["compression"], optional = true }
+sled = { version = "0.34", optional = true }
 
 # Utilities (always available)
 futures = "0.3"
@@ -76,6 +77,7 @@ sha2 = "0.10"
 sysinfo = "0.31"
 crossbeam-channel = "0.5"
 tempfile = "3.0"
+once_cell = "1.19"
 
 # Vector search (conditional)
 hnsw_rs = { version = "0.3", optional = true }
@@ -97,6 +99,9 @@ serde_yaml = "0.9"
 # Hot-reload watcher (optional)
 notify = { version = "6.1", optional = true }
 
+# Tantivy removed to avoid zstd link conflicts; using in-memory BM25 instead
+
+
 # Test dependencies
 [dev-dependencies]
 tracing-subscriber.workspace = true
@@ -116,7 +121,7 @@ tokio-test = "0.4"
 [[example]]
 name = "memory_demo"
 path = "examples/memory_demo.rs"
-
+required-features = ["extended-tests", "legacy-tests"]
 
 [[bench]]
 name = "scalability_benchmarks"
@@ -125,3 +130,23 @@ harness = false
 [[bench]]
 name = "vector_benchmarks"
 harness = false
+
+[[example]]
+name = "di_best_practices"
+path = "examples/di_best_practices.rs"
+required-features = ["extended-tests", "legacy-tests"]
+
+[[example]]
+name = "comprehensive_performance_validation"
+path = "examples/comprehensive_performance_validation.rs"
+required-features = ["extended-tests", "hnsw-index", "gpu-acceleration"]
+
+[[example]]
+name = "simd_optimized_benchmark"
+path = "examples/simd_optimized_benchmark.rs"
+required-features = ["extended-tests", "legacy-tests"]
+
+[[example]]
+name = "test_gpu_acceleration"
+path = "examples/test_gpu_acceleration.rs"
+required-features = ["extended-tests", "gpu-acceleration"]

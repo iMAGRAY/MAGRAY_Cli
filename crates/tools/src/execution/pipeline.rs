@@ -235,8 +235,13 @@ impl ExecutionPipeline {
                 .map(|e| e.description.clone())
                 .collect(),
             input_schema: metadata.input_schema.to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         };
-        self.tool_selector.register_tool(tool_spec).await;
+        let mut spec_with_guide = tool_spec.clone();
+        spec_with_guide.usage_guide = Some(crate::generate_usage_guide(&tool_spec));
+        self.tool_selector.register_tool(spec_with_guide).await;
 
         // Initialize circuit breaker
         {
@@ -782,6 +787,8 @@ impl ExecutionPipeline {
             command: candidate.tool_name.clone(),
             args: HashMap::new(),
             context: Some(context.user_query.clone()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 

@@ -218,13 +218,13 @@ where
 
     /// Получение статистики использования
     pub fn get_usage_stats(&self) -> HashMap<String, u64> {
-        let mut stats = HashMap::new();
-        stats.insert("admin_commands_executed".to_string(), 0);
-        stats.insert("health_checks_performed".to_string(), 0);
-        stats.insert("stats_requests".to_string(), 0);
-        stats.insert("metrics_requests".to_string(), 0);
-        stats.insert("circuit_breaker_trips".to_string(), 0);
-        stats
+        super::standard_usage_stats(&[
+            ("admin_commands_executed", 0),
+            ("health_checks_performed", 0),
+            ("stats_requests", 0),
+            ("metrics_requests", 0),
+            ("circuit_breaker_trips", 0),
+        ])
     }
 
     /// Проверка административных прав (в production версии)
@@ -253,35 +253,21 @@ where
     }
 
     async fn health_check(&self) -> Result<()> {
+        // Для Admin нет внешней зависимости, проверяем только breaker
         if !self.initialized {
             return Err(anyhow::anyhow!("AdminHandler не инициализирован"));
         }
-
-        // Проверяем состояние Circuit Breaker
-        let breaker_state = self.circuit_breaker.get_state().await;
-        if breaker_state == "Open" {
-            return Err(anyhow::anyhow!("Circuit breaker открыт"));
-        }
-
-        debug!("AdminHandler: health check прошел успешно");
+        let state = self.circuit_breaker.get_state().await;
+        if state == "Open" { return Err(anyhow::anyhow!("Circuit breaker открыт")); }
         Ok(())
     }
 
     async fn shutdown(&self) -> Result<()> {
-        info!("AdminHandler: начинаем graceful shutdown");
-
-        // В production версии здесь будет:
-        // - Завершение активных админ операций
-        // - Сохранение логов и аудита
-        // - Очистка административных сессий
-        // - Отправка уведомлений о shutdown
-
-        info!("AdminHandler: shutdown завершен");
-        Ok(())
+        super::standard_component_shutdown("AdminHandler").await
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
 

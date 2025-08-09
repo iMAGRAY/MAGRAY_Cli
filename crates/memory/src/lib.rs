@@ -2,7 +2,7 @@
 
 #[cfg(not(feature = "minimal"))]
 mod batch_manager;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "vector-search"))]
 mod batch_optimized; // Ultra-optimized batch operations для 1000+ QPS
 #[cfg(not(feature = "minimal"))]
 mod cache_interface;
@@ -14,28 +14,28 @@ mod cache_migration;
 pub mod fallback;
 #[cfg(not(feature = "minimal"))]
 pub mod health;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 pub mod hnsw_index; // Модульная HNSW архитектура
                     // pub mod layers; // ВРЕМЕННО ОТКЛЮЧЕНО для бенчмарка - проблемы с sqlx
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 #[cfg(not(feature = "minimal"))]
 mod metrics;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub mod ml_promotion; // Декомпозированная ML promotion система (SOLID compliant)
 #[cfg(not(feature = "minimal"))]
 mod notifications;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub mod promotion;
 #[cfg(not(feature = "minimal"))]
 pub mod service_di; // REFACTORED модули в service_di/
 #[cfg(not(feature = "minimal"))]
 pub mod service_di_facade;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "num_cpus"))]
 pub mod simd_feature_detection; // Advanced CPU feature detection и adaptive algorithm selection
 #[cfg(not(feature = "minimal"))]
 pub mod simd_fixed; // Исправленная SIMD реализация для debugging
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "rayon"))]
 pub mod simd_optimized; // SIMD оптимизации для векторных операций
 #[cfg(not(feature = "minimal"))]
 pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance // FACADE для обратной совместимости
@@ -46,21 +46,21 @@ pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance
 pub use service_di::service_config::default_config;
 #[cfg(not(feature = "minimal"))]
 pub mod api;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
 mod backup;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 mod database_manager;
 #[cfg(not(feature = "minimal"))]
 mod flush_config;
 #[cfg(not(feature = "minimal"))]
 pub mod gpu_accelerated;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub mod migration;
 #[cfg(not(feature = "minimal"))]
 pub mod resource_manager;
 #[cfg(not(feature = "minimal"))]
 mod retry;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub mod storage;
 #[cfg(not(feature = "minimal"))]
 mod streaming;
@@ -68,44 +68,32 @@ mod streaming;
 pub mod transaction;
 #[cfg(not(feature = "minimal"))]
 pub mod types;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 mod vector_index_hnswlib; // Critical for vector storage
-                          // НОВАЯ УПРОЩЕННАЯ DI СИСТЕМА (заменяет сложную di/ папку)
+#[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+pub mod keyword_index; // BM25/Tantivy индекс для гибридного поиска
+                          
+// Экспорт единой DI-системы
+pub mod di;
+
+// container factory/config are not exported from unified di; remove these re-exports
+
+// ОСНОВНОЙ DI API (в минимальном профиле доступен базовый контейнер)
 #[cfg(not(feature = "minimal"))]
-pub mod simple_di;
-
-// COMPATIBILITY STUB для старой di системы (используется в минимальной сборке)
-pub mod di {
-    pub use crate::di_compatibility_stub::*;
-}
-
-// Подключаем заглушку совместимости
-mod di_compatibility_stub;
-
+pub use di::{
+    UnifiedContainer as DIContainer,
+    UnifiedContainerBuilder as DIContainerBuilder,
+    Lifetime,
+};
 #[cfg(feature = "minimal")]
-pub use di::{DIMemoryService, LegacyMemoryConfig};
-
-// ОСНОВНОЙ DI API - используем упрощенную систему
-#[cfg(not(feature = "minimal"))]
-pub use simple_di::{
-    create_container, create_default_container, DIContainer, DIContainerBuilder, Lifetime,
+pub use di::{
+    UnifiedContainer as DIContainer,
+    UnifiedContainerBuilder as DIContainerBuilder,
+    Lifetime,
 };
 
-// Legacy API types - заглушки для обратной совместимости
-#[derive(Debug, Default)]
-pub struct DIContainerStats {
-    pub total_resolutions: u64,
-    pub cache_hits: u64,
-    pub cache_misses: u64,
-}
-
-#[derive(Debug, Default)]
-pub struct DIPerformanceMetrics {
-    pub total_resolutions: u64,
-    pub average_resolution_time: std::time::Duration,
-    pub cache_hits: u64,
-    pub memory_usage: usize,
-}
+// Legacy API types - перенаправляем на реальные типы из di
+pub use di::{DIContainerStats, DIPerformanceMetrics};
 // Оркестрация системы памяти (отключаем по умолчанию для минимальной сборки)
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod orchestration;
@@ -115,12 +103,12 @@ pub mod services;
 // Utility functions и error handling
 #[cfg(not(feature = "minimal"))]
 pub mod utils;
-#[cfg(not(feature = "minimal"))]
-pub use batch_manager::{BatchConfig, BatchOperationBuilder, BatchOperationManager, BatchStats};
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "vector-search"))]
 pub use batch_optimized::{
     AlignedBatchVectors, BatchOptimizedConfig, BatchOptimizedProcessor, BatchOptimizedStats,
 };
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+pub use batch_manager::{BatchConfig, BatchOperationBuilder, BatchOperationManager, BatchStats};
 #[cfg(not(feature = "minimal"))]
 pub use cache_lru::{
     CacheConfig as LruCacheConfig, CacheConfig, EmbeddingCacheLRU as EmbeddingCache,
@@ -132,7 +120,8 @@ pub type CacheConfigType = LruCacheConfig;
 #[cfg(not(feature = "minimal"))]
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 // Legacy MemoryService удален - используем DIMemoryService через unified_container
-#[cfg(not(feature = "minimal"))]
+// Batch result types доступны только при включенных orchestration-modules
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use service_di::{BatchInsertResult, BatchSearchResult};
 
 // NEW: Refactored services based on SOLID principles
@@ -173,14 +162,9 @@ pub use services::{RefactoredDIMemoryService, RefactoredDIMemoryServiceBuilder};
 //     LayerHealthStatus,
 // };
 // MemoryDIConfigurator moved to di/unified_container.rs
-#[cfg(not(feature = "minimal"))]
-pub use api::{
-    CacheStats, DetailedHealth, IndexSizes, MemoryContext, MemoryResult, OptimizationResult,
-    SearchOptions as ApiSearchOptions, SystemHealth, SystemStats, UnifiedMemoryAPI,
-};
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub use database_manager::DatabaseManager;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 pub use gpu_ultra_accelerated::{
     benchmark_gpu_vs_cpu, GpuCosineProcessor, GpuDevice, GpuDeviceManager,
 };
@@ -195,14 +179,14 @@ pub use metrics::{LatencyMetrics, LayerMetrics, MemoryMetrics, MetricsCollector}
 pub use notifications::{NotificationManager, NotificationManager as NotificationSystem};
 #[cfg(not(feature = "minimal"))]
 pub use resource_manager::{ResourceConfig, ResourceManager};
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "num_cpus"))]
 pub use simd_feature_detection::{
     get_adaptive_selector, quick_cpu_info, AdaptiveAlgorithmSelector, AlgorithmStrategy, CpuInfo,
     SimdLevel, WorkloadProfile,
 };
 #[cfg(not(feature = "minimal"))]
 pub use simd_fixed::debug_simd_performance;
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "rayon"))]
 pub use simd_optimized::{
     batch_cosine_distance_optimized, cosine_distance_auto, cosine_distance_memory_optimized,
     run_comprehensive_benchmark,
@@ -212,7 +196,7 @@ pub use simd_ultra_optimized::{
     batch_cosine_distance_ultra, cosine_distance_ultra_optimized, test_ultra_optimized_performance,
     AlignedVector,
 };
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub use storage::VectorStore;
 #[cfg(not(feature = "minimal"))]
 pub use transaction::{Transaction, TransactionGuard, TransactionManager};
@@ -225,15 +209,15 @@ pub use transaction::{Transaction, TransactionGuard, TransactionManager};
 // }
 
 // Профессиональная HNSW реализация - единственная векторная реализация
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 pub use vector_index_hnswlib::{HnswRsConfig, HnswRsStats, VectorIndexHnswRs};
 
 // HNSW index module exports
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 pub use hnsw_index::{HnswConfig, HnswStats, VectorIndex};
 
 // ML-based promotion system
-#[cfg(not(feature = "minimal"))]
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub use ml_promotion::{
     MLPromotionConfig, MLPromotionEngine, MLPromotionStats, PromotionDecision, PromotionFeatures,
     UsageTracker,

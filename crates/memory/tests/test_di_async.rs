@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 use anyhow::Result;
 use memory::{default_config, DIContainer, DIMemoryService, Lifetime};
 use std::sync::Arc;

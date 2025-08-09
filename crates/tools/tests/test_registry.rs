@@ -30,6 +30,9 @@ impl Tool for MockTool {
             usage: format!("mock_{} <args>", self.name),
             examples: vec![format!("mock_{} test", self.name)],
             input_schema: "{}".to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -48,6 +51,8 @@ impl Tool for MockTool {
             command: self.name.clone(),
             args: HashMap::from([("query".to_string(), query.to_string())]),
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -107,6 +112,8 @@ async fn test_tool_execution() {
         command: "test".to_string(),
         args: HashMap::new(),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = tool.execute(input).await.unwrap();
@@ -158,7 +165,10 @@ fn test_tool_input_serialization() {
             ("arg2".to_string(), "value2".to_string()),
         ]),
         context: Some("test context".to_string()),
+        dry_run: false,
+        timeout_ms: None,
     };
+
 
     // Сериализация
     let json = serde_json::to_string(&input).unwrap();

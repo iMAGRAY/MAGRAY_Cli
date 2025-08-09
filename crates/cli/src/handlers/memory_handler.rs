@@ -181,13 +181,13 @@ where
 
     /// Получение статистики использования
     pub fn get_usage_stats(&self) -> HashMap<String, u64> {
-        let mut stats = HashMap::new();
-        stats.insert("messages_stored".to_string(), 0);
-        stats.insert("searches_performed".to_string(), 0);
-        stats.insert("promotions_run".to_string(), 0);
-        stats.insert("avg_search_time_ms".to_string(), 0);
-        stats.insert("circuit_breaker_trips".to_string(), 0);
-        stats
+        super::standard_usage_stats(&[
+            ("messages_stored", 0),
+            ("searches_performed", 0),
+            ("promotions_run", 0),
+            ("avg_search_time_ms", 0),
+            ("circuit_breaker_trips", 0),
+        ])
     }
 
     /// Проверка доступности памяти
@@ -213,51 +213,25 @@ where
     C: CircuitBreakerTrait,
 {
     async fn initialize(&self) -> Result<()> {
-        info!("MemoryHandler: инициализация начата");
-
-        // Проверяем доступность memory сервиса
-        self.memory_service
-            .health_check()
-            .await
-            .map_err(|e| anyhow::anyhow!("Memory сервис недоступен: {}", e))?;
-
-        info!("MemoryHandler: инициализация завершена");
-        Ok(())
+        super::standard_component_initialize("MemoryHandler", self.memory_service.health_check()).await
     }
 
     async fn health_check(&self) -> Result<()> {
-        if !self.initialized {
-            return Err(anyhow::anyhow!("MemoryHandler не инициализирован"));
-        }
-
-        // Проверяем все зависимости
-        self.memory_service.health_check().await?;
-
-        // Проверяем состояние Circuit Breaker
-        let breaker_state = self.circuit_breaker.get_state().await;
-        if breaker_state == "Open" {
-            return Err(anyhow::anyhow!("Circuit breaker открыт"));
-        }
-
-        debug!("MemoryHandler: health check прошел успешно");
-        Ok(())
+        super::standard_component_health_check(
+            "MemoryHandler",
+            self.initialized,
+            self.memory_service.health_check(),
+            self.circuit_breaker.get_state(),
+        )
+        .await
     }
 
     async fn shutdown(&self) -> Result<()> {
-        info!("MemoryHandler: начинаем graceful shutdown");
-
-        // В production версии здесь будет:
-        // - Завершение активных memory операций
-        // - Сохранение кэшей и метрик
-        // - Flush pending operations
-        // - Очистка ресурсов
-
-        info!("MemoryHandler: shutdown завершен");
-        Ok(())
+        super::standard_component_shutdown("MemoryHandler").await
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
 

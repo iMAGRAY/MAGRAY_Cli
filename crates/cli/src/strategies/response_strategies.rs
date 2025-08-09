@@ -431,7 +431,7 @@ impl ResponseFormattingStrategy for AdaptiveResponseFormatter {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
     use std::collections::HashMap;

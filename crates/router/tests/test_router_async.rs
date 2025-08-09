@@ -20,6 +20,9 @@ impl Tool for MockTool {
             usage: "mock_tool <test_param>".to_string(),
             examples: vec!["mock_tool test".to_string()],
             input_schema: r#"{"test_param": "string"}"#.to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -41,6 +44,8 @@ impl Tool for MockTool {
             command: self.name.clone(),
             args: HashMap::from([("test_param".to_string(), "test_value".to_string())]),
             context: Some("Mock context".to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }

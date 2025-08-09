@@ -24,6 +24,9 @@ use crate::{
     types::{Layer, Record, SearchOptions},
 };
 
+#[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+use crate::keyword_index::KeywordIndex;
+
 /// Production-ready координатор поиска с sub-5ms HNSW векторным поиском
 pub struct SearchCoordinator {
     store: Arc<VectorStore>,
@@ -41,7 +44,11 @@ pub struct SearchCoordinator {
     /// Circuit breaker для векторного поиска
     circuit_breaker: Arc<RwLock<SearchCircuitBreaker>>,
     /// Reranking model cache
-    rerank_model: Arc<RwLock<Option<ai::reranker_qwen3_optimized::OptimizedRerankingService>>>,
+    rerank_model: Arc<RwLock<Option<ai::OptimizedQwen3RerankerService>>>,
+
+    /// Ключевой (BM25) индекс для гибридного поиска
+    #[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+    keyword_index: Option<KeywordIndex>,
 }
 
 /// Query cache для быстрого доступа к результатам
@@ -123,6 +130,8 @@ impl SearchCoordinator {
             performance_metrics: Arc::new(RwLock::new(SearchMetrics::default())),
             circuit_breaker: Arc::new(RwLock::new(circuit_breaker)),
             rerank_model: Arc::new(RwLock::new(None)),
+            #[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+            keyword_index: None,
         }
     }
 
@@ -143,6 +152,18 @@ impl SearchCoordinator {
                 cache_guard.max_size = cache_size;
             }
         });
+
+        // Ленивая инициализация keyword индекса
+        #[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+        {
+            let index_dir = std::env::var("MAGRAY_KEYWORD_INDEX_DIR")
+                .ok()
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| std::env::temp_dir().join("magray_keyword_index"));
+            // In-memory BM25 keyword index
+            coordinator.keyword_index = Some(KeywordIndex::new());
+            info!("✅ KeywordIndex инициализирован для гибридного поиска");
+        }
 
         coordinator
     }
@@ -177,6 +198,23 @@ impl Coordinator for SearchCoordinator {
                 "⚠️ Reranking модель не загружена: {} (будет работать без reranking)",
                 e
             );
+        }
+
+        // 2.5. Строим keyword индекс из VectorStore (если включен)
+        #[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+        {
+            if let Some(ref kw) = self.keyword_index {
+                info!("📚 Построение keyword индекса из VectorStore...");
+                for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
+                    if let Ok(records) = self.store.iter_layer_records(layer).await {
+                        let mut guard = kw.clone(); // clone handle
+                        for rec in records {
+                            let _ = guard.add_document(&rec.id.to_string(), &rec.text, layer);
+                        }
+                    }
+                }
+                info!("✅ Keyword индекс инициализирован");
+            }
         }
 
         // 3. Запускаем cache cleanup worker
@@ -417,21 +455,73 @@ impl SearchCoordinatorTrait for SearchCoordinator {
     ) -> Result<Vec<Record>> {
         debug!("🔀 Гибридный поиск для '{}'", query);
 
-        match vector {
-            Some(provided_vector) => {
-                // Если вектор предоставлен, используем его для поиска
-                debug!(
-                    "📊 Используем предоставленный вектор размером {}",
-                    provided_vector.len()
-                );
-                self.vector_search(provided_vector, layer, options).await
-            }
+        // Получаем вектор либо из аргумента, либо эмбеддинг по тексту
+        let vector = match vector {
+            Some(v) => v.to_vec(),
             None => {
-                // Иначе получаем embedding и делаем обычный поиск
-                debug!("📝 Получаем embedding для текстового поиска");
-                self.search(query, layer, options).await
+                let t0 = Instant::now();
+                let emb = self.embedding_coordinator.get_embedding(query).await?;
+                let emb_lat = t0.elapsed().as_millis() as f64;
+                self.update_performance_metrics(0.0, emb_lat, true).await;
+                emb
+            }
+        };
+
+        // 1) Векторные кандидаты
+        let k_vec = options.top_k;
+        let vector_candidates = self.vector_search(&vector, layer, SearchOptions { top_k: k_vec, ..options }).await?;
+
+        // 2) Ключевые кандидаты (если индекс доступен)
+        #[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+        let keyword_hits: Vec<(String, f32)> = match &self.keyword_index {
+            Some(kw) => kw.search(query, k_vec * 2, Some(layer)).unwrap_or_default(),
+            None => Vec::new(),
+        };
+        #[cfg(not(all(not(feature = "minimal"), feature = "keyword-search")))]
+        let keyword_hits: Vec<(String, f32)> = Vec::new();
+
+        // Собираем карту: id -> (rec, rank_vector, rank_keyword)
+        let mut fused: HashMap<String, (Record, Option<usize>, Option<usize>)> = HashMap::new();
+        for (rank, rec) in vector_candidates.iter().enumerate() {
+            fused.insert(rec.id.to_string(), (rec.clone(), Some(rank + 1), None));
+        }
+        // Для keyword результатов достанем записи из стора
+        if !keyword_hits.is_empty() {
+            for (rank, (id_str, _score)) in keyword_hits.iter().enumerate() {
+                if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                    if let Ok(Some(rec)) = self.store.get_by_id(&uuid, layer).await {
+                        fused
+                            .entry(id_str.clone())
+                            .and_modify(|e| e.1 = e.1) // оставляем vector rank как есть
+                            .or_insert((rec, None, None));
+                        if let Some(entry) = fused.get_mut(id_str) {
+                            entry.2 = Some(rank + 1);
+                        }
+                    }
+                }
             }
         }
+
+        // RRF (reciprocal rank fusion) + веса alpha/beta
+        let alpha = 0.6_f32; // вес вектора
+        let beta = 0.4_f32;  // вес keyword
+        let k_rrf = 60.0_f32; // сглаживание
+
+        let mut scored: Vec<(Record, f32)> = fused
+            .into_iter()
+            .map(|(_id, (rec, r_vec, r_kw))| {
+                let s_vec = r_vec.map(|r| 1.0_f32 / (k_rrf + r as f32)).unwrap_or(0.0);
+                let s_kw = r_kw.map(|r| 1.0_f32 / (k_rrf + r as f32)).unwrap_or(0.0);
+                let score = alpha * s_vec + beta * s_kw;
+                (rec, score)
+            })
+            .collect();
+
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored.truncate(options.top_k);
+
+        let mut out: Vec<Record> = scored.into_iter().map(|mut t| { let mut r=t.0; r.score=t.1; r }).collect();
+        Ok(out)
     }
 
     async fn search_with_rerank(
@@ -459,37 +549,35 @@ impl SearchCoordinatorTrait for SearchCoordinator {
             return Ok(candidates);
         }
 
-        // 2. Применяем reranking если модель доступна
-        let rerank_model = self.rerank_model.read().await;
-        if let Some(ref model) = rerank_model.as_ref() {
+        // 2. Применяем reranking если модель доступна (лениво загружаем при первом вызове)
+        if self.rerank_model.read().await.is_none() {
+            let _ = self.initialize_rerank_model().await;
+        }
+        if let Some(model) = self.rerank_model.read().await.as_ref() {
             let start_time = Instant::now();
-
-            // Подготавливаем тексты для reranking
-            let texts: Vec<String> = candidates.iter().map(|r| r.text.clone()).collect();
-
-            match model.rerank(query, &texts).await {
-                Ok(rerank_results) => {
+            let documents: Vec<String> = candidates.iter().map(|r| r.text.clone()).collect();
+            let batch = ai::RerankBatch { query: query.to_string(), documents, top_k: Some(options.top_k) };
+            match model.rerank_batch(&batch) {
+                Ok(batch_out) => {
                     let rerank_latency = start_time.elapsed().as_millis();
                     debug!("✨ Reranking завершен за {}ms", rerank_latency);
-
-                    // Обновляем метрики
                     {
                         let mut metrics = self.performance_metrics.write().await;
                         metrics.rerank_operations += 1;
                     }
-
-                    // Возвращаем reranked результаты
-                    let reranked_results = rerank_results
-                        .into_iter()
-                        .take(options.top_k)
-                        .filter_map(|result| candidates.get(result.original_index).cloned())
-                        .collect();
-
-                    return Ok(reranked_results);
+                    let mut new_order = Vec::with_capacity(batch_out.results.len());
+                    for item in batch_out.results { // item.index соответствует позиции в candidates
+                        if let Some(r) = candidates.get(item.index) {
+                            let mut rr = r.clone();
+                            rr.score = item.score;
+                            new_order.push(rr);
+                        }
+                    }
+                    if !new_order.is_empty() {
+                        return Ok(new_order);
+                    }
                 }
-                Err(e) => {
-                    warn!("⚠️ Ошибка reranking: {}, возвращаем исходные результаты", e);
-                }
+                Err(e) => warn!("⚠️ Ошибка reranking: {}, возвращаем исходные результаты", e),
             }
         }
 
@@ -527,11 +615,25 @@ impl SearchCoordinator {
     /// Инициализация reranking модели
     #[allow(dead_code)]
     async fn initialize_rerank_model(&self) -> Result<()> {
-        // TODO: Загрузить реальную reranking модель
-        // let model = crate::ai::reranker_qwen3_optimized::RerankingService::new().await?;
-        // *self.rerank_model.write().await = Some(model);
-
-        info!("🎯 Reranking модель будет загружена при первом использовании");
+        // Ленивая загрузка Qwen3 reranker (с безопасным fallback при отключенном ORT)
+        if self.rerank_model.read().await.is_none() {
+            let cfg = ai::RerankingConfig {
+                model_name: "qwen3_reranker".to_string(),
+                batch_size: 32,
+                max_length: 512,
+                use_gpu: false,
+                gpu_config: None,
+            };
+            match ai::OptimizedQwen3RerankerService::new_with_config(cfg) {
+                Ok(svc) => {
+                    *self.rerank_model.write().await = Some(svc);
+                    info!("✅ Reranking модель инициализирована");
+                }
+                Err(e) => {
+                    info!("⚠️ Не удалось инициализировать reranker: {} (будет работать без reranking)", e);
+                }
+            }
+        }
         Ok(())
     }
 
@@ -722,7 +824,7 @@ impl SearchCoordinator {
     /// Запуск worker'а для очистки cache
     async fn start_cache_cleanup_worker(&self) {
         let cache = self.query_cache.clone();
-
+        #[cfg(not(test))]
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60)); // Каждую минуту
 

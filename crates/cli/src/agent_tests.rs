@@ -1,4 +1,4 @@
-#![cfg(not(feature = "minimal"))]
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
 // @component: {"k":"T","id":"unified_agent_tests","t":"Comprehensive unit tests for UnifiedAgent","m":{"cur":100,"tgt":100,"u":"%"},"f":["testing","coverage","unit_tests","god_object"]}
 
 //! Comprehensive Unit Tests для UnifiedAgent

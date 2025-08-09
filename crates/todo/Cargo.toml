@@ -7,6 +7,8 @@ edition.workspace = true
 default = ["minimal"]
 minimal = []
 cpu = []
+extended-tests = []
+legacy-tests = []
 
 [dependencies]
 # Core

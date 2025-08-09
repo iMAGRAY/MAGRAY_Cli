@@ -31,12 +31,9 @@ fn test_model_registry_default_models() {
     let temp_dir = TempDir::new().unwrap();
     let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
-    // Проверяем наличие моделей по умолчанию
+    // Проверяем наличие моделей по умолчанию (только Qwen3)
     assert!(registry.get_model_info("qwen3emb").is_some());
     assert!(registry.get_model_info("qwen3_reranker").is_some());
-    assert!(registry.get_model_info("bge-m3").is_some());
-    assert!(registry.get_model_info("BGE-reranker-v2-m3").is_some());
-    assert!(registry.get_model_info("mxbai_rerank_base_v2").is_some());
 }
 
 #[test]

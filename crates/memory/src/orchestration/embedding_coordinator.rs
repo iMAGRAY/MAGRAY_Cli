@@ -8,9 +8,10 @@ use std::{
 use tokio::sync::{Notify, RwLock, Semaphore};
 use tracing::{debug, info, warn};
 
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+use crate::gpu_accelerated::GpuBatchProcessor;
 use crate::{
     cache_interface::EmbeddingCacheInterface,
-    gpu_accelerated::GpuBatchProcessor,
     orchestration::{
         retry_handler::{RetryHandler, RetryPolicy},
         traits::{Coordinator, EmbeddingCoordinator as EmbeddingCoordinatorTrait},
@@ -18,6 +19,7 @@ use crate::{
 };
 
 /// Production-ready координатор для работы с embeddings
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 pub struct EmbeddingCoordinator {
     /// GPU batch processor для получения embeddings
     gpu_processor: Arc<GpuBatchProcessor>,
@@ -44,6 +46,9 @@ pub struct EmbeddingCoordinator {
     /// Notification для batch processing
     batch_notify: Arc<Notify>,
 }
+
+#[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
+pub struct EmbeddingCoordinator;
 
 /// Circuit breaker state для GPU операций
 #[derive(Debug, Clone)]
@@ -110,6 +115,7 @@ struct BatchRequest {
     created_at: Instant,
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 impl EmbeddingCoordinator {
     pub fn new(
         gpu_processor: Arc<GpuBatchProcessor>,
@@ -190,7 +196,13 @@ impl EmbeddingCoordinator {
     }
 }
 
+#[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
+impl EmbeddingCoordinator {
+    pub fn new_stub() -> Self { Self }
+}
+
 #[async_trait]
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 impl Coordinator for EmbeddingCoordinator {
     async fn initialize(&self) -> Result<()> {
         info!("Инициализация EmbeddingCoordinator");
@@ -296,7 +308,18 @@ impl Coordinator for EmbeddingCoordinator {
     }
 }
 
+#[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
+#[async_trait::async_trait]
+impl Coordinator for EmbeddingCoordinator {
+    async fn initialize(&self) -> Result<()> { Ok(()) }
+    async fn is_ready(&self) -> bool { true }
+    async fn health_check(&self) -> Result<()> { Ok(()) }
+    async fn shutdown(&self) -> Result<()> { Ok(()) }
+    async fn metrics(&self) -> serde_json::Value { serde_json::json!({"ready": true}) }
+}
+
 #[async_trait]
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 impl EmbeddingCoordinatorTrait for EmbeddingCoordinator {
     async fn get_embedding(&self, text: &str) -> Result<Vec<f32>> {
         // Сначала проверяем кэш
@@ -435,6 +458,19 @@ impl EmbeddingCoordinatorTrait for EmbeddingCoordinator {
     }
 }
 
+#[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
+#[async_trait::async_trait]
+impl EmbeddingCoordinatorTrait for EmbeddingCoordinator {
+    async fn get_embedding(&self, _text: &str) -> Result<Vec<f32>> { Ok(vec![0.0; 1024]) }
+    async fn get_embeddings(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        Ok(texts.iter().map(|_| vec![0.0; 1024]).collect())
+    }
+    async fn check_cache(&self, _text: &str) -> Option<Vec<f32>> { None }
+    async fn cache_stats(&self) -> (u64, u64, u64) { (0,0,0) }
+    async fn clear_cache(&self) -> Result<()> { Ok(()) }
+}
+
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 impl EmbeddingCoordinator {
     /// Запуск batch processing worker'а
     #[allow(dead_code)]
@@ -526,51 +562,40 @@ impl EmbeddingCoordinator {
         let mut config = self.adaptive_batch_size.write().await;
 
         config.recent_latencies.push_back(latency_ms);
-        if config.recent_latencies.len() > 10 {
+        const MAX_LATENCIES: usize = 100;
+        if config.recent_latencies.len() > MAX_LATENCIES {
             config.recent_latencies.pop_front();
         }
 
-        // Проверяем нужно ли адаптировать
-        if config.last_adjustment.elapsed() < std::time::Duration::from_secs(5) {
-            return; // Слишком рано для адаптации
+        // Простейшая адаптация: если средняя латентность растет - уменьшаем batch
+        let avg_latency: f64 =
+            config.recent_latencies.iter().map(|&x| x as f64).sum::<f64>()
+                / config.recent_latencies.len().max(1) as f64;
+
+        if avg_latency > 50.0 && config.current_size > config.min_size {
+            config.current_size = (config.current_size / 2).max(config.min_size);
+            debug!("📉 Снижаем batch размер до {} из-за высокой латентности {}ms", config.current_size, avg_latency);
+        } else if avg_latency < 20.0 && config.current_size < config.max_size {
+            config.current_size = (config.current_size * 2).min(config.max_size);
+            debug!("📈 Увеличиваем batch размер до {} при низкой латентности {}ms", config.current_size, avg_latency);
         }
-
-        let avg_latency: f64 = config.recent_latencies.iter().sum::<u64>() as f64
-            / config.recent_latencies.len() as f64;
-
-        if avg_latency > config.target_latency_ms as f64 * 1.2 {
-            // Слишком медленно - уменьшаем batch size
-            if config.current_size > config.min_size {
-                config.current_size = ((config.current_size as f64) * 0.8) as usize;
-                config.current_size = config.current_size.max(config.min_size);
-                debug!(
-                    "⚡ Уменьшили batch size до {} (avg latency: {:.1}ms)",
-                    config.current_size, avg_latency
-                );
-            }
-        } else if avg_latency < config.target_latency_ms as f64 * 0.8 {
-            // Быстро - увеличиваем batch size
-            if config.current_size < config.max_size {
-                config.current_size = ((config.current_size as f64) * 1.2) as usize;
-                config.current_size = config.current_size.min(config.max_size);
-                debug!(
-                    "🚀 Увеличили batch size до {} (avg latency: {:.1}ms)",
-                    config.current_size, avg_latency
-                );
-            }
-        }
-
-        config.last_adjustment = std::time::Instant::now();
     }
 }
 
-#[cfg(test)]
+#[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
+impl EmbeddingCoordinator {
+    async fn start_batch_processor(&self) {}
+    async fn warm_model(&self) -> Result<()> { Ok(()) }
+    pub async fn get_performance_metrics(&self) -> PerformanceMetrics { PerformanceMetrics::default() }
+    async fn adjust_batch_size(&self, _latency_ms: u64) {}
+}
+
+#[cfg(all(test, feature = "gpu-acceleration"))]
 mod tests {
     use super::*;
-    use crate::{
-        cache_lru::{CacheConfig, EmbeddingCacheLRU},
-        gpu_accelerated::BatchProcessorConfig,
-    };
+    use crate::cache_lru::{CacheConfig, EmbeddingCacheLRU};
+    #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+    use crate::gpu_accelerated::BatchProcessorConfig;
     use tempfile::TempDir;
 
     async fn create_test_coordinator() -> Result<EmbeddingCoordinator> {
@@ -625,20 +650,23 @@ mod tests {
     }
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 impl std::fmt::Debug for EmbeddingCoordinator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EmbeddingCoordinator")
-            .field(
-                "ready",
-                &self.ready.load(std::sync::atomic::Ordering::Relaxed),
-            )
             .field("gpu_processor", &"<GpuBatchProcessor>")
-            .field("cache", &"<dyn EmbeddingCacheInterface>")
-            .field("retry_handler", &self.retry_handler)
             .field(
                 "model_warmed",
                 &self.model_warmed.load(std::sync::atomic::Ordering::Relaxed),
             )
+            .field("retry_handler", &"<RetryHandler>")
             .finish()
+    }
+}
+
+#[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
+impl std::fmt::Debug for EmbeddingCoordinator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EmbeddingCoordinator").finish()
     }
 }

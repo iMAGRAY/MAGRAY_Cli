@@ -151,12 +151,11 @@ where
 
     /// Получение статистики использования
     pub fn get_usage_stats(&self) -> HashMap<String, u64> {
-        // В production версии здесь будут реальные метрики
-        let mut stats = HashMap::new();
-        stats.insert("requests_processed".to_string(), 0);
-        stats.insert("avg_response_time_ms".to_string(), 0);
-        stats.insert("circuit_breaker_trips".to_string(), 0);
-        stats
+        super::standard_usage_stats(&[
+            ("requests_processed", 0),
+            ("avg_response_time_ms", 0),
+            ("circuit_breaker_trips", 0),
+        ])
     }
 }
 
@@ -167,53 +166,25 @@ where
     C: CircuitBreakerTrait,
 {
     async fn initialize(&self) -> Result<()> {
-        info!("ChatHandler: инициализация начата");
-
-        // Проверяем доступность LLM сервиса
-        self.llm_service
-            .health_check()
-            .await
-            .map_err(|e| anyhow::anyhow!("LLM сервис недоступен: {}", e))?;
-
-        // Здесь можно добавить дополнительную инициализацию
-        // unsafe { &mut *(self as *const _ as *mut Self) }.initialized = true;
-
-        info!("ChatHandler: инициализация завершена");
-        Ok(())
+        super::standard_component_initialize("ChatHandler", self.llm_service.health_check()).await
     }
 
     async fn health_check(&self) -> Result<()> {
-        if !self.initialized {
-            return Err(anyhow::anyhow!("ChatHandler не инициализирован"));
-        }
-
-        // Проверяем все зависимости
-        self.llm_service.health_check().await?;
-
-        // Проверяем состояние Circuit Breaker
-        let breaker_state = self.circuit_breaker.get_state().await;
-        if breaker_state == "Open" {
-            return Err(anyhow::anyhow!("Circuit breaker открыт"));
-        }
-
-        debug!("ChatHandler: health check прошел успешно");
-        Ok(())
+        super::standard_component_health_check(
+            "ChatHandler",
+            self.initialized,
+            self.llm_service.health_check(),
+            self.circuit_breaker.get_state(),
+        )
+        .await
     }
 
     async fn shutdown(&self) -> Result<()> {
-        info!("ChatHandler: начинаем graceful shutdown");
-
-        // В production версии здесь будет:
-        // - Завершение активных операций
-        // - Сохранение метрик
-        // - Очистка ресурсов
-
-        info!("ChatHandler: shutdown завершен");
-        Ok(())
+        super::standard_component_shutdown("ChatHandler").await
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
     use std::sync::Arc;

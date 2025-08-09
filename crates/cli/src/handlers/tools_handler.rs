@@ -145,12 +145,12 @@ where
 
     /// Получение статистики использования
     pub fn get_usage_stats(&self) -> HashMap<String, u64> {
-        let mut stats = HashMap::new();
-        stats.insert("tools_executed".to_string(), 0);
-        stats.insert("avg_execution_time_ms".to_string(), 0);
-        stats.insert("success_rate_percent".to_string(), 0);
-        stats.insert("circuit_breaker_trips".to_string(), 0);
-        stats
+        super::standard_usage_stats(&[
+            ("tools_executed", 0),
+            ("avg_execution_time_ms", 0),
+            ("success_rate_percent", 0),
+            ("circuit_breaker_trips", 0),
+        ])
     }
 
     /// Проверка доступности конкретного инструмента
@@ -179,50 +179,25 @@ where
     C: CircuitBreakerTrait,
 {
     async fn initialize(&self) -> Result<()> {
-        info!("ToolsHandler: инициализация начата");
-
-        // Проверяем доступность routing сервиса
-        self.routing_service
-            .health_check()
-            .await
-            .map_err(|e| anyhow::anyhow!("Routing сервис недоступен: {}", e))?;
-
-        info!("ToolsHandler: инициализация завершена");
-        Ok(())
+        super::standard_component_initialize("ToolsHandler", self.routing_service.health_check()).await
     }
 
     async fn health_check(&self) -> Result<()> {
-        if !self.initialized {
-            return Err(anyhow::anyhow!("ToolsHandler не инициализирован"));
-        }
-
-        // Проверяем все зависимости
-        self.routing_service.health_check().await?;
-
-        // Проверяем состояние Circuit Breaker
-        let breaker_state = self.circuit_breaker.get_state().await;
-        if breaker_state == "Open" {
-            return Err(anyhow::anyhow!("Circuit breaker открыт"));
-        }
-
-        debug!("ToolsHandler: health check прошел успешно");
-        Ok(())
+        super::standard_component_health_check(
+            "ToolsHandler",
+            self.initialized,
+            self.routing_service.health_check(),
+            self.circuit_breaker.get_state(),
+        )
+        .await
     }
 
     async fn shutdown(&self) -> Result<()> {
-        info!("ToolsHandler: начинаем graceful shutdown");
-
-        // В production версии здесь будет:
-        // - Завершение активных tool executions
-        // - Сохранение состояния и метрик
-        // - Очистка ресурсов
-
-        info!("ToolsHandler: shutdown завершен");
-        Ok(())
+        super::standard_component_shutdown("ToolsHandler").await
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
 

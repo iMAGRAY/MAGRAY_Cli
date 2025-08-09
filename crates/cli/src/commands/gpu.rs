@@ -6,7 +6,7 @@ use ai::{
 };
 use anyhow::Result;
 use clap::{Args, Subcommand};
-use tracing::{info, warn};
+use tracing::{info, warn, error};
 
 #[derive(Debug, Args)]
 pub struct GpuCommand {
@@ -48,7 +48,7 @@ enum GpuSubcommand {
     #[command(visible_alias = "o")]
     Optimize {
         /// Имя модели для оптимизации
-        #[arg(default_value = "bge-m3")]
+        #[arg(default_value = "qwen3emb")]
         model: String,
     },
 }
@@ -190,10 +190,10 @@ impl GpuCommand {
     }
 
     /// Оптимизировать модель
-    async fn optimize_model(&self, __model_name: &String) -> Result<()> {
+    async fn optimize_model(&self, _model_name: &String) -> Result<()> {
         #[cfg(feature = "gpu")]
         {
-            info!("🔧 Оптимизация модели {} для текущего GPU...", __model_name);
+            info!("🔧 Оптимизация модели {} для текущего GPU...", _model_name);
 
             let detector = GpuDetector::detect();
             if !detector.available {
@@ -203,10 +203,12 @@ impl GpuCommand {
 
             // Загружаем модель если необходимо
             info!("📥 Проверка наличия модели...");
+            use ai::model_downloader::MODEL_DOWNLOADER;
             let model_path = MODEL_DOWNLOADER.ensure_model(_model_name).await?;
             info!("✅ Модель загружена: {:?}", model_path);
 
             // Создаём оптимизированный сервис
+            use ai::EmbeddingConfig;
             let config = EmbeddingConfig {
                 model_name: _model_name.clone(),
                 use_gpu: true,
@@ -214,6 +216,7 @@ impl GpuCommand {
             };
 
             info!("🚀 Создание оптимизированного сервиса...");
+            use ai::auto_device_selector::SmartEmbeddingFactory;
             let (service, decision) = SmartEmbeddingFactory::create_optimized(config).await?;
 
             info!("✅ Модель оптимизирована!");

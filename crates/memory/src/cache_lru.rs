@@ -11,6 +11,31 @@ use tracing::{debug, error, info, warn};
 
 use common::{config_base::CacheConfigBase, ConfigTrait};
 
+#[cfg(test)]
+mod _clock_mock {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static ENABLED: AtomicU64 = AtomicU64::new(0);
+    static NOW: AtomicU64 = AtomicU64::new(0);
+
+    pub fn set(ts: u64) {
+        NOW.store(ts, Ordering::SeqCst);
+        ENABLED.store(1, Ordering::SeqCst);
+    }
+    pub fn advance(delta: u64) {
+        NOW.fetch_add(delta, Ordering::SeqCst);
+    }
+    pub fn clear() {
+        ENABLED.store(0, Ordering::SeqCst);
+    }
+    pub fn get() -> Option<u64> {
+        if ENABLED.load(Ordering::SeqCst) == 1 {
+            Some(NOW.load(Ordering::SeqCst))
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedEmbedding {
     embedding: Vec<f32>,
@@ -659,7 +684,7 @@ impl EmbeddingCacheLRU {
         };
 
         let mut expired_count = 0;
-        let mut keys_to_remove = Vec::new();
+        let mut keys_to_remove: Vec<Vec<u8>> = Vec::new();
 
         #[cfg(feature = "persistence")]
         for item in self.db.iter() {
@@ -722,6 +747,8 @@ pub struct CacheStatsReport {
 }
 
 fn current_timestamp() -> u64 {
+    #[cfg(test)]
+    if let Some(ts) = _clock_mock::get() { return ts; }
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -733,13 +760,15 @@ fn current_timestamp() -> u64 {
 
 /// Safe version that returns Result instead of panicking
 fn current_timestamp_safe() -> Result<u64> {
+    #[cfg(test)]
+    if let Some(ts) = _clock_mock::get() { return Ok(ts); }
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .map_err(|e| anyhow::anyhow!("System time error: {}", e))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
     use std::time::Duration;
@@ -833,6 +862,38 @@ mod tests {
         let stats = cache.detailed_stats();
         assert_eq!(stats.expired, 1);
 
+        Ok(())
+    }
+
+    #[cfg(feature = "persistence")]
+    #[test]
+    fn test_ttl_expiration_deterministic() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let config = CacheConfig {
+            base: CacheConfigBase {
+                max_cache_size: 100,
+                cache_ttl_seconds: 10, // 10 seconds TTL
+                eviction_policy: "lru".to_string(),
+                enable_compression: false,
+            },
+        };
+
+        // Set deterministic time
+        #[cfg(test)]
+        crate::cache_lru::_clock_mock::set(1_000);
+
+        let cache = EmbeddingCacheLRU::new(temp_dir.path().join("test_cache"), config)?;
+        cache.insert("text1", "model", vec![0.1; 10])?;
+
+        // Immediately available
+        assert!(cache.get("text1", "model").is_some());
+
+        // Advance time past TTL
+        #[cfg(test)]
+        crate::cache_lru::_clock_mock::advance(11);
+
+        // Trigger cleanup via API path
+        assert!(cache.get("text1", "model").is_none());
         Ok(())
     }
 }

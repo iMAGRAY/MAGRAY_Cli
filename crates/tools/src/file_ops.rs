@@ -1,9 +1,60 @@
-use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
+use crate::{Tool, ToolInput, ToolOutput, ToolSpec, UsageGuide};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+
+// ===== Filesystem Sandbox (env-driven) =====
+fn fs_sandbox_enabled() -> bool {
+    common::sandbox_config::SandboxConfig::from_env().fs.enabled
+}
+
+fn fs_sandbox_roots() -> Vec<PathBuf> {
+    let cfg = common::sandbox_config::SandboxConfig::from_env();
+    if cfg.fs.roots.is_empty() { return Vec::new(); }
+    cfg.fs
+        .roots
+        .iter()
+        .filter(|s| !s.trim().is_empty())
+        .filter_map(|s| {
+            let p = PathBuf::from(s);
+            std::fs::canonicalize(&p).ok()
+        })
+        .collect()
+}
+
+fn err_outside_sandbox(path: &str) -> anyhow::Error {
+    anyhow!(
+        "Доступ к пути вне песочницы запрещён: {} (включите корни через MAGRAY_FS_ROOTS)",
+        path
+    )
+}
+
+fn ensure_read_allowed(path: &str) -> Result<()> {
+    if !fs_sandbox_enabled() { return Ok(()); }
+    let roots = fs_sandbox_roots();
+    if roots.is_empty() { return Err(anyhow!("FS песочница включена, но MAGRAY_FS_ROOTS не задан")); }
+    let canon = std::fs::canonicalize(Path::new(path))
+        .map_err(|e| anyhow!("Не удалось открыть '{}': {}", path, e))?;
+    if roots.iter().any(|r| canon.starts_with(r)) { Ok(()) } else { Err(err_outside_sandbox(path)) }
+}
+
+fn ensure_write_allowed(path: &str) -> Result<()> {
+    if !fs_sandbox_enabled() { return Ok(()); }
+    let roots = fs_sandbox_roots();
+    if roots.is_empty() { return Err(anyhow!("FS песочница включена, но MAGRAY_FS_ROOTS не задан")); }
+    let p = Path::new(path);
+    let check_path = if p.exists() {
+        std::fs::canonicalize(p).map_err(|e| anyhow!("Не удалось открыть '{}': {}", path, e))?
+    } else {
+        let parent = p.parent().unwrap_or(Path::new("."));
+        let parent_canon = std::fs::canonicalize(parent)
+            .map_err(|e| anyhow!("Не удалось открыть родителя '{}': {}", parent.display(), e))?;
+        parent_canon.join(p.file_name().unwrap_or_default())
+    };
+    if roots.iter().any(|r| check_path.starts_with(r)) { Ok(()) } else { Err(err_outside_sandbox(path)) }
+}
 
 // FileReader - чтение файлов с простым форматированием
 pub struct FileReader;
@@ -33,6 +84,9 @@ impl Tool for FileReader {
                 "показать содержимое config.toml".to_string(),
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -41,6 +95,9 @@ impl Tool for FileReader {
             .args
             .get("path")
             .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
+
+        // Enforce sandbox for read
+        ensure_read_allowed(path)?;
 
         let content = fs::read_to_string(path)?;
 
@@ -76,6 +133,8 @@ impl Tool for FileReader {
             command: "file_read".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -107,6 +166,9 @@ impl Tool for FileWriter {
                 "создать файл config.json с содержимым {...}".to_string(),
             ],
             input_schema: r#"{"path": "string", "content": "string"}"#.to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: true,
         }
     }
 
@@ -117,13 +179,40 @@ impl Tool for FileWriter {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
         let content = input.args.get("content").map(|s| s.as_str()).unwrap_or("");
 
+        // Dry-run: показать что будет записано
+        if input.dry_run {
+            let mut meta = HashMap::new();
+            meta.insert("dry_run".into(), "true".into());
+            meta.insert("bytes".into(), content.len().to_string());
+            return Ok(ToolOutput {
+                success: true,
+                result: format!("[dry-run] write {} bytes to {}", content.len(), path),
+                formatted_output: Some(format!("$ echo '<content:{} bytes>' > {}\n[dry-run: no side effects]", content.len(), path)),
+                metadata: meta,
+            });
+        }
+
+        // Enforce sandbox for write
+        ensure_write_allowed(path)?;
         fs::write(path, content)?;
+
+        // Publish fs.diff event for timeline/observability
+        let path_for_evt = path.clone();
+        let bytes_for_evt = content.len();
+        tokio::spawn(async move {
+            let evt = serde_json::json!({
+                "path": path_for_evt,
+                "bytes": bytes_for_evt,
+                "op": "write",
+            });
+            common::events::publish(common::topics::TOPIC_FS_DIFF, evt).await;
+        });
 
         Ok(ToolOutput {
             success: true,
             result: format!("✅ Файл '{}' успешно создан", path),
             formatted_output: None,
-            metadata: HashMap::new(),
+            metadata: HashMap::from([("bytes".into(), content.len().to_string())]),
         })
     }
 
@@ -143,6 +232,8 @@ impl Tool for FileWriter {
             command: "file_write".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -175,6 +266,9 @@ impl Tool for DirLister {
                 "показать содержимое папки".to_string(),
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -185,6 +279,8 @@ impl Tool for DirLister {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
 
         let path = Path::new(path);
+        // Enforce sandbox for read/list
+        ensure_read_allowed(&path.to_string_lossy())?;
         if !path.is_dir() {
             return Err(anyhow!("'{}' не является директорией", path.display()));
         }
@@ -248,6 +344,8 @@ impl Tool for DirLister {
             command: "dir_list".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
@@ -280,6 +378,9 @@ impl Tool for FileSearcher {
                 "найти все файлы .toml".to_string(),
             ],
             input_schema: r#"{"pattern": "string", "path": "string?"}"#.to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -289,6 +390,9 @@ impl Tool for FileSearcher {
             .get("pattern")
             .ok_or_else(|| anyhow!("Отсутствует параметр 'pattern'"))?;
         let search_path = input.args.get("path").map(|s| s.as_str()).unwrap_or(".");
+
+        // Enforce sandbox for traversal/search root
+        ensure_read_allowed(search_path)?;
 
         let mut results = Vec::new();
         let pattern_lower = pattern.to_lowercase();
@@ -385,7 +489,115 @@ impl Tool for FileSearcher {
             command: "file_search".to_string(),
             args,
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
+    }
+}
+
+// FileDeleter - удаление файлов с публикацией fs.diff
+pub struct FileDeleter;
+
+impl FileDeleter {
+    pub fn new() -> Self { FileDeleter }
+}
+
+impl Default for FileDeleter {
+    fn default() -> Self { Self::new() }
+}
+
+#[async_trait::async_trait]
+impl Tool for FileDeleter {
+    fn spec(&self) -> ToolSpec {
+        let mut spec = ToolSpec {
+            name: "file_delete".to_string(),
+            description: "Удаляет файл по указанному пути".to_string(),
+            usage: "file_delete <путь>".to_string(),
+            examples: vec![
+                "file_delete tmp/test.txt".to_string(),
+                "удалить файл build.log".to_string(),
+            ],
+            input_schema: r#"{"path": "string"}"#.to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: true,
+        };
+        // Mark as high risk and with side effects for policy dynamic Ask
+        spec.usage_guide = Some(UsageGuide {
+            usage_title: "file_delete".into(),
+            usage_summary: "Удаляет файл по указанному пути".into(),
+            preconditions: vec!["Файл должен существовать".into()],
+            arguments_brief: HashMap::from([(String::from("path"), String::from("Путь к файлу"))]),
+            good_for: vec!["cleanup".into(), "io".into()],
+            not_for: vec!["sensitive".into()],
+            constraints: vec!["Необратимая операция".into()],
+            examples: vec!["file_delete /tmp/file.txt".into()],
+            platforms: vec!["linux".into(), "mac".into(), "win".into()],
+            cost_class: "free".into(),
+            latency_class: "fast".into(),
+            side_effects: vec!["Удаление данных".into()],
+            risk_score: 5,
+            capabilities: vec!["delete".into(), "fs".into()],
+            tags: vec!["danger".into(), "destructive".into()],
+        });
+        spec
+    }
+
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput> {
+        let path = input
+            .args
+            .get("path")
+            .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
+
+        // Dry-run: показать, что будет удалено
+        if input.dry_run {
+            let mut meta = HashMap::new();
+            meta.insert("dry_run".into(), "true".into());
+            return Ok(ToolOutput {
+                success: true,
+                result: format!("[dry-run] rm {}", path),
+                formatted_output: Some(format!("$ rm {}\n[dry-run: no side effects]", path)),
+                metadata: meta,
+            });
+        }
+
+        // Enforce sandbox for delete
+        ensure_write_allowed(path)?;
+
+        // Считываем размер до удаления (если есть)
+        let bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0) as usize;
+
+        // Удаляем файл
+        fs::remove_file(path)?;
+
+        // Публикуем событие fs.diff
+        let path_for_evt = path.clone();
+        tokio::spawn(async move {
+            let evt = serde_json::json!({
+                "path": path_for_evt,
+                "bytes": bytes,
+                "op": "delete",
+            });
+            common::events::publish(common::topics::TOPIC_FS_DIFF, evt).await;
+        });
+
+        Ok(ToolOutput {
+            success: true,
+            result: format!("✅ Файл '{}' удалён", path),
+            formatted_output: None,
+            metadata: HashMap::from([("bytes".into(), bytes.to_string())]),
+        })
+    }
+
+    async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
+        let mut args = HashMap::new();
+        // Пробуем извлечь путь как первое слово с разделителями
+        if let Some(p) = extract_path_from_query(query) {
+            args.insert("path".to_string(), p);
+        } else {
+            args.insert("path".to_string(), query.to_string());
+        }
+        Ok(ToolInput { command: "file_delete".to_string(), args, context: Some(query.to_string()), dry_run: false, timeout_ms: None })
     }
 }
 
@@ -429,6 +641,7 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+    use common::{events, topics};
 
     #[tokio::test]
     async fn test_file_reader_creation() {
@@ -461,6 +674,8 @@ mod tests {
             command: "file_read".to_string(),
             args: input_args,
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = reader.execute(input).await;
@@ -483,6 +698,8 @@ mod tests {
             command: "file_read".to_string(),
             args: input_args,
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = reader.execute(input).await?;
@@ -544,6 +761,8 @@ mod tests {
             command: "file_write".to_string(),
             args: input_args,
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = writer.execute(input).await?;
@@ -566,6 +785,8 @@ mod tests {
             command: "file_write".to_string(),
             args: input_args,
             context: None,
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = writer.execute(input).await;
@@ -625,5 +846,36 @@ mod tests {
         assert_eq!(format_size(1024 * 1024), "1.0 MB");
         assert_eq!(format_size(1024 * 1024 * 1024), "1.0 GB");
         assert_eq!(format_size(2048 * 1024 * 1024), "2.0 GB");
+    }
+
+    #[tokio::test]
+    async fn test_file_delete_removes_and_emits_event() -> Result<()> {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("to_remove.txt");
+        let content = "bye";
+        fs::write(&file_path, content).unwrap();
+
+        // Подпишемся на события fs.diff до действия
+        let mut rx = events::subscribe(topics::TOPIC_FS_DIFF).await;
+
+        let deleter = FileDeleter::new();
+        let input = ToolInput {
+            command: "file_delete".to_string(),
+            args: HashMap::from([("path".to_string(), file_path.to_string_lossy().to_string())]),
+            context: None,
+            dry_run: false,
+            timeout_ms: None,
+        };
+
+        let out = deleter.execute(input).await?;
+        assert!(out.success);
+        assert!(!file_path.exists());
+
+        // Проверяем событие
+        let evt = tokio::time::timeout(std::time::Duration::from_millis(500), rx.recv()).await??;
+        assert_eq!(evt.topic.0, "fs.diff");
+        assert_eq!(evt.payload["op"], "delete");
+        assert!(evt.payload["bytes"].as_u64().unwrap_or(0) >= content.len() as u64);
+        Ok(())
     }
 }

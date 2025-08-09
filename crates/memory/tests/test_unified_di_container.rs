@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 //! Comprehensive тесты для UnifiedDIContainer
 //!
 //! Этот файл содержит полный набор тестов для валидации

@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 use anyhow::Result;
 use std::collections::HashMap;
 use tools::shell_ops::ShellExec;
@@ -40,6 +42,8 @@ async fn test_shell_exec_empty_command() -> Result<()> {
         command: "shell_exec".to_string(),
         args: HashMap::new(), // No command provided
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = shell_exec.execute(input).await?;

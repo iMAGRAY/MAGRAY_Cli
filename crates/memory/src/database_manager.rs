@@ -50,8 +50,8 @@ impl DatabaseManager {
             // Оптимизации для concurrent access
             .cache_capacity(64 * 1024 * 1024) // 64MB cache
             .flush_every_ms(Some(5000)) // Flush каждые 5 секунд
-            .compression_factor(6) // Лучшее сжатие для экономии места
-            .use_compression(true)
+            // .compression_factor(6) // отключено: конфликт zstd версий из-за tantivy
+            // .use_compression(true)
             // Режим для лучшей производительности
             .mode(sled::Mode::HighThroughput);
 
@@ -82,8 +82,8 @@ impl DatabaseManager {
             // Уменьшаем начальный размер кэша для быстрой инициализации
             .cache_capacity(8 * 1024 * 1024) // 8MB вместо 32MB - растет динамически
             .flush_every_ms(Some(30000)) // Flush еще реже - 30 секунд
-            .compression_factor(1) // Минимальное сжатие для скорости
-            .use_compression(false) // Нет сжатия = быстрее старт
+            // .compression_factor(1) // отключено: избежание zstd конфликтов
+            // .use_compression(false) // Нет сжатия = быстрее старт
             .mode(sled::Mode::HighThroughput)
             // Отключаем синхронизацию на диск при старте
             .temporary(true); // Помечаем как временную БД для оптимизаций
@@ -119,8 +119,8 @@ impl DatabaseManager {
             // Настройки для системных данных (высокая durability)
             .cache_capacity(16 * 1024 * 1024) // 16MB cache
             .flush_every_ms(Some(2000)) // Чаще flush для критичных данных
-            .compression_factor(8) // Максимальное сжатие для системных данных
-            .use_compression(true)
+            // .compression_factor(8) // отключено: избежание zstd конфликтов
+            // .use_compression(true)
             .mode(sled::Mode::LowSpace); // Экономия места для системных данных
 
         let db = Arc::new(config.open()?);
@@ -257,7 +257,7 @@ mod tests {
                         .map_err(|e| anyhow::anyhow!("Failed to insert for thread {}: {}", i, e))?;
                     tree.flush()
                         .map_err(|e| anyhow::anyhow!("Failed to flush for thread {}: {}", i, e))?;
-                    Ok(())
+                    Ok::<(), anyhow::Error>(())
                 })
             })
             .collect();

@@ -1,3 +1,5 @@
+#![cfg(all(not(feature = "minimal"), feature = "persistence"))]
+
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
