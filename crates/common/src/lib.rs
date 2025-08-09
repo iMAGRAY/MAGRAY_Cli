@@ -5,6 +5,8 @@ pub mod service_macros;
 pub mod service_traits;
 pub mod structured_logging;
 pub mod event_bus;
+pub mod topics;
+pub mod scheduler;
 
 #[cfg(test)]
 pub mod test_utils;
