@@ -259,9 +259,12 @@ ci-local-extended-cov:
 		--include-files crates/cli/src/commands/gpu.rs \
 		--include-files crates/cli/src/commands/models.rs \
 		--include-files crates/cli/src/commands/tools.rs \
+		--include-files crates/cli/src/progress.rs \
 		--include-files crates/memory/src/api.rs \
 		--include-files crates/memory/src/fallback.rs \
 		--include-files crates/memory/src/metrics.rs \
+		--include-files crates/memory/src/di/container_metrics_impl.rs \
+		--include-files crates/memory/src/di/dependency_graph_validator.rs \
 		--fail-under $(MIN_COVERAGE) --out Html
 	@echo "✅ Coverage (>= $(MIN_COVERAGE)%) OK: tarpaulin-report.html"
 
