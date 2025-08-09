@@ -261,8 +261,34 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
     preload_persisted_into_registry(&mut registry);
     let guide_overrides = load_usage_guide_overrides();
 
+    // Helper: export plugins into registry (quiet; best-effort)
+    async fn export_plugins_into_registry(registry: &mut ToolRegistry) {
+        if std::env::var("MAGRAY_EXPORT_PLUGINS_AS_TOOLS").ok().map(|s| s=="1" || s.to_lowercase()=="true").unwrap_or(true) {
+            let mut home = crate::util::magray_home();
+            let mut plugins_dir = home.clone(); plugins_dir.push("plugins");
+            let mut cfg_dir = home.clone(); cfg_dir.push("plugin-configs");
+            let _ = tokio::fs::create_dir_all(&plugins_dir).await;
+            let _ = tokio::fs::create_dir_all(&cfg_dir).await;
+            let pregistry = tools::plugins::plugin_manager::PluginRegistry::new(plugins_dir, cfg_dir);
+            let _ = pregistry.load_manifests_from_directory().await;
+            let _ = pregistry.load_from_filesystem().await;
+            let plugins = pregistry.list_plugins(None).await;
+            for p in plugins {
+                if matches!(p.plugin_type, tools::plugins::plugin_manager::PluginType::Wasm | tools::plugins::plugin_manager::PluginType::ExternalProcess) {
+                    if let Ok(tool_box) = pregistry.materialize_as_tool(&p.id).await {
+                        registry.register(&p.id, tool_box);
+                    }
+                }
+            }
+        }
+    }
+
     match cmd {
         ToolsSubcommand::List { details, json } => {
+            // Avoid plugin export before JSON to keep output clean
+            if !json {
+                export_plugins_into_registry(&mut registry).await;
+            }
             let mut specs = registry.list_tools();
             // Apply overrides
             for spec in &mut specs {
@@ -323,6 +349,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             Ok(())
         }
         ToolsSubcommand::Select { query, urgency, json } => {
+            if !json { export_plugins_into_registry(&mut registry).await; }
             // Build selector and register all tools from registry's specs
             let mut specs = registry.list_tools();
             for spec in &mut specs {
@@ -448,6 +475,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             Ok(())
         }
         ToolsSubcommand::Run { name, command, arg, context, dry_run, timeout_ms } => {
+            export_plugins_into_registry(&mut registry).await;
             let tool = registry.get(&name).ok_or_else(|| anyhow::anyhow!("Tool not found: {}", name))?;
             let mut args_map = std::collections::HashMap::new();
             for (k, v) in arg { args_map.insert(k, v); }
