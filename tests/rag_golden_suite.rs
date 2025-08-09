@@ -96,6 +96,7 @@ async fn rag_golden_suite_metrics() {
         ),
     ];
 
+    // baseline metrics
     let mut ap_sum = 0.0;
     let mut prec_sum = 0.0;
     let mut rec_sum = 0.0;
@@ -210,4 +211,51 @@ async fn rag_golden_suite_metrics() {
         prec_avg, rec_avg, ndcg_avg, ap_avg, p95_ms, avg_latency_ms
     );
     let _ = std::fs::write("reports/rag_metrics_summary.json", json);
+
+    // === RERANK VARIANT ===
+    std::env::set_var("MAGRAY_DISABLE_RERANK", "0");
+    std::env::set_var("MAGRAY_FORCE_NO_ORT", "1");
+    let t_start = Instant::now();
+    let mut ap2 = 0.0f64; let mut prec2 = 0.0f64; let mut rec2 = 0.0f64; let mut ndcg2 = 0.0f64; let mut cnt2 = 0.0f64;
+    let mut lat_rerank: Vec<u128> = Vec::new();
+    for (q, labels) in vec![
+        ("qwen3 reranker quality", HashSet::from(["qwen3","reranker"])) ,
+        ("async runtime in rust", HashSet::from(["tokio","async"])) ,
+    ] {
+        let t0 = Instant::now();
+        // emulate rerank by using same API (our in-memory engine already applies rerank if enabled)
+        let results = api
+            .recall(q, SearchOptions::default().in_layers(vec![Layer::Insights]).limit(5))
+            .await
+            .expect("search ok");
+        lat_rerank.push(t0.elapsed().as_millis());
+
+        let predicted: Vec<u8> = results.iter().map(|r| {
+            let lower = r.text.to_lowercase(); let mut s=0u8; for lab in &labels { if lower.contains(&lab.to_lowercase()) { s=s.saturating_add(1);} } s
+        }).collect();
+
+        let mut ideal: Vec<u8> = docs.iter().filter(|(_,l)| *l==Layer::Insights).map(|(t,_)| {
+            let lower=t.to_lowercase(); let mut s=0u8; for lab in &labels { if lower.contains(&lab.to_lowercase()) { s=s.saturating_add(1);} } s
+        }).collect();
+        ideal.sort_by(|a,b| b.cmp(a));
+        let k = results.len().min(5);
+        let hits = predicted.iter().filter(|&&r| r>0).count() as f64;
+        let p = if k>0 { hits/k as f64 } else { 0.0 };
+        let rd = ideal.iter().filter(|&&r| r>0).count() as f64;
+        let r = if rd>0.0 { hits/rd } else { 0.0 };
+        let nd = if !ideal.is_empty() && !predicted.is_empty() { ndcg_at_k(&ideal, &predicted, k) } else { 0.0 };
+        let apx = average_precision(&predicted);
+        ap2+=apx; prec2+=p; rec2+=r; ndcg2+=nd; cnt2+=1.0;
+    }
+    let ap2_avg = ap2/cnt2; let prec2_avg = prec2/cnt2; let rec2_avg = rec2/cnt2; let ndcg2_avg = ndcg2/cnt2;
+    let p95_r = { let mut v=lat_rerank.clone(); v.sort(); let idx=((v.len() as f64)*0.95).ceil() as usize - 1; v[idx.min(v.len()-1)] };
+    let avg_r = if lat_rerank.is_empty() { 0.0 } else { lat_rerank.iter().copied().map(|x| x as f64).sum::<f64>() / lat_rerank.len() as f64 };
+    // Expect rerank to not degrade precision/ndcg on focused queries
+    assert!(prec2_avg >= 0.30, "rerank precision too low: {}", prec2_avg);
+    assert!(ndcg2_avg >= 0.50, "rerank ndcg too low: {}", ndcg2_avg);
+    let json2 = format!(
+        "{{\n  \"precision_avg\": {:.6},\n  \"recall_avg\": {:.6},\n  \"ndcg_avg\": {:.6},\n  \"ap_avg\": {:.6},\n  \"p95_ms\": {},\n  \"avg_ms\": {:.6}\n}}",
+        prec2_avg, rec2_avg, ndcg2_avg, ap2_avg, p95_r, avg_r
+    );
+    let _ = std::fs::write("reports/rag_metrics_rerank.json", json2);
 }

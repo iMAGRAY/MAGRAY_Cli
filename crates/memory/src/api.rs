@@ -83,6 +83,10 @@ mod simple_engine {
 
                 #[cfg(feature = "reranking")]
                 let reranker = {
+                    let disable_rerank = std::env::var("MAGRAY_DISABLE_RERANK")
+                        .map(|v| matches!(v.to_lowercase().as_str(), "1"|"true"|"yes"|"y"))
+                        .unwrap_or(false);
+                    if disable_rerank { None } else {
                     let rcfg = RerankingConfig {
                         model_name: "qwen3_reranker".to_string(),
                         batch_size: 32,
@@ -91,6 +95,7 @@ mod simple_engine {
                         gpu_config: None,
                     };
                     OptimizedQwen3RerankerService::new_with_config(rcfg).ok()
+                    }
                 };
                 let store_path = Some(std::env::var("MAGRAY_MEMORY_FILE").unwrap_or_else(|_| "magray_memory.jsonl".to_string()))
                     .map(std::path::PathBuf::from);
