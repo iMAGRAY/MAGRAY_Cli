@@ -8,6 +8,8 @@ use std::collections::HashMap;
 
 #[tokio::test]
 async fn web_fetch_http_truncates_and_sets_metadata() -> Result<()> {
+    // Allow localhost for net sandbox
+    std::env::set_var("MAGRAY_NET_ALLOW", "localhost,127.0.0.1");
     // Start a local HTTP server
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;

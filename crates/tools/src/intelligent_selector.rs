@@ -415,6 +415,13 @@ impl IntelligentToolSelector {
             candidates = tools.keys().cloned().collect();
         }
 
+        // Prefilter by environment/network restrictions
+        let net_allow = std::env::var("MAGRAY_NET_ALLOW").unwrap_or_default();
+        let net_disabled = net_allow.trim().is_empty();
+        if net_disabled {
+            candidates.retain(|t| t != "web_fetch" && t != "web_search");
+        }
+
         candidates
     }
 
