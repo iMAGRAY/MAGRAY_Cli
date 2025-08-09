@@ -191,6 +191,18 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
                 anyhow::bail!("Tool '{}' blocked by policy", name);
             }
+            // Ask-mode: optional confirmation (non-interactive environments will deny)
+            if matches!(decision.action, common::policy::PolicyAction::Ask) {
+                let non_interactive = std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
+                if non_interactive {
+                    anyhow::bail!("Tool '{}' requires confirmation (ask), but running non-interactive", name);
+                }
+                let auto_approve = std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
+                if !auto_approve {
+                    // For now deny if not auto-approved (TUI confirm to be added)
+                    anyhow::bail!("Tool '{}' requires confirmation (ask). Set MAGRAY_AUTO_APPROVE_ASK=true to allow.", name);
+                }
+            }
             let input = tools::ToolInput { command, args: args_map, context, dry_run, timeout_ms };
             let output = tool.execute(input).await?;
             if output.success { println!("{} {}", "✓".green(), output.result); } else { println!("{} {}", "✗".red(), output.result); }

@@ -8,7 +8,11 @@ use anyhow::Result as AnyResult;
 pub enum PolicyAction {
     Allow,
     Deny,
+    Ask,
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum RiskLevel { Low, Medium, High }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum PolicySubjectKind {
@@ -39,6 +43,8 @@ pub struct PolicyEngine {
 pub struct PolicyDecision {
     pub allowed: bool,
     pub matched_rule: Option<PolicyRule>,
+    pub action: PolicyAction,
+    pub risk: RiskLevel,
 }
 
 impl PolicyEngine {
@@ -73,11 +79,14 @@ impl PolicyEngine {
             }
             last_match = Some(rule.clone());
         }
-        if let Some(rule) = last_match {
-            PolicyDecision { allowed: matches!(rule.action, PolicyAction::Allow), matched_rule: Some(rule) }
+        if let Some(rule) = last_match.clone() {
+            let action = rule.action.clone();
+            let risk = infer_risk_from_reason(rule.reason.as_deref());
+            let allowed = matches!(action, PolicyAction::Allow);
+            PolicyDecision { allowed, matched_rule: last_match, action, risk }
         } else {
             // default allow if no rule matched
-            PolicyDecision { allowed: true, matched_rule: None }
+            PolicyDecision { allowed: true, matched_rule: None, action: PolicyAction::Allow, risk: RiskLevel::Low }
         }
     }
 }
@@ -133,6 +142,15 @@ pub fn load_effective_policy(file_path: Option<&Path>) -> PolicyDocument {
     doc
 }
 
+fn infer_risk_from_reason(reason: Option<&str>) -> RiskLevel {
+    if let Some(r) = reason {
+        let r = r.to_lowercase();
+        if r.contains("high") || r.contains("critical") || r.contains("danger") { return RiskLevel::High; }
+        if r.contains("medium") || r.contains("moderate") { return RiskLevel::Medium; }
+    }
+    RiskLevel::Low
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,7 +161,7 @@ mod tests {
         let args = HashMap::from([("path".into(), "/tmp".into())]);
         let d = engine.evaluate_tool("file_read", &args);
         assert!(d.allowed);
-        assert!(d.matched_rule.is_none());
+        assert_eq!(d.action, PolicyAction::Allow);
     }
 
     #[test]
@@ -152,6 +170,7 @@ mod tests {
         let engine = PolicyEngine::from_document(doc);
         let d = engine.evaluate_tool("shell_exec", &HashMap::new());
         assert!(!d.allowed);
+        assert_eq!(d.action, PolicyAction::Deny);
     }
 
     #[test]
@@ -167,6 +186,7 @@ mod tests {
         let d = engine.evaluate_tool("shell_exec", &HashMap::new());
         assert!(!d.allowed);
         assert_eq!(d.matched_rule.unwrap().reason.unwrap(), "Shell exec disabled");
+        assert_eq!(d.action, PolicyAction::Deny);
     }
 
     #[test]
@@ -181,8 +201,10 @@ mod tests {
         let engine = PolicyEngine::from_document(doc);
         let d1 = engine.evaluate_tool("file_read", &HashMap::from([("path".into(), "/etc/hosts".into())]));
         assert!(d1.allowed);
+        assert_eq!(d1.action, PolicyAction::Allow);
         let d2 = engine.evaluate_tool("file_read", &HashMap::from([("path".into(), "/etc/passwd".into())]));
         assert!(d2.allowed); // default allow since no rule matched
+        assert_eq!(d2.action, PolicyAction::Allow);
     }
 
     #[test]
@@ -199,6 +221,7 @@ mod tests {
         let engine = PolicyEngine::from_document(merged);
         let d = engine.evaluate_tool("shell_exec", &HashMap::new());
         assert!(d.allowed); // overlay allow wins (appended after)
+        assert_eq!(d.action, PolicyAction::Allow);
     }
 
     #[test]
@@ -213,6 +236,7 @@ mod tests {
         let engine = PolicyEngine::from_document(effective);
         let d = engine.evaluate_tool("shell_exec", &HashMap::new());
         assert!(d.allowed);
+        assert_eq!(d.action, PolicyAction::Allow);
         // cleanup env
         std::env::remove_var("MAGRAY_POLICY_PATH");
         std::env::remove_var("MAGRAY_POLICY_JSON");
