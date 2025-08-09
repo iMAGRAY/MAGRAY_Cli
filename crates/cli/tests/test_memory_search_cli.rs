@@ -40,12 +40,9 @@ fn memory_search_rerank_fallback_cli() {
         .env("CI","1")
         .assert();
     let output = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
-    assert!(output.contains("Found"));
-    // Check that the top line contains lifetimes or borrowing or rust
-    // The first printed result line starts with "1. "; ensure that third doc is high
-    assert!(output.contains("1. ")); // at least one result
+    // We do not rely on exact formatting (colors/indices); verify ordering of results heuristically
     // Heuristic: expect the "rust ownership borrowing lifetimes" appears before python
     let pos_rust = output.find("rust ownership borrowing lifetimes");
     let pos_python = output.find("python asyncio event loop");
-    if let (Some(r), Some(p)) = (pos_rust, pos_python) { assert!(r < p); }
+    if let (Some(r), Some(p)) = (pos_rust, pos_python) { assert!(r < p); } else { panic!("Expected target texts not found in output: {}", output); }
 }
