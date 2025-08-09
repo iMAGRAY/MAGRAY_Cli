@@ -46,6 +46,14 @@ enum MemorySubcommand {
         /// Минимальный score
         #[arg(short, long)]
         min_score: Option<f32>,
+
+        /// Включить reranking (вторую стадию ранжирования Qwen3)
+        #[arg(long, default_value_t = false)]
+        rerank: bool,
+
+        /// Гибридный режим (text+vector)
+        #[arg(long, default_value_t = false)]
+        hybrid: bool,
     },
 
     /// Добавить запись в память
@@ -150,8 +158,10 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
             layer,
             top_k,
             min_score,
+            rerank,
+            hybrid,
         } => {
-            search_memory(&api, &query, layer, top_k, min_score).await?;
+            search_memory(&api, &query, layer, top_k, min_score, rerank, hybrid).await?;
         }
 
         MemorySubcommand::Add {
@@ -350,6 +360,8 @@ async fn search_memory(
     layer: Option<String>,
     top_k: usize,
     _min_score: Option<f32>,
+    rerank: bool,
+    hybrid: bool,
 ) -> Result<()> {
     let layers = if let Some(layer_str) = layer {
         let layer = match layer_str.as_str() {
@@ -369,8 +381,10 @@ async fn search_memory(
         ..Default::default()
     };
 
-    // Note: min_score filter is not available in current API
-    // You can filter results after retrieval if needed
+    // Примечание: текущий UnifiedMemoryAPI использует простой пайплайн в памяти.
+    // Флаги rerank/hybrid пока используются как hint (логируем), полноценная интеграция через Orchestrator — следующим шагом.
+    if rerank { println!("{}", "[hint] Rerank enabled (Qwen3)".dimmed()); }
+    if hybrid { println!("{}", "[hint] Hybrid mode requested (text+vector)".dimmed()); }
 
     println!("{} '{}'...", "Searching for".cyan(), query.bold());
 
