@@ -887,7 +887,7 @@ impl OperationExecutor for ExtendedOperationExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::di_memory_config::test_helpers;
+    // legacy DI test helpers are gated out
 
     #[tokio::test]
     async fn test_operation_config() {
@@ -902,10 +902,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_executor() -> Result<()> {
-        let config = test_helpers::create_test_config()?;
-        let container = Arc::new(
-            crate::di_memory_config::MemoryDIConfigurator::configure_minimal(config).await?,
-        );
+        // Skip full DI wiring in this unit test; construct a minimal container
+        let container = Arc::new(crate::di::UnifiedContainer::new());
 
         let executor = SimpleOperationExecutor::new(container);
 

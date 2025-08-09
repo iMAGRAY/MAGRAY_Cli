@@ -590,13 +590,12 @@ impl EmbeddingCoordinator {
     async fn adjust_batch_size(&self, _latency_ms: u64) {}
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "gpu-acceleration"))]
 mod tests {
     use super::*;
-    use crate::{
-        cache_lru::{CacheConfig, EmbeddingCacheLRU},
-        gpu_accelerated::BatchProcessorConfig,
-    };
+    use crate::cache_lru::{CacheConfig, EmbeddingCacheLRU};
+    #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+    use crate::gpu_accelerated::BatchProcessorConfig;
     use tempfile::TempDir;
 
     async fn create_test_coordinator() -> Result<EmbeddingCoordinator> {

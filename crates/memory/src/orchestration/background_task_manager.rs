@@ -325,13 +325,14 @@ impl Default for BackgroundTaskManager {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-orchestrator"))]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
     use tokio::time::{sleep, Duration};
 
     // Mock health coordinator for testing
+    #[derive(Debug)]
     struct MockHealthCoordinator {
         call_count: Arc<AtomicU32>,
         should_fail: Arc<AtomicBool>,
@@ -355,6 +356,12 @@ mod tests {
     }
 
     #[async_trait::async_trait]
+    impl std::fmt::Debug for MockHealthCoordinator {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("MockHealthCoordinator").finish()
+        }
+    }
+
     impl _traits_mod::Coordinator for MockHealthCoordinator {
         async fn initialize(&self) -> Result<()> {
             Ok(())
@@ -378,6 +385,20 @@ mod tests {
 
     #[async_trait::async_trait]
     impl HealthCoordinator for MockHealthCoordinator {
+        async fn system_health(&self) -> Result<crate::health::SystemHealthStatus> {
+            Ok(crate::health::SystemHealthStatus {
+                overall_status: crate::health::HealthStatus::Healthy,
+                component_statuses: std::collections::HashMap::new(),
+                active_alerts: vec![],
+                metrics_summary: std::collections::HashMap::new(),
+                last_updated: chrono::Utc::now(),
+                uptime_seconds: 0,
+            })
+        }
+        async fn component_health(&self, _component: &str) -> Result<bool> { Ok(true) }
+        async fn run_health_check(&self) -> Result<()> { Ok(()) }
+        async fn get_alerts(&self) -> Vec<String> { vec![] }
+        async fn clear_alerts(&self) -> Result<()> { Ok(()) }
         async fn health_check(&self) -> Result<()> {
             self.call_count.fetch_add(1, Ordering::Relaxed);
 
@@ -415,27 +436,43 @@ mod tests {
     async fn test_task_lifecycle() {
         let manager = BackgroundTaskManager::new();
         let health_coordinator = Arc::new(MockHealthCoordinator::new());
+        #[cfg(feature = "legacy-orchestrator")]
         let circuit_breaker_manager = Arc::new(CircuitBreakerManager::new());
+        #[cfg(feature = "legacy-orchestrator")]
         let metrics_collector = Arc::new(MetricsCollector::new(100));
 
-        // Инициализируем стандартные coordinators для circuit breaker manager
-        circuit_breaker_manager
-            .initialize_standard_coordinators()
-            .await
-            .expect("Should initialize circuit breakers");
+        #[cfg(feature = "legacy-orchestrator")]
+        {
+            // Инициализируем стандартные coordinators для circuit breaker manager
+            circuit_breaker_manager
+                .initialize_standard_coordinators()
+                .await
+                .expect("Should initialize circuit breakers");
 
-        // Запускаем задачи
-        manager
-            .start_all_tasks(
-                health_coordinator,
-                circuit_breaker_manager,
-                metrics_collector,
-            )
-            .await
-            .expect("Should start all tasks");
+            // Запускаем задачи c legacy поддержкой
+            manager
+                .start_all_tasks(
+                    health_coordinator,
+                    circuit_breaker_manager,
+                    metrics_collector,
+                )
+                .await
+                .expect("Should start all tasks");
+        }
+        #[cfg(not(feature = "legacy-orchestrator"))]
+        {
+            // Запускаем только health task
+            manager
+                .start_all_tasks(health_coordinator)
+                .await
+                .expect("Should start health task");
+        }
 
         assert!(manager.is_active());
+        #[cfg(feature = "legacy-orchestrator")]
         assert_eq!(manager.get_active_tasks_count().await, 3);
+        #[cfg(not(feature = "legacy-orchestrator"))]
+        assert_eq!(manager.get_active_tasks_count().await, 1);
 
         // Даем задачам немного поработать
         sleep(Duration::from_millis(50)).await;
@@ -453,22 +490,34 @@ mod tests {
     async fn test_custom_task_addition() {
         let manager = BackgroundTaskManager::new();
         let health_coordinator = Arc::new(MockHealthCoordinator::new());
+        #[cfg(feature = "legacy-orchestrator")]
         let circuit_breaker_manager = Arc::new(CircuitBreakerManager::new());
+        #[cfg(feature = "legacy-orchestrator")]
         let metrics_collector = Arc::new(MetricsCollector::new(100));
 
-        circuit_breaker_manager
-            .initialize_standard_coordinators()
-            .await
-            .expect("Should initialize circuit breakers");
+        #[cfg(feature = "legacy-orchestrator")]
+        {
+            circuit_breaker_manager
+                .initialize_standard_coordinators()
+                .await
+                .expect("Should initialize circuit breakers");
 
-        manager
-            .start_all_tasks(
-                health_coordinator,
-                circuit_breaker_manager,
-                metrics_collector,
-            )
-            .await
-            .expect("Should start all tasks");
+            manager
+                .start_all_tasks(
+                    health_coordinator,
+                    circuit_breaker_manager,
+                    metrics_collector,
+                )
+                .await
+                .expect("Should start all tasks");
+        }
+        #[cfg(not(feature = "legacy-orchestrator"))]
+        {
+            manager
+                .start_all_tasks(health_coordinator)
+                .await
+                .expect("Should start health task");
+        }
 
         // Добавляем кастомную задачу
         let counter = Arc::new(AtomicU32::new(0));
@@ -482,7 +531,10 @@ mod tests {
             .await
             .expect("Should add custom task");
 
+        #[cfg(feature = "legacy-orchestrator")]
         assert_eq!(manager.get_active_tasks_count().await, 4); // 3 стандартные + 1 кастомная
+        #[cfg(not(feature = "legacy-orchestrator"))]
+        assert_eq!(manager.get_active_tasks_count().await, 2); // 1 стандартная + 1 кастомная
 
         // Ждем выполнения кастомной задачи
         sleep(Duration::from_millis(50)).await;

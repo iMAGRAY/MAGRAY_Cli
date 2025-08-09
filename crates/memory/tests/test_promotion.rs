@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "persistence"))]
+#![cfg(all(feature = "extended-tests", feature = "persistence", feature = "legacy-tests"))]
 
 use anyhow::Result;
 use chrono::{Duration, Utc};

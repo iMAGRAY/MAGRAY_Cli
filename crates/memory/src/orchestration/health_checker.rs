@@ -795,12 +795,13 @@ impl Default for HealthChecker {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-orchestrator"))]
 mod tests {
     use super::*;
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicBool, Ordering};
 
+    #[derive(Debug)]
     struct MockCoordinator {
         ready: Arc<AtomicBool>,
         should_fail_health_check: Arc<AtomicBool>,

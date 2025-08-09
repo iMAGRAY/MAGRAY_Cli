@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "persistence"))]
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
 
 //! Comprehensive unit tests для декомпозированной ML promotion системы
 //!

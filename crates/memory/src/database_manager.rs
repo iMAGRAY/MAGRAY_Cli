@@ -257,7 +257,7 @@ mod tests {
                         .map_err(|e| anyhow::anyhow!("Failed to insert for thread {}: {}", i, e))?;
                     tree.flush()
                         .map_err(|e| anyhow::anyhow!("Failed to flush for thread {}: {}", i, e))?;
-                    Ok(())
+                    Ok::<(), anyhow::Error>(())
                 })
             })
             .collect();
