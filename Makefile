@@ -2,7 +2,7 @@
 # Supports multiple feature configurations
 
 # Minimum coverage threshold for coverage-based CI runs (percentage)
-MIN_COVERAGE ?= 30
+MIN_COVERAGE ?= 35
 
 .PHONY: help build-all build-cpu build-gpu build-minimal test test-all bench clean docker-build docker-test release rag-report rag-report-fast
 
