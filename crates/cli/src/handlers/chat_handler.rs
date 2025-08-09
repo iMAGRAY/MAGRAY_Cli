@@ -181,15 +181,7 @@ where
     }
 
     async fn shutdown(&self) -> Result<()> {
-        info!("ChatHandler: начинаем graceful shutdown");
-
-        // В production версии здесь будет:
-        // - Завершение активных операций
-        // - Сохранение метрик
-        // - Очистка ресурсов
-
-        info!("ChatHandler: shutdown завершен");
-        Ok(())
+        super::standard_component_shutdown("ChatHandler").await
     }
 }
 

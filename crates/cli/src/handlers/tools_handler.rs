@@ -193,15 +193,7 @@ where
     }
 
     async fn shutdown(&self) -> Result<()> {
-        info!("ToolsHandler: начинаем graceful shutdown");
-
-        // В production версии здесь будет:
-        // - Завершение активных tool executions
-        // - Сохранение состояния и метрик
-        // - Очистка ресурсов
-
-        info!("ToolsHandler: shutdown завершен");
-        Ok(())
+        super::standard_component_shutdown("ToolsHandler").await
     }
 }
 

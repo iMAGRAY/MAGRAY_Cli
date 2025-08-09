@@ -227,16 +227,7 @@ where
     }
 
     async fn shutdown(&self) -> Result<()> {
-        info!("MemoryHandler: начинаем graceful shutdown");
-
-        // В production версии здесь будет:
-        // - Завершение активных memory операций
-        // - Сохранение кэшей и метрик
-        // - Flush pending operations
-        // - Очистка ресурсов
-
-        info!("MemoryHandler: shutdown завершен");
-        Ok(())
+        super::standard_component_shutdown("MemoryHandler").await
     }
 }
 

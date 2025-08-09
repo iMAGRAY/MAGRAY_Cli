@@ -263,16 +263,7 @@ where
     }
 
     async fn shutdown(&self) -> Result<()> {
-        info!("AdminHandler: начинаем graceful shutdown");
-
-        // В production версии здесь будет:
-        // - Завершение активных админ операций
-        // - Сохранение логов и аудита
-        // - Очистка административных сессий
-        // - Отправка уведомлений о shutdown
-
-        info!("AdminHandler: shutdown завершен");
-        Ok(())
+        super::standard_component_shutdown("AdminHandler").await
     }
 }
 

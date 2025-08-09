@@ -33,6 +33,14 @@ where
     Ok(())
 }
 
+/// Общий graceful shutdown с логоированием
+pub async fn standard_component_shutdown(component_name: &str) -> Result<()> {
+    info!("{}: начинаем graceful shutdown", component_name);
+    // место для общих шагов shutdown при необходимости
+    info!("{}: shutdown завершен", component_name);
+    Ok(())
+}
+
 /// Общая реализация health_check для компонентных обработчиков с Circuit Breaker и зависимостью
 /// - Проверяет initialized
 /// - Выполняет health_check зависимости (тип результата игнорируется)
