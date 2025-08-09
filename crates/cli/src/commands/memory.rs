@@ -8,6 +8,8 @@ use memory::types::Layer;
 use prettytable::{row, Table};
 use std::path::PathBuf;
 use std::sync::Arc;
+use common::{events, topics};
+use common::policy::{default_document, load_from_path, merge_documents, PolicyEngine};
 
 /// Команда для управления системой памяти
 #[derive(Debug, Args)]
@@ -132,6 +134,13 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
     let container = memory::di::UnifiedContainer::new();
     let api = UnifiedMemoryAPI::new(Arc::new(container) as Arc<dyn MemoryServiceTrait>);
 
+    // Prepare effective policy for commands
+    let mut home = crate::util::magray_home();
+    home.push("policy.json");
+    let effective_doc = if home.exists() {
+        load_from_path(&home).map(|doc| merge_documents(default_document(), doc)).unwrap_or_else(|_| default_document())
+    } else { default_document() };
+    let policy = PolicyEngine::from_document(effective_doc);
 
     match cmd {
         MemorySubcommand::Stats { detailed } => {
@@ -157,10 +166,25 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
         }
 
         MemorySubcommand::Backup { name } => {
+            // Check policy for command
+            let decision = policy.evaluate_command("memory.backup", &std::collections::HashMap::new());
+            if !decision.allowed {
+                let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());
+                let evt = serde_json::json!({"command": "memory.backup", "reason": reason});
+                tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
+                anyhow::bail!("Command 'memory backup' blocked by policy");
+            }
             create_backup(&api, name).await?;
         }
 
         MemorySubcommand::Restore { backup_path } => {
+            let decision = policy.evaluate_command("memory.restore", &std::collections::HashMap::new());
+            if !decision.allowed {
+                let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());
+                let evt = serde_json::json!({"command": "memory.restore", "reason": reason});
+                tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
+                anyhow::bail!("Command 'memory restore' blocked by policy");
+            }
             restore_backup(&api, backup_path).await?;
         }
 
