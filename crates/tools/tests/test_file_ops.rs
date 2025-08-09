@@ -159,6 +159,37 @@ async fn test_file_writer_natural_language() {
 }
 
 #[tokio::test]
+async fn test_file_write_emits_fs_diff() -> anyhow::Result<()> {
+    use common::{events, topics};
+    use tools::file_ops::FileWriter;
+    use tools::{Tool, ToolInput};
+    use tempfile::TempDir;
+    use std::collections::HashMap;
+
+    let tmp = TempDir::new().unwrap();
+    let file_path = tmp.path().join("evt.txt");
+
+    // subscribe before action
+    let mut rx = events::subscribe(topics::TOPIC_FS_DIFF).await;
+
+    let writer = FileWriter::new();
+    let mut args = HashMap::new();
+    args.insert("path".into(), file_path.to_string_lossy().to_string());
+    args.insert("content".into(), "hello".into());
+    let input = ToolInput { command: "file_write".into(), args, context: None, dry_run: false, timeout_ms: None };
+
+    let out = writer.execute(input).await?;
+    assert!(out.success);
+
+    // expect event
+    let evt = tokio::time::timeout(std::time::Duration::from_millis(500), rx.recv()).await??;
+    assert_eq!(evt.topic.0, "fs.diff");
+    assert_eq!(evt.payload["op"], "write");
+    assert!(evt.payload["bytes"].as_u64().unwrap_or(0) > 0);
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_dir_lister() {
     let temp_dir = TempDir::new().unwrap();
 

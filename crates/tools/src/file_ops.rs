@@ -134,6 +134,18 @@ impl Tool for FileWriter {
 
         fs::write(path, content)?;
 
+        // Publish fs.diff event for timeline/observability
+        let path_for_evt = path.clone();
+        let bytes_for_evt = content.len();
+        tokio::spawn(async move {
+            let evt = serde_json::json!({
+                "path": path_for_evt,
+                "bytes": bytes_for_evt,
+                "op": "write",
+            });
+            common::events::publish(common::topics::TOPIC_FS_DIFF, evt).await;
+        });
+
         Ok(ToolOutput {
             success: true,
             result: format!("✅ Файл '{}' успешно создан", path),
