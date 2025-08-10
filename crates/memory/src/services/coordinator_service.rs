@@ -16,6 +16,7 @@ use crate::{
     orchestration::EmbeddingCoordinator as EmbeddingCoordinatorImpl,
     EmbeddingCache,
 };
+use crate::di::core_traits::ServiceResolver;
 #[cfg(feature = "gpu-acceleration")]
 use crate::gpu_accelerated::GpuBatchProcessor;
 use crate::health::HealthMonitor;
@@ -152,8 +153,9 @@ impl CoordinatorServiceTrait for CoordinatorService {
         let gpu_processor = container.resolve::<GpuBatchProcessor>().ok();
         #[cfg(not(feature = "gpu-acceleration"))]
         let gpu_processor: Option<std::sync::Arc<()>> = None;
-        let cache = container.resolve::<EmbeddingCache>().ok();
-        self.embedding = Some(EmbeddingCoordinatorImpl::new_stub());
+        let _cache = container.resolve::<EmbeddingCache>().ok();
+        let mut guard = self.coordinators.write().await;
+        guard.embedding_coordinator = Some(Arc::new(EmbeddingCoordinatorImpl::new_stub()));
         Ok(())
     }
 

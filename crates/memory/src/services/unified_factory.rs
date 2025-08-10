@@ -22,15 +22,17 @@ use tracing::{debug, info};
 
 use crate::{
     di::{traits::DIResolver, UnifiedContainer},
-    orchestration::{EmbeddingCoordinator, HealthManager, ResourceController, SearchCoordinator},
-    service_di::coordinator_factory::OrchestrationCoordinators,
-    services::{
-        traits::{
-            CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait,
-            MonitoringServiceTrait, ResilienceServiceTrait,
-        },
-        CacheService, CoordinatorService, CoreMemoryService, MonitoringService, ResilienceService,
+    services::traits::ServiceFactoryTrait,
+};
+use crate::di::core_traits::ServiceResolver;
+use crate::orchestration::{EmbeddingCoordinator, HealthManager, ResourceController, SearchCoordinator};
+use crate::service_di::coordinator_factory::OrchestrationCoordinators;
+use crate::services::{
+    traits::{
+        CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait,
+        MonitoringServiceTrait, ResilienceServiceTrait,
     },
+    CacheService, CoordinatorService, CoreMemoryService, MonitoringService, ResilienceService,
 };
 
 /// Конфигурация для Unified Factory
@@ -579,10 +581,7 @@ impl UnifiedServiceFactory {
         debug!("🔤 Создание EmbeddingCoordinator...");
 
         // Resolve зависимости через UnifiedDIContainer (вместо .unwrap())
-        let gpu_processor = self
-            .container
-            .resolve()
-            .with_context(|| "Не удалось resolve GpuBatchProcessor для EmbeddingCoordinator")?;
+        let gpu_processor = self.container.resolve::<crate::gpu_accelerated::GpuBatchProcessor>().ok();
 
         // Создаем cache с правильной конфигурацией
         let cache_path = std::env::temp_dir().join("embedding_cache");
@@ -604,10 +603,7 @@ impl UnifiedServiceFactory {
     ) -> Result<Arc<SearchCoordinator>> {
         debug!("🔍 Создание SearchCoordinator...");
 
-        let store = self
-            .container
-            .resolve()
-            .with_context(|| "Не удалось resolve VectorStore для SearchCoordinator")?;
+        let store = self.container.resolve::<crate::storage::VectorStore>()?;
 
         let coordinator = Arc::new(SearchCoordinator::new_production(
             store,
@@ -627,10 +623,7 @@ impl UnifiedServiceFactory {
     async fn create_health_manager(&self) -> Result<Arc<HealthManager>> {
         debug!("🏥 Создание HealthManager...");
 
-        let health_monitor = self
-            .container
-            .resolve()
-            .with_context(|| "Не удалось resolve HealthMonitor для HealthManager")?;
+        let health_monitor = self.container.resolve::<crate::health::HealthMonitor>()?;
 
         let manager = Arc::new(HealthManager::new(health_monitor));
         debug!("✅ HealthManager создан");
@@ -641,10 +634,7 @@ impl UnifiedServiceFactory {
     async fn create_resource_controller(&self) -> Result<Arc<ResourceController>> {
         debug!("⚡ Создание ResourceController...");
 
-        let resource_manager = self
-            .container
-            .resolve()
-            .with_context(|| "Не удалось resolve ResourceManager для ResourceController")?;
+        let resource_manager = self.container.resolve::<parking_lot::RwLock<crate::resource_manager::ResourceManager>>()?;
 
         let controller = Arc::new(ResourceController::new_production(resource_manager));
         debug!("✅ ResourceController создан");

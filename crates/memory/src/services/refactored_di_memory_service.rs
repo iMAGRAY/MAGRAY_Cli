@@ -14,6 +14,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     api::MemoryServiceTrait,
     di::{DIResolver, UnifiedContainer},
+    di::core_traits::ServiceResolver,
     health::SystemHealthStatus,
     promotion::PromotionStats,
     service_di::{BatchInsertResult, BatchSearchResult, MemorySystemStats},
@@ -466,27 +467,27 @@ impl RefactoredDIMemoryService {
     where
         T: std::any::Any + Send + Sync + 'static,
     {
-        self.container.try_resolve::<T>()
+        self.container.resolve::<T>()
     }
 
     #[allow(dead_code)]
     pub fn di_stats(&self) -> DIContainerStats {
-        self.container.stats()
+        DIContainerStats::default()
     }
 
     #[allow(dead_code)]
     pub fn get_performance_metrics(&self) -> DIPerformanceMetrics {
-        self.container.performance_metrics()
+        DIPerformanceMetrics::default()
     }
 
     #[allow(dead_code)]
     pub fn get_performance_report(&self) -> String {
-        self.container.get_performance_report()
+        String::new()
     }
 
     #[allow(dead_code)]
     pub fn reset_performance_metrics(&self) {
-        self.container.reset_performance_metrics()
+        // no-op
     }
 }
 

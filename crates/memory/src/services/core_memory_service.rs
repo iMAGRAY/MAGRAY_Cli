@@ -12,7 +12,8 @@ use tokio::sync::Semaphore;
 use tracing::{debug, info, warn};
 
 use crate::{
-    di::{UnifiedContainer, TypeSafeResolver},
+    di::UnifiedContainer,
+    di::core_traits::TypeSafeResolver,
     orchestration::SearchCoordinator,
     types::Record,
     VectorStore,
@@ -23,6 +24,7 @@ use crate::{
     BatchSearchResult,
     CoreMemoryServiceTrait,
 };
+use crate::batch_manager::BatchOperationManager;
 use common::OperationTimer;
 
 /// Реализация core memory операций

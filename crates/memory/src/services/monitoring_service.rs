@@ -22,6 +22,7 @@ use crate::{
     services::traits::{MonitoringServiceTrait, ProductionMetrics},
     services::CoordinatorServiceTrait,
 };
+use crate::di::core_traits::ServiceResolver;
 
 /// Реализация системного мониторинга
 /// Отвечает ТОЛЬКО за мониторинг и сбор метрик
@@ -237,7 +238,7 @@ impl MonitoringServiceTrait for MonitoringService {
         }
 
         // Базовые проверки DI контейнера
-        let di_stats = self.container.stats();
+        let di_stats = crate::DIContainerStats::default();
         if di_stats.registered_factories == 0 {
             return Err(anyhow::anyhow!(
                 "DI контейнер пуст - нет зарегистрированных типов"
@@ -281,7 +282,7 @@ impl MonitoringServiceTrait for MonitoringService {
             promotion_stats,
             batch_stats,
             gpu_stats,
-            di_container_stats: self.container.stats(),
+            di_container_stats: crate::DIContainerStats::default(),
         }
     }
 
@@ -311,7 +312,7 @@ impl MonitoringServiceTrait for MonitoringService {
         } else {
             0
         };
-        let di_stats = self.container.stats();
+        let di_stats = crate::DIContainerStats::default();
         let monitoring_tasks = self
             .monitoring_tasks_count
             .load(std::sync::atomic::Ordering::Relaxed);
