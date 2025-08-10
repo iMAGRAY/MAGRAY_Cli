@@ -19,7 +19,6 @@ pub mod web_ops;
 
 // Advanced features (legacy - being replaced by execution module)
 pub mod enhanced_tool_system;
-pub mod execution_pipeline;
 pub mod intelligent_selector;
 pub mod performance_monitor;
 

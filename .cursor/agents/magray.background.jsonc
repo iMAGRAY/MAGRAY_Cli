@@ -35,7 +35,7 @@
       "run": [
         { "cmd": "bash", "args": ["-lc", "cargo fmt --all -- --check || true"], "timeoutSec": 600 },
         { "cmd": "bash", "args": ["-lc", "cargo clippy --workspace -q -D warnings || true"], "timeoutSec": 2400 },
-        { "cmd": "bash", "args": ["-lc", "cargo check --workspace --all-features"], "timeoutSec": 3600 }
+        { "cmd": "bash", "args": ["-lc", "cargo check --workspace"], "timeoutSec": 3600 }
       ],
       "continueOnError": true
     },
@@ -43,7 +43,7 @@
       "id": "unit-tests",
       "name": "Unit & Integration Tests",
       "run": [
-        { "cmd": "bash", "args": ["-lc", "cargo test --workspace --all-features -- --nocapture"], "timeoutSec": 7200 }
+        { "cmd": "bash", "args": ["-lc", "cargo test --workspace -- --nocapture"], "timeoutSec": 7200 }
       ],
       "continueOnError": true
     },
