@@ -30,6 +30,23 @@ pub struct ModelFile {
     pub sha256: Option<String>,
 }
 
+// Перенесено выше тестового модуля, чтобы избежать clippy::items_after_test_module
+async fn verify_sha256(path: &Path, expected_hex: &str) -> Result<bool> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::AsyncReadExt;
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 1024 * 1024];
+    loop {
+        let n = file.read(&mut buf).await?;
+        if n == 0 { break; }
+        hasher.update(&buf[..n]);
+    }
+    let result = hasher.finalize();
+    let hex = format!("{:x}", result);
+    Ok(hex.eq_ignore_ascii_case(expected_hex))
+}
+
 impl ModelDownloader {
     /// Создать новый загрузчик моделей
     pub fn new(base_path: impl AsRef<Path>) -> Result<Self> {
@@ -490,20 +507,4 @@ mod tests {
         let is_complete = downloader.is_model_complete(&model_path).await.unwrap();
         assert!(is_complete);
     }
-}
-
-async fn verify_sha256(path: &Path, expected_hex: &str) -> Result<bool> {
-    use sha2::{Digest, Sha256};
-    use tokio::io::AsyncReadExt;
-    let mut file = tokio::fs::File::open(path).await?;
-    let mut hasher = Sha256::new();
-    let mut buf = vec![0u8; 1024 * 1024];
-    loop {
-        let n = file.read(&mut buf).await?;
-        if n == 0 { break; }
-        hasher.update(&buf[..n]);
-    }
-    let result = hasher.finalize();
-    let hex = format!("{:x}", result);
-    Ok(hex.eq_ignore_ascii_case(expected_hex))
 }

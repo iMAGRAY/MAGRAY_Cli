@@ -124,23 +124,18 @@ fn test_config_partial_update() {
 
 #[test]
 fn test_embedding_config_gpu_settings() {
-    let mut config = EmbeddingConfig::default();
+    let config = EmbeddingConfig { use_gpu: true, batch_size: 128, ..Default::default() };
 
     // Test GPU configuration
-    config.use_gpu = true;
     assert!(config.use_gpu);
-
-    // GPU batch size might be different
-    config.batch_size = 128; // Larger for GPU
     assert_eq!(config.batch_size, 128);
 }
 
 #[test]
 fn test_reranking_config_optimization() {
-    let mut config = RerankingConfig::default();
+    let config = RerankingConfig { use_gpu: true, ..Default::default() };
 
     // Test optimization settings
-    config.use_gpu = true;
     assert!(config.use_gpu);
 
     // Smaller batch size for reranking
@@ -165,8 +160,8 @@ fn test_config_model_names() {
     let config = AiConfig::default();
 
     // Check model names are reasonable
-    assert!(config.embedding.model_name.len() > 0);
-    assert!(config.reranking.model_name.len() > 0);
+    assert!(!config.embedding.model_name.is_empty());
+    assert!(!config.reranking.model_name.is_empty());
 
     // Should not contain invalid characters for file paths
     assert!(!config.embedding.model_name.contains('/'));

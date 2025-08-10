@@ -537,7 +537,7 @@ mod tests {
         // Shape [1, 2, 200] -> len=400; last_token_start=200; avg of next 100 values
         let batch = 1usize;
         let shape = [1i64, 2, 200];
-        let mut data = vec![0.0f32; (1 * 2 * 200) as usize];
+        let mut data = vec![0.0f32; (2 * 200) as usize];
         // Fill last 100 values starting at 200 with 0..100
         for i in 0..100usize {
             data[200 + i] = i as f32;

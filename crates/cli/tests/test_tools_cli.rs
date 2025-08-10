@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests"))]
+#![cfg(feature = "extended-tests")]
 
 use assert_cmd::prelude::*;
 use std::process::Command;

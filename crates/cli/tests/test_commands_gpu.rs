@@ -19,14 +19,11 @@ async fn test_gpu_info_command() {
     let args = vec!["test", "gpu", "info"];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        // Should not panic
-        let result = gpu_cmd.execute().await;
-        // Allow either success or error, as GPU may not be available
-        assert!(result.is_ok() || result.is_err());
-    } else {
-        panic!("Expected GPU command");
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    // Should not panic
+    let result = gpu_cmd.execute().await;
+    // Allow either success or error, as GPU may not be available
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[tokio::test]
@@ -34,11 +31,10 @@ async fn test_gpu_benchmark_command_basic() {
     let args = vec!["test", "gpu", "benchmark"];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        let result = gpu_cmd.execute().await;
-        // GPU may not be available, but command should parse correctly
-        assert!(result.is_ok() || result.is_err());
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    let result = gpu_cmd.execute().await;
+    // GPU may not be available, but command should parse correctly
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[tokio::test]
@@ -53,11 +49,10 @@ async fn test_gpu_benchmark_with_params() {
     ];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        let result = gpu_cmd.execute().await;
-        // Should parse correctly regardless of GPU availability
-        assert!(result.is_ok() || result.is_err());
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    let result = gpu_cmd.execute().await;
+    // Should parse correctly regardless of GPU availability
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[tokio::test]
@@ -65,10 +60,9 @@ async fn test_gpu_cache_stats() {
     let args = vec!["test", "gpu", "cache", "stats"];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        let result = gpu_cmd.execute().await;
-        assert!(result.is_ok() || result.is_err());
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    let result = gpu_cmd.execute().await;
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[tokio::test]
@@ -76,10 +70,9 @@ async fn test_gpu_cache_clear() {
     let args = vec!["test", "gpu", "cache", "clear"];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        let result = gpu_cmd.execute().await;
-        assert!(result.is_ok() || result.is_err());
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    let result = gpu_cmd.execute().await;
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[tokio::test]
@@ -87,10 +80,9 @@ async fn test_gpu_cache_size() {
     let args = vec!["test", "gpu", "cache", "size"];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        let result = gpu_cmd.execute().await;
-        assert!(result.is_ok() || result.is_err());
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    let result = gpu_cmd.execute().await;
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[tokio::test]
@@ -98,10 +90,9 @@ async fn test_gpu_memory_stats() {
     let args = vec!["test", "gpu", "memory", "stats"];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        let result = gpu_cmd.execute().await;
-        assert!(result.is_ok() || result.is_err());
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    let result = gpu_cmd.execute().await;
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[tokio::test]
@@ -109,10 +100,9 @@ async fn test_gpu_memory_clear() {
     let args = vec!["test", "gpu", "memory", "clear"];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        let result = gpu_cmd.execute().await;
-        assert!(result.is_ok() || result.is_err());
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    let result = gpu_cmd.execute().await;
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[tokio::test]
@@ -120,11 +110,10 @@ async fn test_gpu_optimize_default() {
     let args = vec!["test", "gpu", "optimize"];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        let result = gpu_cmd.execute().await;
-        // May fail if models not available, but should parse
-        assert!(result.is_ok() || result.is_err());
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    let result = gpu_cmd.execute().await;
+    // May fail if models not available, but should parse
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[tokio::test]
@@ -132,10 +121,9 @@ async fn test_gpu_optimize_with_model() {
     let args = vec!["test", "gpu", "optimize", "custom-model"];
     let cli = TestCli::try_parse_from(args).unwrap();
 
-    if let TestGpuCommand::Gpu(gpu_cmd) = cli.command {
-        let result = gpu_cmd.execute().await;
-        assert!(result.is_ok() || result.is_err());
-    }
+    let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
+    let result = gpu_cmd.execute().await;
+    assert!(result.is_ok() || result.is_err());
 }
 
 #[test]

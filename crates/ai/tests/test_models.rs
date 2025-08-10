@@ -52,7 +52,7 @@ impl ModelInfo {
     pub fn estimate_inference_time_ms(&self) -> u64 {
         // Simple estimation based on model size
         let base_time = 10; // 10ms base
-        let size_factor = (self.size_bytes / (1024 * 1024)) as u64; // MB
+        let size_factor = self.size_bytes / (1024 * 1024); // MB
         base_time + (size_factor / 10) // Add ~0.1ms per MB
     }
 }

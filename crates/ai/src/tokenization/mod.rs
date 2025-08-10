@@ -614,12 +614,12 @@ mod tests {
         if tokenizer_path.exists() {
             let tokenizer = OptimizedTokenizer::new(tokenizer_path, 512).unwrap();
 
-            let texts = vec![
+            let texts = [
                 "First test text",
                 "Second longer test text with more words",
                 "Third text",
             ];
-            let text_refs: Vec<&str> = texts.iter().map(|s| s.as_ref()).collect();
+            let text_refs: Vec<&str> = texts.to_vec();
 
             let mut batch = tokenizer.encode_batch(&text_refs).unwrap();
 

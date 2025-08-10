@@ -16,7 +16,6 @@ fn test_cpu_embedding_service_creation() {
     match CpuEmbeddingService::new(config) {
         Ok(_service) => {
             // If service creation succeeds, that's great
-            assert!(true);
         }
         Err(e) => {
             // If it fails due to missing models, that's expected in tests
@@ -110,7 +109,7 @@ fn test_cpu_memory_estimation() {
 
 #[test]
 fn test_text_preprocessing_edge_cases() {
-    let edge_cases = vec![
+    let edge_cases = [
         "",
         " ",
         "\n",
@@ -138,7 +137,7 @@ fn test_text_preprocessing_edge_cases() {
 
 #[test]
 fn test_batch_processing_validation() {
-    let texts = vec![
+    let texts = [
         "First text".to_string(),
         "Second text".to_string(),
         "Third text".to_string(),
@@ -204,7 +203,7 @@ fn test_embedding_dimension_validation() {
 
 #[test]
 fn test_tokenization_approximation() {
-    let texts = vec![
+    let texts = [
         "short",
         "medium length text",
         "very long text that might exceed the maximum token limit and should be handled appropriately",
@@ -305,11 +304,9 @@ fn test_error_handling_scenarios() {
         match CpuEmbeddingService::new(config.clone()) {
             Ok(_) => {
                 // If service creation succeeds, the config was corrected internally
-                assert!(true);
             }
             Err(_) => {
                 // Expected to fail with invalid config
-                assert!(true);
             }
         }
 

@@ -17,7 +17,7 @@ async fn event_bus_fanout_stress_no_loss() {
 
     // Spawn subscribers
     let mut handles = Vec::with_capacity(subscribers);
-    for (i, counter) in counters.iter().enumerate().take(subscribers) {
+    for (_i, counter) in counters.iter().enumerate().take(subscribers) {
         let mut rx = bus.subscribe(Topic("stress.topic")).await;
         let counter = counter.clone();
         handles.push(tokio::spawn(async move {

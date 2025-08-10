@@ -98,8 +98,7 @@ fn test_memory_pool_oversized_buffer() {
     let pool = MemoryPool::new();
 
     // Create oversized buffer
-    let mut buffer = Vec::with_capacity(20000);
-    buffer.resize(20000, 0i64);
+    let buffer: Vec<i64> = vec![0; 20000];
 
     // This method expects Vec<i64> but we have a Vec, not PooledBuffer
     // Just drop it instead since the actual pool handles return automatically

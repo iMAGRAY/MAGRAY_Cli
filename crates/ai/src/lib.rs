@@ -143,13 +143,13 @@ fn warmup_models_impl(model_names: &[&str]) -> anyhow::Result<()> {
 pub fn warmup_models(model_names: &[&str]) -> anyhow::Result<()> {
     #[cfg(feature = "onnx")]
     {
-        return warmup_models_impl(model_names);
+        warmup_models_impl(model_names)
     }
     #[cfg(not(feature = "onnx"))]
     {
         // Без onnx просто no-op
         let _ = model_names;
-        return Ok(());
+        Ok(())
     }
 }
 

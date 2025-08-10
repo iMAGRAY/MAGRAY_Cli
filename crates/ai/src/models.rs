@@ -440,7 +440,7 @@ mod tests {
     #[test]
     fn test_model_loader_creation() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
-        let loader = ModelLoader::new(temp_dir.path())?;
+        let _loader = ModelLoader::new(temp_dir.path())?;
 
         // Directory should be created
         assert!(temp_dir.path().exists());
