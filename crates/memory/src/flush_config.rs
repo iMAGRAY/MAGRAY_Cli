@@ -175,7 +175,7 @@ impl FlushConfig {
     }
 
     /// Загрузить конфигурацию из переменных окружения
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[allow(dead_code)]
     pub fn from_env() -> Self {
         let mut config = Self::default();
 

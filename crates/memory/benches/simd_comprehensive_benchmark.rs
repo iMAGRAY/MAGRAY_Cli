@@ -1,3 +1,4 @@
+#![cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 //! Comprehensive SIMD Performance Benchmark
 //!
 //! Валидация microsecond-level performance оптимизаций:
@@ -18,6 +19,7 @@ use memory::{
     },
     AlignedVector, HnswConfig, VectorIndex,
 };
+#[cfg(feature = "rayon")]
 use rayon::prelude::*;
 use std::time::{Duration, Instant};
 
@@ -207,7 +209,7 @@ fn bench_hnsw_search_performance(c: &mut Criterion) {
         // Batch search performance
         let batch_queries = &query_vectors[..10.min(query_vectors.len())];
         group.bench_with_input(BenchmarkId::new("batch_search", k), &k, |bench, &k| {
-            bench.iter(|| black_box(index.parallel_search(black_box(batch_queries), k)))
+            bench.iter(|| black_box(index.search_many(black_box(batch_queries), k)))
         });
     }
 
@@ -341,20 +343,12 @@ fn bench_parallel_scalability(c: &mut Criterion) {
             BenchmarkId::new("parallel_distance", threads),
             &threads,
             |bench, &threads| {
-                // Set thread pool size
-                let pool = rayon::ThreadPoolBuilder::new()
-                    .num_threads(threads)
-                    .build()
-                    .unwrap();
-
                 bench.iter(|| {
-                    pool.install(|| {
-                        let results: Vec<f32> = vectors
-                            .par_iter()
-                            .map(|query| cosine_distance_auto_ultra(query, target))
-                            .collect();
-                        black_box(results)
-                    })
+                    let results: Vec<f32> = vectors
+                        .iter()
+                        .map(|query| cosine_distance_auto_ultra(query, target))
+                        .collect();
+                    black_box(results)
                 })
             },
         );
