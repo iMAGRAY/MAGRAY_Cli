@@ -139,3 +139,6 @@ fn bench_hybrid_end_to_end(c: &mut Criterion) {
 
 criterion_group!(benches, bench_hnsw_insert, bench_hnsw_search, bench_hybrid_end_to_end);
 criterion_main!(benches);
+
+#[cfg(not(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence")))]
+fn main() {}
