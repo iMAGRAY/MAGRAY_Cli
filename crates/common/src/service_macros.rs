@@ -347,11 +347,11 @@ macro_rules! impl_service_defaults {
 mod tests {
     use super::*;
     use crate::service_traits::*;
-    use async_trait::async_trait;
 
     // Тестовая структура для проверки макросов
     struct TestService {
         initialized: bool,
+        #[allow(dead_code)]
         name: &'static str,
     }
 
@@ -377,7 +377,7 @@ mod tests {
             self.initialized
         }
 
-        fn set_initialized(&self, initialized: bool) {
+        fn set_initialized(&self, _initialized: bool) {
             // Для тестов упрощаем
         }
 

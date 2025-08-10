@@ -119,6 +119,8 @@ impl MockHttpClient {
     }
 }
 
+impl Default for MockHttpClient { fn default() -> Self { Self::new() } }
+
 /// Builder for mock HTTP responses
 pub struct MockResponseBuilder {
     client: MockHttpClient,
@@ -377,13 +379,12 @@ impl MockDatabase {
     }
 
     async fn simulate_operation_delay(&self) {
-        if let Some(latency) = *self.latency_simulation.read().unwrap() {
-            tokio::time::sleep(latency).await;
-        }
+        let latency = *self.latency_simulation.read().unwrap();
+        if let Some(latency) = latency { tokio::time::sleep(latency).await; }
     }
 
     async fn check_failure_scenarios(&self, operation: &str, table: &str) -> Result<(), String> {
-        let scenarios = self.failure_scenarios.read().unwrap();
+        let scenarios: Vec<FailureScenario> = self.failure_scenarios.read().unwrap().clone();
         for scenario in scenarios.iter() {
             let pattern = &scenario.operation_pattern;
             if (pattern == operation || pattern == "all" || pattern == table)
@@ -399,6 +400,8 @@ impl MockDatabase {
         self.operation_log.lock().unwrap().push(operation);
     }
 }
+
+impl Default for MockDatabase { fn default() -> Self { Self::new() } }
 
 #[derive(Debug, Default)]
 pub struct DatabaseStats {
@@ -476,7 +479,7 @@ impl MockEventSystem {
             .lock()
             .unwrap()
             .entry(channel.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(subscriber_id.to_string());
 
         self.create_channel(channel)
@@ -509,13 +512,15 @@ impl MockEventSystem {
     }
 }
 
+impl Default for MockEventSystem { fn default() -> Self { Self::new() } }
+
 /// Test data generators for realistic test scenarios
 pub struct TestDataGenerator;
 
 impl TestDataGenerator {
     /// Generate realistic text data of various lengths and content types
     pub fn generate_text_samples(count: usize) -> Vec<String> {
-        let templates = vec![
+        let templates = [
             "User query: {}",
             "Technical documentation about {} and {} integration",
             "Error message: Failed to process {} due to {} constraints",
@@ -747,6 +752,8 @@ impl MockMetricsCollector {
             .collect()
     }
 }
+
+impl Default for MockMetricsCollector { fn default() -> Self { Self::new() } }
 
 // Common test utilities
 /// Test timing utility for performance assertions
