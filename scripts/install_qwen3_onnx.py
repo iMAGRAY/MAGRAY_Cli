@@ -34,6 +34,7 @@ def try_venv_and_reexec() -> bool:
             print(f"Creating virtualenv at {venv_dir}")
             run([sys.executable, '-m', 'venv', str(venv_dir)])
             # Upgrade pip
+            run([str(venv_python), '-m', 'ensurepip', '--upgrade'])
             run([str(venv_python), '-m', 'pip', 'install', '-U', 'pip', 'setuptools', 'wheel'])
         # Re-exec into venv
         print("Re-exec into virtualenv")
@@ -147,6 +148,9 @@ def export_embedding_onnx(model_id: str, out_dir: Path):
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModel.from_pretrained(model_id)
     model.eval()
+    # Disable cache to avoid Qwen3 use_cache issues
+    if hasattr(model.config, 'use_cache'):
+        model.config.use_cache = False
 
     out_dir.mkdir(parents=True, exist_ok=True)
     save_tokenizer(tokenizer, out_dir)
@@ -157,24 +161,33 @@ def export_embedding_onnx(model_id: str, out_dir: Path):
         "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: test",
     ]
     enc = tokenizer(dummy_texts, padding=True, truncation=True, max_length=32, return_tensors='pt')
-    input_names = []
-    inputs = []
-    dynamic_axes = {}
-    for name in ('input_ids', 'attention_mask'):
-        if name in enc:
-            input_names.append(name)
-            inputs.append(enc[name])
-            dynamic_axes[name] = {0: 'batch', 1: 'seq'}
+    input_ids = enc.get('input_ids')
+    attention_mask = enc.get('attention_mask')
 
+    class NoCacheWrapper(torch.nn.Module):
+        def __init__(self, backbone):
+            super().__init__()
+            self.backbone = backbone
+        def forward(self, input_ids, attention_mask):
+            out = self.backbone(input_ids=input_ids, attention_mask=attention_mask, use_cache=False, return_dict=True)
+            return out.last_hidden_state
+
+    wrapped = NoCacheWrapper(model)
+
+    input_names = ['input_ids', 'attention_mask']
     output_names = ['last_hidden_state']
-    dynamic_axes['last_hidden_state'] = {0: 'batch', 1: 'seq'}
+    dynamic_axes = {
+        'input_ids': {0: 'batch', 1: 'seq'},
+        'attention_mask': {0: 'batch', 1: 'seq'},
+        'last_hidden_state': {0: 'batch', 1: 'seq'}
+    }
 
     model_onnx = out_dir / 'model.onnx'
     print(f"Exporting ONNX: {model_onnx}")
     with torch.no_grad():
         torch.onnx.export(
-            model,
-            tuple(inputs),
+            wrapped,
+            (input_ids, attention_mask),
             str(model_onnx),
             input_names=input_names,
             output_names=output_names,
@@ -191,6 +204,8 @@ def export_reranker_onnx(model_id: str, out_dir: Path):
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForSequenceClassification.from_pretrained(model_id)
     model.eval()
+    if hasattr(model.config, 'use_cache'):
+        model.config.use_cache = False
 
     out_dir.mkdir(parents=True, exist_ok=True)
     save_tokenizer(tokenizer, out_dir)
@@ -205,27 +220,54 @@ def export_reranker_onnx(model_id: str, out_dir: Path):
     except Exception:
         enc = tokenizer([q + " [SEP] " + d], padding=True, truncation=True, max_length=128, return_tensors='pt')
 
-    input_names = []
-    inputs = []
-    dynamic_axes = {}
-    for name in ('input_ids', 'attention_mask', 'token_type_ids'):
-        if name in enc:
-            input_names.append(name)
-            inputs.append(enc[name])
-            dynamic_axes[name] = {0: 'batch', 1: 'seq'}
+    # Prepare inputs based on tokenizer support
+    input_ids = enc.get('input_ids')
+    attention_mask = enc.get('attention_mask')
+    token_type_ids = enc.get('token_type_ids')
 
-    output_names = ['logits']
-    dynamic_axes['logits'] = {0: 'batch'}
+    class NoCacheClsWrapper(torch.nn.Module):
+        def __init__(self, backbone, has_token_type: bool):
+            super().__init__()
+            self.backbone = backbone
+            self.has_token_type = has_token_type
+        def forward(self, input_ids, attention_mask, token_type_ids=None):
+            if self.has_token_type and token_type_ids is not None:
+                out = self.backbone(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids, use_cache=False, return_dict=True)
+            else:
+                out = self.backbone(input_ids=input_ids, attention_mask=attention_mask, use_cache=False, return_dict=True)
+            return out.logits
+
+    has_tt = token_type_ids is not None
+    wrapped = NoCacheClsWrapper(model, has_tt)
+
+    # Build input tuple and names dynamically
+    if has_tt:
+        inputs = (input_ids, attention_mask, token_type_ids)
+        input_names = ['input_ids', 'attention_mask', 'token_type_ids']
+        dynamic_axes = {
+            'input_ids': {0: 'batch', 1: 'seq'},
+            'attention_mask': {0: 'batch', 1: 'seq'},
+            'token_type_ids': {0: 'batch', 1: 'seq'},
+            'logits': {0: 'batch'}
+        }
+    else:
+        inputs = (input_ids, attention_mask)
+        input_names = ['input_ids', 'attention_mask']
+        dynamic_axes = {
+            'input_ids': {0: 'batch', 1: 'seq'},
+            'attention_mask': {0: 'batch', 1: 'seq'},
+            'logits': {0: 'batch'}
+        }
 
     model_onnx = out_dir / 'model.onnx'
     print(f"Exporting ONNX: {model_onnx}")
     with torch.no_grad():
         torch.onnx.export(
-            model,
-            tuple(inputs),
+            wrapped,
+            inputs,
             str(model_onnx),
             input_names=input_names,
-            output_names=output_names,
+            output_names=['logits'],
             dynamic_axes=dynamic_axes,
             opset_version=14,
         )
@@ -263,6 +305,8 @@ def main():
         tok = AutoTokenizer.from_pretrained(emb_model_id)
         base = AutoModel.from_pretrained(emb_model_id)
         base.eval()
+        if hasattr(base.config, 'use_cache'):
+            base.config.use_cache = False
         save_tokenizer(tok, rerank_out)
         save_config(base, rerank_out)
         q = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: test"
@@ -293,7 +337,7 @@ def main():
                     kwargs['attention_mask'] = tensors[1]
                 if len(input_names) >= 3:
                     kwargs['token_type_ids'] = tensors[2]
-                out = self.backbone(**kwargs)
+                out = self.backbone(**kwargs, use_cache=False, return_dict=True)
                 last_hidden = out.last_hidden_state  # [B, S, H]
                 cls = last_hidden[:, 0, :]  # CLS
                 logits = self.fc(cls)  # [B, 1]

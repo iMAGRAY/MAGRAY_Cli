@@ -54,7 +54,7 @@
   "tie_word_embeddings": true,
   "torch_dtype": "float32",
   "transformers_version": "4.55.0",
-  "use_cache": true,
+  "use_cache": false,
   "use_sliding_window": false,
   "vocab_size": 151669
 }
