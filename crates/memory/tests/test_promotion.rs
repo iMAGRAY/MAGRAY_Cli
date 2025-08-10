@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "persistence", feature = "legacy-tests"))]
+#![cfg(all(not(feature = "minimal"), feature = "persistence", feature = "hnsw-index"))]
 
 use anyhow::Result;
 use chrono::{Duration, Utc};
