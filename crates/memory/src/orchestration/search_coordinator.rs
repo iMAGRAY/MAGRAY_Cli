@@ -732,7 +732,7 @@ impl SearchCoordinator {
                         return Ok(());
                     }
                 }
-                Err(anyhow::anyhow!(
+                return Err(anyhow::anyhow!(
                     "🚫 Search circuit breaker OPEN - поиск временно недоступен"
                 ));
             }
