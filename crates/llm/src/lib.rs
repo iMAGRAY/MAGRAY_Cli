@@ -473,28 +473,64 @@ impl LlmClient {
         );
         debug!("Текст запроса: {}", message);
 
-        let endpoint = format!("{}/chat/completions", url.trim_end_matches('/'));
+        // Нормализуем базовый endpoint: убираем завершающее "/" и необязательный "/v1"
+        let mut base = url.trim_end_matches('/');
+        if base.ends_with("/v1") {
+            base = &base[..base.len() - 3]; // отрезаем "/v1"
+        }
 
-        let response = self
+        // 1) Попытка OpenAI-совместимого эндпоинта
+        let endpoint_oa = format!("{}/chat/completions", base);
+        let resp_oa = self
             .client
-            .post(&endpoint)
+            .post(&endpoint_oa)
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
             .await?;
 
-        if !response.status().is_success() {
-            let error_text = response.text().await?;
-            error!("Локальная LLM ошибка: {}", error_text);
+        if resp_oa.status().is_success() {
+            let chat_response: OpenAIChatResponse = resp_oa.json().await?;
+            if let Some(choice) = chat_response.choices.first() {
+                info!("✅ Получен ответ от локальной модели (OpenAI совместимый)");
+                return Ok(choice.message.content.clone());
+            } else {
+                // Приводим сообщение к формату, ожидаемому тестами (содержит "Пустой ответ")
+                return Err(anyhow!("Пустой ответ от локальной модели"));
+            }
+        }
+
+        // 2) Fallback: Anthropic-совместимый эндпоинт /v1/messages
+        let anth_request = AnthropicRequest {
+            model: model.to_string(),
+            max_tokens: self.max_tokens,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: message.to_string(),
+            }],
+            temperature: Some(self.temperature),
+        };
+        let endpoint_anth = format!("{}/v1/messages", base);
+        let resp_anth = self
+            .client
+            .post(&endpoint_anth)
+            .header("Content-Type", "application/json")
+            .json(&anth_request)
+            .send()
+            .await?;
+
+        if !resp_anth.status().is_success() {
+            let error_text = resp_anth.text().await.unwrap_or_default();
+            error!("Локальная LLM ошибка (fallback Anthropic): {}", error_text);
             return Err(anyhow!("Локальная LLM ошибка: {}", error_text));
         }
 
-        let chat_response: OpenAIChatResponse = response.json().await?;
-
-        if let Some(choice) = chat_response.choices.first() {
-            info!("✅ Получен ответ от локальной модели");
-            Ok(choice.message.content.clone())
+        let chat_response: AnthropicResponse = resp_anth.json().await?;
+        if let Some(content) = chat_response.content.first() {
+            info!("✅ Получен ответ от локальной модели (Anthropic совместимый)");
+            Ok(content.text.clone())
         } else {
+            // Сообщение совпадает по подстроке с ожидаемым в тестах
             Err(anyhow!("Пустой ответ от локальной модели"))
         }
     }
