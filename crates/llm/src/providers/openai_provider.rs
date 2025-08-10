@@ -138,7 +138,7 @@ impl LlmProvider for OpenAIProvider {
 
         let response = self
             .client
-            .post(&format!("{}/chat/completions", self.endpoint))
+            .post(format!("{}/chat/completions", self.endpoint))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&test_request)
@@ -212,7 +212,7 @@ impl LlmProvider for OpenAIProvider {
 
         let response = self
             .client
-            .post(&format!("{}/chat/completions", self.endpoint))
+            .post(format!("{}/chat/completions", self.endpoint))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&openai_request)
@@ -302,7 +302,7 @@ impl LlmProvider for OpenAIProvider {
             info!("🚀 Starting streaming request to OpenAI");
 
             match client
-                .post(&format!("{}/chat/completions", endpoint))
+                .post(format!("{}/chat/completions", endpoint))
                 .header("Authorization", format!("Bearer {}", api_key))
                 .header("Content-Type", "application/json")
                 .json(&openai_request)

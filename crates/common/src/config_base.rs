@@ -284,11 +284,11 @@ macro_rules! create_config {
                 &self.batch
             }
 
-            fn cache(&self) -> &crate::CacheConfigBase {
+            fn cache(&self) -> &$crate::CacheConfigBase {
                 &self.cache
             }
 
-            fn timeout(&self) -> &crate::TimeoutConfigBase {
+            fn timeout(&self) -> &$crate::TimeoutConfigBase {
                 &self.timeout
             }
         }
@@ -324,11 +324,11 @@ macro_rules! create_config {
                 &self.batch
             }
 
-            fn cache(&self) -> &crate::CacheConfigBase {
+            fn cache(&self) -> &$crate::CacheConfigBase {
                 &self.cache
             }
 
-            fn timeout(&self) -> &crate::TimeoutConfigBase {
+            fn timeout(&self) -> &$crate::TimeoutConfigBase {
                 &self.timeout
             }
         }

@@ -3,10 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// Базовые trait abstractions для Service patterns в MAGRAY CLI
-///
 /// Этот модуль содержит общие trait определения для устранения дублирования
 /// в service implementations across все крейты
-
+///
 /// Базовый trait для всех Service implementations
 #[allow(async_fn_in_trait)]
 pub trait BaseService: Send + Sync {
