@@ -6,45 +6,28 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use uuid::Uuid;
 
-use ai::AiConfig;
 use memory::{
     promotion::PromotionEngine, storage::VectorStore, Layer, PromotionConfig, Record,
 };
-use memory::service_di_facade::MemoryConfig;
-use memory::services::CoreMemoryService as MemoryService;
 
 #[tokio::test]
 async fn test_promotion_engine() -> Result<()> {
     // Create temporary directories
     let temp_dir = TempDir::new()?;
     let db_path = temp_dir.path().join("test_db");
-    let cache_path = temp_dir.path().join("test_cache");
-
-    // Configure with short TTLs for testing
-    let config = MemoryConfig {
-        db_path: db_path.clone(),
-        cache_path: cache_path.clone(),
-        promotion: PromotionConfig {
-            interact_ttl_hours: 1,  // 1 hour for testing
-            insights_ttl_days: 1,   // 1 day for testing
-            promote_threshold: 0.5, // Lower threshold for testing
+    let store = Arc::new(VectorStore::new(&db_path).await?);
+    let sled_db = sled::open(&db_path)?;
+    let engine = PromotionEngine::new(
+        store.clone(),
+        PromotionConfig {
+            interact_ttl_hours: 1,
+            insights_ttl_days: 1,
+            promote_threshold: 0.5,
             decay_factor: 0.9,
         },
-        ai_config: AiConfig::default(),
-        health_config: memory::HealthConfig::default(),
-        cache_config: memory::CacheConfig::default(),
-        resource_config: memory::ResourceConfig::default(),
-        #[allow(deprecated)]
-        max_vectors: 1_000_000,
-        #[allow(deprecated)]
-        max_cache_size_bytes: 1024 * 1024 * 1024,
-        #[allow(deprecated)]
-        max_memory_usage_percent: Some(50),
-        ..Default::default()
-    };
-
-    // Initialize memory service
-    let memory_service = MemoryService::new(config).await?;
+        Arc::new(sled_db),
+    )
+    .await?;
 
     // Insert test records with different ages and access patterns
     let now = Utc::now();
@@ -98,14 +81,14 @@ async fn test_promotion_engine() -> Result<()> {
     };
 
     // Insert all records
-    memory_service.insert(old_popular.clone()).await?;
-    memory_service.insert(old_unpopular.clone()).await?;
-    memory_service.insert(new_record.clone()).await?;
+    store.insert(&old_popular).await?;
+    store.insert(&old_unpopular).await?;
+    store.insert(&new_record).await?;
 
     println!("✅ Inserted 3 test records");
 
     // Run promotion cycle
-    let stats = memory_service.run_promotion_cycle().await?;
+    let stats = engine.run_promotion_cycle().await?;
 
     println!("\n📊 Promotion Stats:");
     println!("  Interact → Insights: {}", stats.interact_to_insights);
@@ -114,35 +97,25 @@ async fn test_promotion_engine() -> Result<()> {
     println!("  Expired Insights: {}", stats.expired_insights);
 
     // Verify old popular record was promoted to Insights
-    let promoted = memory_service
-        .get_by_id(&old_popular.id, Layer::Insights)
-        .await?;
+    let promoted = store.get_by_id(&old_popular.id, Layer::Insights).await?;
     assert!(
         promoted.is_some(),
         "Popular record should be promoted to Insights"
     );
 
     // Verify it was removed from Interact
-    let in_interact = memory_service
-        .get_by_id(&old_popular.id, Layer::Interact)
-        .await?;
+    let in_interact = store.get_by_id(&old_popular.id, Layer::Interact).await?;
     assert!(
         in_interact.is_none(),
         "Promoted record should be removed from Interact"
     );
 
     // Verify new record stays in Interact
-    let still_new = memory_service
-        .get_by_id(&new_record.id, Layer::Interact)
-        .await?;
+    let still_new = store.get_by_id(&new_record.id, Layer::Interact).await?;
     assert!(still_new.is_some(), "New record should remain in Interact");
 
     // Search in Insights layer
-    let insights_results = memory_service
-        .search("popular")
-        .with_layer(Layer::Insights)
-        .execute()
-        .await?;
+    let insights_results = store.search(&vec![0.0; 768], Layer::Insights, 10).await?;
 
     assert_eq!(
         insights_results.len(),
@@ -160,31 +133,19 @@ async fn test_promotion_engine() -> Result<()> {
 async fn test_layer_ttl_expiration() -> Result<()> {
     let temp_dir = TempDir::new()?;
     let db_path = temp_dir.path().join("test_db");
-    let cache_path = temp_dir.path().join("test_cache");
-
-    let config = MemoryConfig {
-        db_path,
-        cache_path,
-        promotion: PromotionConfig {
+    let store = Arc::new(VectorStore::new(&db_path).await?);
+    let sled_db = sled::open(&db_path)?;
+    let engine = PromotionEngine::new(
+        store.clone(),
+        PromotionConfig {
             interact_ttl_hours: 1,
             insights_ttl_days: 1,
             promote_threshold: 0.7,
             decay_factor: 0.9,
         },
-        ai_config: AiConfig::default(),
-        health_config: memory::HealthConfig::default(),
-        cache_config: memory::CacheConfig::default(),
-        resource_config: memory::ResourceConfig::default(),
-        #[allow(deprecated)]
-        max_vectors: 1_000_000,
-        #[allow(deprecated)]
-        max_cache_size_bytes: 1024 * 1024 * 1024,
-        #[allow(deprecated)]
-        max_memory_usage_percent: Some(50),
-        ..Default::default()
-    };
-
-    let memory_service = MemoryService::new(config).await?;
+        Arc::new(sled_db),
+    )
+    .await?;
     let now = Utc::now();
 
     // Insert very old record that should be expired
@@ -203,18 +164,16 @@ async fn test_layer_ttl_expiration() -> Result<()> {
         score: 0.1,
     };
 
-    memory_service.insert(ancient_record.clone()).await?;
+    store.insert(&ancient_record).await?;
 
     // Run promotion cycle
-    let stats = memory_service.run_promotion_cycle().await?;
+    let stats = engine.run_promotion_cycle().await?;
 
     // Should have expired the ancient record
     assert!(stats.expired_interact > 0, "Should expire old records");
 
     // Verify it's gone
-    let gone = memory_service
-        .get_by_id(&ancient_record.id, Layer::Interact)
-        .await?;
+    let gone = store.get_by_id(&ancient_record.id, Layer::Interact).await?;
     assert!(gone.is_none(), "Ancient record should be expired");
 
     println!("✅ TTL expiration test passed!");
