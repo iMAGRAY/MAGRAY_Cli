@@ -264,7 +264,7 @@ mod tests {
 
         // Ждем завершения всех операций
         for handle in handles {
-            handle.await?;
+            let _ = handle.await?;
         }
 
         Ok(())

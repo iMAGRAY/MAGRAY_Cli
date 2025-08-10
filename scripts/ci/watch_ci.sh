@@ -3,6 +3,7 @@ set -euo pipefail
 
 INTERVAL=30
 LOG_DIR="logs"
+SCHEDULE_MINUTES=0 # 0 = disabled
 
 # Parse args
 while [[ "${1-}" != "" ]]; do
@@ -11,8 +12,12 @@ while [[ "${1-}" != "" ]]; do
       shift
       INTERVAL=${1:-30}
       ;;
+    --schedule-all-min)
+      shift
+      SCHEDULE_MINUTES=${1:-0}
+      ;;
     -h|--help)
-      echo "Usage: $0 [--interval N]"
+      echo "Usage: $0 [--interval N] [--schedule-all-min M]"
       exit 0
       ;;
     *)
@@ -57,6 +62,41 @@ summarize_file() {
   fi
 }
 
+should_trigger_all() {
+  # return 0 if should trigger
+  [[ "$SCHEDULE_MINUTES" -gt 0 ]] || return 1
+  local latest="$LOG_DIR/ci-local-all-latest.log"
+  # If no log yet, trigger
+  [[ -f "$latest" ]] || return 0
+  # If recent run active, skip
+  if pgrep -af "cargo test .*ci-local-all" >/dev/null 2>&1; then return 1; fi
+  # If log older than SCHEDULE_MINUTES, trigger
+  local now=$(date +%s)
+  local mtime=$(stat -c %Y "$latest" 2>/dev/null || echo 0)
+  local age=$(( now - mtime ))
+  local threshold=$(( SCHEDULE_MINUTES * 60 ))
+  [[ "$age" -ge "$threshold" ]]
+}
+
+trigger_all_if_needed() {
+  if should_trigger_all; then
+    local ts=$(date +%Y%m%d_%H%M%S)
+    local lock="$LOG_DIR/.ci-all.lock"
+    if mkdir "$lock" 2>/dev/null; then
+      (
+        set -o pipefail
+        echo "=== ci-local-all SCHEDULED $(date -Is) ===" | tee -a "$LOG_DIR/ci-local-all_${ts}.log"
+        CI=1 MAGRAY_NO_ANIM=1 MAGRAY_SKIP_AUTO_INSTALL=1 MAGRAY_FORCE_NO_ORT=1 timeout 1200s \
+        cargo test -q --features="cpu,extended-tests,orchestrated-search,keyword-search,hnsw-index" --tests -- --nocapture \
+        2>&1 | tee -a "$LOG_DIR/ci-local-all_${ts}.log" || true
+        ln -sf "ci-local-all_${ts}.log" "$LOG_DIR/ci-local-all-latest.log"
+        rmdir "$lock" || true
+      ) &
+      disown || true
+    fi
+  fi
+}
+
 while true; do
   echo "=== CI Watchdog $(date -Is) ==="
   summarize_file "ci-local-latest.log" "ci-local"
@@ -64,5 +104,6 @@ while true; do
   summarize_file "ci-local-persistence-latest.log" "ci-local-persistence"
   summarize_file "llm-advanced-latest.log" "llm-advanced"
   echo ""
+  trigger_all_if_needed
   sleep "$INTERVAL"
 done
