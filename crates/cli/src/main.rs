@@ -140,7 +140,7 @@ async fn main() -> Result<()> {
 
     // Автозагрузка манифестов плагинов по флагу окружения
     if std::env::var("MAGRAY_LOAD_PLUGIN_MANIFESTS").ok().map(|s| s=="1"||s.to_lowercase()=="true").unwrap_or(false) {
-        let mut home = util::magray_home();
+        let home = util::magray_home();
         let mut plugins_dir = home.clone(); plugins_dir.push("plugins");
         let mut cfg_dir = home.clone(); cfg_dir.push("plugin-configs");
         tokio::fs::create_dir_all(&plugins_dir).await.ok();
@@ -698,7 +698,7 @@ async fn show_goodbye_animation() -> Result<()> {
 
 async fn show_system_status() -> Result<()> {
     use colored::Colorize;
-    use tracing::{info, warn};
+    
 
     let spinner = progress::ProgressBuilder::fast("Checking system status...");
 

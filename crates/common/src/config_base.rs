@@ -262,9 +262,9 @@ macro_rules! create_config {
     ) => {
         #[derive(Debug, Clone)]
         pub struct $name {
-            pub batch: crate::BatchConfigBase,
-            pub cache: crate::CacheConfigBase,
-            pub timeout: crate::TimeoutConfigBase,
+            pub batch: $crate::BatchConfigBase,
+            pub cache: $crate::CacheConfigBase,
+            pub timeout: $crate::TimeoutConfigBase,
             $(pub $field: $field_type,)*
         }
 
@@ -279,8 +279,8 @@ macro_rules! create_config {
             }
         }
 
-        impl crate::ConfigComposition for $name {
-            fn batch(&self) -> &crate::BatchConfigBase {
+        impl $crate::ConfigComposition for $name {
+            fn batch(&self) -> &$crate::BatchConfigBase {
                 &self.batch
             }
 
@@ -304,9 +304,9 @@ macro_rules! create_config {
     ) => {
         #[derive(Debug, Clone)]
         pub struct $name {
-            pub batch: crate::BatchConfigBase,
-            pub cache: crate::CacheConfigBase,
-            pub timeout: crate::TimeoutConfigBase,
+            pub batch: $crate::BatchConfigBase,
+            pub cache: $crate::CacheConfigBase,
+            pub timeout: $crate::TimeoutConfigBase,
         }
 
         impl Default for $name {
@@ -319,8 +319,8 @@ macro_rules! create_config {
             }
         }
 
-        impl crate::ConfigComposition for $name {
-            fn batch(&self) -> &crate::BatchConfigBase {
+        impl $crate::ConfigComposition for $name {
+            fn batch(&self) -> &$crate::BatchConfigBase {
                 &self.batch
             }
 

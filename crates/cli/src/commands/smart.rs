@@ -5,7 +5,7 @@ use domain::orchestrator::{Executor, Goal, Orchestrator, Plan, Planner, StepResu
 use async_trait::async_trait;
 use tools::{Tool, ToolInput, ToolOutput, ToolRegistry};
 use std::collections::HashMap;
-use todo::{TodoService, Priority, TaskState, TodoItem, create_default_service};
+use todo::{TodoService, Priority, TaskState, create_default_service};
 use std::path::PathBuf;
 use std::fs;
 

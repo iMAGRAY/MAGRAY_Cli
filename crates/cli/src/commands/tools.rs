@@ -5,7 +5,7 @@ use tools::ToolRegistry;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use common::{events, topics};
-use common::policy::{PolicyDocument, PolicyEngine, PolicyRule, PolicySubjectKind, PolicyAction};
+use common::policy::PolicyEngine;
 use tools::intelligent_selector::{IntelligentToolSelector, SelectorConfig, ToolSelectionContext, TaskComplexity, UrgencyLevel, UserExpertise};
 use common::policy::load_effective_policy;
 

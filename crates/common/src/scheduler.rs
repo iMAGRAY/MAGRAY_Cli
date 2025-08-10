@@ -16,6 +16,10 @@ pub struct Scheduler {
     inner: Arc<RwLock<Inner>>,    
 }
 
+impl Default for Scheduler {
+    fn default() -> Self { Self::new() }
+}
+
 struct Inner {
     shutdown_tx: broadcast::Sender<()>,
 }

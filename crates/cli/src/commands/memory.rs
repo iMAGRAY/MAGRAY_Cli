@@ -2,15 +2,13 @@ use crate::progress::ProgressBuilder;
 use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 use colored::*;
-use memory::{default_config};
 use memory::api::{MemoryContext, UnifiedMemoryAPI, MemoryServiceTrait};
-use memory::di::core_traits::ServiceResolver;
 use memory::types::Layer;
 use prettytable::{row, Table};
 use std::path::PathBuf;
 use std::sync::Arc;
 use common::{events, topics};
-use common::policy::{default_document, load_from_path, merge_documents, PolicyEngine};
+use common::policy::PolicyEngine;
 
 /// Команда для управления системой памяти
 #[derive(Debug, Args)]
