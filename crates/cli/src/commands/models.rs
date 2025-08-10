@@ -67,7 +67,6 @@ impl ModelsCommand {
 
     /// Прогреть и удерживать в памяти модели
     fn warmup(models: Vec<String>) -> Result<()> {
-        #[cfg(feature = "onnx")]
         {
             use ai::{model_registry::{MODEL_REGISTRY, ModelType}, warmup_models};
             let names: Vec<String> = if models.is_empty() {
@@ -81,10 +80,6 @@ impl ModelsCommand {
             let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
             warmup_models(&refs)?;
             info!("🔥 Прогреты модели: {:?}", names);
-        }
-        #[cfg(not(feature = "onnx"))]
-        {
-            warn!("ONNX отключён в этом билде. Прогрев моделей недоступен.");
         }
         Ok(())
     }

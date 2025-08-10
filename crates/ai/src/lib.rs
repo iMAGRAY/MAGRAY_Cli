@@ -113,6 +113,7 @@ use std::collections::HashMap;
 #[cfg(feature = "onnx")]
 use crate::models::OnnxSession;
 
+#[cfg(feature = "onnx")]
 lazy_static! {
     /// Глобальный пул прогретых ONNX-сессий (держит их в памяти на протяжении процесса)
     static ref WARMED_MODELS: RwLock<HashMap<String, Arc<OnnxSession>>> = RwLock::new(HashMap::new());
@@ -120,9 +121,9 @@ lazy_static! {
 
 use std::sync::Arc;
 
-/// Прогреть и удерживать в памяти указанные модели (embedding и reranker)
+/// Внутренняя реализация прогрева (только если доступен onnx)
 #[cfg(feature = "onnx")]
-pub fn warmup_models(model_names: &[&str]) -> anyhow::Result<()> {
+fn warmup_models_impl(model_names: &[&str]) -> anyhow::Result<()> {
     use crate::model_registry::MODEL_REGISTRY;
 
     let mut guard = WARMED_MODELS.write();
@@ -131,14 +132,28 @@ pub fn warmup_models(model_names: &[&str]) -> anyhow::Result<()> {
         let model_path = MODEL_REGISTRY.get_model_path(name).join("model.onnx");
         if !model_path.exists() { continue; }
         // Создаем real/fallback сессию
-        let session = OnnxSession::new(name.to_string(), model_path.clone(), false)
-            .unwrap_or_else(|e| OnnxSession::new_fallback(name.to_string(), model_path.clone(), e.to_string()));
+        let session = models::OnnxSession::new(name.to_string(), model_path.clone(), false)
+            .unwrap_or_else(|e| models::OnnxSession::new_fallback(name.to_string(), model_path.clone(), e.to_string()));
         guard.insert(name.to_string(), Arc::new(session));
     }
     Ok(())
 }
 
-/// Получить прогретую сессию, если она есть
+/// Прогреть и удерживать в памяти указанные модели (embedding и reranker)
+pub fn warmup_models(model_names: &[&str]) -> anyhow::Result<()> {
+    #[cfg(feature = "onnx")]
+    {
+        return warmup_models_impl(model_names);
+    }
+    #[cfg(not(feature = "onnx"))]
+    {
+        // Без onnx просто no-op
+        let _ = model_names;
+        return Ok(());
+    }
+}
+
+/// Получить прогретую сессию, если она есть (только при onnx)
 #[cfg(feature = "onnx")]
 pub fn get_warmed_session(name: &str) -> Option<Arc<OnnxSession>> {
     WARMED_MODELS.read().get(name).cloned()
