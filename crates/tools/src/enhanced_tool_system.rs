@@ -7,7 +7,7 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
-use crate::execution_pipeline::{ExecutionResult, ExecutionStrategy, ToolExecutionPipeline};
+use crate::execution::pipeline::{ExecutionPipeline, ExecutionResult, ExecutionStrategy};
 use crate::intelligent_selector::{
     IntelligentToolSelector, TaskComplexity, ToolSelectionContext, UrgencyLevel, UserExpertise,
 };
@@ -63,7 +63,7 @@ pub struct ToolPerformanceSnapshot {
 pub struct EnhancedToolSystem {
     /// Core components
     intelligent_selector: Arc<IntelligentToolSelector>,
-    execution_pipeline: Arc<ToolExecutionPipeline>,
+    execution_pipeline: Arc<ExecutionPipeline>,
     performance_monitor: Arc<ToolPerformanceMonitor>,
 
     /// System configuration
@@ -73,7 +73,7 @@ pub struct EnhancedToolSystem {
     tools: Arc<RwLock<HashMap<String, Arc<dyn Tool>>>>,
 
     /// System statistics
-    system_stats: Arc<tokio::sync::Mutex<SystemStats>>,
+    system_stats: Arc<tokio::sync::Mutex<SystemStats>>, 
 }
 
 /// System-wide statistics
@@ -93,9 +93,10 @@ impl EnhancedToolSystem {
 
         // Initialize core components
         let intelligent_selector = Arc::new(IntelligentToolSelector::default());
-        let execution_pipeline = Arc::new(ToolExecutionPipeline::new(Arc::clone(
-            &intelligent_selector,
-        )));
+        let execution_pipeline = Arc::new(ExecutionPipeline::new(
+            crate::execution::resource_manager::ResourceLimits::default(),
+            Arc::clone(&intelligent_selector),
+        ));
         let performance_monitor =
             Arc::new(ToolPerformanceMonitor::new(config.monitor_config.clone()));
 
@@ -130,7 +131,7 @@ impl EnhancedToolSystem {
 
         if self.config.enable_execution_pipeline {
             self.execution_pipeline
-                .register_tool(Arc::clone(&tool))
+                .register_tool(Arc::clone(&tool), crate::registry::ToolMetadata::from_spec(&spec))
                 .await;
         }
 
@@ -185,10 +186,28 @@ impl EnhancedToolSystem {
             None
         };
 
-        // Execute through pipeline
+        // Execute through pipeline (selection inside pipeline)
         let execution_result = if self.config.enable_execution_pipeline {
             self.execution_pipeline
-                .execute_tool(&context, execution_strategy)
+                .execute_with_selection(
+                    crate::execution::pipeline::ExecutionContext {
+                        user_query: context.user_query.clone(),
+                        session_id: context
+                            .session_context
+                            .get("session_id")
+                            .cloned()
+                            .unwrap_or_else(|| "default".into()),
+                        user_id: context
+                            .session_context
+                            .get("user_id")
+                            .cloned()
+                            .unwrap_or_else(|| "anonymous".into()),
+                        security_level: crate::registry::SecurityLevel::Safe,
+                        resource_limits: crate::execution::resource_manager::ResourceLimits::default(),
+                        metadata: context.session_context.clone(),
+                    },
+                    execution_strategy,
+                )
                 .await?
         } else {
             // Fallback to direct execution
@@ -215,7 +234,7 @@ impl EnhancedToolSystem {
 
         // Get performance snapshot
         let performance_snapshot = if self.config.enable_performance_monitoring {
-            self.get_performance_snapshot(&execution_result.tool_name)
+            self.get_performance_snapshot(&self.extract_tool_name(&execution_result))
                 .await
         } else {
             None
@@ -261,7 +280,7 @@ impl EnhancedToolSystem {
 
         let result = EnhancedToolResult {
             execution_result,
-            selection_confidence: 0.8, // Would be calculated from intelligent selector
+            selection_confidence: 0.8,
             alternative_tools,
             performance_metrics: performance_snapshot,
             optimization_suggestions,
@@ -272,6 +291,12 @@ impl EnhancedToolSystem {
             total_execution_time
         );
         Ok(result)
+    }
+
+    fn extract_tool_name(&self, _exec: &ExecutionResult) -> String {
+        // ExecutionResult нового пайплайна не содержит явного tool_name —
+        // для метрик используем ключ из контекста/монитора или оставляем placeholder.
+        "unknown".to_string()
     }
 
     /// Create tool selection context from user query
@@ -375,7 +400,6 @@ impl EnhancedToolSystem {
 
     /// Execute tool directly (fallback)
     async fn execute_direct(&self, _context: &ToolSelectionContext) -> Result<ExecutionResult> {
-        // This is a simplified fallback - in reality would need more sophisticated logic
         Err(anyhow::anyhow!(
             "Direct execution not implemented - requires execution pipeline"
         ))
@@ -403,30 +427,24 @@ impl EnhancedToolSystem {
     ) -> Vec<String> {
         let mut suggestions = Vec::new();
 
-        // Performance-based suggestions
         if execution_result.execution_time > Duration::from_secs(5) {
             suggestions.push("Consider using parallel execution for complex tasks".to_string());
         }
-
         if execution_result.attempt_count > 1 {
             suggestions.push(
                 "Tool reliability could be improved with circuit breaker protection".to_string(),
             );
         }
-
-        // Context-based suggestions
         if context.task_complexity == TaskComplexity::Complex
             && execution_result.strategy_used == ExecutionStrategy::Direct
         {
             suggestions.push("Complex tasks benefit from sequential fallback strategy".to_string());
         }
-
         if context.urgency_level == UrgencyLevel::Critical
             && execution_result.execution_time > Duration::from_secs(2)
         {
             suggestions.push("Critical tasks should use parallel fastest strategy".to_string());
         }
-
         suggestions
     }
 
@@ -435,8 +453,8 @@ impl EnhancedToolSystem {
         match self.intelligent_selector.select_tools(context).await {
             Ok(candidates) => candidates
                 .into_iter()
-                .skip(1) // Skip the primary tool
-                .take(3) // Take up to 3 alternatives
+                .skip(1)
+                .take(3)
                 .map(|c| c.tool_name)
                 .collect(),
             Err(_) => Vec::new(),
@@ -446,7 +464,6 @@ impl EnhancedToolSystem {
     /// Count enabled features for initialization logging
     fn count_enabled_features(&self) -> usize {
         let mut count = 0;
-
         if self.config.enable_intelligent_selection {
             count += 1;
         }
@@ -459,7 +476,6 @@ impl EnhancedToolSystem {
         if self.config.enable_auto_optimization {
             count += 1;
         }
-
         count
     }
 
@@ -471,25 +487,21 @@ impl EnhancedToolSystem {
         } else {
             "Execution pipeline disabled".to_string()
         };
-
         let selector_stats = if self.config.enable_intelligent_selection {
             self.intelligent_selector.get_selection_stats().await
         } else {
             "Intelligent selection disabled".to_string()
         };
-
         let monitor_stats = if self.config.enable_performance_monitoring {
             self.performance_monitor.get_performance_report().await
         } else {
             "Performance monitoring disabled".to_string()
         };
-
         let success_rate = if stats.total_requests > 0 {
             (stats.successful_requests as f32 / stats.total_requests as f32) * 100.0
         } else {
             0.0
         };
-
         format!(
             "🚀 Enhanced Tool System Statistics\n\n\
              📊 System Overview:\n\
@@ -523,7 +535,6 @@ impl EnhancedToolSystem {
             let tools = self.tools.read().await;
             tools.len()
         };
-
         let health_status = if stats.total_requests > 0 {
             let success_rate =
                 (stats.successful_requests as f32 / stats.total_requests as f32) * 100.0;
@@ -536,7 +547,6 @@ impl EnhancedToolSystem {
         } else {
             "No data"
         };
-
         Ok(format!(
             "🏥 Enhanced Tool System Health Check\n\n\
              ✅ Status: {} ({})\n\
@@ -563,8 +573,6 @@ impl EnhancedToolSystem {
 
 impl Default for EnhancedToolSystem {
     fn default() -> Self {
-        // This is a blocking operation, so we use a simple synchronous version
-        // In practice, you'd want to use new() with proper async initialization
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             Self::new(EnhancedToolSystemConfig::default())
