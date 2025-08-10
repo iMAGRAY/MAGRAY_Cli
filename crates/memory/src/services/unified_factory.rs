@@ -22,7 +22,6 @@ use tracing::{debug, info};
 
 use crate::{
     di::{traits::DIResolver, UnifiedContainer},
-    services::traits::ServiceFactoryTrait,
 };
 use crate::di::core_traits::ServiceResolver;
 use crate::orchestration::{EmbeddingCoordinator, HealthManager, ResourceController, SearchCoordinator};

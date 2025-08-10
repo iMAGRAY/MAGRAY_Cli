@@ -23,6 +23,7 @@ use crate::{
     services::CoordinatorServiceTrait,
 };
 use crate::di::core_traits::ServiceResolver;
+use crate::di::traits::DIContainerStats;
 
 /// Реализация системного мониторинга
 /// Отвечает ТОЛЬКО за мониторинг и сбор метрик
@@ -238,13 +239,7 @@ impl MonitoringServiceTrait for MonitoringService {
         }
 
         // Базовые проверки DI контейнера
-        let di_stats = crate::di::traits::DIContainerStats {
-            registered_services: 0,
-            registered_factories: 0,
-            singleton_count: 0,
-            transient_count: 0,
-            scoped_count: 0,
-        };
+        let di_stats = DIContainerStats { registered_factories: 0, cached_singletons: 0, total_resolutions: 0, cache_hits: 0, validation_errors: 0 };
         if di_stats.registered_factories == 0 {
             return Err(anyhow::anyhow!(
                 "DI контейнер пуст - нет зарегистрированных типов"
@@ -288,13 +283,7 @@ impl MonitoringServiceTrait for MonitoringService {
             promotion_stats,
             batch_stats,
             gpu_stats,
-            di_container_stats: crate::di::traits::DIContainerStats {
-                registered_services: 0,
-                registered_factories: 0,
-                singleton_count: 0,
-                transient_count: 0,
-                scoped_count: 0,
-            },
+            di_container_stats: DIContainerStats { registered_factories: 0, cached_singletons: 0, total_resolutions: 0, cache_hits: 0, validation_errors: 0 },
         }
     }
 
@@ -324,13 +313,7 @@ impl MonitoringServiceTrait for MonitoringService {
         } else {
             0
         };
-        let di_stats = crate::di::traits::DIContainerStats {
-            registered_services: 0,
-            registered_factories: 0,
-            singleton_count: 0,
-            transient_count: 0,
-            scoped_count: 0,
-        };
+        let di_stats = DIContainerStats { registered_factories: 0, cached_singletons: 0, total_resolutions: 0, cache_hits: 0, validation_errors: 0 };
         let monitoring_tasks = self
             .monitoring_tasks_count
             .load(std::sync::atomic::Ordering::Relaxed);
