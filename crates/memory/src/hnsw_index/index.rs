@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
@@ -311,14 +311,14 @@ impl VectorIndex {
                 self.config.dimension
             );
             self.stats.record_error();
-            return Err(error);
+            Err(error)
         }
 
         // Проверяем не существует ли уже такой ID
         if self.id_to_point.read().contains_key(&id) {
             let error = anyhow!("Vector with id '{}' already exists", id);
             self.stats.record_error();
-            return Err(error);
+            Err(error)
         }
 
         // Проверяем лимиты capacity
@@ -329,7 +329,7 @@ impl VectorIndex {
                 self.config.max_elements
             );
             self.stats.record_error();
-            return Err(error);
+            Err(error)
         }
 
         // Убедимся что HNSW инициализирован
@@ -346,7 +346,7 @@ impl VectorIndex {
             } else {
                 let error = anyhow!("HNSW не инициализирован");
                 self.stats.record_error();
-                return Err(error);
+                Err(error)
             }
         }
 

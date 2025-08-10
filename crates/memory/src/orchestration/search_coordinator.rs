@@ -732,7 +732,7 @@ impl SearchCoordinator {
                         return Ok(());
                     }
                 }
-                return Err(anyhow::anyhow!(
+                Err(anyhow::anyhow!(
                     "🚫 Search circuit breaker OPEN - поиск временно недоступен"
                 ));
             }
@@ -848,7 +848,7 @@ impl SearchCoordinator {
                     cache_guard.cache.remove(&key);
                 }
 
-                if cache_guard.cache.len() > 0 {
+                if !cache_guard.cache.is_empty() {
                     debug!(
                         "🧹 Cache cleanup: осталось {} записей",
                         cache_guard.cache.len()
