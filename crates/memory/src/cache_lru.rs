@@ -6,7 +6,7 @@ use sled::Db;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{debug, info, warn, error};
+use tracing::{info, warn};
 
 use common::{config_base::CacheConfigBase, ConfigTrait};
 
