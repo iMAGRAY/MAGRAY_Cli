@@ -278,5 +278,4 @@ criterion_group!(
 #[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 criterion_main!(benches);
 
-#[cfg(not(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence")))]
 fn main() {}
