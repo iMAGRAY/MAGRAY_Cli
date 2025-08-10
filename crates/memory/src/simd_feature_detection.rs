@@ -7,9 +7,16 @@
 //! - Workload patterns (batch size, frequency)
 //!
 //! Цель: максимальная производительность на любой архитектуре
+//!
+//! Safety
+//! - В модуле нет прямых `unsafe` SIMD-интринсиков. Мы используем детекцию фич
+//!   через `is_x86_feature_detected!` и адаптивный выбор алгоритма на уровне
+//!   чистого Rust.
+//! - Глобальные синглтоны реализованы через `Once`/`OnceLock` для отсутствия data race.
+//! - Тесты с потенциально долгими хронометрами отключены в CI через переменную `CI`.
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::Once;
+use std::sync::{Once, OnceLock};
 use tracing::{debug, info};
 
 /// Global CPU feature detection results
@@ -465,17 +472,11 @@ impl Default for AdaptiveAlgorithmSelector {
 }
 
 /// Global adaptive selector instance
-static mut GLOBAL_SELECTOR: Option<AdaptiveAlgorithmSelector> = None;
-static SELECTOR_INIT: Once = Once::new();
+static GLOBAL_SELECTOR: OnceLock<AdaptiveAlgorithmSelector> = OnceLock::new();
 
 /// Get global adaptive selector
 pub fn get_adaptive_selector() -> &'static AdaptiveAlgorithmSelector {
-    unsafe {
-        SELECTOR_INIT.call_once(|| {
-            GLOBAL_SELECTOR = Some(AdaptiveAlgorithmSelector::new());
-        });
-        GLOBAL_SELECTOR.as_ref().unwrap()
-    }
+    GLOBAL_SELECTOR.get_or_init(AdaptiveAlgorithmSelector::new)
 }
 
 /// Quick CPU info for optimization decisions
