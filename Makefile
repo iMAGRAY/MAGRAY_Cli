@@ -322,3 +322,59 @@ ci-local-all:
 	@echo "🧪 Running full CI matrix locally with 20m timeout (non-interactive)..."
 	CI=1 MAGRAY_NO_ANIM=1 MAGRAY_SKIP_AUTO_INSTALL=1 MAGRAY_FORCE_NO_ORT=1 timeout 1200s \
 	cargo test -q --features="cpu,extended-tests,orchestrated-search,keyword-search,hnsw-index" --tests -- --nocapture | cat
+
+# MAGRAY CLI - Container workflows
+# Короткие цели для сборки/запуска контейнеров и smoke-тестов
+
+ENGINE ?= docker
+COMPOSE ?= $(ENGINE) compose
+COMPOSE_FILE ?= scripts/docker/docker-compose.yml
+
+# -------- CPU profile via docker compose --------
+.PHONY: docker-build-cpu
+docker-build-cpu:
+	$(COMPOSE) -f $(COMPOSE_FILE) --profile cpu build
+
+.PHONY: docker-up-cpu
+docker-up-cpu:
+	$(COMPOSE) -f $(COMPOSE_FILE) --profile cpu up -d
+
+.PHONY: docker-ps
+docker-ps:
+	$(COMPOSE) -f $(COMPOSE_FILE) ps
+
+.PHONY: docker-logs-cpu
+docker-logs-cpu:
+	$(COMPOSE) -f $(COMPOSE_FILE) logs -f magray-cpu
+
+.PHONY: docker-smoke-cpu
+docker-smoke-cpu:
+	$(COMPOSE) -f $(COMPOSE_FILE) --profile cpu exec -T magray-cpu /usr/local/bin/magray --version
+	$(COMPOSE) -f $(COMPOSE_FILE) --profile cpu exec -T magray-cpu /usr/local/bin/magray status || true
+
+.PHONY: docker-down
+docker-down:
+	$(COMPOSE) -f $(COMPOSE_FILE) down -v --remove-orphans
+
+# -------- Direct docker build/run fallback (без compose) --------
+IMAGE_CPU ?= magray:cpu
+DOCKERFILE_CPU ?= scripts/docker/Dockerfile.cpu
+
+.PHONY: docker-build-cpu-direct
+docker-build-cpu-direct:
+	$(ENGINE) build -t $(IMAGE_CPU) -f $(DOCKERFILE_CPU) .
+
+.PHONY: docker-run-cpu-direct
+docker-run-cpu-direct:
+	$(ENGINE) run --rm $(IMAGE_CPU) /usr/local/bin/magray --version
+	$(ENGINE) run --rm -e RUST_LOG=info $(IMAGE_CPU) /usr/local/bin/magray --help | head -n 20
+
+# -------- All-in-one helpers --------
+.PHONY: up-cpu
+up-cpu: docker-build-cpu docker-up-cpu docker-ps
+
+.PHONY: smoke-cpu
+smoke-cpu: docker-smoke-cpu
+
+.PHONY: down
+down: docker-down
