@@ -1,8 +1,9 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 use llm::{ChatMessage, CompletionRequest, LlmClient, LlmProvider};
 use mockito::Server;
 
+#[allow(dead_code)]
 fn create_mock_openai_response() -> String {
     r#"{
         "choices": [{
@@ -15,6 +16,7 @@ fn create_mock_openai_response() -> String {
     .to_string()
 }
 
+#[allow(dead_code)]
 fn create_mock_anthropic_response() -> String {
     r#"{
         "content": [{
@@ -76,7 +78,7 @@ async fn test_llm_client_from_env() {
     std::env::set_var("OPENAI_API_KEY", "test-key");
     std::env::set_var("OPENAI_MODEL", "gpt-4");
 
-    let client = LlmClient::from_env().unwrap();
+    let _client = LlmClient::from_env().unwrap();
     // Проверяем что клиент создан (детали приватные)
 
     // Очистка
@@ -144,7 +146,7 @@ async fn test_openai_completion_mock() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::OpenAI {
+    let _provider = LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4".to_string(),
     };
@@ -175,7 +177,7 @@ async fn test_anthropic_completion_mock() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::Anthropic {
+    let _provider = LlmProvider::Anthropic {
         api_key: "test-key".to_string(),
         model: "claude-3".to_string(),
     };
@@ -231,7 +233,7 @@ async fn test_chat_with_history() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::OpenAI {
+    let _provider = LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4".to_string(),
     };
@@ -291,7 +293,7 @@ async fn test_error_handling() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::OpenAI {
+    let _provider = LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4".to_string(),
     };

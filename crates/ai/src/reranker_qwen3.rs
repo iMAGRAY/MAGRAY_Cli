@@ -52,6 +52,7 @@ pub struct BatchRerankResult {
 }
 
 impl OptimizedQwen3RerankerService {
+    pub fn model_path(&self) -> &PathBuf { &self.model_path }
     /// Create new optimized Qwen3 reranker service with GPU support
     pub fn new_with_config(config: RerankingConfig) -> AnyhowResult<Self> {
         // Centralized models directory
@@ -64,6 +65,7 @@ impl OptimizedQwen3RerankerService {
         info!("Initializing OPTIMIZED Qwen3 reranker service");
         info!("   Max sequence length: {}", max_seq_length);
         info!("   Batch size: {}", batch_size);
+        info!("   Model path: {}", model_path.display());
 
         // Setup DLL path for Windows
         #[cfg(target_os = "windows")]

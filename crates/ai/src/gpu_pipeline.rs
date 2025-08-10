@@ -304,6 +304,7 @@ impl GpuPipelineManager {
     }
 
     /// Адаптивное вычисление размера батча на основе истории производительности
+    #[allow(dead_code)]
     async fn calculate_adaptive_batch_size(&self, total_texts: usize) -> usize {
         let stats = self.stats.lock().await;
         let base_batch_size = self.config.optimal_batch_size;

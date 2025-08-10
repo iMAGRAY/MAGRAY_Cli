@@ -167,13 +167,10 @@ where
         record: &MemoryRecord,
         from_layer: LayerType,
     ) -> DomainResult<PromotionRecommendation> {
-        let target_layer =
-            from_layer
-                .next_layer()
-                .ok_or_else(|| DomainError::PromotionNotAllowed {
-                    from: from_layer,
-                    to: from_layer,
-                })?;
+        let target_layer = from_layer.next_layer().ok_or(DomainError::PromotionNotAllowed {
+            from: from_layer,
+            to: from_layer,
+        })?;
 
         let meets_criteria = self.meets_promotion_criteria(record, target_layer)?;
         let confidence = self.calculate_promotion_confidence(record);

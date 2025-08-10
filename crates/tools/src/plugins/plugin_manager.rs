@@ -77,7 +77,7 @@ impl ToolManifest {
         let mut parts = self.version.split('.');
         let major = parts.next().ok_or_else(|| anyhow!("bad version"))?.parse::<u32>()?;
         let minor = parts.next().ok_or_else(|| anyhow!("bad version"))?.parse::<u32>()?;
-        let patch = parts.next().unwrap_or("0").split(|c| c == '-' || c == '+').next().unwrap_or("0").parse::<u32>()?;
+        let patch = parts.next().unwrap_or("0").split(['-', '+']).next().unwrap_or("0").parse::<u32>()?;
         Ok(PluginVersion { major, minor, patch, pre_release: None, build_metadata: None })
     }
 
@@ -86,7 +86,7 @@ impl ToolManifest {
         if p == "wasm" { PluginType::Wasm }
         else if p == "external" { PluginType::ExternalProcess }
         else if p == "container" { PluginType::Container }
-        else if p.starts_with("script:") { PluginType::Script(p[7..].to_string()) }
+        else if let Some(stripped) = p.strip_prefix("script:") { PluginType::Script(stripped.to_string()) }
         else { PluginType::SharedLibrary }
     }
 
@@ -272,25 +272,13 @@ pub enum PluginType {
 }
 
 /// Runtime requirements for plugins
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RuntimeRequirements {
     pub min_rust_version: Option<String>,
     pub required_features: Vec<String>,
     pub optional_features: Vec<String>,
     pub system_dependencies: Vec<String>,
     pub environment_variables: Vec<String>,
-}
-
-impl Default for RuntimeRequirements {
-    fn default() -> Self {
-        Self {
-            min_rust_version: None,
-            required_features: Vec::new(),
-            optional_features: Vec::new(),
-            system_dependencies: Vec::new(),
-            environment_variables: Vec::new(),
-        }
-    }
 }
 
 /// Plugin dependencies with version constraints

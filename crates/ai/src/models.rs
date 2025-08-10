@@ -71,7 +71,7 @@ impl OnnxSession {
         model_name: &str,
         _model_path: &PathBuf,
         use_gpu: bool,
-    ) -> Result<(Vec<String>, Vec<String>, Vec<Vec<i64>>, Vec<Vec<i64>>)> {
+    ) -> Result<IoShapes> {
         // Проверяем доступность ONNX Runtime библиотеки
         let ort_lib_path =
             std::env::var("ORT_DYLIB_PATH").unwrap_or_else(|_| "onnxruntime.dll".to_string());
@@ -84,32 +84,28 @@ impl OnnxSession {
         }
 
         // Определяем input/output информацию на основе модели
-        let (input_names, output_names, input_shapes, output_shapes) =
-            if model_name.contains("embed") {
-                // BGE-M3 embedding model
-                (
-                    vec!["input_ids".to_string(), "attention_mask".to_string()],
-                    vec!["last_hidden_state".to_string()],
-                    vec![vec![-1, -1], vec![-1, -1]],
-                    vec![vec![-1, -1, 768]],
-                )
-            } else if model_name.contains("rerank") {
-                // BGE reranker model
-                (
-                    vec!["input_ids".to_string(), "attention_mask".to_string()],
-                    vec!["logits".to_string()],
-                    vec![vec![-1, -1], vec![-1, -1]],
-                    vec![vec![-1, 2]],
-                )
-            } else {
-                // Default configuration
-                (
-                    vec!["input".to_string()],
-                    vec!["output".to_string()],
-                    vec![vec![-1, 768]],
-                    vec![vec![-1, 768]],
-                )
-            };
+        let (input_names, output_names, input_shapes, output_shapes) = if model_name.contains("embed") {
+            (
+                vec!["input_ids".to_string(), "attention_mask".to_string()],
+                vec!["last_hidden_state".to_string()],
+                vec![vec![-1, -1], vec![-1, -1]],
+                vec![vec![-1, -1, 768]],
+            )
+        } else if model_name.contains("rerank") {
+            (
+                vec!["input_ids".to_string(), "attention_mask".to_string()],
+                vec!["logits".to_string()],
+                vec![vec![-1, -1], vec![-1, -1]],
+                vec![vec![-1, 2]],
+            )
+        } else {
+            (
+                vec!["input".to_string()],
+                vec!["output".to_string()],
+                vec![vec![-1, 768]],
+                vec![vec![-1, 768]],
+            )
+        };
 
         info!(
             "✅ Real ONNX session metadata extracted for: {}",
@@ -157,13 +153,8 @@ impl OnnxSession {
                 .map(|(name, shape)| (name.clone(), shape.clone()))
                 .collect()),
             SessionType::Fallback { .. } => {
-                // Fallback: определяем на основе имени модели
-                if self.model_name.contains("embed") {
-                    Ok(vec![
-                        ("input_ids".to_string(), vec![-1, -1]),
-                        ("attention_mask".to_string(), vec![-1, -1]),
-                    ])
-                } else if self.model_name.contains("rerank") {
+                // Fallback: embed и rerank имеют одинаковые входы; объединим ветки
+                if self.model_name.contains("embed") || self.model_name.contains("rerank") {
                     Ok(vec![
                         ("input_ids".to_string(), vec![-1, -1]),
                         ("attention_mask".to_string(), vec![-1, -1]),
@@ -208,6 +199,8 @@ impl OnnxSession {
         }
     }
 }
+
+type IoShapes = (Vec<String>, Vec<String>, Vec<Vec<i64>>, Vec<Vec<i64>>);
 
 /// Model loader and manager
 pub struct ModelLoader {

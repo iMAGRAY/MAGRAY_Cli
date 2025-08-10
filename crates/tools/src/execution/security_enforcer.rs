@@ -516,7 +516,7 @@ impl SecurityEnforcer {
                 restrictions.push(SecurityRestriction::ReadOnlyFileSystem);
             }
             FileSystemPermissions::Restricted { allowed_paths } => {
-                let paths: Vec<PathBuf> = allowed_paths.iter().map(|s| PathBuf::from(s)).collect();
+                let paths: Vec<PathBuf> = allowed_paths.iter().map(PathBuf::from).collect();
                 restrictions.push(SecurityRestriction::FilePathWhitelist(paths));
             }
             _ => {}

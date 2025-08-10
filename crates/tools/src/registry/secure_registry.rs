@@ -220,7 +220,7 @@ impl InputValidator {
 
     fn perform_security_checks(input: &ToolInput, _metadata: &ToolMetadata) -> Result<()> {
         // Check for SQL injection patterns
-        for (_, value) in &input.args {
+        for value in input.args.values() {
             if Self::contains_sql_injection(value) {
                 error!("SQL injection attempt detected in tool input");
                 return Err(anyhow!("Input contains potential SQL injection"));
@@ -279,7 +279,7 @@ impl InputValidator {
 /// Secure tool registry with permission enforcement
 pub struct SecureToolRegistry {
     /// Core tool storage with metadata
-    tools: Arc<RwLock<HashMap<String, (Arc<dyn Tool>, ToolMetadata)>>>,
+    tools: Arc<RwLock<ToolStoreMap>>,
 
     /// Security policies and configurations
     security_config: SecurityConfig,
@@ -703,6 +703,9 @@ impl SecureToolRegistry {
             .as_secs()
     }
 }
+
+/// Type alias to reduce signature complexity
+type ToolStoreMap = HashMap<String, (Arc<dyn Tool>, ToolMetadata)>;
 
 impl Default for SecureToolRegistry {
     fn default() -> Self {

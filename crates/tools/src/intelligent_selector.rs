@@ -779,7 +779,7 @@ impl IntelligentToolSelector {
         );
 
         // Sort tools by usage
-        let mut tool_stats: Vec<_> = history.iter().map(|(name, data)| (name, data)).collect();
+        let mut tool_stats: Vec<_> = history.iter().collect();
         tool_stats.sort_by(|a, b| b.1.usage_count.cmp(&a.1.usage_count));
 
         for (name, data) in tool_stats.iter().take(10) {

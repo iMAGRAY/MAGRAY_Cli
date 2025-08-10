@@ -272,14 +272,14 @@ impl MemoryRecordBuilder {
     pub fn access_pattern(mut self, ap: AccessPattern) -> Self { self.access_pattern = Some(ap); self }
 
     pub fn build(self) -> DomainResult<MemoryRecord> {
-        let id = self.id.unwrap_or_else(RecordId::new);
+        let id = self.id.unwrap_or_default();
         let content = self.content.ok_or(DomainError::EmptyContent)?;
         let layer = self.layer.unwrap_or(LayerType::Interact);
         let kind = self.kind.unwrap_or_else(|| "generic".to_string());
         let project = self.project.unwrap_or_default();
         let session = self.session.unwrap_or_default();
         let created_at = self.created_at.unwrap_or_else(Utc::now);
-        let access_pattern = self.access_pattern.unwrap_or_else(AccessPattern::new);
+        let access_pattern = self.access_pattern.unwrap_or_default();
         if content.trim().is_empty() { return Err(DomainError::EmptyContent); }
         Ok(MemoryRecord {
             id,

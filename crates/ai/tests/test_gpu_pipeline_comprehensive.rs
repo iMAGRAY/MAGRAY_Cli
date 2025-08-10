@@ -2,9 +2,9 @@
 use ai::config::EmbeddingConfig;
 use anyhow::Result;
 // use serial_test::serial;
-use std::sync::Arc;
 
 // Helper function to create pipeline config
+#[allow(dead_code)]
 fn create_pipeline_config() -> Result<()> {
     // Since PipelineConfig and GpuPipelineManager are not easily testable without actual GPU setup,
     // we'll create minimal tests that can compile and run

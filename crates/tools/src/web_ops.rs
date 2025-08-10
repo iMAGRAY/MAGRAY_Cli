@@ -10,7 +10,7 @@ fn net_allowlist() -> Vec<String> {
 fn extract_domain(url: &str) -> Option<String> {
     if let Some(rest) = url.strip_prefix("http://").or_else(|| url.strip_prefix("https://")) {
         let part = rest.split('/').next().unwrap_or("");
-        let domain = part.split('@').last().unwrap_or("");
+        let domain = part.split('@').next_back().unwrap_or("");
         let domain = domain.split(':').next().unwrap_or("");
         if domain.is_empty() { None } else { Some(domain.to_lowercase()) }
     } else { None }
@@ -108,7 +108,7 @@ impl Tool for WebSearch {
                 ensure_net_allowed(&url)?;
                 let client = reqwest::Client::builder()
                     .user_agent("MagrayBot/0.1 (+https://example.local)")
-                    .timeout(std::time::Duration::from_secs(input.timeout_ms.unwrap_or(10_000) as u64 / 1000 + 10))
+                    .timeout(std::time::Duration::from_secs(input.timeout_ms.unwrap_or(10_000) / 1000 + 10))
                     .build()?;
                 let resp = client.get(&url).send().await?;
                 let status = resp.status();
@@ -176,14 +176,13 @@ async fn fetch_http_with_limit(url: &str, timeout_ms: Option<u64>, max_bytes: us
     let content_type = resp.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     let mut collected: Vec<u8> = Vec::with_capacity(4096);
     let mut resp = resp;
-    loop {
-        match resp.chunk().await? {
-            Some(bytes) => {
-                if collected.len() + bytes.len() > max_bytes { collected.extend_from_slice(&bytes[..max_bytes.saturating_sub(collected.len())]); break; }
-                collected.extend_from_slice(&bytes);
-            }
-            None => break,
+    while let Some(bytes) = resp.chunk().await? {
+        if collected.len() + bytes.len() > max_bytes {
+            collected.extend_from_slice(&bytes[..max_bytes.saturating_sub(collected.len())]);
+            break;
         }
+        collected.extend_from_slice(&bytes);
+        if collected.len() >= max_bytes { break; }
     }
     let bytes_len = collected.len();
     let body = if is_textual_content(Some(&content_type)) { String::from_utf8_lossy(&collected).to_string() } else { format!("[binary content: {} bytes]", bytes_len) };
@@ -256,16 +255,15 @@ impl Tool for WebFetch {
                     (success, result, formatted_output, metadata) = (false, format!("✗ HTTP error: {}", e), None, meta);
                 }
             }
-        } else if url.starts_with("file://") {
-            let path = &url[7..];
+        } else if let Some(path) = url.strip_prefix("file://") {
             match tokio::fs::read(path).await {
                 Ok(bytes) => {
-                    let bytes_len = bytes.len();
-                    let body = String::from_utf8_lossy(&bytes).to_string();
+                    let len = bytes.len();
                     let mut meta = HashMap::new();
-                    meta.insert("bytes".into(), bytes_len.to_string());
+                    meta.insert("bytes".into(), len.to_string());
                     meta.insert("source".into(), "file".into());
-                    (success, result, formatted_output, metadata) = (true, format!("📄 FILE {} ({} bytes)", path, bytes_len), Some(body), meta);
+                    let text = String::from_utf8_lossy(&bytes).to_string();
+                    (success, result, formatted_output, metadata) = (true, format!("📄 FILE {} ({} bytes)", path, len), Some(text), meta);
                 }
                 Err(e) => {
                     let mut meta = HashMap::new();

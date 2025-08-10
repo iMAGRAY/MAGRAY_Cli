@@ -85,12 +85,6 @@ pub use di::{
     UnifiedContainerBuilder as DIContainerBuilder,
     Lifetime,
 };
-#[cfg(feature = "minimal")]
-pub use di::{
-    UnifiedContainer as DIContainer,
-    UnifiedContainerBuilder as DIContainerBuilder,
-    Lifetime,
-};
 
 // Legacy API types - перенаправляем на реальные типы из di
 pub use di::{DIContainerStats, DIPerformanceMetrics};

@@ -214,3 +214,7 @@ impl TypeMetrics {
         }
     }
 }
+
+impl Default for TypeMetrics {
+    fn default() -> Self { Self::new() }
+}

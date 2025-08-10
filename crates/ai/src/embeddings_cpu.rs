@@ -827,6 +827,7 @@ impl CpuEmbeddingService {
 }
 
 /// Pure scalar mean pooling: sum across seq_len then divide by seq_len
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn mean_pool_scalar(data: &[f32], seq_len: usize, hidden_size: usize) -> Vec<f32> {
     let mut pooled = vec![0.0f32; hidden_size];
     for s in 0..seq_len {
@@ -845,6 +846,7 @@ pub(crate) fn mean_pool_scalar(data: &[f32], seq_len: usize, hidden_size: usize)
 }
 
 /// Pure scalar L2 normalization
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn l2_normalize_scalar(mut v: Vec<f32>) -> Vec<f32> {
     let mut norm_sq = 0.0f32;
     for &x in &v { norm_sq += x * x; }
@@ -857,6 +859,7 @@ pub(crate) fn l2_normalize_scalar(mut v: Vec<f32>) -> Vec<f32> {
 }
 
 /// Extract first item embedding from 3D [1, seq_len, hidden_size] using scalar helpers
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn extract_embedding_from_3d_scalar(
     shape_vec: &[i64],
     data: &[f32],

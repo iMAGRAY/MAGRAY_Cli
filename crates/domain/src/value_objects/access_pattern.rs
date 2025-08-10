@@ -185,7 +185,6 @@ impl Default for AccessPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Duration;
 
     #[test]
     fn test_new_access_pattern() {

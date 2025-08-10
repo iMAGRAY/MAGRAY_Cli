@@ -263,7 +263,7 @@ impl ModelDownloader {
 
             let mut last_err: Option<anyhow::Error> = None;
             for (idx, url) in candidates.iter().enumerate() {
-                match self.try_download_once(&url, file, &dest_path).await {
+                match self.try_download_once(url, file, &dest_path).await {
                     Ok(()) => {
                         info!("✅ {} загружен из {}", file.filename, url);
                         return Ok(());

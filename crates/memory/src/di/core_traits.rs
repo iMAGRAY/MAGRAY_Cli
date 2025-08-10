@@ -225,9 +225,18 @@ pub struct CacheStats {
 
 /// === FACTORY FUNCTION TYPE ===
 /// Стандартный тип для всех фабричных функций (принимает конкретный UnifiedContainer)
+#[cfg(not(feature = "minimal"))]
 pub type ServiceFactory = Box<
     dyn Fn(
             &crate::di::unified_container_impl::UnifiedContainer,
+        ) -> Result<Box<dyn Any + Send + Sync>, DIError>
+        + Send
+        + Sync,
+>;
+#[cfg(feature = "minimal")]
+pub type ServiceFactory = Box<
+    dyn Fn(
+            &dyn DynamicDIContainer,
         ) -> Result<Box<dyn Any + Send + Sync>, DIError>
         + Send
         + Sync,

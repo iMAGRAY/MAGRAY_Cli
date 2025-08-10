@@ -242,7 +242,7 @@ impl PerformanceMetrics {
             // Exponential moving average for success rate
             self.success_rate = self.success_rate * 0.9 + 0.1;
         } else {
-            self.success_rate = self.success_rate * 0.9;
+            self.success_rate *= 0.9;
             self.error_count += 1;
         }
 
