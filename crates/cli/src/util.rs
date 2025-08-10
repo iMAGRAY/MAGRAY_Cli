@@ -18,6 +18,7 @@ pub fn default_tasks_db_path() -> PathBuf {
     dir
 }
 
+#[allow(dead_code)]
 pub fn artifacts_dir() -> PathBuf {
     let mut dir = magray_home();
     dir.push("artifacts");

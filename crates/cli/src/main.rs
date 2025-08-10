@@ -379,27 +379,19 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     let mut stdin_message = None;
     if message.is_none() {
         // Проверяем синхронно, есть ли данные в stdin
-        match std::thread::spawn(|| {
+        let join_res = std::thread::spawn(|| {
             use std::io::{self, Read};
             let mut input = String::new();
             match io::stdin().read_to_string(&mut input) {
                 Ok(0) => None, // Нет данных
                 Ok(_) => {
                     let trimmed = input.trim();
-                    if trimmed.is_empty() {
-                        None
-                    } else {
-                        Some(trimmed.to_string())
-                    }
+                    if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
                 }
                 Err(_) => None, // Ошибка чтения
             }
-        })
-        .join()
-        {
-            Ok(result) => stdin_message = result,
-            Err(_) => {} // Паника в треде
-        }
+        }).join();
+        if let Ok(result) = join_res { stdin_message = result }
     }
 
     // Инициализация LLM клиента с анимацией
@@ -794,7 +786,7 @@ async fn show_system_status() -> Result<()> {
     } else {
         "default"
     };
-    println!("{} {}: {} (rules: {})", "🔒", "Policy", src, rules_count);
+    println!("🔒 Policy: {} (rules: {})", src, rules_count);
     // Risk aggregation
     let mut low = 0usize; let mut med = 0usize; let mut high = 0usize;
     for r in &effective.rules {
