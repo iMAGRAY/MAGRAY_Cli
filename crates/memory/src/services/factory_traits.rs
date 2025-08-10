@@ -22,7 +22,7 @@ use std::any::Any;
 use std::sync::Arc;
 
 use crate::{
-    di::unified_container::UnifiedDIContainer,
+    di::UnifiedContainer,
     orchestration::{EmbeddingCoordinator, HealthManager, ResourceController, SearchCoordinator},
     service_di::coordinator_factory::OrchestrationCoordinators,
     services::traits::{
@@ -56,7 +56,7 @@ pub trait CoreServiceFactory: BaseFactory {
     /// Создать CoreMemoryService
     async fn create_core_memory(
         &self,
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
     ) -> Result<Arc<dyn CoreMemoryServiceTrait>>;
 
     /// Создать ResilienceService с circuit breaker
@@ -69,14 +69,14 @@ pub trait CoreServiceFactory: BaseFactory {
     /// Создать MonitoringService с зависимостями
     async fn create_monitoring(
         &self,
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
         coordinator: Arc<dyn CoordinatorServiceTrait>,
     ) -> Result<Arc<dyn MonitoringServiceTrait>>;
 
     /// Создать CacheService с конфигурацией
     async fn create_cache(
         &self,
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
         coordinator: Arc<dyn CoordinatorServiceTrait>,
         embedding_dimension: usize,
     ) -> Result<Arc<dyn CacheServiceTrait>>;
@@ -88,13 +88,13 @@ pub trait CoordinatorFactory: BaseFactory {
     /// Создать EmbeddingCoordinator
     async fn create_embedding_coordinator(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<Arc<EmbeddingCoordinator>>;
 
     /// Создать SearchCoordinator с зависимостями
     async fn create_search_coordinator(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
         embedding_coordinator: &Arc<EmbeddingCoordinator>,
         max_concurrent: usize,
         cache_size: usize,
@@ -103,19 +103,19 @@ pub trait CoordinatorFactory: BaseFactory {
     /// Создать HealthManager
     async fn create_health_manager(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<Arc<HealthManager>>;
 
     /// Создать ResourceController
     async fn create_resource_controller(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<Arc<ResourceController>>;
 
     /// Создать все координаторы сразу
     async fn create_all_coordinators(
         &self,
-        container: &UnifiedDIContainer,
+        container: &UnifiedContainer,
     ) -> Result<OrchestrationCoordinators>;
 }
 
@@ -127,19 +127,19 @@ pub trait ServiceCollectionFactory: BaseFactory {
     /// Создать полную коллекцию сервисов
     async fn create_complete_collection(
         &self,
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
     ) -> Result<Self::ServiceCollection>;
 
     /// Создать минимальную коллекцию (только core services)
     async fn create_minimal_collection(
         &self,
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
     ) -> Result<Self::ServiceCollection>;
 
     /// Создать коллекцию для тестирования
     async fn create_test_collection(
         &self,
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
     ) -> Result<Self::ServiceCollection>;
 }
 
@@ -215,13 +215,13 @@ impl SpecializedFactoryConfig {
 #[async_trait]
 pub trait SpecializedComponentFactory: BaseFactory<Config = SpecializedFactoryConfig> {
     /// Создать GPU-accelerated компоненты
-    async fn create_gpu_components(&self, container: &UnifiedDIContainer) -> Result<()>;
+    async fn create_gpu_components(&self, container: &UnifiedContainer) -> Result<()>;
 
     /// Создать SIMD-optimized компоненты
-    async fn create_simd_components(&self, container: &UnifiedDIContainer) -> Result<()>;
+    async fn create_simd_components(&self, container: &UnifiedContainer) -> Result<()>;
 
     /// Создать ML-enhanced компоненты
-    async fn create_ml_components(&self, container: &UnifiedDIContainer) -> Result<()>;
+    async fn create_ml_components(&self, container: &UnifiedContainer) -> Result<()>;
 
     /// Проверить доступность specialized компонентов
     async fn check_component_availability(&self) -> SpecializedComponentAvailability;
@@ -517,7 +517,7 @@ pub mod factory_helpers {
 
     /// Validate что все необходимые зависимости доступны
     pub async fn validate_dependencies(
-        _container: &UnifiedDIContainer,
+        _container: &UnifiedContainer,
         required_types: &[std::any::TypeId],
     ) -> FactoryResult<()> {
         for &_type_id in required_types {

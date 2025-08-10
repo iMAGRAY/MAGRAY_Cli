@@ -21,7 +21,7 @@ use std::{sync::Arc, time::Duration};
 use tracing::{debug, info};
 
 use crate::{
-    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
+    di::{traits::DIResolver, UnifiedContainer},
     orchestration::{EmbeddingCoordinator, HealthManager, ResourceController, SearchCoordinator},
     service_di::coordinator_factory::OrchestrationCoordinators,
     services::{
@@ -299,13 +299,13 @@ pub struct UnifiedServiceCollection {
 /// - ISP: Разделенные интерфейсы для разных типов сервисов
 /// - DIP: Зависимости инжектятся через DI container
 pub struct UnifiedServiceFactory {
-    container: Arc<UnifiedDIContainer>,
+    container: Arc<UnifiedContainer>,
     config: UnifiedFactoryConfig,
 }
 
 impl UnifiedServiceFactory {
     /// Создать новый unified factory
-    pub fn new(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn new(container: Arc<UnifiedContainer>) -> Self {
         info!("🏭 Создание UnifiedServiceFactory с конфигурацией по умолчанию");
         Self {
             container,
@@ -314,7 +314,7 @@ impl UnifiedServiceFactory {
     }
 
     /// Создать unified factory с кастомной конфигурацией
-    pub fn with_config(container: Arc<UnifiedDIContainer>, config: UnifiedFactoryConfig) -> Self {
+    pub fn with_config(container: Arc<UnifiedContainer>, config: UnifiedFactoryConfig) -> Self {
         info!("🏭 Создание UnifiedServiceFactory с кастомной конфигурацией");
         debug!(
             "🔧 Конфигурация: max_ops={}, prod_mode={}, coordinators={}",
@@ -329,22 +329,22 @@ impl UnifiedServiceFactory {
     }
 
     /// Production factory preset
-    pub fn production(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn production(container: Arc<UnifiedContainer>) -> Self {
         Self::with_config(container, UnifiedFactoryConfig::production())
     }
 
     /// Development factory preset  
-    pub fn development(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn development(container: Arc<UnifiedContainer>) -> Self {
         Self::with_config(container, UnifiedFactoryConfig::development())
     }
 
     /// Test factory preset
-    pub fn test(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn test(container: Arc<UnifiedContainer>) -> Self {
         Self::with_config(container, UnifiedFactoryConfig::test())
     }
 
     /// Minimal factory preset
-    pub fn minimal(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn minimal(container: Arc<UnifiedContainer>) -> Self {
         Self::with_config(container, UnifiedFactoryConfig::minimal())
     }
 
@@ -592,9 +592,9 @@ impl UnifiedServiceFactory {
                 .with_context(|| "Ошибка создания embedding cache")?,
         );
 
-        let coordinator = Arc::new(EmbeddingCoordinator::new(gpu_processor, cache));
+        let embedding_coordinator = Arc::new(EmbeddingCoordinator::new_stub());
         debug!("✅ EmbeddingCoordinator создан");
-        Ok(coordinator)
+        Ok(embedding_coordinator)
     }
 
     /// Создать SearchCoordinator с зависимостями

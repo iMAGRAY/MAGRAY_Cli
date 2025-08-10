@@ -15,7 +15,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     batch_manager::BatchStats,
-    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
+    di::{traits::DIResolver, UnifiedContainer},
     health::{HealthMonitor, SystemHealthStatus},
     promotion::PromotionStats,
     service_di::MemorySystemStats,
@@ -28,7 +28,7 @@ use crate::{
 #[allow(dead_code)]
 pub struct MonitoringService {
     /// DI контейнер для доступа к компонентам
-    container: Arc<UnifiedDIContainer>,
+    container: Arc<UnifiedContainer>,
     /// Кэшированные production метрики
     production_metrics: Arc<RwLock<ProductionMetrics>>,
     /// Счетчик запущенных мониторингов
@@ -39,7 +39,7 @@ pub struct MonitoringService {
 
 impl MonitoringService {
     /// Создать новый MonitoringService
-    pub fn new(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn new(container: Arc<UnifiedContainer>) -> Self {
         info!("📊 Создание MonitoringService для системного мониторинга");
 
         Self {
@@ -53,7 +53,7 @@ impl MonitoringService {
     /// Создать с coordinator service для более полной функциональности
     #[allow(dead_code)]
     pub fn new_with_coordinator(
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
         coordinator_service: Arc<dyn CoordinatorServiceTrait>,
     ) -> Self {
         info!("📊 Создание MonitoringService с CoordinatorService");

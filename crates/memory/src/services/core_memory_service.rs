@@ -13,12 +13,9 @@ use tracing::{debug, info, warn};
 
 use crate::{
     batch_manager::BatchOperationManager,
-    di::{unified_container::UnifiedDIContainer, TypeSafeResolver},
-    metrics::MetricsCollector,
-    service_di::{BatchInsertResult, BatchSearchResult},
-    services::traits::CoreMemoryServiceTrait,
-    storage::VectorStore,
-    types::{Layer, Record, SearchOptions},
+    di::{UnifiedContainer, TypeSafeResolver},
+    orchestration::SearchCoordinator,
+    types::Record,
 };
 use common::OperationTimer;
 
@@ -34,7 +31,7 @@ pub struct CoreMemoryService {
 
 impl CoreMemoryService {
     /// Создать новый CoreMemoryService с type-safe resolver
-    pub fn new(container: Arc<UnifiedDIContainer>, max_concurrent_operations: usize) -> Self {
+    pub fn new(container: Arc<UnifiedContainer>, max_concurrent_operations: usize) -> Self {
         info!(
             "🗃️ Создание CoreMemoryService с лимитом {} concurrent операций и object-safe resolver",
             max_concurrent_operations
@@ -50,12 +47,12 @@ impl CoreMemoryService {
     }
 
     /// Создать минимальный вариант для тестов
-    pub fn new_minimal(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn new_minimal(container: Arc<UnifiedContainer>) -> Self {
         Self::new(container, 10) // Небольшой лимит для тестов
     }
 
     /// Создать production вариант
-    pub fn new_production(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn new_production(container: Arc<UnifiedContainer>) -> Self {
         Self::new(container, 100) // Высокий лимит для production
     }
 
