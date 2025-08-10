@@ -13,8 +13,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     api::MemoryServiceTrait,
-    backup::BackupMetadata,
-    di::{DIResolver, UnifiedDIContainer, UnifiedMemoryConfigurator},
+    di::{DIResolver, UnifiedContainer},
     health::SystemHealthStatus,
     promotion::PromotionStats,
     service_di::{BatchInsertResult, BatchSearchResult, MemorySystemStats},
@@ -23,12 +22,16 @@ use crate::{
     types::{Layer, Record, SearchOptions},
     DIContainerStats, DIPerformanceMetrics,
 };
+#[cfg(feature = "backup-restore")]
+use crate::backup::BackupMetadata;
+#[cfg(feature = "service-configurator")]
+use crate::di::UnifiedMemoryConfigurator;
 
 /// Refactored DIMemoryService использующий композицию специализированных сервисов
 /// Вместо God Object теперь делегирует к 5 специализированным сервисам
 pub struct RefactoredDIMemoryService {
     /// DI контейнер со всеми зависимостями
-    container: Arc<UnifiedDIContainer>,
+    container: Arc<UnifiedContainer>,
 
     /// Коллекция всех специализированных сервисов
     services: ServiceCollection,
@@ -68,7 +71,10 @@ impl RefactoredDIMemoryService {
         info!("🚀 Создание RefactoredDIMemoryService с композицией специализированных сервисов");
 
         // Настраиваем полный DI контейнер
+        #[cfg(feature = "service-configurator")]
         let container = Arc::new(UnifiedMemoryConfigurator::configure_full(&config).await?);
+        #[cfg(not(feature = "service-configurator"))]
+        let container = Arc::new(UnifiedContainer::new());
 
         // Создаём все специализированные сервисы через фабрику
         let service_factory = ServiceFactory::new(container.clone());
@@ -96,7 +102,10 @@ impl RefactoredDIMemoryService {
     pub async fn new_minimal(config: MemoryServiceConfig) -> Result<Self> {
         info!("🧪 Создание минимального RefactoredDIMemoryService для тестов");
 
+        #[cfg(feature = "service-configurator")]
         let container = Arc::new(UnifiedMemoryConfigurator::configure_minimal(&config).await?);
+        #[cfg(not(feature = "service-configurator"))]
+        let container = Arc::new(UnifiedContainer::new());
 
         // Создаём минимальные сервисы для тестов
         let service_factory = ServiceFactory::new(container.clone());
@@ -363,8 +372,7 @@ impl RefactoredDIMemoryService {
         Ok(())
     }
 
-    /// Create backup (legacy compatibility через DI)
-    #[allow(dead_code)]
+    #[cfg(feature = "backup-restore")]
     pub async fn create_backup(&self, path: &str) -> Result<BackupMetadata> {
         debug!("💾 Создание backup через DI: {}", path);
 

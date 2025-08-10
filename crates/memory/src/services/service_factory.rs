@@ -17,6 +17,7 @@ use crate::{
         CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait,
         MonitoringServiceTrait, ResilienceServiceTrait,
     },
+    CacheServiceTrait as _, CoordinatorServiceTrait as _, CoreMemoryServiceTrait as _, MonitoringServiceTrait as _, ResilienceServiceTrait as _,
     services::{
         CacheService, CoordinatorService, CoreMemoryService, MonitoringService, ResilienceService,
     },

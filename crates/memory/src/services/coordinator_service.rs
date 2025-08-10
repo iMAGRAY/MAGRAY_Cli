@@ -13,14 +13,14 @@ use tracing::{debug, info, warn};
 use crate::{
     cache_interface::EmbeddingCacheInterface,
     di::{traits::DIResolver, UnifiedContainer},
-    orchestration::{embedding_coordinator::EmbeddingCoordinator, EmbeddingCoordinator as EmbeddingCoordinatorImpl},
+    orchestration::EmbeddingCoordinator as EmbeddingCoordinatorImpl,
+    EmbeddingCache,
 };
 #[cfg(feature = "gpu-acceleration")]
 use crate::gpu_accelerated::GpuBatchProcessor;
 use crate::health::HealthMonitor;
 use crate::orchestration::{
-    EmbeddingCoordinator as EmbeddingCoordinatorImpl, HealthManager, ResourceController,
-    SearchCoordinator as SearchCoordinatorImpl,
+    HealthManager, ResourceController, SearchCoordinator as SearchCoordinatorImpl,
 };
 use crate::services::traits::CoordinatorServiceTrait;
 use crate::storage::VectorStore;
@@ -77,7 +77,7 @@ impl CoordinatorService {
         let gpu_processor: Option<std::sync::Arc<()>> = None;
 
         // Создаем временный cache для демонстрации
-        let cache = container.resolve::<crate::cache_lru::EmbeddingCache>()?;
+        let cache = container.resolve::<EmbeddingCache>().ok();
 
         let coordinator = Arc::new(EmbeddingCoordinatorImpl::new_stub());
         debug!("✅ EmbeddingCoordinator создан");
@@ -152,7 +152,7 @@ impl CoordinatorServiceTrait for CoordinatorService {
         let gpu_processor = container.resolve::<GpuBatchProcessor>().ok();
         #[cfg(not(feature = "gpu-acceleration"))]
         let gpu_processor: Option<std::sync::Arc<()>> = None;
-        let cache = container.resolve::<crate::cache_lru::EmbeddingCache>().ok();
+        let cache = container.resolve::<EmbeddingCache>().ok();
         self.embedding = Some(EmbeddingCoordinatorImpl::new_stub());
         Ok(())
     }

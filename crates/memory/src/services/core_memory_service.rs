@@ -12,10 +12,16 @@ use tokio::sync::Semaphore;
 use tracing::{debug, info, warn};
 
 use crate::{
-    batch_manager::BatchOperationManager,
     di::{UnifiedContainer, TypeSafeResolver},
     orchestration::SearchCoordinator,
     types::Record,
+    VectorStore,
+    MetricsCollector,
+    Layer,
+    SearchOptions,
+    BatchInsertResult,
+    BatchSearchResult,
+    CoreMemoryServiceTrait,
 };
 use common::OperationTimer;
 

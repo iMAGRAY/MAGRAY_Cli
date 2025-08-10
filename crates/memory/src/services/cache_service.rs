@@ -12,9 +12,11 @@ use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 use crate::{
-    cache_interface::EmbeddingCacheInterface,
     di::UnifiedContainer,
     services::traits::CacheServiceTrait,
+    CoordinatorServiceTrait,
+    EmbeddingCache,
+    cache_interface::EmbeddingCacheInterface,
 };
 
 /// Реализация cache management
