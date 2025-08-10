@@ -283,7 +283,8 @@ ci-local-cov-core:
 
 ci-local-persistence:
 	@echo "🏃 CI-local: persistence suite"
-	cargo test --features="cpu,persistence,extended-tests,hnsw-index" --no-fail-fast --quiet
+	CI=1 MAGRAY_NO_ANIM=1 MAGRAY_SKIP_AUTO_INSTALL=1 MAGRAY_FORCE_NO_ORT=1 timeout 900s \
+	cargo test -q --features="cpu,persistence,extended-tests,hnsw-index" --tests -- --nocapture | cat
 
 ci-local-gpu:
 	@echo "🏃 CI-local: gpu extended (if available)"
