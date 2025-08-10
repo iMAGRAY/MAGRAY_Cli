@@ -9,7 +9,7 @@ use tokio::runtime::Runtime;
 #[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 use uuid::Uuid;
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 use std::arch::x86_64::*;
 
 /// Генерация случайных векторов для тестов
