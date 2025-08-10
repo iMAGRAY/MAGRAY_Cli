@@ -93,9 +93,8 @@ impl MockHttpClient {
         self.request_log.lock().unwrap().push(request);
 
         // Simulate network delay
-        if let Some(delay) = *self.delay_simulation.read().unwrap() {
-            tokio::time::sleep(delay).await;
-        }
+        let delay_opt = *self.delay_simulation.read().unwrap();
+        if let Some(delay) = delay_opt { tokio::time::sleep(delay).await; }
 
         // Simulate random failures
         let failure_rate = *self.failure_rate.read().unwrap();
@@ -104,15 +103,16 @@ impl MockHttpClient {
         }
 
         // Find matching response
-        let responses = self.responses.read().unwrap();
-        for (pattern, response) in responses.iter() {
-            if url.contains(pattern) {
-                // Simulate response-specific delay
-                if let Some(delay) = response.delay {
-                    tokio::time::sleep(delay).await;
-                }
-                return Ok(response.clone());
-            }
+        let selected_response: Option<MockResponse> = {
+            let responses = self.responses.read().unwrap();
+            responses
+                .iter()
+                .find(|(pattern, _)| url.contains(*pattern))
+                .map(|(_, resp)| resp.clone())
+        };
+        if let Some(resp) = selected_response {
+            if let Some(delay) = resp.delay { tokio::time::sleep(delay).await; }
+            return Ok(resp);
         }
 
         Err(format!("No mock response configured for URL: {}", url))
