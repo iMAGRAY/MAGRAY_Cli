@@ -8,8 +8,10 @@ use uuid::Uuid;
 
 use ai::AiConfig;
 use memory::{
-    promotion::PromotionEngine, storage::VectorStore, Layer, MemoryContext, PromotionConfig, Record,
+    promotion::PromotionEngine, storage::VectorStore, Layer, PromotionConfig, Record,
 };
+use memory::service_di_facade::MemoryConfig;
+use memory::services::CoreMemoryService as MemoryService;
 
 #[tokio::test]
 async fn test_promotion_engine() -> Result<()> {

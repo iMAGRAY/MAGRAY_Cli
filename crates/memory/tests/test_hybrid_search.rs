@@ -4,12 +4,14 @@ use memory::orchestration::SearchCoordinator;
 use memory::orchestration::traits::SearchCoordinator as SearchCoordinatorTrait;
 use memory::{storage::VectorStore, types::{Layer, Record, SearchOptions}};
 use std::sync::Arc;
+use memory::di::core_traits::ServiceResolver;
+use memory::orchestration::Coordinator;
 
 #[tokio::test]
 async fn hybrid_prefers_keyword_when_query_matches() {
     // Prepare store
     let temp = tempfile::TempDir::new().unwrap();
-    let store = Arc::new(VectorStore::with_config(&temp.path(), memory::vector_index_hnswlib::HnswRsConfig::default()).await.unwrap());
+    let store = Arc::new(VectorStore::with_config(&temp.path(), memory::HnswRsConfig::default()).await.unwrap());
 
     // Insert records
     let rec1 = Record { id: uuid::Uuid::new_v4(), text: "rust ownership borrowing lifetimes".to_string(), embedding: vec![0.0;1024], layer: Layer::Interact, kind: "note".into(), tags: vec![], project: "p".into(), session: "s".into(), ts: chrono::Utc::now(), score: 0.0, access_count: 0, last_access: chrono::Utc::now() };
