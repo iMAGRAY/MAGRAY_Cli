@@ -266,7 +266,7 @@ impl OptimizedQwen3RerankerService {
 
         // Tokenize all query-document pairs in batch using OptimizedTokenizer
         let tokenizer = self.create_tokenizer()?;
-        let pairs: Vec<(&str, &str)> = documents.iter().map(|d| (query.as_ref(), d.as_str())).collect();
+        let pairs: Vec<(&str, &str)> = documents.iter().map(|d| (query, d.as_str())).collect();
         let mut batch_tokenized = tokenizer.encode_batch_pairs(&pairs)?;
 
         // Find maximum sequence length for padding

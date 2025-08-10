@@ -186,11 +186,8 @@ impl InputValidator {
     ) -> Result<String> {
         use crate::registry::tool_metadata::SystemPermissions;
 
-        match sys_perms {
-            SystemPermissions::None => {
-                return Err(anyhow!("Tool does not have system command permissions"));
-            }
-            _ => {}
+        if let SystemPermissions::None = sys_perms {
+            return Err(anyhow!("Tool does not have system command permissions"));
         }
 
         // Prevent dangerous commands

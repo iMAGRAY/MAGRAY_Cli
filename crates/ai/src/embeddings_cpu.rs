@@ -528,20 +528,20 @@ impl CpuEmbeddingService {
         #[cfg(target_arch = "x86_64")]
         {
             // Check if we can use SIMD optimizations
-            if hidden_size % 8 == 0 && is_x86_feature_detected!("avx2") && hidden_size >= 64 {
+            if hidden_size.is_multiple_of(8) && is_x86_feature_detected!("avx2") && hidden_size >= 64 {
                 // Ultra-optimized SIMD mean pooling for large embeddings
                 unsafe {
-                    self.simd_mean_pooling_avx2(&data, &mut pooled, seq_len, hidden_size);
+                    self.simd_mean_pooling_avx2(data, &mut pooled, seq_len, hidden_size);
                 }
             } else {
                 // Fallback to optimized scalar processing
-                self.scalar_mean_pooling_optimized(&data, &mut pooled, seq_len, hidden_size);
+                self.scalar_mean_pooling_optimized(data, &mut pooled, seq_len, hidden_size);
             }
         }
 
         #[cfg(not(target_arch = "x86_64"))]
         {
-            self.scalar_mean_pooling_optimized(&data, &mut pooled, seq_len, hidden_size);
+            self.scalar_mean_pooling_optimized(data, &mut pooled, seq_len, hidden_size);
         }
 
         // Average (SIMD-optimized division if possible)
@@ -556,7 +556,7 @@ impl CpuEmbeddingService {
     fn optimized_normalize(&self, mut embedding: Vec<f32>) -> Vec<f32> {
         #[cfg(target_arch = "x86_64")]
         {
-            if embedding.len() % 8 == 0 && is_x86_feature_detected!("avx2") && embedding.len() >= 64
+            if embedding.len().is_multiple_of(8) && is_x86_feature_detected!("avx2") && embedding.len() >= 64
             {
                 // Ultra-optimized SIMD normalization
                 unsafe {
@@ -695,7 +695,7 @@ impl CpuEmbeddingService {
     /// Ultra-optimized SIMD division for averaging
     #[cfg(target_arch = "x86_64")]
     fn simd_divide_inplace(&self, values: &mut [f32], divisor: f32) {
-        if is_x86_feature_detected!("avx2") && values.len() % 8 == 0 && values.len() >= 8 {
+        if is_x86_feature_detected!("avx2") && values.len().is_multiple_of(8) && values.len() >= 8 {
             unsafe {
                 use std::arch::x86_64::*;
                 let divisor_vec = _mm256_set1_ps(divisor);
@@ -776,9 +776,7 @@ impl CpuEmbeddingService {
             }
 
             // Handle remainder
-            for i in chunks * 8..embedding.len() {
-                embedding[i] *= inv_norm;
-            }
+            for val in embedding.iter_mut().skip(chunks * 8) { *val *= inv_norm; }
         }
     }
 
