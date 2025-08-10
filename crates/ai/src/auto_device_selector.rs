@@ -1,5 +1,5 @@
 #[cfg(feature = "gpu")]
-use crate::gpu_detector::{GpuDetector, GpuDevice};
+use crate::gpu_detector::GpuDetector;
 use crate::EmbeddingConfig;
 use anyhow::Result;
 #[cfg(not(feature = "gpu"))]

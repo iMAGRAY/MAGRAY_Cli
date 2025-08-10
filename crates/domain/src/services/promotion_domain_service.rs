@@ -100,13 +100,10 @@ where
             .await?;
 
         let mut results = BatchPromotionResult::new();
-        let target_layer =
-            from_layer
-                .next_layer()
-                .ok_or_else(|| DomainError::PromotionNotAllowed {
-                    from: from_layer,
-                    to: from_layer, // Invalid target
-                })?;
+        let target_layer = from_layer.next_layer().ok_or(DomainError::PromotionNotAllowed {
+            from: from_layer,
+            to: from_layer, // Invalid target
+        })?;
 
         let mut records_to_update = Vec::new();
 
@@ -366,6 +363,10 @@ impl BatchPromotionResult {
     pub fn total_processed(&self) -> usize {
         self.successful.len() + self.failed.len() + self.skipped.len()
     }
+}
+
+impl Default for BatchPromotionResult {
+    fn default() -> Self { Self::new() }
 }
 
 #[derive(Debug, Clone)]

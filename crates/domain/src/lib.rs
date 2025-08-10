@@ -30,7 +30,6 @@ pub type SimilarityScore = f32;
 pub type RecordCount = usize;
 
 /// Domain layer: core traits and types for orchestrator and planning
-
 pub mod orchestrator {
     use async_trait::async_trait;
     use serde::{Deserialize, Serialize};

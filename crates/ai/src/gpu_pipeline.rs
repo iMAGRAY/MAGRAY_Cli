@@ -74,7 +74,7 @@ impl BatchProcessingStrategy {
     /// Определение оптимального размера батча
     fn determine_batch_size(
         config: &PipelineConfig,
-        total_texts: usize,
+        _total_texts: usize,
         stats: &PipelineStats,
     ) -> usize {
         if !config.adaptive_batching {

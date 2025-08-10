@@ -38,7 +38,7 @@ impl PromotionCriteria {
         min_importance_score: f32,
         require_acceleration: bool,
     ) -> DomainResult<Self> {
-        if min_importance_score < 0.0 || min_importance_score > 1.0 {
+        if !(0.0..=1.0).contains(&min_importance_score) {
             return Err(DomainError::InvalidPromotionCriteria(format!(
                 "Importance score must be between 0.0 and 1.0, got {}",
                 min_importance_score

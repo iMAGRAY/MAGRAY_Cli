@@ -3,7 +3,7 @@ use crate::{ModelLoader, RerankingConfig};
 use crate::should_disable_ort;
 use crate::tokenization::OptimizedTokenizer;
 #[cfg(feature = "gpu")]
-use crate::{GpuConfig, GpuInfo};
+use crate::GpuInfo;
 use anyhow::Result as AnyhowResult;
 // use common::service_traits::StatisticsProvider;
 use ort::{inputs, session::Session, value::Tensor};
