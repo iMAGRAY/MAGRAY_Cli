@@ -1,8 +1,10 @@
-use ai::AiConfig;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use memory::di::{
-    DIContainer, DIContainerBuilder, Lifetime, MemoryServiceConfig, UnifiedMemoryConfigurator,
+    DIContainer, DIContainerBuilder, Lifetime,
 };
+use memory::service_di_facade::{MemoryServiceConfig, UnifiedMemoryConfigurator};
+use memory::service_di_facade::service_config::BatchConfig;
+use memory::di::core_traits::ServiceResolver;
 use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
@@ -81,7 +83,7 @@ fn create_test_config() -> MemoryServiceConfig {
         cache_config: memory::CacheConfigType::default(),
         health_enabled: true,
         health_config: memory::health::HealthMonitorConfig::default(),
-        batch_config: memory::batch_manager::BatchConfig::default(),
+        batch_config: BatchConfig::default(),
     }
 }
 
@@ -245,7 +247,7 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
     group.bench_function("minimal_configuration", |b| {
         b.to_async(&rt).iter(|| async {
             let config = create_test_config();
-            let container = MemoryDIConfigurator::configure_minimal(config)
+            let container = UnifiedMemoryConfigurator::configure_minimal(config)
                 .await
                 .unwrap();
             black_box(container)
@@ -255,7 +257,7 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
     group.bench_function("cpu_only_configuration", |b| {
         b.to_async(&rt).iter(|| async {
             let config = create_test_config();
-            let container = MemoryDIConfigurator::configure_cpu_only(config)
+            let container = UnifiedMemoryConfigurator::configure_cpu_only(config)
                 .await
                 .unwrap();
             black_box(container)
@@ -265,7 +267,7 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
     group.bench_function("full_configuration", |b| {
         b.to_async(&rt).iter(|| async {
             let config = create_test_config();
-            let container = MemoryDIConfigurator::configure_full(config).await.unwrap();
+            let container = UnifiedMemoryConfigurator::configure_full(config).await.unwrap();
             black_box(container)
         });
     });

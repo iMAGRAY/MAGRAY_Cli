@@ -9,7 +9,6 @@ use common::service_traits::ConfigurationProfile;
 use std::path::PathBuf;
 
 use crate::{
-    cache_lru::CacheConfig,
     resource_manager::ResourceConfig,
 };
 #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]

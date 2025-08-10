@@ -134,7 +134,7 @@ where
         // Простой парсинг команды (в production версии будет более сложный)
         let parts: Vec<&str> = message.split_whitespace().collect();
 
-        let command = if parts.len() > 0 {
+        let command = if !parts.is_empty() {
             parts[0].to_string()
         } else {
             "unknown".to_string()

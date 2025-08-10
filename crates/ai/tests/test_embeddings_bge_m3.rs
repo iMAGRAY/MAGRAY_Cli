@@ -12,7 +12,7 @@ fn test_text_preprocessing_basic() {
 
 #[test]
 fn test_batch_creation() {
-    let texts = vec![
+    let texts = [
         "First document for embedding".to_string(),
         "Second document with different content".to_string(),
         "Third document for batch processing test".to_string(),
@@ -65,7 +65,7 @@ fn test_special_characters() {
 
 #[test]
 fn test_multilingual_support() {
-    let multilingual_texts = vec![
+    let multilingual_texts = [
         "English text".to_string(),
         "Русский текст".to_string(),
         "中文文本".to_string(),
@@ -75,7 +75,6 @@ fn test_multilingual_support() {
     for text in multilingual_texts {
         let processed = text.trim();
         assert!(!processed.is_empty());
-        assert!(processed.len() > 0);
     }
 }
 
@@ -129,7 +128,7 @@ fn test_memory_estimation() {
 
 #[test]
 fn test_text_normalization() {
-    let texts = vec![
+    let texts = [
         "Normal text",
         "TEXT WITH CAPS",
         "text with\nnewlines\tand\ttabs",
@@ -137,7 +136,7 @@ fn test_text_normalization() {
     ];
 
     for text in texts {
-        let normalized = text.trim().replace('\n', " ").replace('\t', " ");
+        let normalized = text.trim().replace(['\n', '\t'], " ");
 
         // Should not start/end with whitespace after normalization
         assert!(!normalized.starts_with(' ') || normalized.is_empty());

@@ -353,7 +353,12 @@ impl MetricsCollector {
     }
 }
 
+impl Default for MetricsCollector {
+    fn default() -> Self { Self::new() }
+}
+
 /// Helper to measure operation duration
+#[cfg_attr(not(test), allow(dead_code))]
 pub struct TimedOperation<'a> {
     collector: &'a MetricsCollector,
     operation: &'static str,
@@ -361,6 +366,7 @@ pub struct TimedOperation<'a> {
 }
 
 impl<'a> TimedOperation<'a> {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn new(collector: &'a MetricsCollector, operation: &'static str) -> Self {
         Self {
             collector,

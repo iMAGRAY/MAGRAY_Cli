@@ -9,7 +9,7 @@ use crate::{
     // services::RefactoredDIMemoryService,
     Layer, Record,
 };
-use common::event_bus::{EventBus, Topic};
+use common::event_bus::EventBus;
 use once_cell::sync::Lazy;
 
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
@@ -41,8 +41,8 @@ mod simple_engine {
     // EventBus for memory events (recorded globally)
     #[derive(Debug, Clone)]
     pub enum MemoryEventPayload {
-        Remember { id: uuid::Uuid, layer: Layer },
-        Search { query: String, layer: Layer, results: usize },
+        Remember { _id: uuid::Uuid, _layer: Layer },
+        Search { _query: String, _layer: Layer, _results: usize },
     }
 
     pub static MEMORY_EVENT_BUS: Lazy<EventBus<MemoryEventPayload>> = Lazy::new(|| EventBus::new(1024, std::time::Duration::from_millis(250)));
@@ -96,8 +96,9 @@ mod simple_engine {
                     OptimizedQwen3RerankerService::new_with_config(rcfg).ok()
                     }
                 };
-                let store_path = Some(std::env::var("MAGRAY_MEMORY_FILE").unwrap_or_else(|_| "magray_memory.jsonl".to_string()))
-                    .map(std::path::PathBuf::from);
+                let store_path = Some(std::path::PathBuf::from(
+                    std::env::var("MAGRAY_MEMORY_FILE").unwrap_or_else(|_| "magray_memory.jsonl".to_string())
+                ));
 
                 // Preload existing JSONL if present
                 let mut initial_records: Vec<StoredRecord> = Vec::new();
@@ -131,13 +132,14 @@ mod simple_engine {
 
         pub fn health_status() -> SystemHealthStatus {
             let engine = Self::init();
-            let mut status = SystemHealthStatus::default();
-            status.overall_status = if engine.embedding_service.is_some() {
-                HealthStatus::Healthy
-            } else {
-                HealthStatus::Degraded
-            };
-            status
+            SystemHealthStatus {
+                overall_status: if engine.embedding_service.is_some() {
+                    HealthStatus::Healthy
+                } else {
+                    HealthStatus::Degraded
+                },
+                ..Default::default()
+            }
         }
 
         pub fn insert(&self, mut record: Record) -> Result<Uuid> {
@@ -155,7 +157,7 @@ mod simple_engine {
                 }
             }
             // fire event (non-blocking publish with timeout inside)
-            let payload = MemoryEventPayload::Remember { id: record.id, layer: record.layer };
+            let payload = MemoryEventPayload::Remember { _id: record.id, _layer: record.layer };
             tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_UPSERT, payload));
             // also forward to global JSON bus for cross-crate observability
             let json_evt = serde_json::json!({"id": record.id, "layer": format!("{:?}", record.layer)});
@@ -215,7 +217,7 @@ mod simple_engine {
             let returned = out.len().min(top_k);
             out.truncate(top_k);
             // fire event with summary
-            let payload = MemoryEventPayload::Search { query: query.to_string(), layer, results: returned };
+            let payload = MemoryEventPayload::Search { _query: query.to_string(), _layer: layer, _results: returned };
             tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_SEARCH, payload));
             // also forward to global JSON bus
             let json_evt = serde_json::json!({"query": query, "layer": format!("{:?}", layer), "results": returned});
@@ -249,6 +251,7 @@ mod simple_engine {
         }
 
         #[cfg(test)]
+        #[allow(dead_code)]
         pub fn clear_all(&self) {
             self.records.write().clear();
         }
@@ -275,7 +278,7 @@ mod simple_engine {
             let mut idx = 0usize;
             for token in text.split_whitespace() {
                 let mut h: u64 = 1469598103934665603;
-                for b in token.as_bytes() { h = h ^ (*b as u64); h = h.wrapping_mul(1099511628211); }
+                for b in token.as_bytes() { h ^= *b as u64; h = h.wrapping_mul(1099511628211); }
                 let pos = (h as usize) % self.embedding_dim;
                 v[pos] += 1.0;
                 idx += 1;
@@ -292,7 +295,7 @@ mod simple_engine {
             let mut idx = 0usize;
             for token in text.split_whitespace() {
                 let mut h: u64 = 1469598103934665603;
-                for b in token.as_bytes() { h = h ^ (*b as u64); h = h.wrapping_mul(1099511628211); }
+                for b in token.as_bytes() { h ^= *b as u64; h = h.wrapping_mul(1099511628211); }
                 let pos = (h as usize) % dim;
                 v[pos] += 1.0;
                 idx += 1;
@@ -451,7 +454,6 @@ impl UnifiedMemoryAPI {
     /// Экспорт всех записей в JSON и запись в файл
     pub async fn backup_to_path<P: AsRef<std::path::Path>>(&self, path: P) -> Result<usize> {
         use std::fs;
-        use std::path::Path;
         let engine = simple_engine::engine();
         let records = engine.export_records();
         let json = serde_json::to_string_pretty(&records)?;

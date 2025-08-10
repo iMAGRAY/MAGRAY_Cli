@@ -197,6 +197,7 @@ impl HealthCheck for LlmHealthCheck {
 
 /// Проверка состояния памяти
 pub struct MemoryHealthCheck {
+    #[allow(dead_code)]
     memory_service: Arc<memory::di::UnifiedContainer>,
 }
 

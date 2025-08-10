@@ -14,7 +14,6 @@ use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 use crate::agent_traits::*;
-use crate::agent_traits::RequestProcessorTrait;
 use crate::handlers::*;
 use crate::orchestrator::*;
 use crate::strategies::*;
@@ -22,7 +21,6 @@ use tools::enhanced_tool_system::EnhancedToolSystemConfig;
 
 // Импорт общих трейтов для устранения дублирования
 use common::service_traits::{BaseService, HealthCheckService};
-use crate::agent_traits::RequestProcessorTrait as _;
 
 // ============================================================================
 // ADAPTER IMPLEMENTATIONS FOR EXISTING SERVICES

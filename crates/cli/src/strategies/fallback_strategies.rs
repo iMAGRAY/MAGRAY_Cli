@@ -73,6 +73,10 @@ impl SimpleFallbackStrategy {
     }
 }
 
+impl Default for SimpleFallbackStrategy {
+    fn default() -> Self { Self::new() }
+}
+
 #[async_trait]
 impl FallbackStrategy for SimpleFallbackStrategy {
     async fn handle_fallback(
@@ -357,6 +361,10 @@ pub struct CompositeFallbackStrategy {
     strategies: Vec<Box<dyn FallbackStrategy>>,
 }
 
+impl Default for CompositeFallbackStrategy {
+    fn default() -> Self { Self::new() }
+}
+
 impl CompositeFallbackStrategy {
     pub fn new() -> Self {
         Self {
@@ -367,8 +375,7 @@ impl CompositeFallbackStrategy {
     pub fn add_strategy(mut self, strategy: Box<dyn FallbackStrategy>) -> Self {
         self.strategies.push(strategy);
         // Сортируем по приоритету (высший приоритет первым)
-        self.strategies
-            .sort_by(|a, b| b.priority().cmp(&a.priority()));
+        self.strategies.sort_by_key(|b| std::cmp::Reverse(b.priority()));
         self
     }
 }

@@ -47,9 +47,7 @@ fn ctx(query: &str, urgency: UrgencyLevel) -> ToolSelectionContext {
 }
 
 fn low_threshold_config() -> SelectorConfig {
-    let mut cfg = SelectorConfig::default();
-    cfg.min_confidence_threshold = 0.0;
-    cfg
+    SelectorConfig { min_confidence_threshold: 0.0, ..Default::default() }
 }
 
 #[tokio::test]

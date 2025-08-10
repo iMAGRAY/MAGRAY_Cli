@@ -6,7 +6,7 @@ use ai::{
 };
 use anyhow::Result;
 use clap::{Args, Subcommand};
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 #[derive(Debug, Args)]
 pub struct GpuCommand {
@@ -102,13 +102,13 @@ impl GpuCommand {
                 warn!("  3. Убедитесь что nvidia-smi доступна в PATH");
             }
 
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(not(feature = "gpu"))]
         {
             warn!("GPU функциональность недоступна. Соберите с --features gpu");
-            return Ok(());
+            Ok(())
         }
     }
 
@@ -197,7 +197,7 @@ impl GpuCommand {
 
             let detector = GpuDetector::detect();
             if !detector.available {
-                error!("❌ GPU не обнаружен!");
+                warn!("❌ GPU не обнаружен!");
                 return Ok(());
             }
 

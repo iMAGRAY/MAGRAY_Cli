@@ -1,4 +1,4 @@
-#![cfg(all(not(feature = "minimal")))]
+#![cfg(not(feature = "minimal"))]
 
 // Keep only lightweight smoke and unified api tests in cpu default; others require feature flags
 

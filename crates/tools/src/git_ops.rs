@@ -336,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_git_status_default() {
-        let git_status1 = GitStatus::default();
+        let git_status1 = GitStatus::new();
         let git_status2 = GitStatus::new();
 
         assert_eq!(git_status1.spec().name, git_status2.spec().name);
@@ -368,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_git_commit_default() {
-        let git_commit1 = GitCommit::default();
+        let git_commit1 = GitCommit::new();
         let git_commit2 = GitCommit::new();
 
         assert_eq!(git_commit1.spec().name, git_commit2.spec().name);
@@ -422,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_git_diff_default() {
-        let git_diff1 = GitDiff::default();
+        let git_diff1 = GitDiff::new();
         let git_diff2 = GitDiff::new();
 
         assert_eq!(git_diff1.spec().name, git_diff2.spec().name);

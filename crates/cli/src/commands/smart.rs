@@ -3,7 +3,7 @@ use clap::Args;
 use colored::*;
 use domain::orchestrator::{Executor, Goal, Orchestrator, Plan, Planner, StepResult, StepStatus};
 use async_trait::async_trait;
-use tools::{Tool, ToolInput, ToolOutput, ToolRegistry};
+use tools::{ToolInput, ToolOutput, ToolRegistry};
 use std::collections::HashMap;
 use todo::{TodoService, Priority, TaskState, create_default_service};
 use std::path::PathBuf;

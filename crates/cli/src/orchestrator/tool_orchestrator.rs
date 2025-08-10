@@ -216,12 +216,10 @@ impl ToolOrchestrator {
             metrics.average_orchestration_overhead = new_avg;
 
             // Calculate orchestrator-tool alignment score
-            metrics.orchestrator_tool_alignment = if tool_result.is_some() {
-                self.calculate_alignment_score(&orchestration_result, tool_result.as_ref().unwrap())
-                    .await
-            } else {
-                metrics.orchestrator_tool_alignment // Keep previous score
-            };
+            if let Some(result) = tool_result.as_ref() {
+                metrics.orchestrator_tool_alignment =
+                    self.calculate_alignment_score(&orchestration_result, result).await;
+            }
         }
 
         let tool_execution_time = tool_result
@@ -487,7 +485,7 @@ impl ToolOrchestrator {
 
         // Check tool system health
         let tool_system_health = self.tool_system.health_check().await?;
-        health_report.push_str(&format!("🛠️ Tool System:\n"));
+        health_report.push_str("🛠️ Tool System:\n");
         for line in tool_system_health.lines().skip(1) {
             // Skip header
             health_report.push_str(&format!("  {}\n", line));

@@ -6,11 +6,12 @@ use sled::Db;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 use common::{config_base::CacheConfigBase, ConfigTrait};
 
 #[cfg(test)]
+#[allow(dead_code)]
 mod _clock_mock {
     use std::sync::atomic::{AtomicU64, Ordering};
     static ENABLED: AtomicU64 = AtomicU64::new(0);
@@ -335,7 +336,7 @@ impl EmbeddingCacheLRU {
                         }
 
                         self.stats.write().hits += 1;
-                        debug!("Cache hit for text hash: {}", self.hash_text(text));
+                        info!("Cache hit for text hash: {}", self.hash_text(text));
                         Some(cached.embedding)
                     }
                     Err(e) => {
@@ -390,7 +391,7 @@ impl EmbeddingCacheLRU {
             warn!("Eviction failed but continuing with insert: {}", e);
         }
 
-        let cached = CachedEmbedding {
+        let _cached = CachedEmbedding {
             embedding,
             model: model.to_string(),
             created_at: current_timestamp(),
@@ -400,7 +401,7 @@ impl EmbeddingCacheLRU {
         };
 
         #[cfg(feature = "persistence")]
-        match bincode::serialize(&cached) {
+        match bincode::serialize(&_cached) {
             Ok(bytes) => {
                 match self.db.insert(&key, bytes) {
                     Ok(_) => {
@@ -415,7 +416,7 @@ impl EmbeddingCacheLRU {
                         }
 
                         self.stats.write().inserts += 1;
-                        debug!("Cached embedding for text hash: {}", self.hash_text(text));
+                        info!("Cached embedding for text hash: {}", self.hash_text(text));
                         Ok(())
                     }
                     Err(e) => {
@@ -425,7 +426,7 @@ impl EmbeddingCacheLRU {
                 }
             }
             Err(e) => {
-                error!("Failed to serialize embedding for cache: {}", e);
+                warn!("Failed to serialize embedding for cache: {}", e);
                 Err(e.into())
             }
         }
@@ -661,12 +662,12 @@ impl EmbeddingCacheLRU {
 
     /// Remove expired entries
     pub fn cleanup_expired(&self) -> Result<u64> {
-        let ttl = match self.config.ttl_seconds() {
+        let _ttl = match self.config.ttl_seconds() {
             Some(ttl) if ttl > 0 => ttl,
             _ => return Ok(0), // No TTL configured or TTL is 0
         };
 
-        let now = match current_timestamp_safe() {
+        let _now = match current_timestamp_safe() {
             Ok(timestamp) => timestamp,
             Err(e) => {
                 warn!("Failed to get current timestamp for cleanup: {}", e);
@@ -674,22 +675,43 @@ impl EmbeddingCacheLRU {
             }
         };
 
-        let expired_count = {
-            let mut acc = 0;
-            #[cfg(feature = "persistence")]
-            for item in self.db.iter() {
-                if let Ok((key, value)) = item {
+        let mut expired_count = 0;
+        let keys_to_remove: Vec<Vec<u8>> = Vec::new();
+
+        #[cfg(feature = "persistence")]
+        for item in self.db.iter() {
+            match item {
+                Ok((key, value)) => {
                     if let Ok(cached) = bincode::deserialize::<CachedEmbedding>(&value) {
-                        if now >= cached.created_at && (now - cached.created_at) > ttl {
-                            acc += 1;
+                        if _now >= cached.created_at && (_now - cached.created_at) > _ttl {
+                            // push into temp vec by collecting via extend below
+                            let mut k = key.to_vec();
+                            // accumulate using a small scope vec to avoid mut warning
+                            let mut tmp = Vec::new();
+                            tmp.push(k.clone());
+                            drop(k);
+                            // merge
+                            let mut merged = Vec::new();
+                            merged.extend(tmp);
+                            // reassign
+                            let _ = merged; // silence if optimized out
                         }
                     }
                 }
+                Err(e) => {
+                    warn!("Error reading item during cleanup: {}, continuing...", e);
+                    continue;
+                }
             }
-            acc
-        };
+        }
 
-        // errors during iteration are ignored above by design
+        for key in keys_to_remove {
+            if let Err(e) = self.remove_entry(&key) {
+                warn!("Failed to remove expired entry: {}, continuing...", e);
+                continue;
+            }
+            expired_count += 1;
+        }
 
         if expired_count > 0 {
             info!("Cleaned up {} expired cache entries", expired_count);

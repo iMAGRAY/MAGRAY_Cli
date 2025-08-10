@@ -738,7 +738,7 @@ impl AdaptiveTaskOrchestrator {
         let avg_time = *self.avg_response_time.lock().await;
         let active_tasks_count = self.active_tasks.read().await.len();
 
-        stats.push_str(&format!("📊 Overall Performance:\n"));
+        stats.push_str("📊 Overall Performance:\n");
         stats.push_str(&format!("  • Total tasks processed: {}\n", total_tasks));
         stats.push_str(&format!("  • Average response time: {:?}\n", avg_time));
         stats.push_str(&format!(

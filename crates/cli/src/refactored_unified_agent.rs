@@ -393,7 +393,7 @@ impl RefactoredUnifiedAgent {
         }
 
         // System health
-        stats.push_str(&format!("\nSystem Health:\n"));
+        stats.push_str("\nSystem Health:\n");
         stats.push_str(&format!("├─ Initialized: {}\n", self.initialized));
         stats.push_str(&format!("├─ Core ready: {}\n", self.core.is_ready().await));
         stats.push_str(&format!(
@@ -691,7 +691,7 @@ mod tests {
         let _result = agent.process_request_internal(&context).await;
 
         // Проверяем состояние circuit breaker
-        let cb_states = agent.circuit_breaker_manager.get_states().await;
+        let _cb_states = agent.circuit_breaker_manager.get_states().await;
         // Circuit breaker может быть открыт после одной ошибки в зависимости от конфигурации
     }
 

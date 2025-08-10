@@ -24,7 +24,7 @@ fn test_layer_table_names() {
 #[test]
 fn test_layer_ordering() {
     // Проверяем что Layer implement Ord
-    let mut layers = vec![Layer::Assets, Layer::Interact, Layer::Insights];
+    let mut layers = [Layer::Assets, Layer::Interact, Layer::Insights];
     layers.sort();
 
     // После сортировки должны быть в порядке: Interact, Insights, Assets

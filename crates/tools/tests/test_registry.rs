@@ -16,6 +16,7 @@ impl MockTool {
         }
     }
 
+    #[allow(dead_code)]
     fn call_count(&self) -> usize {
         self.calls.load(std::sync::atomic::Ordering::SeqCst)
     }

@@ -1,3 +1,4 @@
+#![cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion, PlotConfiguration,
 };

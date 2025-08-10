@@ -67,9 +67,7 @@ impl FallbackEmbeddingService {
             // Fallback если norm слишком маленький - создаем unit vector
             warn!("Generated embedding has very small norm, using fallback unit vector");
             let default_value = 1.0 / (self.dimension as f32).sqrt();
-            for val in &mut embedding {
-                *val = default_value;
-            }
+            embedding.fill(default_value);
         }
 
         // Кэшируем результат только если кэш не переполнен

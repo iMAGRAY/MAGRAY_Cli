@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 /// Common interface for embedding caches
+#[allow(dead_code)]
 pub trait EmbeddingCacheInterface: Send + Sync {
     /// Get an embedding from cache
     fn get(&self, text: &str, model: &str) -> Option<Vec<f32>>;

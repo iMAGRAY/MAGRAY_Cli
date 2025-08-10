@@ -15,7 +15,7 @@ async fn web_fetch_large_data_url_truncates_metadata() -> Result<()> {
     args.insert("url".to_string(), data_url);
     let out = tool.execute(ToolInput { command: "web_fetch".into(), args, context: None, dry_run: false, timeout_ms: Some(2000) }).await?;
     assert!(out.success);
-    assert!(out.metadata.get("bytes").is_some());
+    assert!(out.metadata.contains_key("bytes"));
     assert_eq!(out.metadata.get("source").map(String::as_str), Some("data"));
     assert!(out.formatted_output.as_ref().unwrap().len() >= 200_000 / 2); // urlencoding shrinks check relaxed
     Ok(())

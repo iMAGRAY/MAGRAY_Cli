@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "orchestrated-search", feature = "keyword-search"))]
+#![cfg(all(feature = "extended-tests", feature = "orchestration-modules", feature = "keyword-search"))]
 
 use memory::orchestration::SearchCoordinator;
 use memory::orchestration::traits::SearchCoordinator as SearchCoordinatorTrait;

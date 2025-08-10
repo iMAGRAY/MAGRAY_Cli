@@ -406,7 +406,7 @@ impl PerformanceTracker {
             last_seconds
         );
 
-        report.push_str(&format!("Системные метрики:\n"));
+        report.push_str("Системные метрики:\n");
         report.push_str(&format!(
             "├─ Uptime: {} сек\n",
             system_metrics.uptime_seconds
@@ -456,7 +456,7 @@ impl PerformanceTracker {
         for metric in &recent_metrics {
             by_component
                 .entry(metric.component.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(metric);
         }
 

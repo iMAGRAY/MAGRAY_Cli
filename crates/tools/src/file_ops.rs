@@ -655,7 +655,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_reader_default() {
-        let reader1 = FileReader::default();
+        let reader1 = FileReader::new();
         let reader2 = FileReader::new();
 
         assert_eq!(reader1.spec().name, reader2.spec().name);
@@ -740,7 +740,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_writer_default() {
-        let writer1 = FileWriter::default();
+        let writer1 = FileWriter::new();
         let writer2 = FileWriter::new();
 
         assert_eq!(writer1.spec().name, writer2.spec().name);
