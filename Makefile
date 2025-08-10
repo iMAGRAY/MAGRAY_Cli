@@ -378,3 +378,11 @@ smoke-cpu: docker-smoke-cpu
 
 .PHONY: down
 down: docker-down
+
+.PHONY: agent-setup
+agent-setup:
+	bash scripts/agents/bootstrap.sh --non-interactive
+
+.PHONY: agent-analyze
+agent-analyze:
+	bash scripts/agents/analyze_project.sh
