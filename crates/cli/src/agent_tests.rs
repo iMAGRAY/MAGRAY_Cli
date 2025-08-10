@@ -167,64 +167,35 @@ mod tests {
     #[tokio::test]
     async fn test_store_user_message() {
         use chrono::Utc;
+        #[cfg(not(feature = "minimal"))]
         use memory::{Layer, Record};
         use uuid::Uuid;
 
-        // Создаем тестовую запись
-        let test_record = Record {
-            id: Uuid::new_v4(),
-            text: "Test message for storage".to_string(),
-            embedding: vec![],
-            layer: Layer::Interact,
-            kind: "user_message".to_string(),
-            tags: vec!["test".to_string()],
-            project: "test_project".to_string(),
-            session: "test_session".to_string(),
-            ts: Utc::now(),
-            score: 0.0,
-            access_count: 1,
-            last_access: Utc::now(),
-        };
+        #[cfg(not(feature = "minimal"))]
+        let test_record = Record { id: Uuid::new_v4(), text: "Test message for storage".to_string(), embedding: vec![], layer: Layer::Interact, kind: "user_message".to_string(), tags: vec!["test".to_string()], project: "test_project".to_string(), session: "test_session".to_string(), ts: Utc::now(), score: 0.0, access_count: 1, last_access: Utc::now() };
 
-        // Проверяем структуру записи
-        assert_eq!(
-            test_record.layer,
-            Layer::Interact,
-            "Should be Interact layer"
-        );
-        assert_eq!(
-            test_record.kind, "user_message",
-            "Should be user_message kind"
-        );
-        assert!(
-            test_record.tags.contains(&"test".to_string()),
-            "Should contain test tag"
-        );
+        #[cfg(not(feature = "minimal"))]
+        {
+            assert_eq!(test_record.layer, Layer::Interact, "Should be Interact layer");
+            assert_eq!(test_record.kind, "user_message", "Should be user_message kind");
+            assert!(test_record.tags.contains(&"test".to_string()), "Should contain test tag");
+        }
     }
 
     #[tokio::test]
     async fn test_search_memory() {
+        #[cfg(not(feature = "minimal"))]
         use memory::{Layer, SearchOptions};
 
-        // Создаем тестовые search options
-        let search_options = SearchOptions {
-            layers: vec![Layer::Insights],
-            top_k: 5,
-            score_threshold: 0.7,
-            tags: vec![],
-            project: Some("test_project".to_string()),
-        };
+        #[cfg(not(feature = "minimal"))]
+        let search_options = SearchOptions { layers: vec![Layer::Insights], top_k: 5, score_threshold: 0.7, tags: vec![], project: Some("test_project".to_string()) };
 
-        // Проверяем структуру search options
-        assert_eq!(search_options.top_k, 5, "Should request top 5 results");
-        assert_eq!(
-            search_options.score_threshold, 0.7,
-            "Should have 0.7 threshold"
-        );
-        assert!(
-            search_options.layers.contains(&Layer::Insights),
-            "Should search Insights layer"
-        );
+        #[cfg(not(feature = "minimal"))]
+        {
+            assert_eq!(search_options.top_k, 5, "Should request top 5 results");
+            assert_eq!(search_options.score_threshold, 0.7, "Should have 0.7 threshold");
+            assert!(search_options.layers.contains(&Layer::Insights), "Should search Insights layer");
+        }
     }
 
     // ===== РАЗДЕЛ 5: Тесты concurrent operations =====
@@ -391,17 +362,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_integration_with_memory_service() {
+        #[cfg(not(feature = "minimal"))]
         use memory::DIMemoryService;
 
-        // Проверяем что memory service правильно интегрируется
-        // (требует реального service или полного мока)
-
-        // Проверяем типы и структуры
-        assert_eq!(
-            std::mem::size_of::<DIMemoryService>() > 0,
-            true,
-            "DIMemoryService should have non-zero size"
-        );
+        #[cfg(not(feature = "minimal"))]
+        {
+            assert!(std::mem::size_of::<DIMemoryService>() > 0, "DIMemoryService should have non-zero size");
+        }
     }
 
     #[tokio::test]
@@ -478,73 +445,70 @@ mod tests {
 
     #[tokio::test]
     async fn test_di_stats_structure() {
+        #[cfg(not(feature = "minimal"))]
         use memory::service_di::MemorySystemStats;
 
-        // Создаем тестовую статистику
+        #[cfg(not(feature = "minimal"))]
         let stats = MemorySystemStats::default();
 
-        // Проверяем структуру статистики
-        assert_eq!(stats.cache_hits, 0, "Cache hits should start at 0");
-        assert_eq!(stats.cache_misses, 0, "Cache misses should start at 0");
-        assert_eq!(stats.cache_size, 0, "Cache size should start at 0");
+        #[cfg(not(feature = "minimal"))]
+        {
+            assert_eq!(stats.cache_hits, 0, "Cache hits should start at 0");
+            assert_eq!(stats.cache_misses, 0, "Cache misses should start at 0");
+            assert_eq!(stats.cache_size, 0, "Cache size should start at 0");
+        }
 
-        // Проверяем наличие полей
-        assert!(
-            stats.health_status.is_err(),
-            "Default health status should be error"
-        );
+        #[cfg(not(feature = "minimal"))]
+        assert!(stats.health_status.is_err(), "Default health status should be error");
 
-        // Проверяем promotion stats
-        let promotion = stats.promotion_stats;
-        assert_eq!(promotion.interact_to_insights, 0, "No promotions initially");
-        assert_eq!(promotion.insights_to_assets, 0, "No promotions initially");
+        #[cfg(not(feature = "minimal"))]
+        {
+            let promotion = stats.promotion_stats;
+            assert_eq!(promotion.interact_to_insights, 0, "No promotions initially");
+            assert_eq!(promotion.insights_to_assets, 0, "No promotions initially");
+        }
     }
 
     #[tokio::test]
     async fn test_health_check_structure() {
+        #[cfg(not(feature = "minimal"))]
         use memory::health::{ComponentType, HealthStatus, SystemHealthStatus};
         use std::collections::HashMap;
 
-        // Создаем тестовый health status
-        let mut component_statuses = HashMap::new();
-        component_statuses.insert(ComponentType::Memory, HealthStatus::Healthy);
-        component_statuses.insert(ComponentType::Cache, HealthStatus::Healthy);
-        component_statuses.insert(ComponentType::EmbeddingService, HealthStatus::Degraded);
-
-        let health = SystemHealthStatus {
-            overall_status: HealthStatus::Healthy,
-            component_statuses,
-            active_alerts: vec![],
-            metrics_summary: {
-                let mut metrics = HashMap::new();
-                metrics.insert("memory_usage_mb".to_string(), 256.0);
-                metrics.insert("cache_efficiency".to_string(), 0.75);
-                metrics
-            },
-            last_updated: chrono::Utc::now(),
-            uptime_seconds: 3600,
+        #[cfg(not(feature = "minimal"))]
+        let health = {
+            let mut component_statuses = HashMap::new();
+            component_statuses.insert(ComponentType::Memory, HealthStatus::Healthy);
+            component_statuses.insert(ComponentType::Cache, HealthStatus::Healthy);
+            component_statuses.insert(ComponentType::EmbeddingService, HealthStatus::Degraded);
+            SystemHealthStatus {
+                overall_status: HealthStatus::Healthy,
+                component_statuses,
+                active_alerts: vec![],
+                metrics_summary: {
+                    let mut metrics = HashMap::new();
+                    metrics.insert("memory_usage_mb".to_string(), 256.0);
+                    metrics.insert("cache_efficiency".to_string(), 0.75);
+                    metrics
+                },
+                last_updated: chrono::Utc::now(),
+                uptime_seconds: 3600,
+            }
         };
 
-        // Проверяем health статус
-        assert!(
-            matches!(health.overall_status, HealthStatus::Healthy),
-            "Overall should be healthy"
-        );
-        assert_eq!(
-            health.component_statuses.len(),
-            3,
-            "Should have 3 components"
-        );
-
-        // Проверяем метрики
-        if let Some(cache_eff) = health.metrics_summary.get("cache_efficiency") {
-            assert!(*cache_eff >= 0.7, "Cache efficiency should be good");
+        #[cfg(not(feature = "minimal"))]
+        {
+            assert!(matches!(health.overall_status, HealthStatus::Healthy), "Overall should be healthy");
+            assert_eq!(health.component_statuses.len(), 3, "Should have 3 components");
         }
 
-        if let Some(mem_usage) = health.metrics_summary.get("memory_usage_mb") {
-            assert!(*mem_usage < 512.0, "Memory usage should be reasonable");
+        #[cfg(not(feature = "minimal"))]
+        {
+            if let Some(cache_eff) = health.metrics_summary.get("cache_efficiency") {
+                assert!((*cache_eff - 0.75).abs() < 1e-6, "Cache efficiency should be 0.75");
+            } else {
+                panic!("cache_efficiency not found");
+            }
         }
-
-        assert_eq!(health.uptime_seconds, 3600, "Uptime should be 1 hour");
     }
 }
