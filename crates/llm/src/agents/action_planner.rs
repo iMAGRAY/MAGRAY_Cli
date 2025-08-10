@@ -6,9 +6,13 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionPlan {
     pub steps: Vec<PlanStep>,
+    #[serde(default)]
     pub reasoning: String,
+    #[serde(default = "default_confidence")]
     pub confidence: f32,
 }
+
+fn default_confidence() -> f32 { 0.9 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanStep {
@@ -80,7 +84,7 @@ Git операции:
         {{
             "tool": "file_write",
             "description": "создаем конфигурационный файл",
-            "parameters": {{"path": "config.json", "content": "{{\\"version\\": \\"1.0\\"}}"}}
+            "parameters": {{"path": "config.json", "content": "{{\"version\": \"1.0\"}}"}}
         }},
         {{
             "tool": "file_read",

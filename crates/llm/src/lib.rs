@@ -278,13 +278,13 @@ impl LlmClient {
         let provider = match provider_type.as_str() {
             "openai" => {
                 let api_key = env::var("OPENAI_API_KEY")
-                    .map_err(|_| anyhow!("OPENAI_API_KEY не установлен в .env"))?;
+                    .map_err(|_| anyhow!("OPENAI_API_KEY не установлен"))?;
                 let model = env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
                 LlmProvider::OpenAI { api_key, model }
             }
             "anthropic" => {
                 let api_key = env::var("ANTHROPIC_API_KEY")
-                    .map_err(|_| anyhow!("ANTHROPIC_API_KEY не установлен в .env"))?;
+                    .map_err(|_| anyhow!("ANTHROPIC_API_KEY не установлен"))?;
                 let model = env::var("ANTHROPIC_MODEL")
                     .unwrap_or_else(|_| "claude-3-haiku-20240307".to_string());
                 LlmProvider::Anthropic { api_key, model }

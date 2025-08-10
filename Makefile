@@ -82,19 +82,19 @@ test-minimal:
 # New test matrix targets
 test-fast:
 	@echo "⚡ Running fast CPU tests..."
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features=cpu --no-fail-fast
+	cargo test --features=cpu --no-fail-fast
 
 test-full:
 	@echo "🧪 Running full CPU tests (extended)..."
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --no-fail-fast
+	cargo test --features="cpu,extended-tests" --no-fail-fast
 
 test-persistence:
 	@echo "🧪 Running persistence tests (CPU + persistence + extended)..."
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,persistence,extended-tests" --no-fail-fast
+	cargo test --features="cpu,persistence,extended-tests" --no-fail-fast
 
 test-gpu-full:
 	@echo "🎮 Running full GPU tests (extended)..."
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="gpu,extended-tests" --no-fail-fast
+	cargo test --features="gpu,extended-tests" --no-fail-fast
 
 test-all: test-cpu test-gpu test-minimal
 	@echo "✅ All feature tests passed!"
@@ -223,28 +223,28 @@ info:
 coverage:
 	@echo "📈 Running test coverage (tarpaulin) ..."
 	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --config Tarpaulin.toml --engine llvm --features=cpu --timeout 120 --out Html
+	cargo tarpaulin --config Tarpaulin.toml --engine llvm --features=cpu --timeout 120 --out Html
 	@echo "✅ Coverage report: tarpaulin-report.html"
 
 coverage-full:
 	@echo "📈 Running full coverage (extended-tests) ..."
 	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --config Tarpaulin.toml --engine llvm --features="cpu,extended-tests" --timeout 600 --out Html
+	cargo tarpaulin --config Tarpaulin.toml --engine llvm --features="cpu,extended-tests" --timeout 600 --out Html
 	@echo "✅ Coverage report: tarpaulin-report.html"
 
 ci-local-fast:
 	@echo "🏃 CI-local: fast cpu tests"
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features=cpu --no-fail-fast --quiet
+	cargo test --features=cpu --no-fail-fast --quiet
 
 ci-local-extended:
 	@echo "🏃 CI-local: extended cpu tests"
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --no-fail-fast --quiet
+	cargo test --features="cpu,extended-tests" --no-fail-fast --quiet
 
 # Coverage-enforced extended suite (fails if coverage below MIN_COVERAGE)
 ci-local-extended-cov:
 	@echo "🏃 CI-local: extended cpu tests with coverage threshold >= $(MIN_COVERAGE)%"
 	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin --engine llvm --workspace -p common -p tools -p ai -p memory -p cli --features="cpu,extended-tests" --timeout 600 \
+	cargo tarpaulin --engine llvm --workspace -p common -p tools -p ai -p memory -p cli --features="cpu,extended-tests" --timeout 600 \
 		--include-files crates/common/src/** \
 		--include-files crates/tools/src/file_ops.rs \
 		--include-files crates/tools/src/git_ops.rs \
@@ -278,30 +278,30 @@ ci-local-extended-cov:
 ci-local-cov-core:
 	@echo "🏃 CI-local: core coverage (crate=common) threshold >= $(MIN_COVERAGE)%"
 	@which cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo tarpaulin -p common --config Tarpaulin.toml --engine llvm --timeout 300 --fail-under $(MIN_COVERAGE) --out Html
+	cargo tarpaulin -p common --config Tarpaulin.toml --engine llvm --timeout 300 --fail-under $(MIN_COVERAGE) --out Html
 	@echo "✅ Core coverage (>= $(MIN_COVERAGE)%) OK: tarpaulin-report.html"
 
 ci-local-persistence:
 	@echo "🏃 CI-local: persistence suite"
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,persistence,extended-tests" --no-fail-fast --quiet
+	cargo test --features="cpu,persistence,extended-tests" --no-fail-fast --quiet
 
 ci-local-gpu:
 	@echo "🏃 CI-local: gpu extended (if available)"
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="gpu,extended-tests" --no-fail-fast --quiet || true
+	cargo test --features="gpu,extended-tests" --no-fail-fast --quiet || true
 
 rag-report:
 	@echo "🧪 Running RAG golden suite (extended-tests) ..."
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --tests -q -- test rag_golden_suite_metrics --exact --nocapture
+	cargo test --features="cpu,extended-tests" --tests -q -- test rag_golden_suite_metrics --exact --nocapture
 	@echo "📄 Report: reports/rag_metrics_summary.json"
 
 rag-report-fast:
 	@echo "🧪 Running RAG golden suite test only (extended-tests) ..."
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" -q -- tests::rag_golden_suite_metrics --exact --nocapture || true
+	cargo test --features="cpu,extended-tests" -q -- tests::rag_golden_suite_metrics --exact --nocapture || true
 	@echo "📄 Report (if generated): reports/rag_metrics_summary.json"
 
 rag-report-rerank:
 	@echo "🧪 Running RAG golden suite with rerank variant (extended-tests) ..."
-	RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo test --features="cpu,extended-tests" --tests -q -- test rag_golden_suite_metrics --exact --nocapture
+	cargo test --features="cpu,extended-tests" --tests -q -- test rag_golden_suite_metrics --exact --nocapture
 	@echo "📄 Baseline: reports/rag_metrics_summary.json"
 	@echo "📄 Rerank:   reports/rag_metrics_rerank.json"
 
