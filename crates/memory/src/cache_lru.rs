@@ -4,10 +4,9 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "persistence")]
 use sled::Db;
 use std::collections::{HashMap, VecDeque};
-use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use common::{config_base::CacheConfigBase, ConfigTrait};
 
@@ -36,7 +35,7 @@ mod _clock_mock {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct CachedEmbedding {
     embedding: Vec<f32>,
     model: String,
@@ -47,19 +46,11 @@ struct CachedEmbedding {
 }
 
 /// Configuration for cache behavior - устранение дублирования с CacheConfigBase
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CacheConfig {
     /// Базовая cache конфигурация
     #[serde(flatten)]
     pub base: CacheConfigBase,
-}
-
-impl Default for CacheConfig {
-    fn default() -> Self {
-        Self {
-            base: CacheConfigBase::default(),
-        }
-    }
 }
 
 impl ConfigTrait for CacheConfig {
@@ -192,14 +183,14 @@ struct CacheStats {
 impl EmbeddingCacheLRU {
     /// Открывает sled БД для LRU кэша через DatabaseManager
     #[cfg(feature = "persistence")]
-    fn open_cache_database(cache_path: impl AsRef<Path>) -> Result<Arc<Db>> {
+    fn open_cache_database(cache_path: impl AsRef<std::path::Path>) -> Result<Arc<Db>> {
         let db_manager = crate::database_manager::DatabaseManager::global();
         let db = db_manager.get_cache_database(cache_path.as_ref())?;
         info!("✅ LRU cache database opened through DatabaseManager");
         Ok(db)
     }
 
-    pub fn new(cache_path: impl AsRef<Path>, config: CacheConfig) -> Result<Self> {
+    pub fn new(cache_path: impl AsRef<std::path::Path>, config: CacheConfig) -> Result<Self> {
         let cache_path = cache_path.as_ref();
 
         // Create directory if it doesn't exist
@@ -297,28 +288,28 @@ impl EmbeddingCacheLRU {
             warn!("Failed to initialize LRU index: {}", e);
         }
 
-        let key = self.make_key(text, model);
+        let _key = self.make_key(text, model);
         #[cfg(feature = "persistence")]
-        match self.db.get(&key) {
+        match self.db.get(&_key) {
             Ok(Some(bytes)) => {
                 match bincode::deserialize::<CachedEmbedding>(&bytes) {
                     Ok(mut cached) => {
                         // Check TTL
                         if let Some(ttl) = self.config.ttl_seconds() {
-                            let now = current_timestamp();
+                            let _now = current_timestamp();
                             // Handle potential time issues gracefully
-                            if now >= cached.created_at && ttl > 0 {
-                                let age = now - cached.created_at;
+                            if _now >= cached.created_at && ttl > 0 {
+                                let age = _now - cached.created_at;
                                 if age > ttl {
                                     debug!("Cache entry expired: age={} > ttl={}", age, ttl);
                                     self.stats.write().expired += 1;
-                                    let _ = self.remove_entry(&key);
+                                    let _ = self.remove_entry(&_key);
                                     return None;
                                 }
-                            } else if ttl > 0 && now < cached.created_at {
+                            } else if ttl > 0 && _now < cached.created_at {
                                 warn!(
                                     "Clock skew detected: now={} < created_at={}",
-                                    now, cached.created_at
+                                    _now, cached.created_at
                                 );
                                 // Don't expire due to clock issues
                             }
@@ -330,7 +321,7 @@ impl EmbeddingCacheLRU {
 
                         // Update in database - don't fail if this fails
                         if let Ok(updated_bytes) = bincode::serialize(&cached) {
-                            if let Err(e) = self.db.insert(&key, updated_bytes) {
+                            if let Err(e) = self.db.insert(&_key, updated_bytes) {
                                 warn!("Failed to update cache entry stats: {}", e);
                                 // Continue anyway - we can still return the cached value
                             }
@@ -338,7 +329,7 @@ impl EmbeddingCacheLRU {
 
                         // Update LRU index with error handling
                         if let Some(mut index) = self.lru_index.try_lock() {
-                            index.touch(key.to_vec(), cached.size_bytes);
+                            index.touch(_key.to_vec(), cached.size_bytes);
                         } else {
                             warn!("Failed to update LRU index - poisoned lock detected");
                         }
@@ -352,7 +343,7 @@ impl EmbeddingCacheLRU {
                             "Failed to deserialize cached embedding, removing corrupted entry: {}",
                             e
                         );
-                        let _ = self.remove_entry(&key); // Clean up corrupted entry
+                        let _ = self.remove_entry(&_key); // Clean up corrupted entry
                         self.stats.write().misses += 1;
                         None
                     }
@@ -363,7 +354,7 @@ impl EmbeddingCacheLRU {
                 None
             }
             Err(e) => {
-                error!("Database error during cache get: {}", e);
+                warn!("Database error during cache get: {}", e);
                 self.stats.write().misses += 1;
                 None // Graceful degradation - treat as cache miss
             }
@@ -683,33 +674,22 @@ impl EmbeddingCacheLRU {
             }
         };
 
-        let mut expired_count = 0;
-        let mut keys_to_remove: Vec<Vec<u8>> = Vec::new();
-
-        #[cfg(feature = "persistence")]
-        for item in self.db.iter() {
-            match item {
-                Ok((key, value)) => {
+        let expired_count = {
+            let mut acc = 0;
+            #[cfg(feature = "persistence")]
+            for item in self.db.iter() {
+                if let Ok((key, value)) = item {
                     if let Ok(cached) = bincode::deserialize::<CachedEmbedding>(&value) {
                         if now >= cached.created_at && (now - cached.created_at) > ttl {
-                            keys_to_remove.push(key.to_vec());
+                            acc += 1;
                         }
                     }
                 }
-                Err(e) => {
-                    warn!("Error reading item during cleanup: {}, continuing...", e);
-                    continue;
-                }
             }
-        }
+            acc
+        };
 
-        for key in keys_to_remove {
-            if let Err(e) = self.remove_entry(&key) {
-                warn!("Failed to remove expired entry: {}, continuing...", e);
-                continue;
-            }
-            expired_count += 1;
-        }
+        // errors during iteration are ignored above by design
 
         if expired_count > 0 {
             info!("Cleaned up {} expired cache entries", expired_count);

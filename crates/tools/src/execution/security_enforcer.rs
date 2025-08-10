@@ -644,7 +644,6 @@ impl Default for SecurityEnforcer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[tokio::test]
     async fn test_security_enforcer_creation() {
@@ -665,7 +664,7 @@ mod tests {
             custom: HashMap::new(),
         };
 
-        let permission = enforcer
+        let _permission = enforcer
             .grant_permission(
                 "test_tool".to_string(),
                 permissions,

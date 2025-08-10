@@ -7,10 +7,9 @@ use crate::{
     health::{ComponentType, HealthStatus, SystemHealthStatus},
     // promotion::PromotionStats,
     // services::RefactoredDIMemoryService,
-    types::SearchOptions as CoreSearchOptions,
     Layer, Record,
 };
-use common::event_bus::{EventBus, Topic, EventEnvelope};
+use common::event_bus::{EventBus, Topic};
 use once_cell::sync::Lazy;
 
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]

@@ -1102,7 +1102,6 @@ impl Default for UnifiedContainerBuilder {
 }
 
 /// === CONVENIENCE FACTORY FUNCTIONS ===
-
 /// Создать новый контейнер с настройками по умолчанию
 pub fn create_container() -> UnifiedContainer {
     UnifiedContainer::new()
