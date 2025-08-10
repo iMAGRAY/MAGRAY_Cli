@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests", not(feature = "minimal")))]
 
 //! Comprehensive error handling and edge case tests
 //!

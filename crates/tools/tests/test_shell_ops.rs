@@ -65,6 +65,8 @@ async fn test_shell_exec_empty_command_string() -> Result<()> {
         command: "shell_exec".to_string(),
         args,
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = shell_exec.execute(input).await?;
@@ -91,6 +93,8 @@ async fn test_shell_exec_echo_command() -> Result<()> {
         command: "shell_exec".to_string(),
         args,
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = shell_exec.execute(input).await?;
@@ -118,6 +122,8 @@ async fn test_shell_exec_formatted_output() -> Result<()> {
         command: "shell_exec".to_string(),
         args,
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = shell_exec.execute(input).await?;
@@ -145,6 +151,8 @@ async fn test_shell_exec_invalid_command() -> Result<()> {
         command: "shell_exec".to_string(),
         args,
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = shell_exec.execute(input).await?;
@@ -171,6 +179,8 @@ async fn test_shell_exec_platform_metadata() -> Result<()> {
         command: "shell_exec".to_string(),
         args,
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = shell_exec.execute(input).await?;

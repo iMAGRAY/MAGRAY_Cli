@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use tempfile::NamedTempFile;
-use todo::graph::DependencyGraph;
+use todo::DependencyGraph;
 use todo::service_v2::TodoServiceV2;
 use todo::store_v2::TodoStoreV2;
 use todo::types::*;

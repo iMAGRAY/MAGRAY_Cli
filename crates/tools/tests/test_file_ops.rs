@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
 use tempfile::TempDir;
 use tools::file_ops::{DirLister, FileReader, FileWriter};
 use tools::{Tool, ToolInput};
@@ -304,6 +303,8 @@ async fn test_dir_lister_recursive() {
             ("recursive".to_string(), "true".to_string()),
         ]),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let output = lister.execute(input).await.unwrap();

@@ -492,7 +492,7 @@ impl SearchCoordinatorTrait for SearchCoordinator {
                     if let Ok(Some(rec)) = self.store.get_by_id(&uuid, layer).await {
                         fused
                             .entry(id_str.clone())
-                            .and_modify(|e| e.1 = e.1) // оставляем vector rank как есть
+                            .and_modify(|e| { let _ = &e.1; }) // сохраняем vector rank без изменений
                             .or_insert((rec, None, None));
                         if let Some(entry) = fused.get_mut(id_str) {
                             entry.2 = Some(rank + 1);

@@ -69,7 +69,7 @@ impl OnnxSession {
     /// Вспомогательная функция для создания реальной ONNX сессии
     fn create_real_session(
         model_name: &str,
-        _model_path: &PathBuf,
+        _model_path: &Path,
         use_gpu: bool,
     ) -> Result<IoShapes> {
         // Проверяем доступность ONNX Runtime библиотеки
