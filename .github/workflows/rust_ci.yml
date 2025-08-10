@@ -2,9 +2,9 @@ name: rust-ci
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "**" ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ "**" ]
   workflow_dispatch: {}
 
 permissions:
