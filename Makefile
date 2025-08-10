@@ -283,7 +283,7 @@ ci-local-cov-core:
 
 ci-local-persistence:
 	@echo "🏃 CI-local: persistence suite"
-	cargo test --features="cpu,persistence,extended-tests" --no-fail-fast --quiet
+	cargo test --features="cpu,persistence,extended-tests,hnsw-index" --no-fail-fast --quiet
 
 ci-local-gpu:
 	@echo "🏃 CI-local: gpu extended (if available)"
