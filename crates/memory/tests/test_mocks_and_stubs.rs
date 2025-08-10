@@ -12,6 +12,7 @@ pub trait MemoryService {
 
 /// Stub implementation for database
 pub struct StubDatabase {
+    #[allow(dead_code)]
     data: Vec<String>,
 }
 
@@ -25,7 +26,9 @@ pub struct DummyLogger;
 
 /// Spy implementation to track calls
 pub struct SpyService {
+    #[allow(dead_code)]
     call_count: usize,
+    #[allow(dead_code)]
     last_args: Option<String>,
 }
 
@@ -54,7 +57,7 @@ mod tests {
 
     #[test]
     fn test_stub_database() {
-        let stub = StubDatabase { data: vec![] };
+        let _stub = StubDatabase { data: vec![] };
         // Test with stub
     }
 

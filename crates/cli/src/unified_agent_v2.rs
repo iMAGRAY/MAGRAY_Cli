@@ -191,6 +191,7 @@ impl IntelligentRoutingTrait for IntelligentRoutingAdapter {
 /// Adapter для DIMemoryService -> MemoryManagementTrait
 #[cfg(not(feature = "minimal"))]
 pub struct MemoryManagementAdapter {
+    #[allow(dead_code)]
     memory_service: memory::di::UnifiedContainer,
 }
 
@@ -965,7 +966,7 @@ impl UnifiedAgentV2 {
         ));
 
         // Integrated Tool Orchestrator Statistics
-        stats.push_str("\n");
+        stats.push('\n');
         stats.push_str(&self.tool_orchestrator.get_comprehensive_stats().await);
 
         stats

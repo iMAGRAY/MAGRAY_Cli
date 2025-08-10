@@ -19,7 +19,6 @@ fn generate_random_vectors(count: usize, dimension: usize) -> Vec<Vec<f32>> {
                     }
                     #[allow(unreachable_code)]
                     {
-                        // simple LCG fallback deterministic
                         use std::cell::RefCell;
                         thread_local! { static SEED: RefCell<u64> = RefCell::new(0x9E3779B97F4A7C15); }
                         SEED.with(|s| {
@@ -30,13 +29,12 @@ fn generate_random_vectors(count: usize, dimension: usize) -> Vec<Vec<f32>> {
                             f * 2.0 - 1.0
                         })
                     }
-                }) // [-1, 1]
+                })
                 .collect()
         })
         .collect()
 }
 
-/// Создание тестовых записей
 fn create_test_records(vectors: Vec<Vec<f32>>, layer: Layer) -> Vec<Record> {
     vectors
         .into_iter()
@@ -57,7 +55,6 @@ fn create_test_records(vectors: Vec<Vec<f32>>, layer: Layer) -> Vec<Record> {
         .collect()
 }
 
-/// Benchmark: HNSW индекс - добавление векторов
 fn bench_hnsw_insert(c: &mut Criterion) {
     let config = HnswRsConfig {
         dimension: 1024,
@@ -139,6 +136,3 @@ fn bench_hybrid_end_to_end(c: &mut Criterion) {
 
 criterion_group!(benches, bench_hnsw_insert, bench_hnsw_search, bench_hybrid_end_to_end);
 criterion_main!(benches);
-
-#[cfg(not(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence")))]
-fn main() {}
