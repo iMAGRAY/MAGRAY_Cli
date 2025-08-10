@@ -6,7 +6,7 @@ use ai::{
 };
 use anyhow::Result;
 use clap::{Args, Subcommand};
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 #[derive(Debug, Args)]
 pub struct GpuCommand {

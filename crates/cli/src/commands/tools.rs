@@ -5,8 +5,9 @@ use tools::ToolRegistry;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use common::{events, topics};
-use common::policy::{PolicyDocument, PolicyEngine, PolicyRule, PolicySubjectKind, PolicyAction, load_effective_policy};
+use common::policy::{PolicyDocument, PolicyEngine, PolicyRule, PolicySubjectKind, PolicyAction};
 use tools::intelligent_selector::{IntelligentToolSelector, SelectorConfig, ToolSelectionContext, TaskComplexity, UrgencyLevel, UserExpertise};
+use common::policy::load_effective_policy;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct McpToolConfig {
@@ -264,7 +265,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
     // Helper: export plugins into registry (quiet; best-effort)
     async fn export_plugins_into_registry(registry: &mut ToolRegistry) {
         if std::env::var("MAGRAY_EXPORT_PLUGINS_AS_TOOLS").ok().map(|s| s=="1" || s.to_lowercase()=="true").unwrap_or(true) {
-            let mut home = crate::util::magray_home();
+            let home = crate::util::magray_home();
             let mut plugins_dir = home.clone(); plugins_dir.push("plugins");
             let mut cfg_dir = home.clone(); cfg_dir.push("plugin-configs");
             let _ = tokio::fs::create_dir_all(&plugins_dir).await;

@@ -1,6 +1,7 @@
 use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
+use base64::Engine as _;
 
 fn net_allowlist() -> Vec<String> {
     common::sandbox_config::SandboxConfig::from_env().net.allowlist
@@ -196,7 +197,7 @@ fn decode_data_url(url: &str) -> Result<(String, usize)> {
     let meta = parts.next().ok_or_else(|| anyhow!("bad data url"))?;
     let data = parts.next().ok_or_else(|| anyhow!("bad data url"))?;
     let is_base64 = meta.ends_with(";base64");
-    let bytes = if is_base64 { base64::decode(data)? } else { urlencoding::decode(data)?.into_owned().into_bytes() };
+    let bytes = if is_base64 { base64::engine::general_purpose::STANDARD.decode(data)? } else { urlencoding::decode(data)?.into_owned().into_bytes() };
     let text = String::from_utf8_lossy(&bytes).to_string();
     Ok((text, bytes.len()))
 }
@@ -235,7 +236,7 @@ impl Tool for WebFetch {
         // Support schemes: http(s), file, data
         let max_bytes: usize = 1_048_576; // 1 MB cap
         let timeout_ms = input.timeout_ms;
-        let (success, result, formatted_output, mut metadata): (bool, String, Option<String>, HashMap<String, String>);
+        let (success, result, formatted_output, metadata): (bool, String, Option<String>, HashMap<String, String>);
         if url.starts_with("http://") || url.starts_with("https://") {
             ensure_net_allowed(&url)?;
             match fetch_http_with_limit(&url, timeout_ms, max_bytes).await {

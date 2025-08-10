@@ -11,7 +11,7 @@ use tokio::time::sleep;
 use common::{events, topics};
 use serde_json::json;
 
-use ai::{ModelType, MODEL_REGISTRY};
+// use ai::{ModelType, MODEL_REGISTRY};
 
 mod commands;
 mod health_checks;
@@ -907,7 +907,7 @@ async fn show_performance_metrics() -> Result<()> {
     info!("📈 Initializing UnifiedAgent for performance metrics");
 
     // Создаем UnifiedAgent для доступа к DI системе
-    let agent = match create_unified_agent_v2().await {
+    let _agent = match create_unified_agent_v2().await {
         Ok(agent) => {
             info!("✅ UnifiedAgent initialized successfully");
             agent

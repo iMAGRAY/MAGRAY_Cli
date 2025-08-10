@@ -26,7 +26,7 @@ impl Scheduler {
         Self { inner: Arc::new(RwLock::new(Inner { shutdown_tx: tx })) }
     }
 
-    pub async fn spawn_periodic<F, Fut>(&self, job: ScheduledJob, mut f: F) where
+    pub async fn spawn_periodic<F, Fut>(&self, job: ScheduledJob, f: F) where
         F: FnMut() -> Fut + Send + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
