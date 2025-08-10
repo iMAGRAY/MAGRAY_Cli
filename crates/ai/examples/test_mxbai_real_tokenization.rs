@@ -10,11 +10,10 @@ fn main() -> Result<()> {
 
     println!("🔍 Testing real tokenization in MxbaiRerankerService");
 
-    let model_path = PathBuf::from("crates/memory/models/mxbai_rerank_base_v2/model.onnx");
+    let _model_path = PathBuf::from("crates/memory/models/mxbai_rerank_base_v2/model.onnx");
 
     println!("\n1. Creating MxbaiRerankerService with real tokenization...");
     println!("⚠️ MXBai reranker service не реализован");
-    return Ok(());
 
     /*let service = match OptimizedMxbaiRerankerService::new(model_path, 512, 8) {
         Ok(service) => {
