@@ -13,7 +13,6 @@ use tracing::{debug, info, warn};
 
 use crate::{
     di::UnifiedContainer,
-    di::core_traits::TypeSafeResolver,
     orchestration::SearchCoordinator,
     types::Record,
     VectorStore,
@@ -24,6 +23,7 @@ use crate::{
     BatchSearchResult,
     CoreMemoryServiceTrait,
 };
+use crate::di::core_traits::ServiceResolver;
 use crate::batch_manager::BatchOperationManager;
 use common::OperationTimer;
 
@@ -31,8 +31,8 @@ use common::OperationTimer;
 /// Отвечает ТОЛЬКО за базовые операции с данными
 #[allow(dead_code)]
 pub struct CoreMemoryService {
-    /// Type-safe resolver для разрешения зависимостей (объект-безопасный)
-    resolver: TypeSafeResolver,
+    /// DI контейнер (используем ServiceResolver)
+    container: Arc<UnifiedContainer>,
     /// Semaphore для ограничения concurrent операций
     operation_limiter: Arc<Semaphore>,
 }
@@ -45,11 +45,8 @@ impl CoreMemoryService {
             max_concurrent_operations
         );
 
-        // Создаем type-safe resolver из контейнера
-        let resolver = container.as_object_safe_resolver();
-
         Self {
-            resolver,
+            container,
             operation_limiter: Arc::new(Semaphore::new(max_concurrent_operations)),
         }
     }
@@ -66,19 +63,19 @@ impl CoreMemoryService {
 
     /// Получить VectorStore через type-safe resolver
     fn get_vector_store(&self) -> Result<Arc<VectorStore>> {
-        self.resolver.resolve::<VectorStore>()
+        Ok(self.container.resolve::<VectorStore>()?)
     }
 
     /// Получить BatchOperationManager если доступен
     #[allow(dead_code)]
     fn get_batch_manager(&self) -> Option<Arc<BatchOperationManager>> {
-        self.resolver.try_resolve::<BatchOperationManager>()
+        self.container.resolve::<BatchOperationManager>().ok()
     }
 
     /// Получить MetricsCollector если доступен  
     #[allow(dead_code)]
     fn get_metrics_collector(&self) -> Option<Arc<MetricsCollector>> {
-        self.resolver.try_resolve::<MetricsCollector>()
+        self.container.resolve::<MetricsCollector>().ok()
     }
 }
 

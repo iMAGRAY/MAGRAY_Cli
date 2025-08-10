@@ -238,7 +238,13 @@ impl MonitoringServiceTrait for MonitoringService {
         }
 
         // Базовые проверки DI контейнера
-        let di_stats = crate::DIContainerStats::default();
+        let di_stats = crate::di::traits::DIContainerStats {
+            registered_services: 0,
+            registered_factories: 0,
+            singleton_count: 0,
+            transient_count: 0,
+            scoped_count: 0,
+        };
         if di_stats.registered_factories == 0 {
             return Err(anyhow::anyhow!(
                 "DI контейнер пуст - нет зарегистрированных типов"
@@ -282,7 +288,13 @@ impl MonitoringServiceTrait for MonitoringService {
             promotion_stats,
             batch_stats,
             gpu_stats,
-            di_container_stats: crate::DIContainerStats::default(),
+            di_container_stats: crate::di::traits::DIContainerStats {
+                registered_services: 0,
+                registered_factories: 0,
+                singleton_count: 0,
+                transient_count: 0,
+                scoped_count: 0,
+            },
         }
     }
 
@@ -312,7 +324,13 @@ impl MonitoringServiceTrait for MonitoringService {
         } else {
             0
         };
-        let di_stats = crate::DIContainerStats::default();
+        let di_stats = crate::di::traits::DIContainerStats {
+            registered_services: 0,
+            registered_factories: 0,
+            singleton_count: 0,
+            transient_count: 0,
+            scoped_count: 0,
+        };
         let monitoring_tasks = self
             .monitoring_tasks_count
             .load(std::sync::atomic::Ordering::Relaxed);

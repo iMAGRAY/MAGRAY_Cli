@@ -581,7 +581,10 @@ impl UnifiedServiceFactory {
         debug!("🔤 Создание EmbeddingCoordinator...");
 
         // Resolve зависимости через UnifiedDIContainer (вместо .unwrap())
+        #[cfg(feature = "gpu-acceleration")]
         let gpu_processor = self.container.resolve::<crate::gpu_accelerated::GpuBatchProcessor>().ok();
+        #[cfg(not(feature = "gpu-acceleration"))]
+        let gpu_processor: Option<std::sync::Arc<()>> = None;
 
         // Создаем cache с правильной конфигурацией
         let cache_path = std::env::temp_dir().join("embedding_cache");

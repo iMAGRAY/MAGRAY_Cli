@@ -25,8 +25,7 @@ use crate::{
 };
 #[cfg(feature = "backup-restore")]
 use crate::backup::BackupMetadata;
-#[cfg(feature = "service-configurator")]
-use crate::di::UnifiedMemoryConfigurator;
+// Конфигуратор отключён; используем UnifiedContainer::new()
 
 /// Refactored DIMemoryService использующий композицию специализированных сервисов
 /// Вместо God Object теперь делегирует к 5 специализированным сервисам
@@ -72,9 +71,6 @@ impl RefactoredDIMemoryService {
         info!("🚀 Создание RefactoredDIMemoryService с композицией специализированных сервисов");
 
         // Настраиваем полный DI контейнер
-        #[cfg(feature = "service-configurator")]
-        let container = Arc::new(UnifiedMemoryConfigurator::configure_full(&config).await?);
-        #[cfg(not(feature = "service-configurator"))]
         let container = Arc::new(UnifiedContainer::new());
 
         // Создаём все специализированные сервисы через фабрику
@@ -103,9 +99,6 @@ impl RefactoredDIMemoryService {
     pub async fn new_minimal(config: MemoryServiceConfig) -> Result<Self> {
         info!("🧪 Создание минимального RefactoredDIMemoryService для тестов");
 
-        #[cfg(feature = "service-configurator")]
-        let container = Arc::new(UnifiedMemoryConfigurator::configure_minimal(&config).await?);
-        #[cfg(not(feature = "service-configurator"))]
         let container = Arc::new(UnifiedContainer::new());
 
         // Создаём минимальные сервисы для тестов
@@ -459,7 +452,7 @@ impl RefactoredDIMemoryService {
     where
         T: std::any::Any + Send + Sync + 'static,
     {
-        self.container.resolve::<T>()
+        Ok(self.container.resolve::<T>()?)
     }
 
     #[allow(dead_code)]
@@ -467,7 +460,7 @@ impl RefactoredDIMemoryService {
     where
         T: std::any::Any + Send + Sync + 'static,
     {
-        self.container.resolve::<T>()
+        self.container.resolve::<T>().ok()
     }
 
     #[allow(dead_code)]
