@@ -265,6 +265,7 @@ fn bench_dimension_scalability(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 criterion_group!(
     benches,
     bench_search_scalability,
@@ -274,4 +275,8 @@ criterion_group!(
     bench_dimension_scalability
 );
 
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 criterion_main!(benches);
+
+#[cfg(not(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence")))]
+fn main() {}

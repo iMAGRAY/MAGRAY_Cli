@@ -1,14 +1,19 @@
-#![cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+#[cfg(all(not(feature = "minimal",), feature = "hnsw-index", feature = "persistence"))]
 use memory::{HnswRsConfig, Layer, Record, VectorIndexHnswRs, VectorStore};
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 use std::time::Instant;
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 use tokio::runtime::Runtime;
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 use uuid::Uuid;
 
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
 /// Генерация случайных векторов для тестов
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 fn generate_random_vectors(count: usize, dimension: usize) -> Vec<Vec<f32>> {
     (0..count)
         .map(|_| {
@@ -35,6 +40,7 @@ fn generate_random_vectors(count: usize, dimension: usize) -> Vec<Vec<f32>> {
         .collect()
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 fn create_test_records(vectors: Vec<Vec<f32>>, layer: Layer) -> Vec<Record> {
     vectors
         .into_iter()
@@ -55,6 +61,7 @@ fn create_test_records(vectors: Vec<Vec<f32>>, layer: Layer) -> Vec<Record> {
         .collect()
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 fn bench_hnsw_insert(c: &mut Criterion) {
     let config = HnswRsConfig {
         dimension: 1024,
@@ -90,6 +97,7 @@ fn bench_hnsw_insert(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 fn bench_hnsw_search(c: &mut Criterion) {
     let config = HnswRsConfig::default();
     let mut group = c.benchmark_group("hnsw_search");
@@ -117,6 +125,7 @@ fn bench_hnsw_search(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 fn bench_hybrid_end_to_end(c: &mut Criterion) {
     let config = HnswRsConfig::default();
     let rt = Runtime::new().unwrap();
@@ -134,5 +143,10 @@ fn bench_hybrid_end_to_end(c: &mut Criterion) {
     });
 }
 
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 criterion_group!(benches, bench_hnsw_insert, bench_hnsw_search, bench_hybrid_end_to_end);
+#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
 criterion_main!(benches);
+
+#[cfg(not(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence")))]
+fn main() {}

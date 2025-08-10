@@ -44,14 +44,14 @@ fn test_device_decision_clone() {
 fn test_auto_device_selector_creation() {
     let _selector = AutoDeviceSelector::new();
     // basic smoke
-    assert_eq!(format!("{:?}", _selector).contains("AutoDeviceSelector"), true);
+    assert!(format!("{:?}", _selector).contains("AutoDeviceSelector"));
 }
 
 #[test]
 fn test_auto_device_selector_default() {
     let _selector = AutoDeviceSelector::default();
     // basic smoke
-    assert_eq!(format!("{:?}", _selector).contains("AutoDeviceSelector"), true);
+    assert!(format!("{:?}", _selector).contains("AutoDeviceSelector"));
 }
 
 #[tokio::test]

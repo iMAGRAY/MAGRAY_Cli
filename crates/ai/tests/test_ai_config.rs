@@ -35,12 +35,14 @@ fn test_embedding_config_default() {
 
 #[test]
 fn test_embedding_config_custom() {
-    let mut config = EmbeddingConfig::default();
-    config.model_name = "custom-model".to_string();
-    config.batch_size = 64;
-    config.max_length = 1024;
-    config.use_gpu = false;
-    config.embedding_dim = Some(768);
+    let config = EmbeddingConfig {
+        model_name: "custom-model".to_string(),
+        batch_size: 64,
+        max_length: 1024,
+        use_gpu: false,
+        embedding_dim: Some(768),
+        ..Default::default()
+    };
 
     assert_eq!(config.model_name, "custom-model");
     assert_eq!(config.batch_size, 64);
@@ -61,11 +63,13 @@ fn test_reranking_config_default() {
 
 #[test]
 fn test_reranking_config_custom() {
-    let mut config = RerankingConfig::default();
-    config.model_name = "custom-reranker".to_string();
-    config.batch_size = 8;
-    config.max_length = 256;
-    config.use_gpu = false;
+    let config = RerankingConfig {
+        model_name: "custom-reranker".to_string(),
+        batch_size: 8,
+        max_length: 256,
+        use_gpu: false,
+        ..Default::default()
+    };
 
     assert_eq!(config.model_name, "custom-reranker");
     assert_eq!(config.batch_size, 8);
@@ -93,17 +97,21 @@ fn test_ai_config_serialization() {
 
 #[test]
 fn test_config_with_custom_models_dir() {
-    let mut config = AiConfig::default();
-    config.models_dir = PathBuf::from("/custom/models");
+    let config = AiConfig {
+        models_dir: PathBuf::from("/custom/models"),
+        ..Default::default()
+    };
 
     assert_eq!(config.models_dir, PathBuf::from("/custom/models"));
 }
 
 #[test]
 fn test_gpu_config_none() {
-    let mut config = EmbeddingConfig::default();
-    config.use_gpu = false;
-    config.gpu_config = None;
+    let config = EmbeddingConfig {
+        use_gpu: false,
+        gpu_config: None,
+        ..Default::default()
+    };
 
     assert!(!config.use_gpu);
     assert!(config.gpu_config.is_none());
