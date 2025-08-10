@@ -1,4 +1,4 @@
-#![cfg(feature = "extended-tests")]
+// stress test enabled by default; guard can be reintroduced via workspace features if needed
 
 use common::event_bus::{EventBus, Topic};
 use std::sync::atomic::{AtomicUsize, Ordering};
