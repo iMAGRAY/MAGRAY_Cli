@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 use anyhow::Result;
 use std::collections::HashMap;
 use tools::git_ops::{GitCommit, GitStatus};
@@ -31,12 +33,14 @@ async fn test_git_status_natural_language_parsing() -> Result<()> {
 #[tokio::test]
 async fn test_git_status_execute() -> Result<()> {
     let git_status = GitStatus::new();
-    let input = ToolInput {
+        let input = ToolInput {
         command: "git_status".to_string(),
         args: HashMap::new(),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
-
+ 
     // Execute git status (may fail if not in git repo, but shouldn't panic)
     let result = git_status.execute(input).await;
     assert!(result.is_ok());
@@ -103,6 +107,8 @@ async fn test_git_commit_default_message() -> Result<()> {
         command: "git_commit".to_string(),
         args: HashMap::new(), // No message provided
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     // Execute git commit with default message

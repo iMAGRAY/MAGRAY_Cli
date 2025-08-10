@@ -396,7 +396,6 @@ struct AnthropicUsage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito::Server;
 
     #[tokio::test]
     async fn test_anthropic_provider_creation() {

@@ -80,15 +80,15 @@ impl MemoryRecord {
         content: String,
         layer: LayerType,
         kind: String,
-        project: String,
-        session: String,
         created_at: DateTime<Utc>,
         access_pattern: AccessPattern,
+        metadata: Option<(String, String)>, // (project, session)
     ) -> DomainResult<Self> {
         if content.trim().is_empty() {
             return Err(DomainError::EmptyContent);
         }
 
+        let (project, session) = metadata.unwrap_or_else(|| (String::new(), String::new()));
         Ok(Self {
             id,
             content,
@@ -101,6 +101,9 @@ impl MemoryRecord {
             access_pattern,
         })
     }
+
+    /// Builder for creating MemoryRecord with optional metadata fields
+    pub fn builder() -> MemoryRecordBuilder { MemoryRecordBuilder::default() }
 
     // Getters - immutable access to record data
     pub fn id(&self) -> RecordId {
@@ -243,6 +246,52 @@ impl Default for MemoryRecord {
             created_at: Utc::now(),
             access_pattern: AccessPattern::new(),
         }
+    }
+}
+
+#[derive(Default)]
+pub struct MemoryRecordBuilder {
+    id: Option<RecordId>,
+    content: Option<String>,
+    layer: Option<LayerType>,
+    kind: Option<String>,
+    project: Option<String>,
+    session: Option<String>,
+    created_at: Option<DateTime<Utc>>,
+    access_pattern: Option<AccessPattern>,
+}
+
+impl MemoryRecordBuilder {
+    pub fn id(mut self, id: RecordId) -> Self { self.id = Some(id); self }
+    pub fn content(mut self, content: impl Into<String>) -> Self { self.content = Some(content.into()); self }
+    pub fn layer(mut self, layer: LayerType) -> Self { self.layer = Some(layer); self }
+    pub fn kind(mut self, kind: impl Into<String>) -> Self { self.kind = Some(kind.into()); self }
+    pub fn project(mut self, project: impl Into<String>) -> Self { self.project = Some(project.into()); self }
+    pub fn session(mut self, session: impl Into<String>) -> Self { self.session = Some(session.into()); self }
+    pub fn created_at(mut self, ts: DateTime<Utc>) -> Self { self.created_at = Some(ts); self }
+    pub fn access_pattern(mut self, ap: AccessPattern) -> Self { self.access_pattern = Some(ap); self }
+
+    pub fn build(self) -> DomainResult<MemoryRecord> {
+        let id = self.id.unwrap_or_default();
+        let content = self.content.ok_or(DomainError::EmptyContent)?;
+        let layer = self.layer.unwrap_or(LayerType::Interact);
+        let kind = self.kind.unwrap_or_else(|| "generic".to_string());
+        let project = self.project.unwrap_or_default();
+        let session = self.session.unwrap_or_default();
+        let created_at = self.created_at.unwrap_or_else(Utc::now);
+        let access_pattern = self.access_pattern.unwrap_or_default();
+        if content.trim().is_empty() { return Err(DomainError::EmptyContent); }
+        Ok(MemoryRecord {
+            id,
+            content,
+            layer,
+            kind,
+            tags: Vec::new(),
+            project,
+            session,
+            created_at,
+            access_pattern,
+        })
     }
 }
 

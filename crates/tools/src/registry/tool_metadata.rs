@@ -242,7 +242,7 @@ impl PerformanceMetrics {
             // Exponential moving average for success rate
             self.success_rate = self.success_rate * 0.9 + 0.1;
         } else {
-            self.success_rate = self.success_rate * 0.9;
+            self.success_rate *= 0.9;
             self.error_count += 1;
         }
 
@@ -296,6 +296,61 @@ impl ToolMetadata {
             output_schema: serde_json::Value::Object(serde_json::Map::new()),
             examples: Vec::new(),
         }
+    }
+
+    /// Создать ToolMetadata из упрощённого ToolSpec (для регистрации в ExecutionPipeline)
+    pub fn from_spec(spec: &crate::ToolSpec) -> Self {
+        let mut meta = ToolMetadata::new(
+            spec.name.clone(),
+            spec.name.clone(),
+            SemanticVersion::new(0, 1, 0),
+        );
+        meta.description = spec.description.clone();
+        meta.input_schema = match serde_json::from_str::<serde_json::Value>(&spec.input_schema) {
+            Ok(v) => v,
+            Err(_) => serde_json::json!({}),
+        };
+        meta.examples = spec
+            .examples
+            .iter()
+            .map(|e| ToolExample {
+                description: e.clone(),
+                input: serde_json::json!({}),
+                expected_output: serde_json::json!({}),
+                context: None,
+            })
+            .collect();
+        // Грубая оценка категоризации по имени
+        meta.category = if spec.name.contains("file") {
+            ToolCategory::FileSystem
+        } else if spec.name.contains("git") {
+            ToolCategory::Git
+        } else if spec.name.contains("web") {
+            ToolCategory::Web
+        } else {
+            ToolCategory::Custom("general".into())
+        };
+        // Пермишены по возможности из ToolSpec.permissions (упрощённая проекция)
+        if let Some(p) = &spec.permissions {
+            meta.permissions.file_system = if !p.fs_write_roots.is_empty() {
+                FileSystemPermissions::ReadWrite
+            } else if !p.fs_read_roots.is_empty() {
+                FileSystemPermissions::ReadOnly
+            } else {
+                FileSystemPermissions::None
+            };
+            meta.permissions.network = if p.net_allowlist.is_empty() {
+                NetworkPermissions::None
+            } else {
+                NetworkPermissions::Restricted { allowed_hosts: p.net_allowlist.clone() }
+            };
+            meta.permissions.system = if p.allow_shell {
+                SystemPermissions::ProcessControl
+            } else {
+                SystemPermissions::None
+            };
+        }
+        meta
     }
 
     pub fn with_category(mut self, category: ToolCategory) -> Self {

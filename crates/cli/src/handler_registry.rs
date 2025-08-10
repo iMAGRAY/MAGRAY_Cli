@@ -135,6 +135,10 @@ pub struct AdaptiveStrategy {
     handler_stats: Arc<tokio::sync::RwLock<HashMap<String, HandlerStats>>>,
 }
 
+impl Default for AdaptiveStrategy {
+    fn default() -> Self { Self::new() }
+}
+
 impl AdaptiveStrategy {
     pub fn new() -> Self {
         Self {
@@ -225,7 +229,7 @@ impl HandlerSelectionStrategy for AdaptiveStrategy {
 
         Some(RoutingResult {
             handler_name: best_name.to_string(),
-            confidence: (best_score / 1000.0).min(1.0).max(0.5),
+            confidence: (best_score / 1000.0).clamp(0.5, 1.0),
             reason: format!("Адаптивный выбор (score: {:.2})", best_score),
         })
     }

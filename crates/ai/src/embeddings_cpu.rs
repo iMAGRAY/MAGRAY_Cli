@@ -3,6 +3,7 @@ use crate::tokenization::{
     BatchTokenized, OptimizedTokenizer, TokenizedInput as OptTokenizedInput,
 };
 use crate::EmbeddingConfig;
+use crate::should_disable_ort;
 #[cfg(feature = "gpu")]
 use crate::{GpuConfig, GpuInfo};
 use anyhow::Result as AnyhowResult;
@@ -13,7 +14,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tracing::{debug, info, warn};
 
-/// CPU-based Embedding Service with real tokenization and batching (supports BGE-M3 and Qwen3)
+/// CPU-based Embedding Service with real tokenization and batching (Qwen3)
 pub struct CpuEmbeddingService {
     session: Arc<Mutex<Session>>,
     tokenizer: Arc<OptimizedTokenizer>,
@@ -31,8 +32,12 @@ pub struct OptimizedEmbeddingResult {
 }
 
 impl CpuEmbeddingService {
-    /// Create new optimized embedding service (supports BGE-M3 and Qwen3)
+    /// Create new optimized embedding service (Qwen3)
     pub fn new(config: EmbeddingConfig) -> AnyhowResult<Self> {
+        if should_disable_ort() {
+            warn!("ORT disabled by MAGRAY_FORCE_NO_ORT; CpuEmbeddingService not initialized");
+            return Err(anyhow::anyhow!("ORT disabled"));
+        }
         info!(
             "Initializing CPU embedding service with model: {}",
             config.model_name
@@ -44,7 +49,7 @@ impl CpuEmbeddingService {
         // Определяем путь к модели в зависимости от типа
         let (model_filename, hidden_size) = match config.model_name.as_str() {
             "qwen3emb" => ("model.onnx", 1024), // Исправлено: используем стандартное имя файла
-            "bge-m3" => ("model.onnx", 1024),
+            // legacy models removed; default to qwen3 configuration
             _ => ("model.onnx", config.embedding_dim.unwrap_or(1024)),
         };
 
@@ -156,7 +161,12 @@ impl CpuEmbeddingService {
         }
 
         // Initialize ONNX Runtime
-        ort::init().with_name("optimized_bge_m3").commit()?;
+        if !should_disable_ort() {
+            crate::ort_setup::configure_ort_env();
+            ort::init().with_name("optimized_bge_m3").commit()?;
+        } else {
+            warn!("ORT disabled by MAGRAY_FORCE_NO_ORT; embeddings will not run actual inference");
+        }
 
         // Проверяем доступность GPU
         #[cfg(feature = "gpu")]
@@ -518,20 +528,20 @@ impl CpuEmbeddingService {
         #[cfg(target_arch = "x86_64")]
         {
             // Check if we can use SIMD optimizations
-            if hidden_size % 8 == 0 && is_x86_feature_detected!("avx2") && hidden_size >= 64 {
+            if hidden_size.is_multiple_of(8) && is_x86_feature_detected!("avx2") && hidden_size >= 64 {
                 // Ultra-optimized SIMD mean pooling for large embeddings
                 unsafe {
-                    self.simd_mean_pooling_avx2(&data, &mut pooled, seq_len, hidden_size);
+                    self.simd_mean_pooling_avx2(data, &mut pooled, seq_len, hidden_size);
                 }
             } else {
                 // Fallback to optimized scalar processing
-                self.scalar_mean_pooling_optimized(&data, &mut pooled, seq_len, hidden_size);
+                self.scalar_mean_pooling_optimized(data, &mut pooled, seq_len, hidden_size);
             }
         }
 
         #[cfg(not(target_arch = "x86_64"))]
         {
-            self.scalar_mean_pooling_optimized(&data, &mut pooled, seq_len, hidden_size);
+            self.scalar_mean_pooling_optimized(data, &mut pooled, seq_len, hidden_size);
         }
 
         // Average (SIMD-optimized division if possible)
@@ -546,7 +556,7 @@ impl CpuEmbeddingService {
     fn optimized_normalize(&self, mut embedding: Vec<f32>) -> Vec<f32> {
         #[cfg(target_arch = "x86_64")]
         {
-            if embedding.len() % 8 == 0 && is_x86_feature_detected!("avx2") && embedding.len() >= 64
+            if embedding.len().is_multiple_of(8) && is_x86_feature_detected!("avx2") && embedding.len() >= 64
             {
                 // Ultra-optimized SIMD normalization
                 unsafe {
@@ -685,7 +695,7 @@ impl CpuEmbeddingService {
     /// Ultra-optimized SIMD division for averaging
     #[cfg(target_arch = "x86_64")]
     fn simd_divide_inplace(&self, values: &mut [f32], divisor: f32) {
-        if is_x86_feature_detected!("avx2") && values.len() % 8 == 0 && values.len() >= 8 {
+        if is_x86_feature_detected!("avx2") && values.len().is_multiple_of(8) && values.len() >= 8 {
             unsafe {
                 use std::arch::x86_64::*;
                 let divisor_vec = _mm256_set1_ps(divisor);
@@ -766,9 +776,7 @@ impl CpuEmbeddingService {
             }
 
             // Handle remainder
-            for i in chunks * 8..embedding.len() {
-                embedding[i] *= inv_norm;
-            }
+            for val in embedding.iter_mut().skip(chunks * 8) { *val *= inv_norm; }
         }
     }
 
@@ -818,6 +826,98 @@ impl CpuEmbeddingService {
     }
 }
 
+/// Pure scalar mean pooling: sum across seq_len then divide by seq_len
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn mean_pool_scalar(data: &[f32], seq_len: usize, hidden_size: usize) -> Vec<f32> {
+    let mut pooled = vec![0.0f32; hidden_size];
+    for s in 0..seq_len {
+        let base = s * hidden_size;
+        for h in 0..hidden_size {
+            if base + h < data.len() {
+                pooled[h] += data[base + h];
+            }
+        }
+    }
+    let inv = if seq_len > 0 { 1.0 / (seq_len as f32) } else { 0.0 };
+    for v in &mut pooled {
+        *v *= inv;
+    }
+    pooled
+}
+
+/// Pure scalar L2 normalization
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn l2_normalize_scalar(mut v: Vec<f32>) -> Vec<f32> {
+    let mut norm_sq = 0.0f32;
+    for &x in &v { norm_sq += x * x; }
+    let norm = norm_sq.sqrt();
+    if norm > 1e-8 {
+        let inv = 1.0 / norm;
+        for x in &mut v { *x *= inv; }
+    }
+    v
+}
+
+/// Extract first item embedding from 3D [1, seq_len, hidden_size] using scalar helpers
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn extract_embedding_from_3d_scalar(
+    shape_vec: &[i64],
+    data: &[f32],
+    seq_len: usize,
+    hidden_size: usize,
+) -> Option<Vec<f32>> {
+    if shape_vec.len() != 3 || shape_vec[0] != 1 || shape_vec[1] != seq_len as i64 || shape_vec[2] != hidden_size as i64 {
+        return None;
+    }
+    let need = seq_len.checked_mul(hidden_size)?;
+    if need > data.len() { return None; }
+    let pooled = mean_pool_scalar(&data[0..need], seq_len, hidden_size);
+    Some(l2_normalize_scalar(pooled))
+}
+
+#[cfg(test)]
+mod extra_scalar_tests {
+    use super::*;
+
+    #[test]
+    fn test_mean_pool_scalar_basic() {
+        // seq_len=2, hidden=4: rows [1,2,3,4] and [5,6,7,8]
+        let data = vec![1.0,2.0,3.0,4.0, 5.0,6.0,7.0,8.0];
+        let pooled = mean_pool_scalar(&data, 2, 4);
+        assert_eq!(pooled, vec![3.0,4.0,5.0,6.0]);
+    }
+
+    #[test]
+    fn test_l2_normalize_scalar_unit_norm() {
+        let v = vec![3.0, 4.0];
+        let n = l2_normalize_scalar(v);
+        let norm: f32 = n.iter().map(|x| x*x).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_extract_embedding_from_3d_scalar_ok() {
+        let seq_len = 2usize;
+        let hidden = 4usize;
+        let shape = [1i64, seq_len as i64, hidden as i64];
+        let data = vec![1.0,2.0,3.0,4.0, 5.0,6.0,7.0,8.0];
+        let emb = extract_embedding_from_3d_scalar(&shape, &data, seq_len, hidden).expect("ok");
+        assert_eq!(emb.len(), hidden);
+        // mean pooled = [3,4,5,6] → norm ~ sqrt(86) ≈ 9.2736 → normalized first ~ 0.323
+        let expected0 = 3.0f32 / 86.0f32.sqrt();
+        assert!((emb[0] - expected0).abs() < 1e-3);
+        let norm: f32 = emb.iter().map(|x| x*x).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_extract_embedding_from_3d_scalar_bad_shape() {
+        let shape = [2i64, 0, 0];
+        let data: Vec<f32> = vec![];
+        assert!(extract_embedding_from_3d_scalar(&shape, &data, 0, 0).is_none());
+    }
+}
+
 /// Service statistics
 #[derive(Debug, Clone)]
 pub struct ServiceStats {
@@ -831,10 +931,15 @@ pub struct ServiceStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "gpu")]
     use crate::GpuConfig;
 
     #[test]
     fn test_optimized_service_creation() {
+        if std::env::var("ORT_DYLIB_PATH").is_err() {
+            eprintln!("Skipping embeddings test: ORT_DYLIB_PATH not set");
+            return;
+        }
         let config = EmbeddingConfig {
             model_name: "bge-m3".to_string(),
             max_length: 512,
@@ -860,19 +965,26 @@ mod tests {
             model_name: "bge-m3".to_string(),
             max_length: 512,
             batch_size: 32, // Больше batch для GPU
-            use_gpu: true,
+            use_gpu: false,
+            #[cfg(feature = "gpu")]
             gpu_config: Some(GpuConfig::default()),
+            #[cfg(not(feature = "gpu"))]
+            gpu_config: None,
             embedding_dim: Some(1024),
         };
 
         // Проверяем доступность GPU
-        let gpu_detector = crate::gpu_detector::GpuDetector::detect();
-        println!("GPU доступность: {}", gpu_detector.available);
-
-        if !gpu_detector.available {
-            println!("⚠️ GPU не доступен, тест будет использовать CPU fallback");
-            config.use_gpu = false;
-            config.gpu_config = None;
+        #[cfg(feature = "gpu")]
+        {
+            let gpu_detector = crate::gpu_detector::GpuDetector::detect();
+            println!("GPU доступность: {}", gpu_detector.available);
+            if !gpu_detector.available {
+                println!("⚠️ GPU не доступен, тест будет использовать CPU fallback");
+                config.use_gpu = false;
+                config.gpu_config = None;
+            } else {
+                config.use_gpu = true;
+            }
         }
 
         match CpuEmbeddingService::new(config) {

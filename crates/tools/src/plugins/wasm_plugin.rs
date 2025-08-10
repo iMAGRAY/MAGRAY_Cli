@@ -15,6 +15,29 @@ use super::plugin_manager::{
 };
 use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
 
+fn map_permissions(p: &crate::registry::ToolPermissions) -> crate::ToolPermissions {
+    use crate::registry::{FileSystemPermissions, NetworkPermissions};
+    let mut fs_read = Vec::new();
+    let mut fs_write = Vec::new();
+    match &p.file_system {
+        FileSystemPermissions::None => {}
+        FileSystemPermissions::ReadOnly => { fs_read.push("/".into()); }
+        FileSystemPermissions::ReadWrite | FileSystemPermissions::FullAccess => { fs_read.push("/".into()); fs_write.push("/".into()); }
+        FileSystemPermissions::Restricted { allowed_paths } => {
+            for ap in allowed_paths { fs_read.push(ap.clone()); fs_write.push(ap.clone()); }
+        }
+    }
+    let mut net = Vec::new();
+    match &p.network {
+        NetworkPermissions::None => {}
+        NetworkPermissions::LocalHost => { net.push("localhost".into()); net.push("127.0.0.1".into()); }
+        NetworkPermissions::InternalNetworks => { /* keep empty to enforce env allowlist */ }
+        NetworkPermissions::Internet => { /* empty -> allow by env */ }
+        NetworkPermissions::Restricted { allowed_hosts } => { for h in allowed_hosts { net.push(h.clone()); } }
+    }
+    crate::ToolPermissions { fs_read_roots: fs_read, fs_write_roots: fs_write, net_allowlist: net, allow_shell: false }
+}
+
 /// WASM runtime configuration
 #[derive(Debug, Clone)]
 pub struct WasmConfig {
@@ -547,6 +570,7 @@ impl WasmPlugin {
 #[async_trait::async_trait]
 impl Tool for WasmPlugin {
     fn spec(&self) -> ToolSpec {
+        let perms = map_permissions(&self.metadata.required_permissions);
         ToolSpec {
             name: self.metadata.name.clone(),
             description: self.metadata.description.clone(),
@@ -556,6 +580,9 @@ impl Tool for WasmPlugin {
             ),
             examples: Vec::new(),
             input_schema: self.metadata.configuration_schema.to_string(),
+            usage_guide: None,
+            permissions: Some(perms),
+            supports_dry_run: false,
         }
     }
 
@@ -579,6 +606,8 @@ impl Tool for WasmPlugin {
             command: self.metadata.name.clone(),
             args: HashMap::from([("query".to_string(), query.to_string())]),
             context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }

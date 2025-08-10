@@ -1,7 +1,11 @@
+#[cfg(feature = "gpu")]
 use ai::embeddings_gpu::{GpuEmbeddingService, PerformanceMetrics};
-use ai::{EmbeddingConfig, GpuConfig};
+#[cfg(feature = "gpu")]
+use ai::GpuConfig;
+use ai::EmbeddingConfig;
 use anyhow::Result;
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_creation() {
     let metrics = PerformanceMetrics::default();
@@ -16,6 +20,7 @@ fn test_performance_metrics_creation() {
     assert_eq!(metrics.cache_misses, 0);
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_tokens_per_second_zero_time() {
     let metrics = PerformanceMetrics {
@@ -27,6 +32,7 @@ fn test_performance_metrics_tokens_per_second_zero_time() {
     assert_eq!(metrics.tokens_per_second(), 0.0);
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_tokens_per_second_calculation() {
     let metrics = PerformanceMetrics {
@@ -39,6 +45,7 @@ fn test_performance_metrics_tokens_per_second_calculation() {
     assert_eq!(metrics.tokens_per_second(), 2000.0);
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_tokens_per_second_edge_cases() {
     // Zero tokens
@@ -66,6 +73,7 @@ fn test_performance_metrics_tokens_per_second_edge_cases() {
     assert_eq!(metrics_large.tokens_per_second(), 500_000.0);
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_clone() {
     let original = PerformanceMetrics {
@@ -91,6 +99,7 @@ fn test_performance_metrics_clone() {
     assert_eq!(original.cache_misses, cloned.cache_misses);
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_debug() {
     let metrics = PerformanceMetrics {
@@ -110,6 +119,7 @@ fn test_performance_metrics_debug() {
     assert!(debug_str.contains("total_tokens: 150"));
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_with_realistic_values() {
     let metrics = PerformanceMetrics {
@@ -138,6 +148,7 @@ fn test_performance_metrics_with_realistic_values() {
     assert_eq!(metrics.cache_misses, 70);
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_accumulation_simulation() {
     let mut metrics = PerformanceMetrics::default();
@@ -168,6 +179,7 @@ fn test_performance_metrics_accumulation_simulation() {
     assert_eq!(metrics.cache_misses, 1);
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_timing_precision() {
     // Test with very precise timing measurements
@@ -190,6 +202,7 @@ fn test_performance_metrics_timing_precision() {
     assert!((tps - 3000.0).abs() < 0.1); // Should be ~3000 tokens/second
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_gpu_vs_cpu_time() {
     let metrics = PerformanceMetrics {
@@ -213,6 +226,7 @@ fn test_performance_metrics_gpu_vs_cpu_time() {
     assert_eq!(cpu_ratio, 0.2);
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_cache_statistics() {
     let metrics = PerformanceMetrics {
@@ -231,6 +245,7 @@ fn test_performance_metrics_cache_statistics() {
     assert_eq!(miss_rate, 0.15);
 }
 
+#[cfg(feature = "gpu")]
 #[test]
 fn test_performance_metrics_batch_size_tracking() {
     let metrics = PerformanceMetrics {

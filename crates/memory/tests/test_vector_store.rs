@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "persistence"))]
+
 use chrono::Utc;
 use memory::{HnswRsConfig, Layer, Record, VectorStore};
 use tempfile::TempDir;

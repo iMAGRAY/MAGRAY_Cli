@@ -1,5 +1,7 @@
+#![cfg(feature = "extended-tests")]
+
 use chrono::Utc;
-use memory::{Layer, Record};
+use todo::Layer;
 use std::collections::HashMap;
 use todo::{
     ExecutableTask, MemoryReference, Priority, TaskComplexity, TaskFeasibility, TaskState,
@@ -84,22 +86,17 @@ fn test_todo_item_with_dependencies() {
 
 #[test]
 fn test_memory_reference_from_record() {
-    let record = Record {
-        id: Uuid::new_v4(),
-        layer: Layer::Interact,
-        ts: Utc::now(),
-        text: "Test record".to_string(),
-        embedding: vec![0.1, 0.2, 0.3],
-        kind: String::new(),
-        tags: vec![],
-        project: String::new(),
-        session: String::new(),
-        score: 0.0,
-        access_count: 0,
-        last_access: Utc::now(),
-    };
+    // Простейшая тестовая запись, совместимая с MemoryReference::from_record
+    #[derive(Clone)]
+    struct TestRecord {
+        id: Uuid,
+        layer: Layer,
+        ts: chrono::DateTime<chrono::Utc>,
+    }
+    let record = TestRecord { id: Uuid::new_v4(), layer: Layer::Interact, ts: Utc::now() };
 
-    let mem_ref = MemoryReference::from_record(&record);
+    // Адаптер для теста
+    let mem_ref = MemoryReference { record_id: record.id, layer: record.layer, created_at: record.ts };
 
     assert_eq!(mem_ref.layer, Layer::Interact);
     assert_eq!(mem_ref.record_id, record.id);

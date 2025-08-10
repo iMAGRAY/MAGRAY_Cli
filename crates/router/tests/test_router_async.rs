@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use tools::{Tool, ToolInput, ToolOutput, ToolRegistry, ToolSpec};
 
 // Mock tool для тестирования
+#[allow(dead_code)]
 struct MockTool {
     name: String,
     should_fail: bool,
@@ -20,6 +21,9 @@ impl Tool for MockTool {
             usage: "mock_tool <test_param>".to_string(),
             examples: vec!["mock_tool test".to_string()],
             input_schema: r#"{"test_param": "string"}"#.to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         }
     }
 
@@ -41,11 +45,14 @@ impl Tool for MockTool {
             command: self.name.clone(),
             args: HashMap::from([("test_param".to_string(), "test_value".to_string())]),
             context: Some("Mock context".to_string()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 }
 
 // Helper для создания тестового роутера с mock tools
+#[allow(dead_code)]
 async fn create_test_router_with_tools() -> (SmartRouter, ToolRegistry) {
     let llm_client = LlmClient::new(
         LlmProvider::OpenAI {

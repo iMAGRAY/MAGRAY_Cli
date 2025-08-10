@@ -61,7 +61,7 @@ mod integration_tests {
             url: "http://localhost:1234".to_string(),
             model: "test".to_string(),
         };
-        let client = LlmClient::new(provider, 1000, 0.7);
+        let _client = LlmClient::new(provider, 1000, 0.7);
 
         // Simple request
         let simple_request = CompletionRequest::new("What is 2+2?");

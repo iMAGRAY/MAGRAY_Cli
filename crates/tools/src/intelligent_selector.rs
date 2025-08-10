@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
+use serde::{Serialize, Deserialize};
 
 use crate::ToolSpec;
 
@@ -18,6 +19,41 @@ pub struct ToolConfidence {
     pub context_match: f32,      // 0.0 to 1.0
     pub capability_match: f32,   // 0.0 to 1.0
     pub performance_factor: f32, // 0.0 to 1.0
+}
+
+/// Detailed breakdown of scoring for explanation
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ScoreBreakdown {
+    pub name_match: f32,
+    pub desc_overlap: f32,
+    pub guide_caps: f32,
+    pub guide_tags: f32,
+    pub guide_good_for: f32,
+    pub example_overlap: f32,
+    pub urgency_latency_bonus: f32,
+    pub low_risk_bonus: f32,
+    pub permissions_adjust: f32,
+    pub dry_run_bonus: f32,
+}
+
+/// Matched signals from UsageGuide
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MatchedSignals {
+    pub tags: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub good_for: Vec<String>,
+}
+
+/// Public DTO for selection explanation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolSelectionExplanation {
+    pub tool_name: String,
+    pub confidence_score: f32,
+    pub context_match: f32,
+    pub capability_match: f32,
+    pub performance_factor: f32,
+    pub breakdown: ScoreBreakdown,
+    pub matched: MatchedSignals,
 }
 
 /// Context for tool selection
@@ -247,6 +283,38 @@ impl IntelligentToolSelector {
         Ok(scored_tools)
     }
 
+    /// Select best tools with detailed explanations
+    pub async fn select_tools_with_explanations(
+        &self,
+        context: &ToolSelectionContext,
+    ) -> Result<Vec<ToolSelectionExplanation>> {
+        let start_time = std::time::Instant::now();
+
+        let intent = self.analyze_intent(&context.user_query).await;
+        let candidates = self.get_candidate_tools(&intent).await;
+        let mut results: Vec<ToolSelectionExplanation> = Vec::new();
+        for candidate in candidates {
+            if let Some(exp) = self.explain_tool_score(&candidate, context).await {
+                if exp.confidence_score >= self.config.min_confidence_threshold {
+                    results.push(exp);
+                }
+            }
+        }
+        results.sort_by(|a, b| b.confidence_score.partial_cmp(&a.confidence_score).unwrap());
+        results.truncate(self.config.max_suggestions);
+
+        let selection_time = start_time.elapsed();
+        {
+            let mut metrics = self.selection_metrics.lock().await;
+            metrics.selection_time_ms = selection_time.as_millis() as f32;
+            if !results.is_empty() {
+                metrics.successful_selections += 1;
+                metrics.average_confidence = results[0].confidence_score;
+            }
+        }
+        Ok(results)
+    }
+
     /// Analyze user query to extract intent
     async fn analyze_intent(&self, query: &str) -> Vec<String> {
         let query_lower = query.to_lowercase();
@@ -349,6 +417,64 @@ impl IntelligentToolSelector {
             candidates = tools.keys().cloned().collect();
         }
 
+        // Prefilter by environment/network restrictions
+        let sb = common::sandbox_config::SandboxConfig::from_env();
+        let net_disabled = sb.net.allowlist.is_empty();
+        if net_disabled {
+            candidates.retain(|t| t != "web_fetch" && t != "web_search");
+        }
+
+        // Prefilter by shell allowance in environment
+        let allow_shell = sb.shell.allow_shell;
+        if !allow_shell {
+            // Remove known shell tool by name
+            candidates.retain(|t| t != "shell_exec");
+        }
+
+        // Permissions-aware filtering using ToolSpec.permissions
+        let net_allowed: Vec<String> = sb.net.allowlist.clone();
+        let fs_sandbox_on = sb.fs.enabled;
+        let fs_roots: Vec<String> = sb.fs.roots.clone();
+
+        let tools_map = self.available_tools.lock().await;
+        let domain_matches = |allow: &str, needed: &str| -> bool {
+            let a = allow.to_lowercase();
+            let n = needed.to_lowercase();
+            n == a || n.ends_with(&format!(".{}", a))
+        };
+        let roots_cover = |reqs: &Vec<String>| -> bool {
+            if reqs.is_empty() { return true; }
+            if fs_roots.is_empty() { return false; }
+            // All required roots must fall under an allowed root
+            reqs.iter().all(|r| fs_roots.iter().any(|a| r.starts_with(a)))
+        };
+
+        candidates.retain(|name| {
+            if let Some(spec) = tools_map.get(name) {
+                if let Some(perms) = &spec.permissions {
+                    if perms.allow_shell && !allow_shell {
+                        return false;
+                    }
+                    if !perms.net_allowlist.is_empty() {
+                        if net_disabled { return false; }
+                        let mut ok = false;
+                        'outer: for need in &perms.net_allowlist {
+                            for allow in &net_allowed {
+                                if domain_matches(allow, need) { ok = true; break 'outer; }
+                            }
+                        }
+                        if !ok { return false; }
+                    }
+                    if fs_sandbox_on {
+                        if !roots_cover(&perms.fs_read_roots) { return false; }
+                        if !roots_cover(&perms.fs_write_roots) { return false; }
+                    }
+                }
+            }
+            true
+        });
+        drop(tools_map);
+
         candidates
     }
 
@@ -388,65 +514,179 @@ impl IntelligentToolSelector {
         })
     }
 
+    async fn explain_tool_score(
+        &self,
+        tool_name: &str,
+        context: &ToolSelectionContext,
+    ) -> Option<ToolSelectionExplanation> {
+        let tools = self.available_tools.lock().await;
+        let tool_spec = tools.get(tool_name)?.clone();
+        drop(tools);
+
+        let (context_match, mut breakdown, matched) =
+            self.calculate_context_match_explained(&tool_spec, context).await;
+        let (capability_match, cap_breakdown) =
+            self.calculate_capability_match_explained(&tool_spec, context).await;
+        breakdown.urgency_latency_bonus = cap_breakdown.urgency_latency_bonus;
+        breakdown.low_risk_bonus = cap_breakdown.low_risk_bonus;
+        breakdown.permissions_adjust = cap_breakdown.permissions_adjust;
+        breakdown.dry_run_bonus = cap_breakdown.dry_run_bonus;
+        let performance_factor = self.calculate_performance_factor(tool_name).await;
+
+        let confidence_score = context_match * self.config.context_weight
+            + capability_match * 0.4
+            + performance_factor * self.config.performance_weight;
+
+        Some(ToolSelectionExplanation {
+            tool_name: tool_name.to_string(),
+            confidence_score,
+            context_match,
+            capability_match,
+            performance_factor,
+            breakdown,
+            matched,
+        })
+    }
+
     /// Calculate how well tool matches context
     async fn calculate_context_match(
         &self,
         tool_spec: &ToolSpec,
         context: &ToolSelectionContext,
     ) -> f32 {
+        let (v, _, _) = self.calculate_context_match_explained(tool_spec, context).await;
+        v
+    }
+
+    /// Calculate capability match based on task complexity
+    async fn calculate_capability_match(
+        &self,
+        tool_spec: &ToolSpec,
+        context: &ToolSelectionContext,
+    ) -> f32 {
+        let (v, _) = self.calculate_capability_match_explained(tool_spec, context).await;
+        v
+    }
+
+    /// Calculate how well tool matches context
+    async fn calculate_context_match_explained(
+        &self,
+        tool_spec: &ToolSpec,
+        context: &ToolSelectionContext,
+    ) -> (f32, ScoreBreakdown, MatchedSignals) {
         let mut score = 0.0f32;
+        let mut bd = ScoreBreakdown::default();
+        let mut matched = MatchedSignals::default();
         let query_lower = context.user_query.to_lowercase();
 
         // Check tool name relevance
         if query_lower.contains(&tool_spec.name.to_lowercase()) {
-            score += 0.4;
+            bd.name_match = 0.4;
+            score += bd.name_match;
         }
 
         // Check description relevance
         let desc_lower = tool_spec.description.to_lowercase();
         let desc_words: Vec<&str> = desc_lower.split_whitespace().collect();
         let query_words: Vec<&str> = query_lower.split_whitespace().collect();
-
-        let matching_words = desc_words
-            .iter()
-            .filter(|&word| query_words.contains(word))
-            .count();
-
+        let matching_words = desc_words.iter().filter(|&w| query_words.contains(w)).count();
         if !desc_words.is_empty() {
-            score += 0.3 * (matching_words as f32 / desc_words.len() as f32);
+            bd.desc_overlap = 0.2 * (matching_words as f32 / desc_words.len() as f32);
+            score += bd.desc_overlap;
         }
 
-        // Check examples relevance
-        for example in &tool_spec.examples {
-            let example_lower = example.to_lowercase();
-            let example_words: Vec<&str> = example_lower.split_whitespace().collect();
-            let common_count = example_words
-                .iter()
-                .filter(|&word| query_words.contains(word))
-                .count();
-
-            if !example_words.is_empty() {
-                score += 0.3 * (common_count as f32 / example_words.len() as f32);
-                break; // Only count first matching example
+        // UsageGuide relevance boost
+        if let Some(guide) = &tool_spec.usage_guide {
+            let mut caps_match = 0usize;
+            let mut tags_match = 0usize;
+            let mut good_for_match = 0usize;
+            for c in &guide.capabilities {
+                if query_lower.contains(&c.to_lowercase()) {
+                    caps_match += 1;
+                    matched.capabilities.push(c.clone());
+                }
+            }
+            for t in &guide.tags {
+                if query_lower.contains(&t.to_lowercase()) {
+                    tags_match += 1;
+                    matched.tags.push(t.clone());
+                }
+            }
+            for g in &guide.good_for {
+                if query_lower.contains(&g.to_lowercase()) {
+                    good_for_match += 1;
+                    matched.good_for.push(g.clone());
+                }
+            }
+            let total = (caps_match + tags_match + good_for_match) as f32;
+            if total > 0.0 {
+                let boost = 0.3 * (1.0 - (1.0 / (1.0 + total)));
+                // apportion boost proportional to counts
+                let denom = (caps_match + tags_match + good_for_match).max(1) as f32;
+                bd.guide_caps = boost * (caps_match as f32 / denom);
+                bd.guide_tags = boost * (tags_match as f32 / denom);
+                bd.guide_good_for = boost * (good_for_match as f32 / denom);
+                score += boost;
             }
         }
 
-        score.min(1.0)
+        // Check examples relevance (take first overlap)
+        for example in &tool_spec.examples {
+            let example_lower = example.to_lowercase();
+            let example_words: Vec<&str> = example_lower.split_whitespace().collect();
+            let common_count = example_words.iter().filter(|&w| query_words.contains(w)).count();
+            if !example_words.is_empty() {
+                bd.example_overlap = 0.1 * (common_count as f32 / example_words.len() as f32);
+                score += bd.example_overlap;
+                break;
+            }
+        }
+
+        (score.min(1.0), bd, matched)
     }
 
     /// Calculate capability match based on task complexity
-    async fn calculate_capability_match(
+    async fn calculate_capability_match_explained(
         &self,
-        _tool_spec: &ToolSpec,
+        tool_spec: &ToolSpec,
         context: &ToolSelectionContext,
-    ) -> f32 {
-        // For now, simple heuristic based on task complexity
-        match context.task_complexity {
-            TaskComplexity::Simple => 0.9,  // Most tools can handle simple tasks
-            TaskComplexity::Medium => 0.7,  // Some complexity consideration
-            TaskComplexity::Complex => 0.5, // Need to verify tool capabilities
-            TaskComplexity::Expert => 0.3,  // Requires specialized tools
+    ) -> (f32, ScoreBreakdown) {
+        let base = match context.task_complexity {
+            TaskComplexity::Simple => 0.7,
+            TaskComplexity::Medium => 0.6,
+            TaskComplexity::Complex => 0.5,
+            TaskComplexity::Expert => 0.4,
+        };
+        let mut bd = ScoreBreakdown::default();
+        if let Some(guide) = &tool_spec.usage_guide {
+            if guide.risk_score <= 2 { bd.low_risk_bonus = 0.1; }
+            if matches!(context.urgency_level, UrgencyLevel::High | UrgencyLevel::Critical)
+                && guide.latency_class == "fast" { bd.urgency_latency_bonus = 0.1; }
         }
+        // Permissions impact: prefer least-privilege and dry-run capable tools
+        let mut perm_adjust = 0.0f32;
+        if let Some(perms) = &tool_spec.permissions {
+            // Start neutral; subtract for riskier permissions
+            if perms.allow_shell { perm_adjust -= 0.08; }
+            if !perms.fs_write_roots.is_empty() { perm_adjust -= 0.06; }
+            if !perms.fs_read_roots.is_empty() { perm_adjust -= 0.03; }
+            if !perms.net_allowlist.is_empty() { perm_adjust -= 0.02; }
+        } else {
+            // No explicit permissions -> least-privilege by default
+            perm_adjust += 0.05;
+        }
+        // Dry-run support is a safety/UX plus
+        if tool_spec.supports_dry_run { bd.dry_run_bonus = 0.05; }
+        // Clamp and assign
+        bd.permissions_adjust = perm_adjust.clamp(-0.15, 0.1);
+
+        let total = (base
+            + bd.low_risk_bonus
+            + bd.urgency_latency_bonus
+            + bd.permissions_adjust
+            + bd.dry_run_bonus)
+            .clamp(0.0, 1.0);
+        (total, bd)
     }
 
     /// Calculate performance factor based on historical data
@@ -539,7 +779,7 @@ impl IntelligentToolSelector {
         );
 
         // Sort tools by usage
-        let mut tool_stats: Vec<_> = history.iter().map(|(name, data)| (name, data)).collect();
+        let mut tool_stats: Vec<_> = history.iter().collect();
         tool_stats.sort_by(|a, b| b.1.usage_count.cmp(&a.1.usage_count));
 
         for (name, data) in tool_stats.iter().take(10) {

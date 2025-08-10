@@ -372,7 +372,7 @@ impl StrategySelector {
         }
 
         // Adaptive learning: adjust strategy weights based on performance
-        if self.adaptive_learning && total_executions % 10 == 0 {
+        if self.adaptive_learning && total_executions.is_multiple_of(10) {
             self.adjust_strategy_weights(strategy, success, execution_time)
                 .await;
         }
@@ -403,7 +403,7 @@ impl StrategySelector {
             -0.1 // Penalty for failures
         };
 
-        let new_weight = (current_weight + adjustment).max(0.1).min(2.0); // Clamp between 0.1 and 2.0
+        let new_weight = (current_weight + adjustment).clamp(0.1, 2.0); // Clamp between 0.1 and 2.0
         self.strategy_weights.insert(strategy.clone(), new_weight);
 
         debug!(

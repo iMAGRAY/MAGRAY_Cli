@@ -11,6 +11,8 @@ fn test_tool_input_creation() {
         command: "test_command".to_string(),
         args: args.clone(),
         context: Some("test context".to_string()),
+        dry_run: false,
+        timeout_ms: None,
     };
 
     assert_eq!(input.command, "test_command");
@@ -24,6 +26,8 @@ fn test_tool_input_clone() {
         command: "test".to_string(),
         args: HashMap::new(),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let cloned = input.clone();
@@ -73,6 +77,9 @@ fn test_tool_spec_creation() {
         usage: "test_tool <arg>".to_string(),
         examples: vec!["test_tool hello".to_string(), "test_tool world".to_string()],
         input_schema: r#"{"arg": "string"}"#.to_string(),
+        usage_guide: None,
+        permissions: None,
+        supports_dry_run: true,
     };
 
     assert_eq!(spec.name, "test_tool");
@@ -174,6 +181,8 @@ fn test_tool_input_empty_args() {
         command: "test".to_string(),
         args: HashMap::new(),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     assert!(input.args.is_empty());
@@ -201,6 +210,9 @@ fn test_tool_spec_empty_examples() {
         usage: "test".to_string(),
         examples: Vec::new(),
         input_schema: "{}".to_string(),
+        usage_guide: None,
+        permissions: None,
+        supports_dry_run: false,
     };
 
     assert!(spec.examples.is_empty());

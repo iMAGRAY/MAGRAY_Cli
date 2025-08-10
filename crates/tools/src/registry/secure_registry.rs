@@ -186,11 +186,8 @@ impl InputValidator {
     ) -> Result<String> {
         use crate::registry::tool_metadata::SystemPermissions;
 
-        match sys_perms {
-            SystemPermissions::None => {
-                return Err(anyhow!("Tool does not have system command permissions"));
-            }
-            _ => {}
+        if let SystemPermissions::None = sys_perms {
+            return Err(anyhow!("Tool does not have system command permissions"));
         }
 
         // Prevent dangerous commands
@@ -223,7 +220,7 @@ impl InputValidator {
 
     fn perform_security_checks(input: &ToolInput, _metadata: &ToolMetadata) -> Result<()> {
         // Check for SQL injection patterns
-        for (_, value) in &input.args {
+        for value in input.args.values() {
             if Self::contains_sql_injection(value) {
                 error!("SQL injection attempt detected in tool input");
                 return Err(anyhow!("Input contains potential SQL injection"));
@@ -282,7 +279,7 @@ impl InputValidator {
 /// Secure tool registry with permission enforcement
 pub struct SecureToolRegistry {
     /// Core tool storage with metadata
-    tools: Arc<RwLock<HashMap<String, (Arc<dyn Tool>, ToolMetadata)>>>,
+    tools: Arc<RwLock<ToolStoreMap>>,
 
     /// Security policies and configurations
     security_config: SecurityConfig,
@@ -707,6 +704,9 @@ impl SecureToolRegistry {
     }
 }
 
+/// Type alias to reduce signature complexity
+type ToolStoreMap = HashMap<String, (Arc<dyn Tool>, ToolMetadata)>;
+
 impl Default for SecureToolRegistry {
     fn default() -> Self {
         Self::new(SecurityConfig::default())
@@ -716,7 +716,6 @@ impl Default for SecureToolRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
 
     #[test]
     fn test_input_validator_sql_injection() {

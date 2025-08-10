@@ -275,6 +275,10 @@ impl UnifiedContainer {
     }
 }
 
+impl Default for UnifiedContainer {
+    fn default() -> Self { Self::new() }
+}
+
 /// === SERVICE REGISTRY TRAIT IMPLEMENTATION ===
 impl ServiceRegistry for UnifiedContainer {
     fn register_transient<T, F>(&self, factory: F) -> Result<(), DIError>
@@ -595,7 +599,7 @@ impl ServiceResolverImpl {
         // Проверить кэш
         if let Ok(cache) = self.cache.read() {
             if let Some(cached) = cache.get(&type_id) {
-                return cached.clone().downcast::<T>().map(|arc| arc).map_err(|_| {
+                return cached.clone().downcast::<T>().map_err(|_| {
                     DIError::Factory {
                         message: format!(
                             "Failed to downcast to type: {}",
@@ -778,7 +782,7 @@ impl DependencyValidator for DependencyValidatorImpl {
 
         // Простейший алгоритм поиска циклов через DFS
         for &start_node in graph.keys() {
-            if self.has_cycle_from(&*graph, start_node, start_node, &mut Vec::new()) {
+            if self.has_cycle_from(&graph, start_node, start_node, &mut Vec::new()) {
                 return Err(ValidationError::CircularDependency {
                     cycle: format!("Cycle detected starting from type {:?}", start_node),
                 });
@@ -843,6 +847,7 @@ impl DependencyValidatorExt for DependencyValidatorImpl {
 }
 
 impl DependencyValidatorImpl {
+    #[allow(clippy::only_used_in_recursion)]
     fn has_cycle_from(
         &self,
         graph: &HashMap<TypeId, Vec<TypeId>>,
@@ -960,6 +965,7 @@ pub struct UnifiedContainerBuilder {
     validation_config: ValidationConfig,
     metrics_config: MetricsConfig,
     cache_config: CacheConfig,
+    #[allow(clippy::type_complexity)]
     registrations: Vec<Box<dyn FnOnce(&dyn DynamicServiceRegistry) -> Result<(), DIError> + Send>>,
 }
 
@@ -1102,7 +1108,6 @@ impl Default for UnifiedContainerBuilder {
 }
 
 /// === CONVENIENCE FACTORY FUNCTIONS ===
-
 /// Создать новый контейнер с настройками по умолчанию
 pub fn create_container() -> UnifiedContainer {
     UnifiedContainer::new()
@@ -1139,7 +1144,6 @@ pub fn development_builder() -> UnifiedContainerBuilder {
 }
 
 /// === OBJECT-SAFE IMPLEMENTATIONS FOR UNIFIED CONTAINER ===
-
 impl DynamicServiceRegistry for UnifiedContainer {
     fn register_type_erased(
         &self,

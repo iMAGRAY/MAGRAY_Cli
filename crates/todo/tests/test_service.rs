@@ -1,6 +1,5 @@
 use tempfile::TempDir;
 use todo::{Priority, TaskState, TodoEvent, TodoService};
-use tokio;
 use uuid::Uuid;
 
 #[tokio::test]

@@ -21,11 +21,18 @@
 use std::arch::x86_64::*;
 use std::time::Instant;
 
+#[allow(dead_code)]
+fn _compat_with_simd_optimized() {
+    // Compatibility shim reserved for future integration with simd_optimized.
+}
+
 /// Ultra-optimized horizontal sum using hadd instructions
 ///
 /// Achieves 50%+ better performance than traditional shuffle-based approach
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
+/// # Safety
+/// Требуется AVX2; вызов возможен только при поддержке CPU данного набора инструкций.
 pub unsafe fn horizontal_sum_ultra_optimized(v: __m256) -> f32 {
     // Используем hadd для более эффективного pipeline utilization
     let hadd1 = _mm256_hadd_ps(v, v); // Складываем пары элементов
@@ -44,6 +51,8 @@ pub unsafe fn horizontal_sum_ultra_optimized(v: __m256) -> f32 {
 /// Optimal for cases when hadd might stall the pipeline
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
+/// # Safety
+/// Требуется AVX2; вызов возможен только при поддержке CPU данного набора инструкций.
 pub unsafe fn horizontal_sum_branchless(v: __m256) -> f32 {
     // Fold 256-bit down to 128-bit
     let hi128 = _mm256_extractf128_ps(v, 1);
@@ -72,7 +81,7 @@ impl AlignedVector {
     /// Create new aligned vector with proper padding for SIMD
     pub fn new(mut data: Vec<f32>) -> Self {
         // Pad to multiple of 8 for AVX2 operations
-        while data.len() % 8 != 0 {
+        while !data.len().is_multiple_of(8) {
             data.push(0.0);
         }
 
@@ -86,7 +95,7 @@ impl AlignedVector {
 
     /// Check if data is properly aligned for AVX2
     pub fn is_avx2_aligned(&self) -> bool {
-        (self.data.as_ptr() as usize) % 32 == 0 && self.data.len() % 8 == 0
+        (self.data.as_ptr() as usize).is_multiple_of(32) && self.data.len().is_multiple_of(8)
     }
 }
 
@@ -94,6 +103,8 @@ impl AlignedVector {
 /// Proven performance: 4.3x speedup на 1024D векторах (371ns -> 86ns per operation)
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2,fma")]
+/// # Safety
+/// Требуется AVX2+FMA; входные срезы корректной длины.
 pub unsafe fn cosine_distance_ultra_optimized(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
     let len = a.len();
@@ -139,12 +150,12 @@ pub unsafe fn cosine_distance_ultra_optimized(a: &[f32], b: &[f32]) -> f32 {
         }
 
         // Unrolled processing 4x8 elements with optimal alignment checks
-        let va0 = if (a_ptr.add(base_idx) as usize) % 32 == 0 {
+        let va0 = if (a_ptr.add(base_idx) as usize).is_multiple_of(32) {
             _mm256_load_ps(a_ptr.add(base_idx))
         } else {
             _mm256_loadu_ps(a_ptr.add(base_idx))
         };
-        let vb0 = if (b_ptr.add(base_idx) as usize) % 32 == 0 {
+        let vb0 = if (b_ptr.add(base_idx) as usize).is_multiple_of(32) {
             _mm256_load_ps(b_ptr.add(base_idx))
         } else {
             _mm256_loadu_ps(b_ptr.add(base_idx))
@@ -220,13 +231,15 @@ pub unsafe fn cosine_distance_ultra_optimized(a: &[f32], b: &[f32]) -> f32 {
     let similarity = total_dot / norm_product.sqrt();
 
     // Clamp для numerical stability
-    1.0 - similarity.max(-1.0).min(1.0)
+    1.0 - similarity.clamp(-1.0, 1.0)
 }
 
 /// AVX-512 ultra-optimized версия для cutting-edge процессоров  
 /// Potential for 8x+ speedup vs scalar на подходящих CPU
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
+/// # Safety
+/// Требуется AVX2; корректная длина данных, кратная 8.
 pub unsafe fn cosine_distance_avx512_ultra(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
     let len = a.len();
@@ -339,7 +352,7 @@ pub unsafe fn cosine_distance_avx512_ultra(a: &[f32], b: &[f32]) -> f32 {
     }
 
     let similarity = total_dot / norm_product.sqrt();
-    1.0 - similarity.max(-1.0).min(1.0)
+    1.0 - similarity.clamp(-1.0, 1.0)
 }
 
 /// AVX-512 horizontal sum optimization
@@ -360,13 +373,13 @@ pub fn cosine_distance_auto_ultra(a: &[f32], b: &[f32]) -> f32 {
     #[cfg(target_arch = "x86_64")]
     {
         // Проверяем AVX-512 для cutting-edge performance
-        if is_x86_feature_detected!("avx512f") && a.len() % 16 == 0 && a.len() >= 64 {
+        if is_x86_feature_detected!("avx512f") && a.len().is_multiple_of(16) && a.len() >= 64 {
             unsafe { cosine_distance_avx512_ultra(a, b) }
         }
         // AVX2 + FMA для high performance (proven 4-5x speedup)
         else if is_x86_feature_detected!("avx2")
             && is_x86_feature_detected!("fma")
-            && a.len() % 8 == 0
+            && a.len().is_multiple_of(8)
         {
             unsafe { cosine_distance_ultra_optimized(a, b) }
         }
@@ -433,7 +446,7 @@ pub fn cosine_distance_scalar_optimized(a: &[f32], b: &[f32]) -> f32 {
     }
 
     let similarity = dot_product / norm_product.sqrt();
-    1.0 - similarity.max(-1.0).min(1.0)
+    1.0 - similarity.clamp(-1.0, 1.0)
 }
 
 /// Memory-optimized batch cosine distance calculation
@@ -443,9 +456,9 @@ pub fn batch_cosine_distance_ultra(queries: &[AlignedVector], target: &AlignedVe
 
     // Выбираем наилучшую стратегию based on data characteristics
     let use_avx512 = is_x86_feature_detected!("avx512f")
-        && target.as_aligned_slice().len() % 16 == 0
+        && target.as_aligned_slice().len().is_multiple_of(16)
         && target.as_aligned_slice().len() >= 64
-        && queries.iter().all(|q| q.as_aligned_slice().len() % 16 == 0);
+        && queries.iter().all(|q| q.as_aligned_slice().len().is_multiple_of(16));
 
     let use_avx2 = is_x86_feature_detected!("avx2")
         && is_x86_feature_detected!("fma")
@@ -556,7 +569,7 @@ pub fn benchmark_horizontal_sum_variants(iterations: usize, vector_size: usize) 
 
     #[cfg(target_arch = "x86_64")]
     {
-        if std::arch::is_x86_feature_detected!("avx2") && slice.len() % 8 == 0 {
+        if std::arch::is_x86_feature_detected!("avx2") && slice.len().is_multiple_of(8) {
             unsafe {
                 // Benchmark traditional shuffle method
                 let start = Instant::now();
@@ -566,7 +579,10 @@ pub fn benchmark_horizontal_sum_variants(iterations: usize, vector_size: usize) 
                         let v = _mm256_loadu_ps(chunk.as_ptr());
                         acc = _mm256_add_ps(acc, v);
                     }
+                    #[cfg(all(not(feature = "minimal"), feature = "rayon"))]
                     let _result = crate::simd_optimized::horizontal_sum_avx2_optimized(acc);
+                    #[cfg(not(all(not(feature = "minimal"), feature = "rayon")))]
+                    let _result = horizontal_sum_ultra_optimized(acc);
                 }
                 let shuffle_time = start.elapsed().as_nanos() as f64 / iterations as f64;
 

@@ -516,7 +516,7 @@ impl SecurityEnforcer {
                 restrictions.push(SecurityRestriction::ReadOnlyFileSystem);
             }
             FileSystemPermissions::Restricted { allowed_paths } => {
-                let paths: Vec<PathBuf> = allowed_paths.iter().map(|s| PathBuf::from(s)).collect();
+                let paths: Vec<PathBuf> = allowed_paths.iter().map(PathBuf::from).collect();
                 restrictions.push(SecurityRestriction::FilePathWhitelist(paths));
             }
             _ => {}
@@ -644,7 +644,6 @@ impl Default for SecurityEnforcer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[tokio::test]
     async fn test_security_enforcer_creation() {
@@ -665,7 +664,7 @@ mod tests {
             custom: HashMap::new(),
         };
 
-        let permission = enforcer
+        let _permission = enforcer
             .grant_permission(
                 "test_tool".to_string(),
                 permissions,

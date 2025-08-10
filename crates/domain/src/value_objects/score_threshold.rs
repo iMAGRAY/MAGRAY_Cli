@@ -15,7 +15,7 @@ pub struct ScoreThreshold(f32);
 impl ScoreThreshold {
     /// Create new score threshold with business validation
     pub fn new(value: f32) -> DomainResult<Self> {
-        if value < 0.0 || value > 1.0 {
+        if !(0.0..=1.0).contains(&value) {
             return Err(DomainError::InvalidScoreThreshold(value));
         }
         Ok(Self(value))

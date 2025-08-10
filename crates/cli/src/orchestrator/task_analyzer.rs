@@ -14,6 +14,10 @@ pub struct TaskAnalyzer {
     priority_keywords: HashMap<String, TaskPriority>,
 }
 
+impl Default for TaskAnalyzer {
+    fn default() -> Self { Self::new() }
+}
+
 impl TaskAnalyzer {
     pub fn new() -> Self {
         let mut complexity_keywords = HashMap::new();
@@ -200,17 +204,15 @@ impl TaskAnalyzer {
         }
 
         // Context-based priority adjustment
-        let context_priority = if context.get("user_role") == Some(&"admin".to_string()) {
-            TaskPriority::High // Admin requests get higher priority
-        } else if context.contains_key("deadline") {
-            TaskPriority::High // Tasks with deadlines get higher priority
-        } else if context
+        let high_due_admin = context.get("user_role") == Some(&"admin".to_string());
+        let high_due_deadline = context.contains_key("deadline");
+        let high_due_retry = context
             .get("retry_count")
             .and_then(|s| s.parse::<u32>().ok())
             .unwrap_or(0)
-            > 0
-        {
-            TaskPriority::High // Retry attempts get higher priority
+            > 0;
+        let context_priority = if high_due_admin || high_due_deadline || high_due_retry {
+            TaskPriority::High
         } else {
             TaskPriority::Normal
         };

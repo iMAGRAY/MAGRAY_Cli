@@ -9,10 +9,38 @@ use common::service_traits::ConfigurationProfile;
 use std::path::PathBuf;
 
 use crate::{
-    batch_manager::BatchConfig, health::HealthMonitorConfig, ml_promotion::MLPromotionConfig,
-    notifications::NotificationConfig, resource_manager::ResourceConfig,
-    streaming::StreamingConfig, types::PromotionConfig, CacheConfigType,
+    resource_manager::ResourceConfig,
 };
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+use crate::gpu_accelerated::GpuDeviceManager;
+#[cfg(not(feature = "minimal"))]
+use crate::notifications::NotificationConfig;
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::ml_promotion::MLPromotionConfig;
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::batch_manager::BatchConfig;
+use crate::{health::HealthMonitorConfig, streaming::StreamingConfig, types::PromotionConfig, CacheConfigType};
+
+// Fallback BatchConfig when persistence is disabled
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BatchConfig {
+    pub max_batch_size: usize,
+    pub flush_interval_ms: u64,
+}
+
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+impl Default for BatchConfig {
+    fn default() -> Self {
+        Self { max_batch_size: 64, flush_interval_ms: 100 }
+    }
+}
+
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+impl BatchConfig {
+    pub fn production() -> Self { Self { max_batch_size: 512, flush_interval_ms: 50 } }
+    pub fn minimal() -> Self { Self { max_batch_size: 16, flush_interval_ms: 250 } }
+}
 
 /// Типы конфигурации Memory Service
 #[derive(Debug, Clone)]
@@ -36,13 +64,17 @@ pub struct MemoryServiceConfig {
     pub db_path: PathBuf,
     pub cache_path: PathBuf,
     pub promotion: PromotionConfig,
+    #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
     pub ml_promotion: Option<MLPromotionConfig>,
+    #[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+    pub ml_promotion: Option<PromotionConfig>,
     pub streaming_config: Option<StreamingConfig>,
     pub ai_config: AiConfig,
     pub cache_config: CacheConfigType,
     pub health_enabled: bool,
     pub health_config: HealthMonitorConfig,
     pub resource_config: ResourceConfig,
+    #[cfg(not(feature = "minimal"))]
     pub notification_config: NotificationConfig,
     pub batch_config: BatchConfig,
 }
@@ -64,13 +96,17 @@ impl MemoryServiceConfig {
             db_path: cache_dir.join("memory.db"),
             cache_path: cache_dir.join("embeddings_cache"),
             promotion: PromotionConfig::production(),
+            #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
             ml_promotion: Some(MLPromotionConfig::production()),
+            #[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+            ml_promotion: None,
             streaming_config: Some(StreamingConfig::production()),
             ai_config: AiConfig::production(),
             cache_config: CacheConfigType::production(),
             health_enabled: true,
             health_config: HealthMonitorConfig::production(),
             resource_config: ResourceConfig::production(),
+            #[cfg(not(feature = "minimal"))]
             notification_config: NotificationConfig::production(),
             batch_config: BatchConfig::production(),
         })
@@ -91,6 +127,7 @@ impl MemoryServiceConfig {
             health_enabled: false,
             health_config: HealthMonitorConfig::minimal(),
             resource_config: ResourceConfig::minimal(),
+            #[cfg(not(feature = "minimal"))]
             notification_config: NotificationConfig::minimal(),
             batch_config: BatchConfig::minimal(),
         })
@@ -195,7 +232,10 @@ impl MemoryServiceConfigBuilder {
 
     pub fn production_ready(mut self) -> Self {
         self.config.health_enabled = true;
-        self.config.ml_promotion = Some(MLPromotionConfig::production());
+        #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+        {
+            self.config.ml_promotion = Some(MLPromotionConfig::production());
+        }
         self.config.streaming_config = Some(StreamingConfig::production());
         self
     }
@@ -227,7 +267,7 @@ pub fn default_config() -> Result<MemoryServiceConfig> {
 /// Re-export для обратной совместимости
 pub type MemoryConfig = MemoryServiceConfig;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
 

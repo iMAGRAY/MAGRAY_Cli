@@ -1,7 +1,6 @@
 use llm::{LlmClient, LlmProvider};
 use router::{ActionPlan, PlannedAction, SmartRouter};
 use std::collections::HashMap;
-use tokio;
 
 // Helper функция для создания тестового LLM клиента
 fn create_test_llm_client() -> LlmClient {

@@ -5,9 +5,13 @@
 
 // === Core Modules (SOLID-compliant) ===
 pub mod circuit_breaker;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod coordinator_factory;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod lifecycle_manager;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod operation_executor;
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub mod production_monitoring;
 pub mod service_config;
 // facade.rs удален - используется unified_container
@@ -23,11 +27,13 @@ pub use service_config::{
     ServiceConfigType,
 };
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use coordinator_factory::{
     CoordinatorFactory, OrchestrationCoordinators, ProductionCoordinatorFactory,
     TestCoordinatorFactory,
 };
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use production_monitoring::{
     MetricsCollector, ProductionMetrics, ProductionMetricsCollector, ProductionMonitoringManager,
 };
@@ -36,8 +42,10 @@ pub use circuit_breaker::{
     CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, CircuitBreakerStats,
 };
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use lifecycle_manager::{LifecycleConfig, LifecycleManager, LifecycleState, OperationStats};
 
+#[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use operation_executor::{
     BatchInsertResult, BatchSearchResult, ExtendedOperationExecutor, OperationConfig,
     OperationExecutor, ProductionOperationExecutor, SimpleOperationExecutor,
@@ -47,10 +55,31 @@ pub use operation_executor::{
 // DIMemoryService теперь в unified_container.rs
 
 // === Backward Compatibility Types ===
-use crate::{
-    batch_manager::BatchStats, gpu_accelerated::BatchProcessorStats, health::SystemHealthStatus,
-    promotion::PromotionStats,
-};
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::batch_manager::BatchStats;
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+#[derive(Default, Debug, Clone, Copy)]
+pub struct BatchStats {
+    pub pending_batches: u64,
+    pub last_flush_ms: u64,
+}
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+use crate::gpu_accelerated::BatchProcessorStats;
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::promotion::PromotionStats;
+#[cfg(any(feature = "minimal", not(feature = "persistence")))]
+#[derive(Default, Clone, Copy, Debug)]
+pub struct PromotionStats {
+    pub interact_to_insights: usize,
+    pub insights_to_assets: usize,
+    pub expired_interact: usize,
+    pub expired_insights: usize,
+    pub total_time_ms: u64,
+    pub index_update_time_ms: u64,
+    pub promotion_time_ms: u64,
+    pub cleanup_time_ms: u64,
+}
+use crate::health::SystemHealthStatus;
 
 /// Статистика всей memory системы (backward compatibility)
 #[derive(Debug)]
@@ -61,7 +90,10 @@ pub struct MemorySystemStats {
     pub cache_size: u64,
     pub promotion_stats: PromotionStats,
     pub batch_stats: BatchStats,
+    #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
     pub gpu_stats: Option<BatchProcessorStats>,
+    #[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
+    pub gpu_stats: Option<()>,
     pub di_container_stats: crate::DIContainerStats,
 }
 

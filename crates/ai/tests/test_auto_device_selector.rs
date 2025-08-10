@@ -43,17 +43,15 @@ fn test_device_decision_clone() {
 #[test]
 fn test_auto_device_selector_creation() {
     let _selector = AutoDeviceSelector::new();
-
-    // Should create successfully
-    assert!(true);
+    // basic smoke
+    assert!(format!("{:?}", _selector).contains("AutoDeviceSelector"));
 }
 
 #[test]
 fn test_auto_device_selector_default() {
     let _selector = AutoDeviceSelector::default();
-
-    // Should create with default values
-    assert!(true);
+    // basic smoke
+    assert!(format!("{:?}", _selector).contains("AutoDeviceSelector"));
 }
 
 #[tokio::test]
@@ -195,5 +193,4 @@ fn test_reason_not_empty() {
     };
 
     assert!(!decision.reason.is_empty());
-    assert!(decision.reason.len() > 0);
 }

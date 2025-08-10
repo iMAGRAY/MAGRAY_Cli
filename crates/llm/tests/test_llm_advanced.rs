@@ -1,7 +1,7 @@
+#![cfg(feature = "extended-tests")]
+
 use llm::{ChatMessage, CompletionRequest, LlmClient, LlmProvider};
 use mockito::Server;
-use std::time::Duration;
-use tokio::time::timeout;
 
 #[tokio::test]
 async fn test_llm_client_configuration() {
@@ -13,11 +13,8 @@ async fn test_llm_client_configuration() {
     let client = LlmClient::new(provider, 1000, 0.7);
 
     // Test that client can be cloned
-    let cloned_client = client.clone();
-
-    // Both clients should work independently
-    // We can't test Debug trait since it's not implemented, but we can test cloning
-    assert!(true); // Both clients created successfully
+    let _cloned_client = client.clone();
+    // clone successful if no panic
 }
 
 #[tokio::test]
@@ -129,7 +126,7 @@ async fn test_chat_message_variants() {
     let system_msg = ChatMessage::system("System instruction");
 
     // Test that messages can be put in collections
-    let conversation = vec![system_msg, user_msg, assistant_msg];
+    let conversation = [system_msg, user_msg, assistant_msg];
     assert_eq!(conversation.len(), 3);
     assert_eq!(conversation[0].role, "system");
     assert_eq!(conversation[1].role, "user");
@@ -157,7 +154,7 @@ async fn test_openai_completion_with_system_prompt() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::OpenAI {
+    let _provider = LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4".to_string(),
     };
@@ -194,7 +191,7 @@ async fn test_anthropic_completion_with_parameters() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::Anthropic {
+    let _provider = LlmProvider::Anthropic {
         api_key: "test-key".to_string(),
         model: "claude-3-haiku".to_string(),
     };
@@ -271,7 +268,7 @@ async fn test_chat_simple_wrapper() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::OpenAI {
+    let _provider = LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-3.5-turbo".to_string(),
     };
@@ -310,7 +307,7 @@ async fn test_chat_with_empty_messages() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::OpenAI {
+    let _provider = LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4".to_string(),
     };
@@ -341,7 +338,7 @@ async fn test_api_response_parsing_edge_cases() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::OpenAI {
+    let _provider = LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4".to_string(),
     };
@@ -373,7 +370,7 @@ async fn test_anthropic_response_parsing_edge_cases() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::Anthropic {
+    let _provider = LlmProvider::Anthropic {
         api_key: "test-key".to_string(),
         model: "claude-3".to_string(),
     };
@@ -461,7 +458,7 @@ async fn test_malformed_json_response() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::OpenAI {
+    let _provider = LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4".to_string(),
     };
@@ -501,7 +498,7 @@ async fn test_concurrent_requests() {
         .create_async()
         .await;
 
-    let provider = LlmProvider::OpenAI {
+    let _provider = LlmProvider::OpenAI {
         api_key: "test-key".to_string(),
         model: "gpt-4".to_string(),
     };

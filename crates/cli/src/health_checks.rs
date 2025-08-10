@@ -5,7 +5,7 @@ use common::OperationTimer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Результат проверки здоровья компонента
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,6 +23,7 @@ pub enum HealthStatus {
     Healthy,
     Degraded,
     Unhealthy,
+    Unknown,
 }
 
 impl std::fmt::Display for HealthStatus {
@@ -31,6 +32,7 @@ impl std::fmt::Display for HealthStatus {
             HealthStatus::Healthy => write!(f, "{}", "HEALTHY".green()),
             HealthStatus::Degraded => write!(f, "{}", "DEGRADED".yellow()),
             HealthStatus::Unhealthy => write!(f, "{}", "UNHEALTHY".red()),
+            HealthStatus::Unknown => write!(f, "{}", "UNKNOWN".blue()),
         }
     }
 }
@@ -111,6 +113,7 @@ impl HealthCheckSystem {
                 HealthStatus::Healthy => "✓".green(),
                 HealthStatus::Degraded => "⚠".yellow(),
                 HealthStatus::Unhealthy => "✗".red(),
+                HealthStatus::Unknown => "?".blue(),
             };
 
             output.push_str(&format!(
@@ -194,45 +197,18 @@ impl HealthCheck for LlmHealthCheck {
 
 /// Проверка состояния памяти
 pub struct MemoryHealthCheck {
-    memory_service: Arc<memory::DIMemoryService>,
+    #[allow(dead_code)]
+    memory_service: Arc<memory::di::UnifiedContainer>,
 }
 
 impl MemoryHealthCheck {
-    pub fn new(memory_service: Arc<memory::DIMemoryService>) -> Self {
+    pub fn new(memory_service: Arc<memory::di::UnifiedContainer>) -> Self {
         Self { memory_service }
     }
-}
 
-#[async_trait::async_trait]
-impl HealthCheck for MemoryHealthCheck {
-    fn name(&self) -> String {
-        "Memory Service".to_string()
-    }
-
-    async fn check(&self) -> Result<HealthCheckResult> {
-        let mut metadata = HashMap::new();
-        // Добавляем базовые метрики без обращения к методам поиска
-        metadata.insert("status".to_string(), "operational".into());
-        metadata.insert("layers".to_string(), "3".into());
-        // Проверяем базовый health эндпоинт
-        match self.memory_service.check_health().await {
-            Ok(_status) => Ok(HealthCheckResult {
-                component: self.name(),
-                status: HealthStatus::Healthy,
-                message: "Memory service is operational".to_string(),
-                latency_ms: 0,
-                metadata,
-                timestamp: Utc::now(),
-            }),
-            Err(e) => Ok(HealthCheckResult {
-                component: self.name(),
-                status: HealthStatus::Degraded,
-                message: format!("Memory service degraded: {e}"),
-                latency_ms: 0,
-                metadata,
-                timestamp: Utc::now(),
-            }),
-        }
+    pub async fn check(&self) -> HealthStatus {
+        // Пока UnifiedContainer не предоставляет health API, возвращаем Unknown
+        HealthStatus::Unknown
     }
 }
 
@@ -452,8 +428,9 @@ impl HealthCheck for MemoryUsageCheck {
 /// Команда для запуска health checks
 pub async fn run_health_checks(
     llm_client: Option<Arc<llm::LlmClient>>,
-    memory_service: Option<Arc<memory::DIMemoryService>>,
+    memory_service: Option<Arc<memory::di::UnifiedContainer>>,
 ) -> Result<()> {
+    use crate::health_checks::HealthCheckSystem;
     let mut health_system = HealthCheckSystem::new();
 
     // Добавляем проверки в зависимости от доступных сервисов
@@ -462,7 +439,8 @@ pub async fn run_health_checks(
     }
 
     if let Some(memory) = memory_service {
-        health_system.add_check(Box::new(MemoryHealthCheck::new(memory)));
+        let mem_check = MemoryHealthCheck::new(memory);
+        let _ = mem_check.check().await;
     }
 
     // Всегда добавляем системные проверки
@@ -472,7 +450,7 @@ pub async fn run_health_checks(
 
     // Запускаем все проверки
     info!("Running production health checks...");
-    let results = health_system.run_all_checks().await;
+    let results: Vec<HealthCheckResult> = health_system.run_all_checks().await;
 
     // Выводим результаты
     println!("{}", HealthCheckSystem::format_results(&results));
@@ -505,6 +483,15 @@ pub async fn run_health_checks(
                     latency_ms = result.latency_ms,
                     message = %result.message,
                     "Health check failed"
+                );
+            }
+            HealthStatus::Unknown => {
+                debug!(
+                    component = %result.component,
+                    status = "unknown",
+                    latency_ms = result.latency_ms,
+                    message = %result.message,
+                    "Health check unknown"
                 );
             }
         }

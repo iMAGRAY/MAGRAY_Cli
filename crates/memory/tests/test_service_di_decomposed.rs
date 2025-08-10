@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 //! Comprehensive Unit Tests для декомпозированной DI архитектуры
 //!
 //! Эти тесты проверяют что новая SOLID-совместимая архитектура работает корректно

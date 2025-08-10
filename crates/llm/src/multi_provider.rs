@@ -698,7 +698,7 @@ impl MultiProviderLlmOrchestrator {
         };
 
         let mut request_builder = client
-            .post(&format!("{}/chat/completions", url.trim_end_matches('/')))
+            .post(format!("{}/chat/completions", url.trim_end_matches('/')))
             .header("Content-Type", "application/json");
 
         if let Some(key) = api_key {

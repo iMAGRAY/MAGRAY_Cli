@@ -1,11 +1,40 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
+#[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
+use crate::backup::BackupMetadata;
+#[cfg(not(all(not(feature = "minimal"), feature = "backup-restore")))]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BackupMetadata {
+    pub version: u32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub magray_version: String,
+    pub layers: Vec<LayerInfo>,
+    pub total_records: usize,
+    pub index_config: crate::vector_index_hnswlib::HnswRsConfig,
+    pub checksum: Option<String>,
+    pub layer_checksums: Option<std::collections::HashMap<String, String>>,
+}
+
+#[cfg(not(all(not(feature = "minimal"), feature = "backup-restore")))]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LayerInfo {
+    pub layer: crate::types::Layer,
+    pub record_count: usize,
+    pub size_bytes: usize,
+}
+
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::ml_promotion::MLPromotionStats;
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::promotion::PromotionStats;
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+pub type PromotionStats = crate::service_di::PromotionStats;
+#[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
+pub type MLPromotionStats = ();
+
 use crate::{
-    backup::BackupMetadata,
     health::SystemHealthStatus,
-    ml_promotion::MLPromotionStats,
-    promotion::PromotionStats,
     resource_manager::ResourceUsage,
     types::{Layer, Record, SearchOptions},
 };

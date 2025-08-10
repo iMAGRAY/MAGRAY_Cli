@@ -11,9 +11,10 @@ use std::fmt;
 /// - Interact: Hot, frequently accessed data (24h TTL)
 /// - Insights: Distilled knowledge (90d TTL)  
 /// - Assets: Cold, permanent storage
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, Default)]
 pub enum LayerType {
     /// L1 - Hot context, frequent access (24h TTL)
+    #[default]
     Interact,
     /// L2 - Distilled knowledge (90d TTL)
     Insights,
@@ -51,11 +52,7 @@ impl LayerType {
 
     /// Check if this layer can be promoted to target layer
     pub fn can_promote_to(&self, target: LayerType) -> bool {
-        match (self, target) {
-            (LayerType::Interact, LayerType::Insights) => true,
-            (LayerType::Insights, LayerType::Assets) => true,
-            _ => false,
-        }
+        matches!((self, target), (LayerType::Interact, LayerType::Insights) | (LayerType::Insights, LayerType::Assets))
     }
 
     /// Get next layer in promotion hierarchy
@@ -86,7 +83,7 @@ impl LayerType {
     }
 
     /// Parse from string representation
-    pub fn from_str(s: &str) -> Result<Self, crate::errors::DomainError> {
+    pub fn parse_str(s: &str) -> Result<Self, crate::errors::DomainError> {
         match s.to_lowercase().as_str() {
             "interact" => Ok(LayerType::Interact),
             "insights" => Ok(LayerType::Insights),
@@ -101,11 +98,7 @@ impl LayerType {
     }
 }
 
-impl Default for LayerType {
-    fn default() -> Self {
-        LayerType::Interact
-    }
-}
+// Default now derived
 
 impl fmt::Display for LayerType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -144,10 +137,10 @@ mod tests {
     fn test_string_conversion() {
         assert_eq!(LayerType::Interact.as_str(), "interact");
         assert_eq!(
-            LayerType::from_str("insights").unwrap(),
+            LayerType::parse_str("insights").unwrap(),
             LayerType::Insights
         );
-        assert!(LayerType::from_str("invalid").is_err());
+        assert!(LayerType::parse_str("invalid").is_err());
     }
 
     #[test]

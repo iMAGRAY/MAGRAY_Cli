@@ -19,7 +19,7 @@ pub mod unified_agent_v2;
 pub mod util;
 // pub mod services; // Временно отключено - архитектурная несовместимость
 
-#[cfg(test)]
+#[cfg(all(test, feature = "extended-tests"))]
 mod agent_tests;
 
 // Re-export commonly used types

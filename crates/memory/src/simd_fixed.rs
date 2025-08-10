@@ -14,6 +14,8 @@ use std::time::Instant;
 /// После анализа - эта функция НЕ является узким местом
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
+/// # Safety
+/// Вызывающий должен гарантировать поддержку AVX2 CPU и корректное выравнивание типов SSE/AVX intrinsics.
 pub unsafe fn horizontal_sum_avx2_correct(v: __m256) -> f32 {
     // Это ПРАВИЛЬНАЯ реализация из оригинала!
     let hi = _mm256_extractf128_ps(v, 1);
@@ -34,6 +36,8 @@ pub unsafe fn horizontal_sum_avx2_correct(v: __m256) -> f32 {
 /// Убираем все "умные" фичи и оставляем только основные инструкции
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
+/// # Safety
+/// Вызов допустим только на CPU с поддержкой AVX2; входные срезы должны иметь одинаковую длину и быть кратны 8.
 pub unsafe fn cosine_distance_avx2_minimal(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
     debug_assert_eq!(a.len() % 8, 0);
@@ -71,6 +75,8 @@ pub unsafe fn cosine_distance_avx2_minimal(a: &[f32], b: &[f32]) -> f32 {
 /// Именно тот подход который был в оригинальном коде
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
+/// # Safety
+/// Требуется AVX2; входные буферы одинаковой длины, кратной 8.
 pub unsafe fn cosine_distance_avx2_vectorized(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
     debug_assert_eq!(a.len() % 8, 0);
@@ -105,6 +111,8 @@ pub unsafe fn cosine_distance_avx2_vectorized(a: &[f32], b: &[f32]) -> f32 {
 /// Используем FMA только если точно знаем что делаем
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2,fma")]
+/// # Safety
+/// Требует AVX2 и FMA; входные буферы одинаковой длины, кратной 8.
 pub unsafe fn cosine_distance_avx2_fma(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
     debug_assert_eq!(a.len() % 8, 0);
@@ -139,6 +147,8 @@ pub unsafe fn cosine_distance_avx2_fma(a: &[f32], b: &[f32]) -> f32 {
 /// Попробуем обработать 2 чанка за итерацию
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
+/// # Safety
+/// Требуется AVX2; входные буферы одинаковой длины, кратной 16.
 pub unsafe fn cosine_distance_avx2_unrolled(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
     debug_assert_eq!(a.len() % 16, 0); // Кратно 16 для двойных чанков
@@ -183,14 +193,16 @@ pub unsafe fn cosine_distance_avx2_unrolled(a: &[f32], b: &[f32]) -> f32 {
 /// ALIGNED LOAD версия - но с проверкой можем ли мы её использовать
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
+/// # Safety
+/// Требуется AVX2; входные буферы одинаковой длины, кратной 8.
 pub unsafe fn cosine_distance_avx2_aligned_check(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
     debug_assert_eq!(a.len() % 8, 0);
 
     let a_ptr = a.as_ptr();
     let b_ptr = b.as_ptr();
-    let a_aligned = (a_ptr as usize) % 32 == 0;
-    let b_aligned = (b_ptr as usize) % 32 == 0;
+    let a_aligned = (a_ptr as usize).is_multiple_of(32);
+    let b_aligned = (b_ptr as usize).is_multiple_of(32);
 
     let mut dot_product = _mm256_setzero_ps();
     let mut norm_a = _mm256_setzero_ps();
@@ -343,7 +355,7 @@ pub fn debug_simd_performance() {
         }
 
         // Test 4: Unrolled версия (только если размер кратен 16)
-        if DIMENSION % 16 == 0 {
+        if DIMENSION.is_multiple_of(16) {
             let start = Instant::now();
             let mut result4 = 0.0;
             for _ in 0..ITERATIONS {

@@ -1,5 +1,7 @@
+#![cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use memory::*;
+use memory::{Layer, Record};
+use memory::storage::VectorStore;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use uuid::Uuid;

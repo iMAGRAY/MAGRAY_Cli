@@ -5,9 +5,6 @@ pub mod memory_pool;
 
 // Only include embeddings for cpu/gpu builds
 #[cfg(feature = "embeddings")]
-pub mod embeddings_bge_m3;
-
-#[cfg(feature = "embeddings")]
 pub mod embeddings_cpu;
 
 #[cfg(feature = "gpu")]
@@ -42,6 +39,9 @@ pub mod model_registry;
 #[cfg(any(feature = "cpu", feature = "gpu"))]
 pub mod models;
 
+#[cfg(any(feature = "cpu", feature = "gpu"))]
+pub mod ort_setup;
+
 // Reranking for cpu/gpu builds
 #[cfg(feature = "reranking")]
 pub mod reranker_qwen3;
@@ -65,9 +65,6 @@ pub use config::{AiConfig, EmbeddingConfig, RerankingConfig};
 pub use errors::AiError;
 
 // Conditional exports based on features
-#[cfg(feature = "embeddings")]
-pub use embeddings_bge_m3::BgeM3EmbeddingService;
-
 #[cfg(feature = "embeddings")]
 pub use embeddings_cpu::{CpuEmbeddingService, OptimizedEmbeddingResult, ServiceStats};
 
@@ -111,3 +108,17 @@ pub use tokenizer::{SpecialTokens, TokenizedInput, TokenizerService};
 
 /// Result type for AI operations
 pub type Result<T> = std::result::Result<T, AiError>;
+
+#[cfg(test)]
+fn _ort_available() -> bool {
+    std::env::var("ORT_DYLIB_PATH").is_ok()
+}
+
+pub fn ort_available() -> bool {
+    std::env::var("ORT_DYLIB_PATH").is_ok()
+}
+
+pub fn should_disable_ort() -> bool {
+    std::env::var("MAGRAY_FORCE_NO_ORT").map(|v| matches!(v.to_lowercase().as_str(), "1"|"true"|"yes"|"y"))
+        .unwrap_or(false)
+}

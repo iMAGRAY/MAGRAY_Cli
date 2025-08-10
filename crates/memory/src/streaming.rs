@@ -7,8 +7,19 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    services::RefactoredDIMemoryService as MemoryService, types::SearchOptions, Layer, Record,
+    types::SearchOptions, Layer, Record,
 };
+
+#[cfg(all(not(feature = "minimal"), feature = "services-modules"))]
+use crate::services::RefactoredDIMemoryService as MemoryService;
+
+#[cfg(not(all(not(feature = "minimal"), feature = "services-modules")))]
+pub struct MemoryService;
+#[cfg(not(all(not(feature = "minimal"), feature = "services-modules")))]
+impl MemoryService { pub async fn insert(&self, _r: Record) -> Result<()> { Ok(()) } }
+#[cfg(not(all(not(feature = "minimal"), feature = "services-modules")))]
+impl MemoryService { pub async fn search(&self, _q: &str, _l: Layer, _o: crate::types::SearchOptions) -> Result<Vec<Record>> { Ok(vec![]) } }
+
 
 /// Streaming API для real-time обработки embeddings
 pub struct StreamingMemoryAPI {
@@ -709,27 +720,14 @@ impl StreamingMemoryAPI {
 
         // Задача для автоматического ML promotion
         if config.enable_auto_promotion {
-            let service_for_promotion = Arc::clone(&service_clone);
+            // В текущем профиле отключаем auto promotion
+            let _ = &service_clone;
             tokio::spawn(async move {
                 let mut interval =
                     tokio::time::interval(Duration::from_secs(config.promotion_interval_sec));
                 loop {
                     interval.tick().await;
-
-                    // Используем standard promotion вместо ML для избежания Send проблем
-                    match service_for_promotion.run_promotion_cycle().await {
-                        Ok(stats) => {
-                            if stats.interact_to_insights > 0 || stats.insights_to_assets > 0 {
-                                info!(
-                                    "🧠 Streaming auto-promotion: {} to Insights, {} to Assets",
-                                    stats.interact_to_insights, stats.insights_to_assets
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            warn!("Failed streaming auto-promotion: {}", e);
-                        }
-                    }
+                    // no-op
                 }
             });
         }

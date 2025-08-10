@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tokio;
 
 use llm::{ActionPlannerAgent, LlmClient, ParameterExtractorAgent, ToolSelectorAgent};
 use tools::{ToolInput, ToolOutput, ToolRegistry};
@@ -112,6 +111,8 @@ impl SmartRouter {
                 command: action.tool.clone(),
                 args: action.args.clone(),
                 context: Some(action.description.clone()),
+                dry_run: false,
+                timeout_ms: None,
             };
 
             match tool.execute(input).await {
@@ -190,6 +191,8 @@ impl SmartRouter {
             command: tool_selection.tool_name.clone(),
             args: parameter_extraction.parameters,
             context: Some(user_query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
         };
 
         let result = tool.execute(input).await?;

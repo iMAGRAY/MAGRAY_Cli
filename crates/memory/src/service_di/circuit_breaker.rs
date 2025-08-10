@@ -9,20 +9,15 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 /// Состояние Circuit Breaker
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum CircuitBreakerState {
     /// Закрыт - операции проходят нормально
+    #[default]
     Closed,
     /// Открыт - операции блокируются
     Open,
     /// Полуоткрыт - пробные операции разрешены
     HalfOpen,
-}
-
-impl Default for CircuitBreakerState {
-    fn default() -> Self {
-        CircuitBreakerState::Closed
-    }
 }
 
 /// Конфигурация Circuit Breaker

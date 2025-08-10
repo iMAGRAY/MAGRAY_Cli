@@ -40,8 +40,16 @@ impl MemoryCommand {
 }
 
 async fn handle(cmd: MemorySubcommand) -> Result<()> {
-    let legacy = memory::di::LegacyMemoryConfig::default();
-    let svc = memory::DIMemoryService::new(legacy).await?;
+    #[cfg(not(feature = "minimal"))]
+    let svc = {
+        let legacy = memory::di::LegacyMemoryConfig::default();
+        memory::DIMemoryService::new(legacy).await?
+    };
+    #[cfg(feature = "minimal")]
+    {
+        println!("⚠️ Функции памяти отключены в минимальном профиле. Соберите без feature=minimal.");
+        match cmd { _ => return Ok(()) }
+    }
 
     match cmd {
         MemorySubcommand::Store { text, tag } => {

@@ -415,3 +415,7 @@ impl ResourceManager {
         cleaned_count
     }
 }
+
+impl Default for ResourceManager {
+    fn default() -> Self { Self::new() }
+}

@@ -1,9 +1,7 @@
 #![cfg(not(feature = "minimal"))]
 
-use clap::{Args, Command};
-
 #[test]
 fn test_dummy() {
-    // Placeholder to keep file for non-minimal builds
-    assert!(true);
+    // Smoke placeholder to keep non-minimal builds exercising test runner
+    assert_eq!(2 + 2, 4);
 }

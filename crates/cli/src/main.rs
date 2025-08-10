@@ -8,6 +8,10 @@ use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use common::{events, topics};
+use serde_json::json;
+
+// use ai::{ModelType, MODEL_REGISTRY};
 
 mod commands;
 mod health_checks;
@@ -99,10 +103,21 @@ enum Commands {
     LlmStatus,
     /// [📈] Показать performance метрики DI системы
     Performance,
+    /// [🔒] Управление политиками (аудит/настройка)
+    Policy {
+        /// Показать текущие правила и источник
+        #[arg(long)]
+        list: bool,
+        /// Применить правило Allow для shell_exec через env JSON (демо)
+        #[arg(long)]
+        allow_shell: bool,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Start events metrics aggregator (non-blocking)
+    events::start_tool_metrics_aggregator().await;
     // Настройка структурированного логирования
     init_structured_logging()?;
 
@@ -113,78 +128,158 @@ async fn main() -> Result<()> {
         show_welcome_animation().await?;
     }
 
-    match cli.command {
-        Some(Commands::Chat { message }) => {
-            handle_chat(message).await?;
-        }
-        Some(Commands::Read { path }) => {
-            let agent = create_unified_agent_v2().await?;
-            let message = format!("прочитай файл {path}");
-            let response = process_agent_message(&agent, &message).await?;
-            display_response(response).await;
-        }
-        Some(Commands::Write { path, content }) => {
-            let agent = create_unified_agent_v2().await?;
-            let message = format!("создай файл {path} с содержимым: {content}");
-            let response = process_agent_message(&agent, &message).await?;
-            display_response(response).await;
-        }
-        Some(Commands::List { path }) => {
-            let agent = create_unified_agent_v2().await?;
-            let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
-            let response = process_agent_message(&agent, &message).await?;
-            display_response(response).await;
-        }
-        Some(Commands::Tool { action }) => {
-            let agent = create_unified_agent_v2().await?;
-            let response = process_agent_message(&agent, &action).await?;
-            display_response(response).await;
-        }
-        Some(Commands::Smart(cmd)) => {
-            cmd.execute().await?;
-        }
-        Some(Commands::Gpu(gpu_command)) => {
-            gpu_command.execute().await?;
-        }
-        // Some(Commands::Memory(memory_command)) => {
-        //     commands::memory::handle_memory_command(memory_command).await?;
-        // }
-        Some(Commands::Health) => {
-            // Инициализируем сервисы для health check
-            let llm_client = LlmClient::from_env().ok().map(Arc::new);
-            // Создаем базовую конфигурацию памяти для health check (минимальная совместимая)
-            let legacy_config = memory::di::LegacyMemoryConfig::default();
-            let memory_service = memory::DIMemoryService::new(legacy_config)
-                .await
-                .ok()
-                .map(Arc::new);
+    // Проверяем наличие дефолтных моделей и предлагаем установить при необходимости
+    if std::env::var("MAGRAY_SKIP_AUTO_INSTALL").is_err() {
+        ensure_default_models_installed_interactive()?;
+    }
 
-            health_checks::run_health_checks(llm_client, memory_service).await?;
+    // Проверяем доступность ONNX Runtime и предлагаем установить
+    if std::env::var("MAGRAY_SKIP_AUTO_INSTALL").is_err() {
+        ensure_ort_installed_interactive()?;
+    }
+
+    // Автозагрузка манифестов плагинов по флагу окружения
+    if std::env::var("MAGRAY_LOAD_PLUGIN_MANIFESTS").ok().map(|s| s=="1"||s.to_lowercase()=="true").unwrap_or(false) {
+        let home = util::magray_home();
+        let mut plugins_dir = home.clone(); plugins_dir.push("plugins");
+        let mut cfg_dir = home.clone(); cfg_dir.push("plugin-configs");
+        tokio::fs::create_dir_all(&plugins_dir).await.ok();
+        tokio::fs::create_dir_all(&cfg_dir).await.ok();
+        let registry = tools::plugins::plugin_manager::PluginRegistry::new(plugins_dir, cfg_dir);
+        let _ = registry.load_manifests_from_directory().await;
+    }
+
+    // Глобальный таймаут на выполнение команды (по умолчанию 300с)
+    let top_timeout_secs: u64 = std::env::var("MAGRAY_CMD_TIMEOUT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(300);
+
+    use tokio::time::{timeout, Duration};
+
+    let exec_fut = async {
+        // Publish intent event for observability
+        let cmd_name = match &cli.command {
+            Some(Commands::Chat { .. }) => "chat",
+            Some(Commands::Read { .. }) => "read",
+            Some(Commands::Write { .. }) => "write",
+            Some(Commands::List { .. }) => "list",
+            Some(Commands::Tool { .. }) => "tool",
+            Some(Commands::Smart(_)) => "smart",
+            Some(Commands::Gpu(_)) => "gpu",
+            Some(Commands::Memory(_)) => "memory",
+            Some(Commands::Models(_)) => "models",
+            Some(Commands::Tasks(_)) => "tasks",
+            Some(Commands::Health) => "health",
+            Some(Commands::Status) => "status",
+            Some(Commands::LlmStatus) => "llm_status",
+            Some(Commands::Performance) => "performance",
+            Some(Commands::Policy { .. }) => "policy",
+            Some(Commands::Tools(_)) => "tools",
+            None => "help",
+        };
+        tokio::spawn(events::publish(topics::TOPIC_INTENT, json!({"command": cmd_name})));
+
+        match cli.command {
+            Some(Commands::Chat { message }) => {
+                handle_chat(message).await?
+            }
+            Some(Commands::Read { path }) => {
+                let agent = create_unified_agent_v2().await?;
+                let message = format!("прочитай файл {path}");
+                let response = process_agent_message(&agent, &message).await?;
+                display_response(response).await;
+            }
+            Some(Commands::Write { path, content }) => {
+                let agent = create_unified_agent_v2().await?;
+                let message = format!("создай файл {path} с содержимым: {content}");
+                let response = process_agent_message(&agent, &message).await?;
+                display_response(response).await;
+            }
+            Some(Commands::List { path }) => {
+                let agent = create_unified_agent_v2().await?;
+                let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
+                let response = process_agent_message(&agent, &message).await?;
+                display_response(response).await;
+            }
+            Some(Commands::Tool { action }) => {
+                let agent = create_unified_agent_v2().await?;
+                let response = process_agent_message(&agent, &action).await?;
+                display_response(response).await;
+            }
+            Some(Commands::Smart(cmd)) => {
+                cmd.execute().await?;
+            }
+            Some(Commands::Gpu(gpu_command)) => {
+                // Локальный таймаут 300с
+                timeout(Duration::from_secs(300), gpu_command.execute()).await.map_err(|_| anyhow::anyhow!("GPU command timeout"))??;
+            }
+            Some(Commands::Memory(cmd)) => {
+                timeout(Duration::from_secs(180), cmd.execute()).await.map_err(|_| anyhow::anyhow!("Memory command timeout"))??;
+            }
+            Some(Commands::Models(cmd)) => {
+                timeout(Duration::from_secs(120), cmd.execute()).await.map_err(|_| anyhow::anyhow!("Models command timeout"))??;
+            }
+            Some(Commands::Tasks(cmd)) => {
+                timeout(Duration::from_secs(180), cmd.execute()).await.map_err(|_| anyhow::anyhow!("Tasks command timeout"))??;
+            }
+            Some(Commands::Health) => {
+                // Инициализируем сервисы для health check
+                let llm_client = LlmClient::from_env().ok().map(Arc::new);
+                let memory_service: Option<Arc<memory::di::UnifiedContainer>> = None;
+
+                timeout(Duration::from_secs(60), health_checks::run_health_checks(llm_client, memory_service))
+                    .await
+                    .map_err(|_| anyhow::anyhow!("Health checks timeout"))??;
+            }
+            Some(Commands::Status) => {
+                timeout(Duration::from_secs(60), show_system_status()).await.map_err(|_| anyhow::anyhow!("Status command timeout"))??;
+            }
+            Some(Commands::LlmStatus) => {
+                timeout(Duration::from_secs(60), show_llm_status()).await.map_err(|_| anyhow::anyhow!("LLM status timeout"))??;
+            }
+            Some(Commands::Performance) => {
+                timeout(Duration::from_secs(120), show_performance_metrics()).await.map_err(|_| anyhow::anyhow!("Performance command timeout"))??;
+            }
+            Some(Commands::Policy { list, allow_shell }) => {
+                use common::policy::{load_effective_policy, PolicyDocument, PolicyRule, PolicyAction, PolicySubjectKind};
+                let mut home = util::magray_home(); home.push("policy.json");
+                if list {
+                    let effective = load_effective_policy(if home.exists() { Some(&home) } else { None });
+                    println!("=== Effective Policy ===\n{}", serde_json::to_string_pretty(&effective).unwrap_or_else(|_| "{}".into()));
+                }
+                if allow_shell {
+                    // Merge small override into MAGRAY_POLICY_JSON
+                    let override_doc = PolicyDocument { rules: vec![PolicyRule { subject_kind: PolicySubjectKind::Tool, subject_name: "shell_exec".into(), when_contains_args: None, action: PolicyAction::Allow, reason: Some("cli override".into()) }] };
+                    let json = serde_json::to_string(&override_doc)?;
+                    std::env::set_var("MAGRAY_POLICY_JSON", json);
+                    println!("Applied in-memory override: Allow shell_exec (MAGRAY_POLICY_JSON)\nNote: persist by writing ~/.magray/policy.json");
+                }
+            }
+            Some(Commands::Tools(cmd)) => {
+                timeout(Duration::from_secs(300), cmd.execute()).await.map_err(|_| anyhow::anyhow!("Tools command timeout"))??;
+            }
+            None => {
+                // По умолчанию показываем помощь
+                println!("{}", Cli::command().render_long_help());
+            }
         }
-        Some(Commands::Memory(cmd)) => {
-            cmd.execute().await?;
+        // Publish job completion progress
+        tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, json!({"command": cmd_name, "stage": "done"})));
+        Ok::<(), anyhow::Error>(())
+    };
+
+    match timeout(Duration::from_secs(top_timeout_secs), exec_fut).await {
+        Ok(res) => {
+            if let Err(e) = res {
+                tokio::spawn(events::publish(topics::TOPIC_ERROR, json!({"error": e.to_string()})));
+                return Err(e);
+            }
         }
-        Some(Commands::Models(cmd)) => {
-            cmd.execute().await?;
-        }
-        Some(Commands::Tasks(cmd)) => {
-            cmd.execute().await?;
-        }
-        Some(Commands::Status) => {
-            show_system_status().await?;
-        }
-        Some(Commands::LlmStatus) => {
-            show_llm_status().await?;
-        }
-        Some(Commands::Performance) => {
-            show_performance_metrics().await?;
-        }
-        Some(Commands::Tools(cmd)) => {
-            cmd.execute().await?;
-        }
-        None => {
-            // По умолчанию показываем помощь
-            println!("{}", Cli::command().render_long_help());
+        Err(_) => {
+            eprintln!("[✗] Команда превысила общий таймаут {}с", top_timeout_secs);
+            tokio::spawn(events::publish(topics::TOPIC_ERROR, json!({"error": "global_timeout", "timeout_secs": top_timeout_secs})));
+            return Err(anyhow::anyhow!("Global command timeout"));
         }
     }
 
@@ -284,27 +379,19 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
     let mut stdin_message = None;
     if message.is_none() {
         // Проверяем синхронно, есть ли данные в stdin
-        match std::thread::spawn(|| {
+        let join_res = std::thread::spawn(|| {
             use std::io::{self, Read};
             let mut input = String::new();
             match io::stdin().read_to_string(&mut input) {
                 Ok(0) => None, // Нет данных
                 Ok(_) => {
                     let trimmed = input.trim();
-                    if trimmed.is_empty() {
-                        None
-                    } else {
-                        Some(trimmed.to_string())
-                    }
+                    if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
                 }
                 Err(_) => None, // Ошибка чтения
             }
-        })
-        .join()
-        {
-            Ok(result) => stdin_message = result,
-            Err(_) => {} // Паника в треде
-        }
+        }).join();
+        if let Ok(result) = join_res { stdin_message = result }
     }
 
     // Инициализация LLM клиента с анимацией
@@ -603,31 +690,12 @@ async fn show_goodbye_animation() -> Result<()> {
 
 async fn show_system_status() -> Result<()> {
     use colored::Colorize;
-    use memory::DIMemoryService as MemoryService;
-    use std::sync::Arc;
-    use tracing::{info, warn};
+    
 
     let spinner = progress::ProgressBuilder::fast("Checking system status...");
 
-    // Безопасная проверка состояния памяти в минимальной сборке
-    let legacy_config = memory::di::LegacyMemoryConfig::default();
-    let memory_status = match tokio::time::timeout(Duration::from_secs(5), MemoryService::new(legacy_config)).await {
-        Ok(Ok(service)) => {
-            let service = Arc::new(service);
-            let status = service.check_health().await.ok();
-            let health_str = match status {
-                Some(s) if s.healthy => "healthy".to_string(),
-                Some(_) => "degraded".to_string(),
-                None => "error".to_string(),
-            };
-            Some((health_str, 0, 0.0))
-        }
-        Ok(Err(e)) => {
-            warn!("⚠️ Memory service init error: {}", e);
-            Some(("error".to_string(), 0, 0.0))
-        }
-        Err(_) => Some(("timeout".to_string(), 0, 0.0)),
-    };
+    // В текущем профиле memory сервис не инициализируем напрямую
+    let memory_status: Option<(String, usize, f64)> = None;
 
     // Проверяем LLM соединение
     let llm_status = match LlmClient::from_env() {
@@ -704,6 +772,63 @@ async fn show_system_status() -> Result<()> {
     let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     println!("{} {}: {}", "ℹ".blue(), "Log Level".bold(), log_level);
 
+    // Policy audit
+    use common::policy::{load_effective_policy};
+    let mut home = crate::util::magray_home();
+    home.push("policy.json");
+    let has_file = home.exists();
+    let effective = load_effective_policy(if has_file { Some(&home) } else { None });
+    let rules_count = effective.rules.len();
+    let src = if std::env::var("MAGRAY_POLICY_JSON").ok().filter(|s| !s.trim().is_empty()).is_some() {
+        "env-json"
+    } else if std::env::var("MAGRAY_POLICY_PATH").is_ok() || has_file {
+        "file"
+    } else {
+        "default"
+    };
+    println!("🔒 Policy: {} (rules: {})", src, rules_count);
+    // Risk aggregation
+    let mut low = 0usize; let mut med = 0usize; let mut high = 0usize;
+    for r in &effective.rules {
+        let risk = {
+            // mirror logic from infer_risk_from_reason
+            let reason = r.reason.as_deref();
+            if let Some(rr) = reason { let l = rr.to_lowercase();
+                if l.contains("high") || l.contains("critical") || l.contains("danger") { common::policy::RiskLevel::High }
+                else if l.contains("medium") || l.contains("moderate") { common::policy::RiskLevel::Medium }
+                else { common::policy::RiskLevel::Low }
+            } else { common::policy::RiskLevel::Low }
+        };
+        match risk { common::policy::RiskLevel::High => high+=1, common::policy::RiskLevel::Medium => med+=1, common::policy::RiskLevel::Low => low+=1 }
+    }
+    println!("  risks: low={} medium={} high={}", low, med, high);
+    // Brief audit: list up to 5 rules
+    let preview_len = effective.rules.len().min(5);
+    if preview_len > 0 {
+        println!("  {}", "Rules preview:".dimmed());
+        for rule in effective.rules.iter().take(preview_len) {
+            let when = rule
+                .when_contains_args
+                .as_ref()
+                .map(|m| {
+                    if m.is_empty() { String::new() } else { format!(" when={:?}", m) }
+                })
+                .unwrap_or_default();
+            println!(
+                "  • {:?} {} -> {:?}{}",
+                rule.subject_kind, rule.subject_name, rule.action, when
+            );
+        }
+        if rules_count > preview_len { println!("  ... and {} more", rules_count - preview_len); }
+    }
+
+    // Publish health summary event
+    tokio::spawn(events::publish(topics::TOPIC_HEALTH, serde_json::json!({
+        "llm": llm_status,
+        "policy_rules": rules_count,
+        "risk": {"low": low, "medium": med, "high": high}
+    })));
+
     println!();
 
     Ok(())
@@ -774,7 +899,7 @@ async fn show_performance_metrics() -> Result<()> {
     info!("📈 Initializing UnifiedAgent for performance metrics");
 
     // Создаем UnifiedAgent для доступа к DI системе
-    let agent = match create_unified_agent_v2().await {
+    let _agent = match create_unified_agent_v2().await {
         Ok(agent) => {
             info!("✅ UnifiedAgent initialized successfully");
             agent
@@ -816,5 +941,85 @@ async fn show_performance_metrics() -> Result<()> {
 
     println!();
 
+    Ok(())
+}
+
+fn ensure_default_models_installed_interactive() -> Result<()> {
+    use std::io::{stdin, stdout, Write};
+    use colored::Colorize;
+
+    // Если в CI - не спрашиваем, ставим по умолчанию (или пропускаем если FORCE_NO_ORT)
+    let non_interactive = std::env::var("CI").is_ok() || std::env::var("MAGRAY_AUTO_YES").is_ok();
+
+    // Проверяем каталоги моделей
+    let models_dir = std::path::PathBuf::from("models");
+    let needs_emb = !models_dir.join("qwen3emb").exists();
+    let needs_rerank = !models_dir.join("qwen3_reranker").exists();
+
+    if !(needs_emb || needs_rerank) { return Ok(()); }
+
+    if non_interactive {
+        println!("{} Устанавливаю отсутствующие модели Qwen3 (non-interactive)", "📥".blue());
+        run_model_install_scripts(needs_emb, needs_rerank)?;
+        return Ok(());
+    }
+
+    println!("{} Обнаружены отсутствующие модели Qwen3.", "ℹ".cyan());
+    println!("  - embedding: {}", if needs_emb { "missing".red() } else { "ok".green() });
+    println!("  - reranker: {}", if needs_rerank { "missing".red() } else { "ok".green() });
+    print!("Установить сейчас? [Y/n]: "); stdout().flush().ok();
+
+    let mut answer = String::new();
+    let _ = stdin().read_line(&mut answer);
+    let yes = answer.trim().is_empty() || matches!(answer.trim().to_lowercase().as_str(), "y"|"yes");
+    if yes { run_model_install_scripts(needs_emb, needs_rerank)?; }
+    Ok(())
+}
+
+fn run_model_install_scripts(emb: bool, rerank: bool) -> Result<()> {
+    use std::process::Command;
+    // prefer python installers for precise layout
+    if emb {
+        let _ = Command::new("python3").args(["scripts/install_qwen3_onnx.py", "--component", "embedding"]).status();
+    }
+    if rerank {
+        let _ = Command::new("python3").args(["scripts/install_qwen3_onnx.py", "--component", "reranker"]).status();
+    }
+    Ok(())
+}
+
+fn ensure_ort_installed_interactive() -> Result<()> {
+    use std::io::{stdin, stdout, Write};
+    use colored::Colorize;
+
+    if std::env::var("MAGRAY_FORCE_NO_ORT").ok().map(|s| s=="1"||s.to_lowercase()=="true").unwrap_or(false) { return Ok(()); }
+
+    // Если есть ORT_DYLIB_PATH или стандартная либра — выходим
+    if std::env::var("ORT_DYLIB_PATH").is_ok() { return Ok(()); }
+    let candidate = std::path::Path::new("scripts/onnxruntime/lib/libonnxruntime.so");
+    if candidate.exists() { std::env::set_var("ORT_DYLIB_PATH", candidate.display().to_string()); return Ok(()); }
+
+    let non_interactive = std::env::var("CI").is_ok() || std::env::var("MAGRAY_AUTO_YES").is_ok();
+    if non_interactive {
+        println!("{} Устанавливаю ONNX Runtime (non-interactive)", "📥".blue());
+        run_ort_install_script()?; return Ok(());
+    }
+
+    println!("{} ONNX Runtime не найден.", "ℹ".cyan());
+    print!("Установить сейчас? [Y/n]: "); stdout().flush().ok();
+    let mut answer = String::new(); let _ = stdin().read_line(&mut answer);
+    let yes = answer.trim().is_empty() || matches!(answer.trim().to_lowercase().as_str(), "y"|"yes");
+    if yes { run_ort_install_script()?; }
+    Ok(())
+}
+
+fn run_ort_install_script() -> Result<()> {
+    use std::process::Command;
+    let status = Command::new("bash").args(["scripts/install_onnxruntime.sh"]).status()?;
+    if status.success() {
+        // Try to set default path
+        let p = std::path::Path::new("scripts/onnxruntime/lib/libonnxruntime.so");
+        if p.exists() { std::env::set_var("ORT_DYLIB_PATH", p.display().to_string()); }
+    }
     Ok(())
 }

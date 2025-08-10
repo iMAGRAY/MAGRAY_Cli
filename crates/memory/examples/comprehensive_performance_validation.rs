@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", any(feature = "hnsw-index", feature = "gpu-acceleration")))]
+
 //! Comprehensive Performance Validation - Ultimate HNSW Optimization Results
 //!
 //! Полная валидация всех оптимизаций:

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[tokio::test]
 async fn test_tool_selector_agent_creation() {
     let mock_client = create_mock_client().await;
-    let agent = ToolSelectorAgent::new(mock_client);
+    let _agent = ToolSelectorAgent::new(mock_client);
 
     // Agent should be created successfully
     // No public methods to test except select_tool
@@ -95,7 +95,7 @@ async fn test_tool_selector_complex_queries() {
 #[tokio::test]
 async fn test_parameter_extractor_agent_creation() {
     let mock_client = create_mock_client().await;
-    let agent = ParameterExtractorAgent::new(mock_client);
+    let _agent = ParameterExtractorAgent::new(mock_client);
 
     // Agent should be created successfully
 }
@@ -212,7 +212,7 @@ async fn test_parameter_extractor_missing_parameters() {
 #[tokio::test]
 async fn test_intent_analyzer_agent_creation() {
     let mock_client = create_mock_client().await;
-    let agent = IntentAnalyzerAgent::new(mock_client);
+    let _agent = IntentAnalyzerAgent::new(mock_client);
 
     // Agent should be created successfully
 }
@@ -283,7 +283,7 @@ async fn test_intent_analyzer_tool_intent() {
 #[tokio::test]
 async fn test_action_planner_agent_creation() {
     let mock_client = create_mock_client().await;
-    let agent = ActionPlannerAgent::new(mock_client);
+    let _agent = ActionPlannerAgent::new(mock_client);
 
     // Agent should be created successfully
 }

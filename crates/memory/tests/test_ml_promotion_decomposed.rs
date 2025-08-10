@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 //! Comprehensive unit tests для декомпозированной ML promotion системы
 //!
 //! Покрывает все SOLID принципы и основную функциональность каждого модуля

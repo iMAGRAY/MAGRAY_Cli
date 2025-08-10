@@ -14,7 +14,7 @@ use std::arch::x86_64::*;
 #[cfg(feature = "hnsw-index")]
 use rayon::slice::ParallelSlice;
 #[cfg(feature = "hnsw-index")]
-use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::{IntoParallelRefIterator, IndexedParallelIterator, ParallelIterator};
 
 use super::config::HnswConfig;
 use super::stats::HnswStats;
@@ -286,11 +286,10 @@ impl VectorIndex {
                 actual_size, max_layers
             );
 
-            #[allow(unused_variables)]
-            let hnsw_instance = /* Hnsw::new */ {
-                ()
-            };
-            *hnsw_guard = Some(hnsw_instance);
+            let ef_c = self.config.ef_construction as usize;
+            let m = self.config.max_connections as usize;
+            let hnsw: Hnsw<f32, DistCosine> = Hnsw::new(m, actual_size, self.config.dimension, ef_c, DistCosine {});
+            *hnsw_guard = Some(hnsw);
 
             info!(
                 "✅ HNSW инициализирован успешно: max_elements={}, max_layers={}",
@@ -342,9 +341,8 @@ impl VectorIndex {
         {
             let mut hnsw_guard = self.hnsw.write();
             if let Some(ref mut hnsw) = hnsw_guard.as_mut() {
-                // Используем правильный API hnsw_rs
-                let _ = (&vector, point_id);
-                Ok::<_, anyhow::Error>(())
+                // вставка в hnsw_rs: add_point takes &Vec<f32> and point_id
+                hnsw.insert((&vector, point_id));
             } else {
                 let error = anyhow!("HNSW не инициализирован");
                 self.stats.record_error();
@@ -483,12 +481,7 @@ impl VectorIndex {
         // Параллельная вставка в HNSW
         {
             let mut hnsw_guard = self.hnsw.write();
-            if let Some(ref mut hnsw) = hnsw_guard.as_mut() {
-                // Используем parallel_insert_data для максимальной эффективности
-                let data_refs: Vec<_> = data_items.iter().map(|(v, id)| (v, *id)).collect();
-                let _ = &data_refs;
-                Ok::<_, anyhow::Error>(())
-            } else {
+            if hnsw_guard.is_none() {
                 let error = anyhow!("HNSW не инициализирован для параллельной вставки");
                 self.stats.record_error();
                 return Err(error);
@@ -545,11 +538,11 @@ impl VectorIndex {
         // Оптимизированные параметры поиска для sub-5ms
         let ef_search = self.compute_optimal_ef_search(k);
 
-        let results = {
+        let results: Vec<(usize, f32)> = {
             let hnsw_guard = self.hnsw.read();
-            if let Some(ref hnsw) = hnsw_guard.as_ref() {
-                let _ = (query, k, ef_search);
-                Ok(Vec::new())
+            if let Some(hnsw) = hnsw_guard.as_ref() {
+                let found = hnsw.search(&query.to_vec(), ef_search, k);
+                found.into_iter().map(|ne| (ne.d_id, ne.distance)).collect()
             } else {
                 let error = anyhow!("HNSW не инициализирован для поиска");
                 self.stats.record_error();
@@ -558,8 +551,7 @@ impl VectorIndex {
         };
 
         // Конвертируем результаты в простой формат для обработки
-        let simple_results: Vec<(usize, f32)> =
-            results.iter().map(|n| (n.d_id, n.distance)).collect();
+        let simple_results: Vec<(usize, f32)> = results;
 
         // Конвертируем с prefetching для cache efficiency
         let string_results = self.convert_results_optimized(&simple_results, query_norm)?;
@@ -835,19 +827,18 @@ impl VectorIndex {
 
         let ef_search = self.compute_optimal_ef_search(k).min(64); // Ограничиваем для скорости
 
-        let results = {
+        let results: Vec<(usize, f32)> = {
             let hnsw_guard = self.hnsw.read();
-            if let Some(ref hnsw) = hnsw_guard.as_ref() {
-                let _ = (query, k, ef_search);
-                Ok(Vec::new())
+            if let Some(hnsw) = hnsw_guard.as_ref() {
+                let found = hnsw.search(&query.to_vec(), ef_search, k);
+                found.into_iter().map(|ne| (ne.d_id, ne.distance)).collect()
             } else {
                 return Err(anyhow!("HNSW не инициализирован"));
             }
         };
 
         // Конвертируем результаты в простой формат для обработки
-        let simple_results: Vec<(usize, f32)> =
-            results.iter().map(|n| (n.d_id, n.distance)).collect();
+        let simple_results: Vec<(usize, f32)> = results;
 
         let string_results = self.convert_results_fast(&simple_results)?;
 

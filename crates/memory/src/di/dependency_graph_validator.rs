@@ -37,12 +37,12 @@ impl DependencyGraph {
         to_name: Option<String>,
     ) {
         // Добавляем в прямой граф
-        self.graph.entry(from).or_insert_with(Vec::new).push(to);
+        self.graph.entry(from).or_default().push(to);
 
         // Добавляем в обратный граф
         self.reverse_graph
             .entry(to)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(from);
 
         // Сохраняем имена для отладки
@@ -245,7 +245,7 @@ impl DependencyGraphValidator {
 
         let graph = self.graph.read();
         let graph_clone = graph.clone_for_analysis();
-        let cycles = self.detect_cycles_internal(&graph_clone, &*graph);
+        let cycles = self.detect_cycles_internal(&graph_clone, &graph);
 
         if !cycles.is_empty() {
             let mut error_msg = String::from("Обнаружены циклические зависимости:\n");
@@ -274,7 +274,7 @@ impl DependencyGraphValidator {
 
         let graph = self.graph.read();
         let graph_clone = graph.clone_for_analysis();
-        self.detect_cycles_internal(&graph_clone, &*graph)
+        self.detect_cycles_internal(&graph_clone, &graph)
     }
 
     /// Проверить есть ли циклы в графе
@@ -306,7 +306,7 @@ impl DependencyGraphValidator {
         let mut unresolvable = Vec::new();
 
         for &type_id in registered_types {
-            if !self.can_resolve_type(type_id, registered_types, &*graph) {
+            if !self.can_resolve_type(type_id, registered_types, &graph) {
                 unresolvable.push(graph.get_type_name(type_id));
             }
         }
@@ -402,7 +402,7 @@ impl DependencyGraphValidator {
         cycles
     }
 
-    /// DFS для обнаружения циклов
+    #[allow(clippy::too_many_arguments, clippy::only_used_in_recursion)]
     fn dfs_cycle_detection(
         &self,
         node: TypeId,
@@ -434,11 +434,12 @@ impl DependencyGraphValidator {
                     if let Some(cycle_start) = current_path.iter().position(|&x| x == neighbor) {
                         let mut cycle = current_path[cycle_start..].to_vec();
                         cycle.push(neighbor); // Замыкаем цикл
+                        let cycle_for_log = cycle.clone();
                         cycles.push(cycle);
 
                         debug!(
                             "🔄 Обнаружен цикл: {}",
-                            cycle
+                            cycle_for_log
                                 .iter()
                                 .map(|&t| dependency_graph.get_type_name(t))
                                 .collect::<Vec<_>>()

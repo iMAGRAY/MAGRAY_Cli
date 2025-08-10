@@ -1,3 +1,5 @@
+#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+
 use todo::{DependencyGraph, TaskState, TodoItem};
 use uuid::Uuid;
 

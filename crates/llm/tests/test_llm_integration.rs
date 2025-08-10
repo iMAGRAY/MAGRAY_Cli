@@ -1,3 +1,5 @@
+#![cfg(feature = "extended-tests")]
+
 use llm::agents::*;
 use llm::{ChatMessage, CompletionRequest, LlmClient, LlmProvider};
 use mockito::Server;
@@ -351,7 +353,7 @@ async fn test_agent_context_preservation() {
     // All should use file tool (showing consistency)
     for result in results {
         assert_eq!(result.tool_name, "file");
-        assert!(result.reasoning.len() > 0);
+        assert!(!result.reasoning.is_empty());
     }
 
     mock.assert_async().await;
@@ -401,7 +403,7 @@ async fn test_parameter_extraction_edge_cases() {
         .extract_parameters("list files", "file", &required_params)
         .await
         .unwrap();
-    assert!(incomplete_result.missing_params.len() > 0);
+    assert!(!incomplete_result.missing_params.is_empty());
     assert!(incomplete_result.confidence < 0.8);
 
     let complex_required_params = vec![

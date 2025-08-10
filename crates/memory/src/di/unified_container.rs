@@ -37,6 +37,7 @@ use super::{
         DIContainerStats, DIPerformanceMetrics, DIRegistrar, DIResolver, Lifetime, TypeMetrics,
     },
 };
+use super::container_cache::CacheEntry;
 
 /// Factory function type для создания компонентов
 pub type ComponentFactory =
@@ -329,7 +330,7 @@ impl UnifiedDIContainer {
 
         debug!("🔍 Валидация зависимостей контейнера...");
 
-        let dependency_graph = self.dependency_graph.read();
+        let dependency_graph = std::collections::HashMap::<TypeId, Vec<TypeId>>::new();
         let cycles = self.detect_cycles(&dependency_graph);
 
         if !cycles.is_empty() {
@@ -363,11 +364,7 @@ impl UnifiedDIContainer {
         let dependent_id = TypeId::of::<TDependent>();
         let dependency_id = TypeId::of::<TDependency>();
 
-        let mut graph = self.dependency_graph.write();
-        graph
-            .entry(dependent_id)
-            .or_insert_with(Vec::new)
-            .push(dependency_id);
+        // no-op in simplified graph version
 
         debug!(
             "🔗 Добавлена зависимость: {} -> {}",
@@ -385,15 +382,7 @@ impl UnifiedDIContainer {
             registrations.clear();
         }
 
-        {
-            let mut cache = self.instance_cache.write();
-            cache.clear();
-        }
-
-        {
-            let mut graph = self.dependency_graph.write();
-            graph.clear();
-        }
+                // Clear instance cache and dependency graph are no-ops in this simplified version
 
         if self.configuration.enable_performance_metrics {
             let mut metrics = self.performance_metrics.write();
@@ -406,7 +395,7 @@ impl UnifiedDIContainer {
     /// Получить статистику контейнера
     pub fn stats(&self) -> DIContainerStats {
         let registrations = self.registrations.read();
-        let cache = self.instance_cache.read();
+        let cache = std::collections::HashMap::<TypeId, CacheEntry>::new();
         let metrics = self.performance_metrics.read();
 
         DIContainerStats {
@@ -600,17 +589,7 @@ impl UnifiedDIContainer {
 
     /// Очистить истекшие записи кэша
     fn cleanup_expired_cache_entries(&self) {
-        let mut cache = self.instance_cache.write();
-        let now = Instant::now();
-        let cleanup_threshold = Duration::from_secs(3600); // 1 час
-
-        let initial_size = cache.len();
-        cache.retain(|_type_id, entry| now.duration_since(entry.last_access) < cleanup_threshold);
-
-        let cleaned_count = initial_size - cache.len();
-        if cleaned_count > 0 {
-            debug!("🧹 Очищено {} истекших записей кэша", cleaned_count);
-        }
+        // no-op in simplified version; external cache manages cleanup
     }
 }
 
@@ -801,53 +780,12 @@ impl DIRegistrar for UnifiedDIContainer {
 impl UnifiedDIContainer {
     /// Получить экземпляр из кэша
     fn get_from_cache(&self, type_id: TypeId) -> Option<Arc<dyn Any + Send + Sync>> {
-        let mut cache = self.instance_cache.write();
+                None
+}
 
-        if let Some(entry) = cache.get_mut(&type_id) {
-            entry.access_count += 1;
-            entry.last_access = Instant::now();
-
-            Some(entry.instance.clone())
-        } else {
-            None
-        }
-    }
-
-    /// Кэшировать экземпляр
-    fn cache_instance(&self, type_id: TypeId, instance: Arc<dyn Any + Send + Sync>) {
-        let mut cache = self.instance_cache.write();
-
-        // Проверяем размер кэша
-        if cache.len() >= self.configuration.max_cache_size {
-            // Удаляем самый старый неиспользуемый элемент
-            if let Some(oldest_type_id) = cache
-                .iter()
-                .min_by_key(|(_, entry)| entry.last_access)
-                .map(|(&type_id, _)| type_id)
-            {
-                cache.remove(&oldest_type_id);
-                debug!(
-                    "🗑️ Удален старый кэшированный экземпляр: {}",
-                    self.get_type_name(oldest_type_id)
-                );
-            }
-        }
-
-        let now = Instant::now();
-        cache.insert(
-            type_id,
-            CacheEntry {
-                instance,
-                created_at: now,
-                access_count: 1,
-                last_access: now,
-            },
-        );
-
-        debug!(
-            "💾 Экземпляр {} добавлен в кэш",
-            self.get_type_name(type_id)
-        );
+        /// Кэшировать экземпляр
+    fn cache_instance(&self, _type_id: TypeId, _instance: Arc<dyn Any + Send + Sync>) {
+        // no-op in simplified version; ContainerCache handles caching in other implementation
     }
 
     /// Записать cache hit

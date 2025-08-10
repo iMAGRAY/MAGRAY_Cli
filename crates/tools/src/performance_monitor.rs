@@ -162,10 +162,10 @@ pub struct GlobalPerformanceStats {
 impl ToolPerformanceMonitor {
     pub fn new(config: MonitorConfig) -> Self {
         info!("📊 Initializing Tool Performance Monitor");
-
-        let mut global_stats = GlobalPerformanceStats::default();
-        global_stats.start_time = Some(Instant::now());
-
+        let global_stats = GlobalPerformanceStats {
+            start_time: Some(Instant::now()),
+            ..Default::default()
+        };
         Self {
             metrics: Arc::new(RwLock::new(HashMap::new())),
             snapshots: Arc::new(Mutex::new(HashMap::new())),

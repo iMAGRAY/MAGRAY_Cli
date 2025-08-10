@@ -245,9 +245,7 @@ impl ContainerMetricsImpl {
     }
 
     /// Создать metrics collector с default конфигурацией
-    pub fn default() -> Self {
-        Self::new(MetricsConfig::default())
-    }
+    pub fn from_default_config() -> Self { Self::new(MetricsConfig::default()) }
 
     /// Записать успешное разрешение
     pub fn record_resolution_success(&self, type_id: TypeId, duration_ns: u64) {
@@ -608,6 +606,10 @@ impl ContainerMetricsImpl {
     }
 }
 
+impl Default for ContainerMetricsImpl {
+    fn default() -> Self { Self::new(MetricsConfig::default()) }
+}
+
 // Реализация ContainerMetrics trait
 impl ContainerMetrics for ContainerMetricsImpl {
     fn record_resolution_success(&self, type_id: TypeId, duration_ns: u64) {
@@ -667,7 +669,7 @@ mod tests {
     fn test_record_failure() {
         let metrics = ContainerMetricsImpl::new(MetricsConfig::development());
         let type_id = TypeId::of::<String>();
-        let error = DIError::TypeNotRegistered { type_id };
+        let error = DIError::validation_error("Type not registered", Some(format!("{:?}", type_id)), "resolution");
 
         metrics.record_resolution_failure(type_id, &error);
 

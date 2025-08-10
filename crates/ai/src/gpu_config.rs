@@ -252,6 +252,7 @@ impl GpuConfig {
     }
 
     /// DirectML provider stub для non-Windows
+    #[cfg_attr(not(all(feature = "gpu", windows)), allow(dead_code))]
     #[cfg(all(feature = "gpu", not(windows)))]
     fn create_directml_provider(&self) -> Result<ExecutionProviderDispatch> {
         Err(anyhow::anyhow!("DirectML доступен только на Windows"))

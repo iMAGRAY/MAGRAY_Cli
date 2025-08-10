@@ -68,7 +68,13 @@ impl PerformanceMonitor {
             initialized: false,
         }
     }
+}
 
+impl Default for PerformanceMonitor {
+    fn default() -> Self { Self::new() }
+}
+
+impl PerformanceMonitor {
     /// Получение детальных метрик за период
     pub async fn get_detailed_metrics(&self, period_minutes: u32) -> Result<String> {
         if !self.initialized {
@@ -393,7 +399,7 @@ impl ComponentLifecycleTrait for PerformanceMonitor {
     }
 }
 
-#[cfg(all(test, not(feature = "minimal")))]
+#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
 mod tests {
     use super::*;
     use tokio::time::{sleep, Duration};

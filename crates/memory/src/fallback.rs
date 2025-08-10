@@ -67,9 +67,7 @@ impl FallbackEmbeddingService {
             // Fallback если norm слишком маленький - создаем unit vector
             warn!("Generated embedding has very small norm, using fallback unit vector");
             let default_value = 1.0 / (self.dimension as f32).sqrt();
-            for val in &mut embedding {
-                *val = default_value;
-            }
+            embedding.fill(default_value);
         }
 
         // Кэшируем результат только если кэш не переполнен
@@ -336,6 +334,7 @@ pub struct GracefulServiceStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn test_fallback_embedding() {
@@ -373,5 +372,116 @@ mod tests {
         // Без primary provider сервис находится в состоянии fallback по умолчанию
         // но флаг use_fallback не устанавливается до первой ошибки
         assert!(service.primary.is_none());
+    }
+
+    #[test]
+    fn test_embed_batch_empty_and_zero_dim_path() {
+        // Empty batch returns empty
+        let mut svc = FallbackEmbeddingService::new(4);
+        let out = svc.embed_batch(&[]).unwrap();
+        assert!(out.is_empty());
+
+        // Zero-dimension triggers error path inside embed -> fallback zero-length vector in batch
+        let mut svc0 = FallbackEmbeddingService::new(0);
+        let out0 = svc0.embed_batch(&["a".to_string()]).unwrap();
+        assert_eq!(out0.len(), 1);
+        assert_eq!(out0[0].len(), 0);
+    }
+
+    struct MockProvider {
+        dims: usize,
+        available: Arc<Mutex<bool>>,
+        remaining_failures: Arc<Mutex<usize>>,
+    }
+
+    impl EmbeddingProvider for MockProvider {
+        fn embed(&self, _text: &str) -> Result<Vec<f32>> {
+            let mut left = self.remaining_failures.lock().unwrap();
+            if *left > 0 {
+                *left -= 1;
+                return Err(anyhow::anyhow!("forced failure"));
+            }
+            Ok(vec![1.0f32 / (self.dims.max(1) as f32); self.dims])
+        }
+
+        fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+            let mut out = Vec::with_capacity(texts.len());
+            for _ in texts {
+                out.push(self.embed("dummy")?);
+            }
+            Ok(out)
+        }
+
+        fn embedding_dim(&self) -> usize {
+            self.dims
+        }
+
+        fn is_available(&self) -> bool {
+            *self.available.lock().unwrap()
+        }
+    }
+
+    #[test]
+    fn test_failover_after_max_failures_and_try_recover() {
+        let available = Arc::new(Mutex::new(false));
+        let remaining = Arc::new(Mutex::new(2)); // fail twice
+        let provider = MockProvider {
+            dims: 16,
+            available: available.clone(),
+            remaining_failures: remaining.clone(),
+        };
+
+        let mut svc = GracefulEmbeddingService::new(Some(Box::new(provider)), 8, 2);
+
+        // Two failures cause switch to fallback
+        let _ = svc.embed("t1");
+        let _ = svc.embed("t2");
+        assert!(svc.is_using_fallback());
+        assert!(svc.failure_count() >= 2);
+
+        // Make primary available and recover
+        *available.lock().unwrap() = true;
+        assert!(svc.try_recover());
+        assert!(!svc.is_using_fallback());
+        assert_eq!(svc.failure_count(), 0);
+
+        // Now embed succeeds via primary
+        let emb = svc.embed("ok").unwrap();
+        assert_eq!(emb.len(), 16);
+    }
+
+    #[test]
+    fn test_force_fallback_and_status() {
+        let available = Arc::new(Mutex::new(false));
+        let remaining = Arc::new(Mutex::new(0));
+        let provider = MockProvider {
+            dims: 32,
+            available: available.clone(),
+            remaining_failures: remaining.clone(),
+        };
+        let mut svc = GracefulEmbeddingService::new(Some(Box::new(provider)), 12, 1);
+        svc.force_fallback();
+        assert!(svc.is_using_fallback());
+        let emb = svc.embed("x").unwrap();
+        assert_eq!(emb.len(), 12);
+
+        let st = svc.status();
+        assert!(!st.primary_available);
+        assert!(st.using_fallback);
+        assert_eq!(st.max_failures, 1);
+    }
+
+    #[test]
+    fn test_embedding_dim_primary_zero_falls_back() {
+        let available = Arc::new(Mutex::new(true));
+        let remaining = Arc::new(Mutex::new(0));
+        let provider = MockProvider {
+            dims: 0, // pathological provider returns 0
+            available: available.clone(),
+            remaining_failures: remaining.clone(),
+        };
+        let svc = GracefulEmbeddingService::new(Some(Box::new(provider)), 24, 1);
+        // Not using fallback flag, but primary dim is 0 -> should fallback to 24
+        assert_eq!(svc.embedding_dim(), 24);
     }
 }

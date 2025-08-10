@@ -175,7 +175,7 @@ pub struct PipelineMetrics {
 /// Improved execution pipeline with resource management
 pub struct ExecutionPipeline {
     /// Available tools registry
-    tools: Arc<RwLock<HashMap<String, (Arc<dyn Tool>, ToolMetadata)>>>,
+    tools: Arc<RwLock<ToolStoreMap>>,
 
     /// Resource manager for execution control
     resource_manager: Arc<ResourceManager>,
@@ -235,8 +235,13 @@ impl ExecutionPipeline {
                 .map(|e| e.description.clone())
                 .collect(),
             input_schema: metadata.input_schema.to_string(),
+            usage_guide: None,
+            permissions: None,
+            supports_dry_run: false,
         };
-        self.tool_selector.register_tool(tool_spec).await;
+        let mut spec_with_guide = tool_spec.clone();
+        spec_with_guide.usage_guide = Some(crate::generate_usage_guide(&tool_spec));
+        self.tool_selector.register_tool(spec_with_guide).await;
 
         // Initialize circuit breaker
         {
@@ -543,20 +548,17 @@ impl ExecutionPipeline {
 
             breaker.total_requests += 1;
 
-            match breaker.state {
-                CircuitBreakerState::Open => {
-                    // Check if we should try half-open
-                    if let Some(last_failure) = breaker.last_failure_time {
-                        if last_failure.elapsed() > self.circuit_config.recovery_timeout {
-                            breaker.state = CircuitBreakerState::HalfOpen;
-                            breaker.success_count = 0;
-                            info!("🔄 Circuit breaker for {} moved to half-open", tool_id);
-                        } else {
-                            return Err(anyhow!("Circuit breaker is open for tool: {}", tool_id));
-                        }
+            if matches!(breaker.state, CircuitBreakerState::Open) {
+                // Check if we should try half-open
+                if let Some(last_failure) = breaker.last_failure_time {
+                    if last_failure.elapsed() > self.circuit_config.recovery_timeout {
+                        breaker.state = CircuitBreakerState::HalfOpen;
+                        breaker.success_count = 0;
+                        info!("🔄 Circuit breaker for {} moved to half-open", tool_id);
+                    } else {
+                        return Err(anyhow!("Circuit breaker is open for tool: {}", tool_id));
                     }
                 }
-                _ => {}
             }
         }
 
@@ -567,19 +569,15 @@ impl ExecutionPipeline {
                 {
                     let mut breakers = self.circuit_breakers.lock().await;
                     if let Some(breaker) = breakers.get_mut(tool_id) {
-                        match breaker.state {
-                            CircuitBreakerState::HalfOpen => {
-                                breaker.success_count += 1;
-                                if breaker.success_count >= self.circuit_config.success_threshold {
-                                    breaker.state = CircuitBreakerState::Closed;
-                                    breaker.failure_count = 0;
-                                    info!("✅ Circuit breaker for {} closed", tool_id);
-                                }
+                        if matches!(breaker.state, CircuitBreakerState::HalfOpen) {
+                            breaker.success_count += 1;
+                            if breaker.success_count >= self.circuit_config.success_threshold {
+                                breaker.state = CircuitBreakerState::Closed;
+                                breaker.failure_count = 0;
+                                info!("✅ Circuit breaker for {} closed", tool_id);
                             }
-                            CircuitBreakerState::Closed => {
-                                breaker.failure_count = 0; // Reset on success
-                            }
-                            _ => {}
+                        } else if matches!(breaker.state, CircuitBreakerState::Closed) {
+                            breaker.failure_count = 0; // Reset on success
                         }
                     }
                 }
@@ -782,6 +780,8 @@ impl ExecutionPipeline {
             command: candidate.tool_name.clone(),
             args: HashMap::new(),
             context: Some(context.user_query.clone()),
+            dry_run: false,
+            timeout_ms: None,
         })
     }
 
@@ -884,6 +884,9 @@ impl ExecutionPipeline {
         )
     }
 }
+
+/// Type alias to reduce type complexity in signatures
+type ToolStoreMap = HashMap<String, (Arc<dyn Tool>, ToolMetadata)>;
 
 #[cfg(test)]
 mod tests {

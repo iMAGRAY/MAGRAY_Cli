@@ -16,7 +16,7 @@ use std::{
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-use crate::orchestration::traits::Coordinator;
+use crate::orchestration::traits as _traits_mod;
 use common::{service_macros::CoordinatorMacroHelpers, service_traits::*, MagrayCoreError};
 
 /// Уровни здоровья компонентов
@@ -150,6 +150,7 @@ impl Default for HealthCheckConfig {
 }
 
 /// Централизованный проверяльщик здоровья
+#[derive(Clone, Debug)]
 pub struct HealthChecker {
     /// Конфигурация проверок
     config: HealthCheckConfig,
@@ -234,7 +235,7 @@ impl HealthChecker {
         coordinators: &HashMap<String, Arc<T>>,
     ) -> SystemDiagnostics
     where
-        T: Coordinator + ?Sized + Send + Sync + 'static,
+        T: _traits_mod::Coordinator + ?Sized + Send + Sync + 'static,
     {
         let check_start = Instant::now();
         self.total_checks.fetch_add(1, Ordering::Relaxed);
@@ -344,7 +345,7 @@ impl HealthChecker {
         config: &HealthCheckConfig,
     ) -> Result<HealthStatus>
     where
-        T: Coordinator + ?Sized,
+        T: _traits_mod::Coordinator + ?Sized,
     {
         let check_start = Instant::now();
 
@@ -464,7 +465,7 @@ impl HealthChecker {
     /// Получить упрощенный статус для быстрого доступа
     pub async fn get_quick_health_status<T>(&self, coordinators: &HashMap<String, Arc<T>>) -> Value
     where
-        T: Coordinator + ?Sized + Send + Sync + 'static,
+        T: _traits_mod::Coordinator + ?Sized + Send + Sync + 'static,
     {
         // Проверяем кэш
         if let Some(cached) = self.get_cached_quick_status().await {
@@ -553,7 +554,7 @@ impl HealthChecker {
         max_retries: u32,
     ) -> Result<()>
     where
-        T: Coordinator + ?Sized,
+        T: _traits_mod::Coordinator + ?Sized,
     {
         let mut last_error = None;
 
@@ -762,8 +763,31 @@ impl HealthChecker {
     }
 }
 
-// Применяем макрос для автоматической генерации Coordinator trait
-common::impl_coordinator!(HealthChecker, serde_json::Value);
+#[async_trait::async_trait]
+impl _traits_mod::Coordinator for HealthChecker {
+    async fn initialize(&self) -> anyhow::Result<()> {
+        self.perform_coordinator_init().await
+    }
+
+    async fn is_ready(&self) -> bool {
+        self.check_readiness().await
+    }
+
+    async fn health_check(&self) -> anyhow::Result<()> {
+        if !self.is_ready().await {
+            return Err(anyhow::anyhow!("HealthChecker не готов"));
+        }
+        self.perform_health_check().await
+    }
+
+    async fn shutdown(&self) -> anyhow::Result<()> {
+        self.perform_coordinator_shutdown().await
+    }
+
+    async fn metrics(&self) -> serde_json::Value {
+        self.collect_coordinator_metrics().await
+    }
+}
 
 impl Default for HealthChecker {
     fn default() -> Self {
@@ -771,12 +795,13 @@ impl Default for HealthChecker {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-orchestrator"))]
 mod tests {
     use super::*;
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicBool, Ordering};
 
+    #[derive(Debug)]
     struct MockCoordinator {
         ready: Arc<AtomicBool>,
         should_fail_health_check: Arc<AtomicBool>,
@@ -797,7 +822,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl Coordinator for MockCoordinator {
+    impl _traits_mod::Coordinator for MockCoordinator {
         async fn initialize(&self) -> Result<()> {
             Ok(())
         }

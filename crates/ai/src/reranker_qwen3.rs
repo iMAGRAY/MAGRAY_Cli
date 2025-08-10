@@ -1,9 +1,11 @@
 use crate::memory_pool::GLOBAL_MEMORY_POOL;
-use crate::RerankingConfig;
+use crate::{ModelLoader, RerankingConfig};
+use crate::should_disable_ort;
+use crate::tokenization::OptimizedTokenizer;
 #[cfg(feature = "gpu")]
-use crate::{GpuConfig, GpuInfo};
+use crate::GpuInfo;
 use anyhow::Result as AnyhowResult;
-use common::service_traits::StatisticsProvider;
+// use common::service_traits::StatisticsProvider;
 use ort::{inputs, session::Session, value::Tensor};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -12,10 +14,15 @@ use tracing::{debug, info, warn};
 
 /// Optimized Qwen3 Reranker Service with batch processing and memory pooling
 pub struct OptimizedQwen3RerankerService {
-    session: Arc<Mutex<Session>>,
+    inner: RerankerInner,
     model_path: PathBuf,
     max_seq_length: usize,
     batch_size: usize,
+}
+
+enum RerankerInner {
+    Ort(Arc<Mutex<Session>>),
+    Fallback,
 }
 
 /// Batch reranking input
@@ -45,17 +52,20 @@ pub struct BatchRerankResult {
 }
 
 impl OptimizedQwen3RerankerService {
+    pub fn model_path(&self) -> &PathBuf { &self.model_path }
     /// Create new optimized Qwen3 reranker service with GPU support
     pub fn new_with_config(config: RerankingConfig) -> AnyhowResult<Self> {
-        let model_path = PathBuf::from(format!(
-            "crates/memory/models/{}/model.onnx",
-            config.model_name
-        ));
+        // Centralized models directory
+        let models_dir = std::env::var("MAGRAY_MODELS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("models"));
+        let model_path = models_dir.join(&config.model_name).join("model.onnx");
         let max_seq_length = config.max_length;
         let batch_size = config.batch_size;
         info!("Initializing OPTIMIZED Qwen3 reranker service");
         info!("   Max sequence length: {}", max_seq_length);
         info!("   Batch size: {}", batch_size);
+        info!("   Model path: {}", model_path.display());
 
         // Setup DLL path for Windows
         #[cfg(target_os = "windows")]
@@ -76,8 +86,52 @@ impl OptimizedQwen3RerankerService {
             }
         }
 
-        // Initialize ONNX Runtime
-        ort::init().with_name("optimized_qwen3_reranker").commit()?;
+        // Initialize ONNX Runtime or fallback
+        let inner = if should_disable_ort() {
+            warn!("ORT disabled by MAGRAY_FORCE_NO_ORT; using fallback text-overlap reranker");
+            RerankerInner::Fallback
+        } else {
+            crate::ort_setup::configure_ort_env();
+            ort::init().with_name("optimized_qwen3_reranker").commit()?;
+            // Create optimized session
+            #[cfg(feature = "gpu")]
+            let mut session_builder = Session::builder()?
+                .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
+                .with_intra_threads(4)?
+                .with_memory_pattern(true)?; // Enable memory pattern optimization
+
+            #[cfg(not(feature = "gpu"))]
+            let session_builder = Session::builder()?
+                .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
+                .with_intra_threads(4)?
+                .with_memory_pattern(true)?; // Enable memory pattern optimization
+
+            // Добавляем GPU провайдеры если нужно
+            #[cfg(feature = "gpu")]
+            if config.use_gpu {
+                if let Some(ref gpu_config) = config.gpu_config {
+                    match gpu_config.create_providers() {
+                        Ok(providers) => {
+                            if !providers.is_empty() {
+                                info!(
+                                    "🚀 Добавляем {} GPU провайдеров для reranker",
+                                    providers.len()
+                                );
+                                session_builder =
+                                    session_builder.with_execution_providers(providers)?;
+                            }
+                        }
+                        Err(e) => {
+                            warn!("⚠️ Ошибка создания GPU провайдеров: {}. Используем CPU.", e);
+                        }
+                    }
+                }
+            }
+
+            let session = session_builder.commit_from_file(&model_path)?;
+            info!("✅ OPTIMIZED Qwen3 reranker session created");
+            RerankerInner::Ort(Arc::new(Mutex::new(session)))
+        };
 
         // Проверяем доступность GPU
         #[cfg(feature = "gpu")]
@@ -90,81 +144,8 @@ impl OptimizedQwen3RerankerService {
             }
         }
 
-        // Create optimized session
-        #[cfg(feature = "gpu")]
-        let mut session_builder = Session::builder()?
-            .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
-            .with_intra_threads(4)?
-            .with_memory_pattern(true)?; // Enable memory pattern optimization
-
-        #[cfg(not(feature = "gpu"))]
-        let session_builder = Session::builder()?
-            .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
-            .with_intra_threads(4)?
-            .with_memory_pattern(true)?; // Enable memory pattern optimization
-
-        // Добавляем GPU провайдеры если нужно
-        #[cfg(feature = "gpu")]
-        if config.use_gpu {
-            if let Some(ref gpu_config) = config.gpu_config {
-                match gpu_config.create_providers() {
-                    Ok(providers) => {
-                        if !providers.is_empty() {
-                            info!(
-                                "🚀 Добавляем {} GPU провайдеров для reranker",
-                                providers.len()
-                            );
-                            session_builder =
-                                session_builder.with_execution_providers(providers)?;
-                        } else {
-                            warn!("⚠️ GPU провайдеры не созданы для reranker, используем CPU");
-                        }
-                    }
-                    Err(e) => {
-                        warn!(
-                            "⚠️ Ошибка создания GPU провайдеров для reranker: {}. Используем CPU.",
-                            e
-                        );
-                    }
-                }
-            } else if config.use_gpu {
-                // Если use_gpu=true но gpu_config=None, создаём дефолтный
-                let default_gpu_config = GpuConfig::default();
-                match default_gpu_config.create_providers() {
-                    Ok(providers) => {
-                        if !providers.is_empty() {
-                            info!("🚀 Используем дефолтную GPU конфигурацию для reranker");
-                            session_builder =
-                                session_builder.with_execution_providers(providers)?;
-                        }
-                    }
-                    Err(e) => {
-                        warn!(
-                            "⚠️ Ошибка создания дефолтных GPU провайдеров для reranker: {}",
-                            e
-                        );
-                    }
-                }
-            }
-        }
-
-        let session = session_builder.commit_from_file(&model_path)?;
-
-        info!("✅ OPTIMIZED Qwen3 reranker session created");
-        info!("   Model: {}", model_path.display());
-        info!("   Inputs: {}", session.inputs.len());
-        info!("   Outputs: {}", session.outputs.len());
-
-        // Verify it's the expected Qwen3 model (3 inputs for Qwen3)
-        if session.inputs.len() != 3 {
-            warn!(
-                "Expected 3 inputs for Qwen3 reranker, got {}",
-                session.inputs.len()
-            );
-        }
-
         Ok(Self {
-            session: Arc::new(Mutex::new(session)),
+            inner,
             model_path,
             max_seq_length,
             batch_size,
@@ -204,6 +185,26 @@ impl OptimizedQwen3RerankerService {
                 total_time_ms: 0,
                 throughput_docs_per_sec: 0.0,
             });
+        }
+
+        // Fallback path: simple token-overlap scoring
+        if matches!(self.inner, RerankerInner::Fallback) {
+            let mut results: Vec<OptimizedRerankResult> = documents
+                .iter()
+                .enumerate()
+                .map(|(i, d)| OptimizedRerankResult {
+                    query: query.clone(),
+                    document: d.clone(),
+                    score: fallback_overlap_score(query, d),
+                    index: i,
+                    processing_time_ms: 0,
+                })
+                .collect();
+            results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+            if let Some(k) = batch.top_k { results.truncate(k); }
+            let total_time = start_time.elapsed().as_millis();
+            let throughput = 1000.0 * documents.len() as f64 / (total_time.max(1)) as f64;
+            return Ok(BatchRerankResult { results, total_time_ms: total_time, throughput_docs_per_sec: throughput });
         }
 
         // Process documents in optimized batches
@@ -265,8 +266,10 @@ impl OptimizedQwen3RerankerService {
         let batch_size = documents.len();
         debug!("Processing optimized batch of {} documents", batch_size);
 
-        // Tokenize all query-document pairs in batch
-        let batch_tokenized = self.tokenize_batch(query, documents);
+        // Tokenize all query-document pairs in batch using OptimizedTokenizer
+        let tokenizer = self.create_tokenizer()?;
+        let pairs: Vec<(&str, &str)> = documents.iter().map(|d| (query, d.as_str())).collect();
+        let mut batch_tokenized = tokenizer.encode_batch_pairs(&pairs)?;
 
         // Find maximum sequence length for padding
         let max_len = batch_tokenized
@@ -279,6 +282,9 @@ impl OptimizedQwen3RerankerService {
 
         debug!("Batch max length: {}, padded to: {}", max_len, padded_len);
 
+        // Pad to uniform length
+        tokenizer.pad_batch(&mut batch_tokenized, Some(padded_len))?;
+
         // Use memory pools for batch data
         let total_elements = batch_size * padded_len;
         let mut flat_input_ids = GLOBAL_MEMORY_POOL.get_input_buffer(total_elements);
@@ -289,31 +295,13 @@ impl OptimizedQwen3RerankerService {
         for i in 0..batch_size {
             let input_ids = &batch_tokenized.input_ids[i];
             let attention_mask = &batch_tokenized.attention_masks[i];
-            let position_ids = &batch_tokenized.position_ids[i];
 
-            // Pad to uniform length
-            let actual_len = input_ids.len().min(padded_len);
+            flat_input_ids.extend_from_slice(&input_ids[..padded_len]);
+            flat_attention_masks.extend_from_slice(&attention_mask[..padded_len]);
 
-            // Add padded input_ids
-            flat_input_ids.extend_from_slice(&input_ids[..actual_len]);
-            if actual_len < padded_len {
-                flat_input_ids.extend(vec![1i64; padded_len - actual_len]); // PAD token
-            }
-
-            // Add padded attention_mask
-            flat_attention_masks.extend_from_slice(&attention_mask[..actual_len]);
-            if actual_len < padded_len {
-                flat_attention_masks.extend(vec![0i64; padded_len - actual_len]);
-                // Ignore padded positions
-            }
-
-            // Add padded position_ids
-            flat_position_ids.extend_from_slice(&position_ids[..actual_len]);
-            if actual_len < padded_len {
-                // Continue position sequence for padding
-                for pos in actual_len..padded_len {
-                    flat_position_ids.push(pos as i64);
-                }
+            // Compute position ids [0..padded_len)
+            for pos in 0..padded_len {
+                flat_position_ids.push(pos as i64);
             }
         }
 
@@ -325,22 +313,25 @@ impl OptimizedQwen3RerankerService {
         let position_ids_tensor =
             Tensor::from_array(([batch_size, padded_len], flat_position_ids.to_vec()))?;
 
-        // Single ONNX call for entire batch
-        let mut session = self
-            .session
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
-
-        let outputs = session.run(inputs![
-            "input_ids" => input_ids_tensor,
-            "attention_mask" => attention_mask_tensor,
-            "position_ids" => position_ids_tensor
-        ])?;
-
-        // Buffers are automatically returned to pool via Drop trait
-
-        // Extract batch scores
-        let scores = self.extract_batch_scores(&outputs, batch_size)?;
+        // Single ONNX call for entire batch, extract scores while session is alive
+        let scores: Vec<f32> = match &self.inner {
+            RerankerInner::Ort(session_arc) => {
+                let mut session = session_arc
+                    .lock()
+                    .map_err(|e| anyhow::anyhow!("Session lock error: {}", e))?;
+                let outputs = session.run(inputs![
+                    "input_ids" => input_ids_tensor,
+                    "attention_mask" => attention_mask_tensor,
+                    "position_ids" => position_ids_tensor
+                ])?;
+                // Extract while outputs borrows session internals
+                self.extract_batch_scores(&outputs, batch_size)?
+            }
+            RerankerInner::Fallback => {
+                // Should not reach here, rerank_batch handles fallback early
+                return Err(anyhow::anyhow!("Fallback path should not call process_batch_optimized"));
+            }
+        };
 
         // Create results
         let mut results = Vec::with_capacity(batch_size);
@@ -358,67 +349,14 @@ impl OptimizedQwen3RerankerService {
         Ok(results)
     }
 
-    /// Tokenize query with multiple documents in batch
-    fn tokenize_batch(&self, query: &str, documents: &[String]) -> BatchTokenizedPairs {
-        let mut batch_input_ids = Vec::with_capacity(documents.len());
-        let mut batch_attention_masks = Vec::with_capacity(documents.len());
-        let mut batch_position_ids = Vec::with_capacity(documents.len());
-
-        for document in documents {
-            let (input_ids, attention_mask, position_ids) =
-                self.tokenize_pair_optimized(query, document);
-
-            batch_input_ids.push(input_ids);
-            batch_attention_masks.push(attention_mask);
-            batch_position_ids.push(position_ids);
-        }
-
-        BatchTokenizedPairs {
-            input_ids: batch_input_ids,
-            attention_masks: batch_attention_masks,
-            position_ids: batch_position_ids,
-        }
-    }
-
-    /// Optimized tokenization for query-document pairs with memory pooling
-    fn tokenize_pair_optimized(
-        &self,
-        query: &str,
-        document: &str,
-    ) -> (Vec<i64>, Vec<i64>, Vec<i64>) {
-        // Use memory pools for tokenization buffers
-        let mut query_tokens = GLOBAL_MEMORY_POOL.get_input_buffer(128);
-        let mut doc_tokens = GLOBAL_MEMORY_POOL.get_input_buffer(256);
-
-        // Simple hash-based tokenization (can be replaced with real tokenizer later)
-        for word in query.split_whitespace().take(128) {
-            let word_hash = word.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
-            query_tokens.push((word_hash % 30000 + 1000) as i64);
-        }
-
-        for word in document.split_whitespace().take(256) {
-            let word_hash = word.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
-            doc_tokens.push((word_hash % 30000 + 1000) as i64);
-        }
-
-        // Create combined input: [CLS] query [SEP] document
-        let mut input_ids = vec![0i64]; // CLS token
-        input_ids.extend_from_slice(&query_tokens);
-        input_ids.push(2i64); // SEP token
-        input_ids.extend_from_slice(&doc_tokens);
-
-        // Truncate if too long
-        if input_ids.len() > self.max_seq_length {
-            input_ids.truncate(self.max_seq_length);
-        }
-
-        let seq_len = input_ids.len();
-        let attention_mask = vec![1i64; seq_len];
-        let position_ids: Vec<i64> = (0..seq_len as i64).collect();
-
-        // Buffers are automatically returned to pool via Drop trait
-
-        (input_ids, attention_mask, position_ids)
+    fn create_tokenizer(&self) -> AnyhowResult<OptimizedTokenizer> {
+        // Derive tokenizer path using ModelLoader to handle variants
+        let models_dir = std::env::var("MAGRAY_MODELS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("models"));
+        let loader = ModelLoader::new(&models_dir)?;
+        let tokenizer_path = loader.get_tokenizer_path("qwen3_reranker");
+        OptimizedTokenizer::new(tokenizer_path, self.max_seq_length)
     }
 
     /// Extract scores from batch outputs
@@ -431,49 +369,8 @@ impl OptimizedQwen3RerankerService {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
 
-                // Qwen3 reranker outputs logits [batch_size, seq_len, vocab_size]
-                if shape_vec.len() == 3 && shape_vec[0] == batch_size as i64 {
-                    let seq_len = shape_vec[1] as usize;
-                    let vocab_size = shape_vec[2] as usize;
-
-                    debug!(
-                        "Extracting scores from batch output: [{}, {}, {}]",
-                        batch_size, seq_len, vocab_size
-                    );
-
-                    let mut scores = Vec::with_capacity(batch_size);
-
-                    // Extract score for each item in batch
-                    for batch_idx in 0..batch_size {
-                        let batch_offset = batch_idx * seq_len * vocab_size;
-                        let last_token_start = batch_offset + (seq_len - 1) * vocab_size;
-
-                        if last_token_start + 100 < data.len() {
-                            // Take average of some logits as proxy score
-                            let mut sum = 0.0f32;
-                            for i in 0..100 {
-                                sum += data[last_token_start + i];
-                            }
-                            let score = (sum / 100.0).tanh(); // Normalize to [-1, 1] range
-                            scores.push(score);
-                        } else {
-                            scores.push(0.0); // Fallback score
-                        }
-                    }
-
-                    debug!("Extracted {} batch scores", scores.len());
+                if let Some(scores) = try_extract_scores_from_shape_and_data(batch_size, &shape_vec, data) {
                     return Ok(scores);
-                } else if shape_vec.len() == 2 && shape_vec[0] == batch_size as i64 {
-                    // Direct score outputs [batch_size, num_classes]
-                    if shape_vec[1] == 1 {
-                        // Single score per batch item
-                        let scores: Vec<f32> = (0..batch_size).map(|i| data[i]).collect();
-                        return Ok(scores);
-                    } else if shape_vec[1] == 2 {
-                        // Binary classification logits [negative, positive]
-                        let scores: Vec<f32> = (0..batch_size).map(|i| data[i * 2 + 1]).collect(); // Take positive scores
-                        return Ok(scores);
-                    }
                 }
             }
         }
@@ -482,51 +379,77 @@ impl OptimizedQwen3RerankerService {
             "Could not extract batch reranking scores from model outputs"
         ))
     }
+}
 
-    /// Single document reranking (fallback for compatibility)
-    pub fn rerank(
-        &self,
-        query: &str,
-        documents: &[String],
-        top_k: Option<usize>,
-    ) -> AnyhowResult<Vec<OptimizedRerankResult>> {
-        let batch = RerankBatch {
-            query: query.to_string(),
-            documents: documents.to_vec(),
-            top_k,
-        };
+/// Pure helper: extract scores from a tensor described by shape and flat data
+pub(crate) fn try_extract_scores_from_shape_and_data(
+    batch_size: usize,
+    shape_vec: &[i64],
+    data: &[f32],
+) -> Option<Vec<f32>> {
+    // 3D logits [batch_size, seq_len, vocab_size]
+    if shape_vec.len() == 3 && shape_vec[0] == batch_size as i64 {
+        let seq_len = shape_vec[1] as usize;
+        let vocab_size = shape_vec[2] as usize;
+        if seq_len == 0 || vocab_size == 0 {
+            return None;
+        }
 
-        let batch_result = self.rerank_batch(&batch)?;
-        Ok(batch_result.results)
+        let mut scores = Vec::with_capacity(batch_size);
+        for batch_idx in 0..batch_size {
+            let batch_offset = batch_idx * seq_len * vocab_size;
+            let last_token_start = batch_offset + (seq_len.saturating_sub(1)) * vocab_size;
+            if last_token_start + 100 < data.len() {
+                let mut sum = 0.0f32;
+                for i in 0..100 {
+                    sum += data[last_token_start + i];
+                }
+                let score = (sum / 100.0).tanh();
+                scores.push(score);
+            } else {
+                scores.push(0.0);
+            }
+        }
+        return Some(scores);
     }
 
-    /// Get service statistics including memory pool stats
-    pub fn get_stats(&self) -> RerankServiceStats {
-        RerankServiceStats {
-            model_name: "qwen3-optimized".to_string(),
-            max_seq_length: self.max_seq_length,
-            batch_size: self.batch_size,
-            optimization_level: "Level3+MemoryPool+Batch".to_string(),
+    // 2D logits [batch_size, num_classes]
+    if shape_vec.len() == 2 && shape_vec[0] == batch_size as i64 {
+        let num_classes = shape_vec[1] as usize;
+        if num_classes == 1 {
+            let mut out = Vec::with_capacity(batch_size);
+            for i in 0..batch_size {
+                out.push(data.get(i).copied().unwrap_or(0.0));
+            }
+            return Some(out);
+        } else if num_classes == 2 {
+            let mut out = Vec::with_capacity(batch_size);
+            for i in 0..batch_size {
+                let idx = i * 2 + 1;
+                out.push(data.get(idx).copied().unwrap_or(0.0));
+            }
+            return Some(out);
         }
     }
 
-    /// Get memory pool statistics
-    pub fn get_pool_stats(&self) -> crate::memory_pool::PoolStats {
-        GLOBAL_MEMORY_POOL.get_stats()
-    }
-
-    /// Check if model is available
-    pub fn is_available(&self) -> bool {
-        self.model_path.exists()
-    }
+    None
 }
 
-/// Batch tokenized pairs
-#[derive(Debug)]
-struct BatchTokenizedPairs {
-    pub input_ids: Vec<Vec<i64>>,
-    pub attention_masks: Vec<Vec<i64>>,
-    pub position_ids: Vec<Vec<i64>>,
+/// Single document reranking (fallback for compatibility)
+pub fn rerank(
+    query: &str,
+    documents: &[String],
+    top_k: Option<usize>,
+) -> AnyhowResult<Vec<OptimizedRerankResult>> {
+    let batch = RerankBatch {
+        query: query.to_string(),
+        documents: documents.to_vec(),
+        top_k,
+    };
+
+    let service = OptimizedQwen3RerankerService::new(PathBuf::from("test_models/qwen3_reranker/model.onnx"), 512, 8)?;
+    let batch_result = service.rerank_batch(&batch)?;
+    Ok(batch_result.results)
 }
 
 /// Service statistics
@@ -538,12 +461,32 @@ pub struct RerankServiceStats {
     pub optimization_level: String,
 }
 
+/// Very simple text-overlap scoring for fallback mode (Jaccard on lowercased token sets)
+fn fallback_overlap_score(query: &str, doc: &str) -> f32 {
+    fn tokenize(s: &str) -> std::collections::HashSet<String> {
+        s.split(|c: char| !c.is_alphanumeric())
+            .filter(|t| !t.is_empty())
+            .map(|t| t.to_lowercase())
+            .collect()
+    }
+    let q = tokenize(query);
+    let d = tokenize(doc);
+    if q.is_empty() || d.is_empty() { return 0.0; }
+    let inter = q.intersection(&d).count() as f32;
+    let union = q.union(&d).count() as f32;
+    if union <= 0.0 { 0.0 } else { inter / union }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_optimized_reranker_creation() {
+        if std::env::var("ORT_DYLIB_PATH").is_err() {
+            eprintln!("Skipping reranker test: ORT_DYLIB_PATH not set");
+            return;
+        }
         let model_path = PathBuf::from("test_models/qwen3_reranker/model.onnx");
 
         match OptimizedQwen3RerankerService::new(model_path, 512, 8) {
@@ -575,5 +518,61 @@ mod tests {
         assert_eq!(batch.documents.len(), 3);
         assert_eq!(batch.top_k, Some(2));
         assert!(!batch.query.is_empty());
+    }
+
+    #[test]
+    fn test_try_extract_scores_3d_small_shape_returns_zero() {
+        // Shape [2, 3, 4] -> len(data)=24; last_token_start+100 will exceed len => zeros
+        let batch = 2usize;
+        let shape = [2i64, 3, 4];
+        let data = vec![0.5f32; (2 * 3 * 4) as usize];
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data).unwrap();
+        assert_eq!(scores.len(), 2);
+        assert_eq!(scores[0], 0.0);
+        assert_eq!(scores[1], 0.0);
+    }
+
+    #[test]
+    fn test_try_extract_scores_3d_large_shape_averages_and_tanh() {
+        // Shape [1, 2, 200] -> len=400; last_token_start=200; avg of next 100 values
+        let batch = 1usize;
+        let shape = [1i64, 2, 200];
+        let mut data = vec![0.0f32; (1 * 2 * 200) as usize];
+        // Fill last 100 values starting at 200 with 0..100
+        for i in 0..100usize {
+            data[200 + i] = i as f32;
+        }
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data).unwrap();
+        assert_eq!(scores.len(), 1);
+        // Average of 0..99 = 49.5, tanh(49.5) ~ 1.0
+        assert!(scores[0] > 0.99);
+    }
+
+    #[test]
+    fn test_try_extract_scores_2d_single_class() {
+        let batch = 3usize;
+        let shape = [3i64, 1];
+        let data = vec![0.1f32, 0.2, 0.3];
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data).unwrap();
+        assert_eq!(scores, vec![0.1, 0.2, 0.3]);
+    }
+
+    #[test]
+    fn test_try_extract_scores_2d_binary_class() {
+        let batch = 3usize;
+        let shape = [3i64, 2];
+        // [neg,pos] per row
+        let data = vec![0.0f32, 0.5, 0.2, 0.7, -0.1, 0.9];
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data).unwrap();
+        assert_eq!(scores, vec![0.5, 0.7, 0.9]);
+    }
+
+    #[test]
+    fn test_try_extract_scores_none_for_mismatched_shape() {
+        let batch = 2usize;
+        let shape = [2i64, 3, 0]; // invalid vocab size
+        let data = vec![0.0f32; 0];
+        let scores = try_extract_scores_from_shape_and_data(batch, &shape, &data);
+        assert!(scores.is_none());
     }
 }

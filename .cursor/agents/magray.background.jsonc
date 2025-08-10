@@ -1,0 +1,75 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cursor-rules/schemas/main/background-agent.schema.json",
+  "name": "MAGRAY Dev Background Agent",
+  "description": "Автонастройка окружения, проверка кода, тесты и генерация отчётов по проекту MAGRAY.",
+  "triggers": {
+    "onRepoOpen": true,
+    "onBranchChange": true,
+    "onSchedule": "0 */6 * * *"
+  },
+  "env": {
+    "RUSTUP_TOOLCHAIN": "nightly",
+    "CARGO_TERM_COLOR": "always",
+    "RUSTFLAGS": "-C target-cpu=native",
+    "MAGRAY_NO_ANIM": "1",
+    "MAGRAY_SKIP_AUTO_INSTALL": "1"
+  },
+  "permissions": {
+    "defaultDeny": true,
+    "allowedCommands": [
+      "bash", "sh", "cargo", "rustup", "git", "rg", "grep", "sed", "awk", "jq", "python3", "make"
+    ],
+    "dangerousCommands": ["apt-get", "docker", "podman"],
+    "requireConfirmationForDangerous": true
+  },
+  "setup": {
+    "steps": [
+      { "cmd": "bash", "args": ["scripts/agents/bootstrap.sh", "--non-interactive"], "timeoutSec": 1800 }
+    ],
+    "continueOnError": true
+  },
+  "tasks": [
+    {
+      "id": "code-health",
+      "name": "Code Health",
+      "run": [
+        { "cmd": "bash", "args": ["-lc", "cargo fmt --all -- --check || true"], "timeoutSec": 600 },
+        { "cmd": "bash", "args": ["-lc", "cargo clippy --workspace -q -D warnings || true"], "timeoutSec": 2400 },
+        { "cmd": "bash", "args": ["-lc", "cargo check --workspace"], "timeoutSec": 3600 }
+      ],
+      "continueOnError": true
+    },
+    {
+      "id": "unit-tests",
+      "name": "Unit & Integration Tests",
+      "run": [
+        { "cmd": "bash", "args": ["-lc", "cargo test --workspace -- --nocapture"], "timeoutSec": 7200 }
+      ],
+      "continueOnError": true
+    },
+    {
+      "id": "docs-audit",
+      "name": "Docs Audit & Report",
+      "run": [
+        { "cmd": "bash", "args": ["scripts/agents/analyze_project.sh"], "timeoutSec": 2400 }
+      ],
+      "continueOnError": true
+    },
+    {
+      "id": "container-smoke",
+      "name": "Container Smoke (optional)",
+      "skipByDefault": true,
+      "run": [
+        { "cmd": "bash", "args": ["-lc", "make docker-build-cpu-direct && make docker-run-cpu-direct"], "timeoutSec": 3600 }
+      ],
+      "continueOnError": true
+    }
+  ],
+  "reports": {
+    "artifacts": [
+      "docs/agent_reports/*.md",
+      "target/debug/*.json",
+      "target/debug/deps/*.d"
+    ]
+  }
+}

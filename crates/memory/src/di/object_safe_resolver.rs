@@ -332,6 +332,7 @@ mod tests {
     }
 
     struct TestServiceB {
+        #[allow(dead_code)]
         pub name: String,
     }
 

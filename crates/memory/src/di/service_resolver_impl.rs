@@ -3,7 +3,7 @@
 //! Отделен от unified_container_impl.rs для следования Single Responsibility Principle.
 //! Отвечает ТОЛЬКО за разрешение зависимостей используя зарегистрированные фабрики.
 
-use anyhow::Result;
+use anyhow::Result as AnyResult;
 use parking_lot::RwLock;
 use std::{
     any::{Any, TypeId},

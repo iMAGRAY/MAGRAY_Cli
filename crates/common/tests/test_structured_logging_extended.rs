@@ -205,10 +205,7 @@ fn test_operation_timer_basic() {
 fn test_operation_timer_with_callback() {
     let timer = OperationTimer::new("callback_test");
 
-    let result = timer.finish_with(|metrics| {
-        assert!(metrics.duration_ms >= 0);
-        "operation_completed"
-    });
+    let result = timer.finish_with(|_metrics| "operation_completed");
 
     assert_eq!(result, "operation_completed");
 }
@@ -328,7 +325,7 @@ fn test_large_performance_metrics() {
 
     // Должно корректно сериализоваться даже с максимальными значениями
     let json_str = serde_json::to_string(&metrics).unwrap();
-    assert!(json_str.len() > 0);
+    assert!(!json_str.is_empty());
 
     let deserialized: PerformanceMetrics = serde_json::from_str(&json_str).unwrap();
     assert_eq!(deserialized.duration_ms, u64::MAX);

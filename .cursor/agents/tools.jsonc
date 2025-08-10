@@ -1,0 +1,32 @@
+{
+  "tools": [
+    {
+      "id": "rust-cargo",
+      "label": "Cargo Tooling",
+      "commands": [
+        "cargo fmt --all -- --check",
+        "cargo clippy --workspace -q -D warnings",
+        "cargo check --workspace --all-features",
+        "cargo test --workspace --all-features -- --nocapture"
+      ]
+    },
+    {
+      "id": "code-search",
+      "label": "Code Search (rg)",
+      "commands": [
+        "rg -n --hidden -S "
+      ]
+    },
+    {
+      "id": "make",
+      "label": "Make Shortcuts",
+      "commands": [
+        "make up-cpu",
+        "make smoke-cpu",
+        "make down",
+        "make agent-setup",
+        "make agent-analyze"
+      ]
+    }
+  ]
+}

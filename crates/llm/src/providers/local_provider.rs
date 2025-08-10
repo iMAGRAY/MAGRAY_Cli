@@ -80,7 +80,7 @@ impl LlmProvider for LocalProvider {
         // Try to ping the health endpoint first
         let health_response = self
             .client
-            .get(&format!("{}/health", self.endpoint.trim_end_matches('/')))
+            .get(format!("{}/health", self.endpoint.trim_end_matches('/')))
             .send()
             .await;
 
@@ -105,7 +105,7 @@ impl LlmProvider for LocalProvider {
 
         let response = self
             .client
-            .post(&format!(
+            .post(format!(
                 "{}/chat/completions",
                 self.endpoint.trim_end_matches('/')
             ))
@@ -184,7 +184,7 @@ impl LlmProvider for LocalProvider {
 
         let response = self
             .client
-            .post(&format!(
+            .post(format!(
                 "{}/chat/completions",
                 self.endpoint.trim_end_matches('/')
             ))

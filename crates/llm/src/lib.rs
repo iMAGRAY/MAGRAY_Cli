@@ -524,7 +524,7 @@ impl LlmClient {
 
         let response = self
             .client
-            .post(&format!(
+            .post(format!(
                 "{}/openai/deployments/{}/chat/completions?api-version=2023-12-01-preview",
                 endpoint, model
             ))

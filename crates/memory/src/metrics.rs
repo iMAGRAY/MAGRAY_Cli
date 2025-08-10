@@ -353,7 +353,12 @@ impl MetricsCollector {
     }
 }
 
+impl Default for MetricsCollector {
+    fn default() -> Self { Self::new() }
+}
+
 /// Helper to measure operation duration
+#[cfg_attr(not(test), allow(dead_code))]
 pub struct TimedOperation<'a> {
     collector: &'a MetricsCollector,
     operation: &'static str,
@@ -361,6 +366,7 @@ pub struct TimedOperation<'a> {
 }
 
 impl<'a> TimedOperation<'a> {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn new(collector: &'a MetricsCollector, operation: &'static str) -> Self {
         Self {
             collector,
@@ -430,5 +436,92 @@ mod tests {
 
         assert!(prometheus.contains("memory_vector_searches_total 1"));
         assert!(prometheus.contains("memory_cache_hits_total 1"));
+    }
+
+    #[test]
+    fn test_cache_delete_evictions_and_stats() {
+        let collector = MetricsCollector::new();
+        collector.record_vector_delete();
+        collector.record_vector_delete();
+        collector.record_cache_eviction(5);
+        collector.update_cache_stats(10, 2048);
+
+        let m = collector.snapshot();
+        assert_eq!(m.vector_deletes, 2);
+        assert_eq!(m.cache_evictions, 5);
+        assert_eq!(m.cache_entries, 10);
+        assert_eq!(m.cache_size_bytes, 2048);
+    }
+
+    #[test]
+    fn test_promotions_expired_and_cycle() {
+        let collector = MetricsCollector::new();
+        collector.record_promotion("interact", "insights", 3);
+        collector.record_promotion("insights", "assets", 2);
+        collector.record_expired(7);
+        collector.record_promotion_cycle(Duration::from_millis(123));
+
+        let m = collector.snapshot();
+        assert_eq!(m.promotions_interact_to_insights, 3);
+        assert_eq!(m.promotions_insights_to_assets, 2);
+        assert_eq!(m.records_expired, 7);
+        assert_eq!(m.promotion_cycle_duration_ms.count, 1);
+        assert!((m.promotion_cycle_duration_ms.sum_ms - 123.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_layer_metrics_and_prometheus_contains_layer() {
+        let collector = MetricsCollector::new();
+        let lm = LayerMetrics {
+            record_count: 4,
+            total_size_bytes: 12345,
+            avg_embedding_size: 0.0,
+            avg_access_count: 0.0,
+            oldest_record_age_hours: 0.0,
+        };
+        collector.update_layer_metrics("insights", lm);
+
+        let prom = collector.export_prometheus();
+        assert!(prom.contains("memory_layer_record_count{layer=\"insights\"} 4"));
+        assert!(prom.contains("memory_layer_size_bytes{layer=\"insights\"} 12345"));
+    }
+
+    #[test]
+    fn test_record_batch_operation_insert_and_search() {
+        let collector = MetricsCollector::new();
+        collector.record_batch_operation("batch_insert", 5, Duration::from_millis(50));
+        collector.record_batch_operation("batch_search", 4, Duration::from_millis(40));
+        collector.record_batch_operation("other", 3, Duration::from_millis(30));
+
+        let m = collector.snapshot();
+        assert_eq!(m.vector_inserts, 5);
+        assert_eq!(m.vector_searches, 4);
+        assert_eq!(m.total_operations, 5 + 4 + 3);
+        assert_eq!(m.vector_insert_latency_ms.count, 5);
+        assert!((m.vector_insert_latency_ms.sum_ms - 50.0).abs() < 1.0);
+        assert_eq!(m.vector_search_latency_ms.count, 4);
+        assert!((m.vector_search_latency_ms.sum_ms - 40.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_timed_operation_drop_records() {
+        let collector = MetricsCollector::new();
+        {
+            let _op = TimedOperation::new(&collector, "vector_search");
+        }
+        {
+            let _op = TimedOperation::new(&collector, "vector_insert");
+        }
+        let m = collector.snapshot();
+        assert_eq!(m.vector_searches, 1);
+        assert_eq!(m.vector_inserts, 1);
+    }
+
+    #[test]
+    fn test_log_summary_smoke() {
+        let collector = MetricsCollector::new();
+        collector.record_vector_search(Duration::from_millis(5));
+        collector.record_cache_hit();
+        collector.log_summary();
     }
 }

@@ -7,7 +7,6 @@ use criterion::{
     black_box, criterion_group, criterion_main, AxisScale, BenchmarkId, Criterion,
     PlotConfiguration, Throughput,
 };
-use std::sync::Arc;
 use std::time::Instant;
 
 #[cfg(target_arch = "x86_64")]
@@ -114,6 +113,10 @@ impl SimpleHnsw {
     pub fn len(&self) -> usize {
         self.vectors.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.vectors.is_empty()
+    }
 }
 
 /// Генерация случайных векторов
@@ -121,7 +124,7 @@ fn generate_random_vectors(count: usize, dimension: usize) -> Vec<Vec<f32>> {
     (0..count)
         .map(|_| {
             (0..dimension)
-                .map(|_| fastrand::f32() * 2.0 - 1.0) // [-1, 1]
+                .map(|_| rand::random::<f32>() * 2.0 - 1.0) // [-1, 1]
                 .collect()
         })
         .collect()
@@ -250,7 +253,7 @@ fn bench_hnsw_baseline_performance(c: &mut Criterion) {
             // Benchmark поиска
             group.throughput(Throughput::Elements(size as u64));
             group.bench_with_input(
-                BenchmarkId::new(format("search_{}d", dim), size),
+                BenchmarkId::new(format!("search_{}d", dim), size),
                 &size,
                 |b, _| {
                     let query = generate_random_vectors(1, dim)[0].clone();
