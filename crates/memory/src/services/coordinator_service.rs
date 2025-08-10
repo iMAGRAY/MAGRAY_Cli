@@ -73,12 +73,12 @@ impl CoordinatorService {
         debug!("🎯 Создание EmbeddingCoordinator...");
 
         #[cfg(feature = "gpu-acceleration")]
-        let gpu_processor = container.resolve::<GpuBatchProcessor>()?;
+        let _gpu_processor = container.resolve::<GpuBatchProcessor>()?;
         #[cfg(not(feature = "gpu-acceleration"))]
-        let gpu_processor: Option<std::sync::Arc<()>> = None;
+        let _gpu_processor: Option<std::sync::Arc<()>> = None;
 
         // Создаем временный cache для демонстрации
-        let cache = container.resolve::<EmbeddingCache>().ok();
+        let _cache = container.resolve::<EmbeddingCache>().ok();
 
         let coordinator = Arc::new(EmbeddingCoordinatorImpl::new_stub());
         debug!("✅ EmbeddingCoordinator создан");
@@ -150,9 +150,9 @@ impl CoordinatorServiceTrait for CoordinatorService {
         info!("⚙️ Создание координаторов...");
         // Пример создания EmbeddingCoordinator
         #[cfg(feature = "gpu-acceleration")]
-        let gpu_processor = container.resolve::<GpuBatchProcessor>().ok();
+        let _gpu_processor = container.resolve::<GpuBatchProcessor>().ok();
         #[cfg(not(feature = "gpu-acceleration"))]
-        let gpu_processor: Option<std::sync::Arc<()>> = None;
+        let _gpu_processor: Option<std::sync::Arc<()>> = None;
         let _cache = container.resolve::<EmbeddingCache>().ok();
         let mut guard = self.coordinators.write().await;
         guard.embedding_coordinator = Some(Arc::new(EmbeddingCoordinatorImpl::new_stub()));

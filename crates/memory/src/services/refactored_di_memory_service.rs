@@ -465,7 +465,13 @@ impl RefactoredDIMemoryService {
 
     #[allow(dead_code)]
     pub fn di_stats(&self) -> DIContainerStats {
-        DIContainerStats::default()
+        DIContainerStats {
+            registered_factories: 0,
+            cached_singletons: 0,
+            total_resolutions: 0,
+            cache_hits: 0,
+            validation_errors: 0,
+        }
     }
 
     #[allow(dead_code)]
