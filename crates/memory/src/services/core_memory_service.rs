@@ -12,68 +12,70 @@ use tokio::sync::Semaphore;
 use tracing::{debug, info, warn};
 
 use crate::{
-    batch_manager::BatchOperationManager,
-    di::{unified_container::UnifiedDIContainer, TypeSafeResolver},
-    metrics::MetricsCollector,
-    service_di::{BatchInsertResult, BatchSearchResult},
-    services::traits::CoreMemoryServiceTrait,
-    storage::VectorStore,
-    types::{Layer, Record, SearchOptions},
+    di::UnifiedContainer,
+    orchestration::SearchCoordinator,
+    types::Record,
+    VectorStore,
+    MetricsCollector,
+    Layer,
+    SearchOptions,
+    BatchInsertResult,
+    BatchSearchResult,
+    CoreMemoryServiceTrait,
 };
+use crate::di::core_traits::ServiceResolver;
+use crate::batch_manager::BatchOperationManager;
 use common::OperationTimer;
 
 /// Реализация core memory операций
 /// Отвечает ТОЛЬКО за базовые операции с данными
 #[allow(dead_code)]
 pub struct CoreMemoryService {
-    /// Type-safe resolver для разрешения зависимостей (объект-безопасный)
-    resolver: TypeSafeResolver,
+    /// DI контейнер (используем ServiceResolver)
+    container: Arc<UnifiedContainer>,
     /// Semaphore для ограничения concurrent операций
     operation_limiter: Arc<Semaphore>,
 }
 
 impl CoreMemoryService {
     /// Создать новый CoreMemoryService с type-safe resolver
-    pub fn new(container: Arc<UnifiedDIContainer>, max_concurrent_operations: usize) -> Self {
+    pub fn new(container: Arc<UnifiedContainer>, max_concurrent_operations: usize) -> Self {
         info!(
             "🗃️ Создание CoreMemoryService с лимитом {} concurrent операций и object-safe resolver",
             max_concurrent_operations
         );
 
-        // Создаем type-safe resolver из контейнера
-        let resolver = container.as_object_safe_resolver();
-
         Self {
-            resolver,
+            container,
             operation_limiter: Arc::new(Semaphore::new(max_concurrent_operations)),
         }
     }
 
     /// Создать минимальный вариант для тестов
-    pub fn new_minimal(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn new_minimal(container: Arc<UnifiedContainer>) -> Self {
         Self::new(container, 10) // Небольшой лимит для тестов
     }
 
     /// Создать production вариант
-    pub fn new_production(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn new_production(container: Arc<UnifiedContainer>) -> Self {
         Self::new(container, 100) // Высокий лимит для production
     }
 
     /// Получить VectorStore через type-safe resolver
     fn get_vector_store(&self) -> Result<Arc<VectorStore>> {
-        self.resolver.resolve::<VectorStore>()
+        Ok(self.container.resolve::<VectorStore>()?)
     }
 
     /// Получить BatchOperationManager если доступен
     #[allow(dead_code)]
     fn get_batch_manager(&self) -> Option<Arc<BatchOperationManager>> {
-        self.resolver.try_resolve::<BatchOperationManager>()
+        self.container.resolve::<BatchOperationManager>().ok()
     }
 
     /// Получить MetricsCollector если доступен  
     #[allow(dead_code)]
     fn get_metrics_collector(&self) -> Option<Arc<MetricsCollector>> {
-        self.resolver.try_resolve::<MetricsCollector>()
+        self.container.resolve::<MetricsCollector>().ok()
     }
 }
 

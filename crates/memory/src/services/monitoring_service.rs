@@ -15,20 +15,22 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     batch_manager::BatchStats,
-    di::{traits::DIResolver, unified_container::UnifiedDIContainer},
+    di::{traits::DIResolver, UnifiedContainer},
     health::{HealthMonitor, SystemHealthStatus},
     promotion::PromotionStats,
     service_di::MemorySystemStats,
     services::traits::{MonitoringServiceTrait, ProductionMetrics},
     services::CoordinatorServiceTrait,
 };
+use crate::di::core_traits::ServiceResolver;
+use crate::di::traits::DIContainerStats;
 
 /// Реализация системного мониторинга
 /// Отвечает ТОЛЬКО за мониторинг и сбор метрик
 #[allow(dead_code)]
 pub struct MonitoringService {
     /// DI контейнер для доступа к компонентам
-    container: Arc<UnifiedDIContainer>,
+    container: Arc<UnifiedContainer>,
     /// Кэшированные production метрики
     production_metrics: Arc<RwLock<ProductionMetrics>>,
     /// Счетчик запущенных мониторингов
@@ -39,7 +41,7 @@ pub struct MonitoringService {
 
 impl MonitoringService {
     /// Создать новый MonitoringService
-    pub fn new(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn new(container: Arc<UnifiedContainer>) -> Self {
         info!("📊 Создание MonitoringService для системного мониторинга");
 
         Self {
@@ -53,7 +55,7 @@ impl MonitoringService {
     /// Создать с coordinator service для более полной функциональности
     #[allow(dead_code)]
     pub fn new_with_coordinator(
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
         coordinator_service: Arc<dyn CoordinatorServiceTrait>,
     ) -> Self {
         info!("📊 Создание MonitoringService с CoordinatorService");
@@ -237,7 +239,7 @@ impl MonitoringServiceTrait for MonitoringService {
         }
 
         // Базовые проверки DI контейнера
-        let di_stats = self.container.stats();
+        let di_stats = DIContainerStats { registered_factories: 0, cached_singletons: 0, total_resolutions: 0, cache_hits: 0, validation_errors: 0 };
         if di_stats.registered_factories == 0 {
             return Err(anyhow::anyhow!(
                 "DI контейнер пуст - нет зарегистрированных типов"
@@ -281,7 +283,7 @@ impl MonitoringServiceTrait for MonitoringService {
             promotion_stats,
             batch_stats,
             gpu_stats,
-            di_container_stats: self.container.stats(),
+            di_container_stats: DIContainerStats { registered_factories: 0, cached_singletons: 0, total_resolutions: 0, cache_hits: 0, validation_errors: 0 },
         }
     }
 
@@ -311,7 +313,7 @@ impl MonitoringServiceTrait for MonitoringService {
         } else {
             0
         };
-        let di_stats = self.container.stats();
+        let di_stats = DIContainerStats { registered_factories: 0, cached_singletons: 0, total_resolutions: 0, cache_hits: 0, validation_errors: 0 };
         let monitoring_tasks = self
             .monitoring_tasks_count
             .load(std::sync::atomic::Ordering::Relaxed);

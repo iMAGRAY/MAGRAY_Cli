@@ -17,6 +17,7 @@ use crate::agent_traits::*;
 use crate::handlers::*;
 use crate::orchestrator::*;
 use crate::strategies::*;
+use crate::ComponentLifecycleTrait;
 use tools::enhanced_tool_system::EnhancedToolSystemConfig;
 
 // Импорт общих трейтов для устранения дублирования
@@ -273,7 +274,7 @@ pub struct MemoryManagementAdapter;
 
 #[cfg(feature = "minimal")]
 impl MemoryManagementAdapter {
-    pub fn new(_memory_service: memory::DIMemoryService) -> Self {
+    pub fn new(_memory_service: memory::di::DIContainer) -> Self {
         Self
     }
 }
@@ -577,7 +578,7 @@ impl UnifiedAgentV2 {
         let routing_adapter = IntelligentRoutingAdapter::new(smart_router);
 
         // В CPU-профиле используем контейнер DI напрямую, без DIMemoryService конструктира
-        let memory_adapter = MemoryManagementAdapter::new(memory::di::UnifiedContainer::new());
+        let memory_adapter = MemoryManagementAdapter::new(memory::di::DIContainer::new());
 
         let admin_service = BasicAdminService::new(performance_monitor.clone());
 
@@ -855,7 +856,7 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
 
         // Проверяем здоровье всех компонентов
         self.chat_handler.health_check().await.is_ok()
-            && self.tools_handler.health_check().await.is_ok()
+            && ComponentLifecycleTrait::health_check(&self.tools_handler).await.is_ok()
             && self.memory_handler.health_check().await.is_ok()
             && self.admin_handler.health_check().await.is_ok()
     }
@@ -934,7 +935,7 @@ impl UnifiedAgentV2 {
         ));
         stats.push_str(&format!(
             "├─ Tools Handler: {}\n",
-            if self.tools_handler.health_check().await.is_ok() {
+            if ComponentLifecycleTrait::health_check(&self.tools_handler).await.is_ok() {
                 "✅ Healthy"
             } else {
                 "❌ Unhealthy"

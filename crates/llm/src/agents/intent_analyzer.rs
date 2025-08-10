@@ -4,8 +4,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntentDecision {
+    #[serde(alias = "intent_type")]
     pub action_type: String, // "chat" или "tools"
     pub confidence: f32,
+    #[serde(default)]
     pub reasoning: String,
 }
 

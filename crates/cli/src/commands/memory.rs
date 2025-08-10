@@ -408,6 +408,7 @@ async fn search_memory(
     {
         use memory::orchestration::traits::SearchCoordinator as SearchCoordinatorTrait;
         use memory::orchestration::SearchCoordinator;
+        use memory::di::core_traits::ServiceResolver; // import trait to enable resolve()
         let container = memory::di::UnifiedContainer::new();
         if let Ok(search) = container.resolve::<SearchCoordinator>() {
             let layer_to_use = options.layers.clone().and_then(|v| v.first().cloned()).unwrap_or(Layer::Interact);

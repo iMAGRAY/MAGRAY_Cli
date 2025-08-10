@@ -7,6 +7,8 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{info, warn};
+#[cfg(feature = "persistence")]
+use tracing::{debug, error};
 
 use common::{config_base::CacheConfigBase, ConfigTrait};
 

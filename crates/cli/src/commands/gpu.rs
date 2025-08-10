@@ -190,7 +190,7 @@ impl GpuCommand {
     }
 
     /// Оптимизировать модель
-    async fn optimize_model(&self, _model_name: &String) -> Result<()> {
+    async fn optimize_model(&self, _model_name: &str) -> Result<()> {
         #[cfg(feature = "gpu")]
         {
             info!("🔧 Оптимизация модели {} для текущего GPU...", _model_name);
@@ -210,7 +210,7 @@ impl GpuCommand {
             // Создаём оптимизированный сервис
             use ai::EmbeddingConfig;
             let config = EmbeddingConfig {
-                model_name: _model_name.clone(),
+                model_name: _model_name.to_string(),
                 use_gpu: true,
                 ..Default::default()
             };

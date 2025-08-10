@@ -833,20 +833,34 @@ impl VectorIndex {
                 let found = hnsw.search(&query.to_vec(), ef_search, k);
                 found.into_iter().map(|ne| (ne.d_id, ne.distance)).collect()
             } else {
-                return Err(anyhow!("HNSW не инициализирован"));
+                let error = anyhow!("HNSW не инициализирован");
+                self.stats.record_error();
+                return Err(error);
             }
         };
 
         // Конвертируем результаты в простой формат для обработки
         let simple_results: Vec<(usize, f32)> = results;
 
-        let string_results = self.convert_results_fast(&simple_results)?;
+        let mut string_results = self.convert_results_fast(&simple_results)?;
+        // Детерминированно сортируем: сначала по расстоянию, затем по идентификатору
+        string_results.sort_by(|a, b| {
+            match a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal) {
+                std::cmp::Ordering::Equal => a.0.cmp(&b.0),
+                ord => ord,
+            }
+        });
 
         let duration = start.elapsed();
         self.stats
             .record_search(duration, self.estimate_distance_calculations(k));
 
-        Ok(string_results)
+        // Гарантируем строгий топ-K
+        let mut topk = string_results;
+        if topk.len() > k {
+            topk.truncate(k);
+        }
+        Ok(topk)
     }
 
     /// Ультра-быстрая конвертация результатов для batch операций

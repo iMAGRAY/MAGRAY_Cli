@@ -31,7 +31,7 @@ async fn test_qwen3_tokenization_validation() -> Result<()> {
     // Тест embedding tokenizer
     let emb_tokenizer = OptimizedTokenizer::new(&qwen3emb_tokenizer, 512)?;
 
-    let test_texts = vec![
+    let test_texts = [
         "Hello world".to_string(),
         "Привет мир".to_string(),
         "这是中文测试".to_string(),
@@ -95,7 +95,7 @@ async fn test_qwen3_tokenization_validation() -> Result<()> {
 
     // Тест batch токенизации
     println!("Testing batch tokenization:");
-    let batch_texts = vec![
+    let batch_texts = [
         "First document".to_string(),
         "Second document".to_string(),
         "Third document".to_string(),
@@ -141,15 +141,15 @@ async fn test_qwen3_special_tokens() -> Result<()> {
     let tokenizer = OptimizedTokenizer::new(&tokenizer_path, 512)?;
 
     // Тест специальных токенов Qwen3
-    let special_texts = vec![
-        "<|endoftext|>".to_string(),
-        "<|im_start|>".to_string(),
-        "<|im_end|>".to_string(),
+    let special_texts = [
+        "<|endoftext|>",
+        "<|im_start|>",
+        "<|im_end|>",
     ];
 
     println!("Testing Qwen3 special tokens:");
     for text in special_texts {
-        let tokenized = tokenizer.encode(&text)?;
+        let tokenized = tokenizer.encode(text)?;
         println!(
             "  Special: '{}' -> {} tokens",
             text,

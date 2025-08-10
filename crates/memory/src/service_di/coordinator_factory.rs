@@ -407,12 +407,12 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
     /// Создать embedding coordinator с proper error handling
     async fn create_embedding_coordinator(
         &self,
-        container: &UnifiedContainer,
+        _container: &UnifiedContainer,
     ) -> Result<Arc<EmbeddingCoordinator>> {
         debug!("🔤 Начинаем создание EmbeddingCoordinator...");
 
         #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
-        let gpu_processor = container
+        let gpu_processor = _container
             .try_resolve::<GpuBatchProcessor>()
             .ok_or_else(|| {
                 anyhow::anyhow!("Не удалось resolve GpuBatchProcessor из DI container")

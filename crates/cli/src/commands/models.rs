@@ -40,6 +40,14 @@ enum ModelsSubcommand {
 
     /// Проверить пути и конфигурацию моделей
     Check,
+
+    /// Прогреть и удерживать в памяти указанные модели (embedding/reranker)
+    #[command(visible_alias = "warm")]
+    Warmup {
+        /// Имена моделей через пробел (по умолчанию — дефолтные)
+        #[arg(required = false)]
+        models: Vec<String>,
+    },
 }
 
 impl ModelsCommand {
@@ -53,7 +61,27 @@ impl ModelsCommand {
             ModelsSubcommand::Show { model_name } => Self::show_model(&model_name),
             ModelsSubcommand::Recommendations => Self::show_recommendations(),
             ModelsSubcommand::Check => Self::check_models(),
+            ModelsSubcommand::Warmup { models } => Self::warmup(models),
         }
+    }
+
+    /// Прогреть и удерживать в памяти модели
+    fn warmup(models: Vec<String>) -> Result<()> {
+        {
+            use ai::{model_registry::{MODEL_REGISTRY, ModelType}, warmup_models};
+            let names: Vec<String> = if models.is_empty() {
+                let mut v = Vec::new();
+                if let Some(m) = MODEL_REGISTRY.get_default_model(ModelType::Embedding) { v.push(m.name.clone()); }
+                if let Some(m) = MODEL_REGISTRY.get_default_model(ModelType::Reranker) { v.push(m.name.clone()); }
+                v
+            } else {
+                models
+            };
+            let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+            warmup_models(&refs)?;
+            info!("🔥 Прогреты модели: {:?}", names);
+        }
+        Ok(())
     }
 
     /// Показать список моделей

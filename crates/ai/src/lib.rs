@@ -106,6 +106,59 @@ pub use tokenization::{BatchTokenized, OptimizedTokenizer, TokenizedInput as Opt
 #[cfg(feature = "embeddings")]
 pub use tokenizer::{SpecialTokens, TokenizedInput, TokenizerService};
 
+use lazy_static::lazy_static;
+use parking_lot::RwLock;
+use std::collections::HashMap;
+
+#[cfg(feature = "onnx")]
+use crate::models::OnnxSession;
+
+#[cfg(feature = "onnx")]
+lazy_static! {
+    /// Глобальный пул прогретых ONNX-сессий (держит их в памяти на протяжении процесса)
+    static ref WARMED_MODELS: RwLock<HashMap<String, Arc<OnnxSession>>> = RwLock::new(HashMap::new());
+}
+
+use std::sync::Arc;
+
+/// Внутренняя реализация прогрева (только если доступен onnx)
+#[cfg(feature = "onnx")]
+fn warmup_models_impl(model_names: &[&str]) -> anyhow::Result<()> {
+    use crate::model_registry::MODEL_REGISTRY;
+
+    let mut guard = WARMED_MODELS.write();
+    for &name in model_names {
+        if guard.contains_key(name) { continue; }
+        let model_path = MODEL_REGISTRY.get_model_path(name).join("model.onnx");
+        if !model_path.exists() { continue; }
+        // Создаем real/fallback сессию
+        let session = models::OnnxSession::new(name.to_string(), model_path.clone(), false)
+            .unwrap_or_else(|e| models::OnnxSession::new_fallback(name.to_string(), model_path.clone(), e.to_string()));
+        guard.insert(name.to_string(), Arc::new(session));
+    }
+    Ok(())
+}
+
+/// Прогреть и удерживать в памяти указанные модели (embedding и reranker)
+pub fn warmup_models(model_names: &[&str]) -> anyhow::Result<()> {
+    #[cfg(feature = "onnx")]
+    {
+        warmup_models_impl(model_names)
+    }
+    #[cfg(not(feature = "onnx"))]
+    {
+        // Без onnx просто no-op
+        let _ = model_names;
+        Ok(())
+    }
+}
+
+/// Получить прогретую сессию, если она есть (только при onnx)
+#[cfg(feature = "onnx")]
+pub fn get_warmed_session(name: &str) -> Option<Arc<OnnxSession>> {
+    WARMED_MODELS.read().get(name).cloned()
+}
+
 /// Result type for AI operations
 pub type Result<T> = std::result::Result<T, AiError>;
 

@@ -7,7 +7,7 @@
 //! - Extensibility: простое добавление новых реализаций
 
 use crate::{
-    di::unified_container::UnifiedDIContainer,
+    di::UnifiedContainer,
     health::SystemHealthStatus,
     orchestration::{
         EmbeddingCoordinator as EmbeddingCoordinatorImpl, HealthManager, ResourceController,
@@ -64,7 +64,7 @@ pub trait CoreMemoryServiceTrait: Send + Sync {
 #[async_trait]
 pub trait CoordinatorServiceTrait: Send + Sync {
     /// Создать все координаторы
-    async fn create_coordinators(&self, container: &UnifiedDIContainer) -> Result<()>;
+    async fn create_coordinators(&self, container: &UnifiedContainer) -> Result<()>;
 
     /// Инициализировать все координаторы
     async fn initialize_coordinators(&self) -> Result<()>;

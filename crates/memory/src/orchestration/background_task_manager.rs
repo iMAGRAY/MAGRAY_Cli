@@ -10,8 +10,8 @@ use std::{
     },
     time::Duration,
 };
-use tokio::{sync::RwLock, task::JoinHandle, time::interval};
-use tracing::{debug, error, info, warn};
+use tokio::{sync::RwLock, task::JoinHandle};
+use tracing::{debug, info, warn};
 
 use super::traits::{Coordinator, HealthCoordinator};
 #[cfg(feature = "legacy-orchestrator")]

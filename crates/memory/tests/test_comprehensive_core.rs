@@ -94,11 +94,11 @@ mod vector_operations_tests {
 
     #[test]
     fn test_batch_vector_operations() {
-        let vectors = vec![
+        let vectors = [
             vec![1.0, 0.0, 0.0],
             vec![0.0, 1.0, 0.0],
             vec![0.0, 0.0, 1.0],
-            vec![0.7071, 0.7071, 0.0], // 45-degree vector
+            vec![std::f32::consts::FRAC_1_SQRT_2, std::f32::consts::FRAC_1_SQRT_2, 0.0],
         ];
 
         let query = vec![1.0, 0.0, 0.0];

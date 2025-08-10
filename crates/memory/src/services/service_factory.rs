@@ -12,12 +12,13 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 use crate::{
-    di::unified_container::UnifiedDIContainer,
+    di::UnifiedContainer,
+    services::traits::{
+        CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait,
+        MonitoringServiceTrait, ResilienceServiceTrait,
+    },
+    CacheServiceTrait as _, CoordinatorServiceTrait as _, CoreMemoryServiceTrait as _, MonitoringServiceTrait as _, ResilienceServiceTrait as _,
     services::{
-        traits::{
-            CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait,
-            MonitoringServiceTrait, ResilienceServiceTrait,
-        },
         CacheService, CoordinatorService, CoreMemoryService, MonitoringService, ResilienceService,
     },
 };
@@ -26,7 +27,7 @@ use crate::{
 /// Обеспечивает правильное Dependency Injection между сервисами
 #[allow(dead_code)]
 pub struct ServiceFactory {
-    container: Arc<UnifiedDIContainer>,
+    container: Arc<UnifiedContainer>,
 }
 
 /// Результат создания всех сервисов
@@ -89,7 +90,7 @@ impl ServiceFactoryConfig {
 
 impl ServiceFactory {
     /// Создать новую фабрику сервисов
-    pub fn new(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn new(container: Arc<UnifiedContainer>) -> Self {
         info!("🏭 Создание ServiceFactory для инициализации специализированных сервисов");
         Self { container }
     }

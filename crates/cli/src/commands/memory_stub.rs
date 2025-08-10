@@ -40,35 +40,15 @@ impl MemoryCommand {
 }
 
 async fn handle(cmd: MemorySubcommand) -> Result<()> {
-    #[cfg(not(feature = "minimal"))]
-    let svc = {
-        let legacy = memory::di::LegacyMemoryConfig::default();
-        memory::DIMemoryService::new(legacy).await?
-    };
     #[cfg(feature = "minimal")]
     {
         println!("⚠️ Функции памяти отключены в минимальном профиле. Соберите без feature=minimal.");
-        match cmd { _ => return Ok(()) }
+        return Ok(());
     }
 
-    match cmd {
-        MemorySubcommand::Store { text, tag } => {
-            let id = svc.store(&text, tag).await?;
-            println!("{} Записано с id={}", "✓".green(), id);
-        }
-        MemorySubcommand::Search { query, top_k } => {
-            let results = svc.search(&query, top_k).await?;
-            println!("{} Результатов: {}", "🔎".yellow(), results.len());
-            for (i, rec) in results.iter().enumerate() {
-                println!("{} {} {}", format!("{}.", i + 1).bold(), rec.id, rec.created_ms);
-                if !rec.tags.is_empty() { println!("   tags: {:?}", rec.tags); }
-                println!("   {}", rec.text);
-            }
-        }
-        MemorySubcommand::Stats => {
-            let h = svc.check_health().await?;
-            println!("{} healthy={}, records={}", "Σ".yellow(), h.healthy, h.records);
-        }
+    #[cfg(not(feature = "minimal"))]
+    {
+        println!("⚠️ Путь memory_stub недоступен в текущей конфигурации. Используйте orchestrated путь.");
+        match cmd { _ => return Ok(()) }
     }
-    Ok(())
 }

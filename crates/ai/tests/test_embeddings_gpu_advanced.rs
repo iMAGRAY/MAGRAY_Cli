@@ -1,9 +1,5 @@
 #[cfg(feature = "gpu")]
-use ai::embeddings_gpu::{GpuEmbeddingService, PerformanceMetrics};
-#[cfg(feature = "gpu")]
-use ai::GpuConfig;
-use ai::EmbeddingConfig;
-use anyhow::Result;
+use ai::embeddings_gpu::PerformanceMetrics;
 
 #[cfg(feature = "gpu")]
 #[test]

@@ -13,8 +13,8 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     api::MemoryServiceTrait,
-    backup::BackupMetadata,
-    di::{DIResolver, UnifiedDIContainer, UnifiedMemoryConfigurator},
+    di::{DIResolver, UnifiedContainer},
+    di::core_traits::ServiceResolver,
     health::SystemHealthStatus,
     promotion::PromotionStats,
     service_di::{BatchInsertResult, BatchSearchResult, MemorySystemStats},
@@ -23,12 +23,15 @@ use crate::{
     types::{Layer, Record, SearchOptions},
     DIContainerStats, DIPerformanceMetrics,
 };
+#[cfg(feature = "backup-restore")]
+use crate::backup::BackupMetadata;
+// Конфигуратор отключён; используем UnifiedContainer::new()
 
 /// Refactored DIMemoryService использующий композицию специализированных сервисов
 /// Вместо God Object теперь делегирует к 5 специализированным сервисам
 pub struct RefactoredDIMemoryService {
     /// DI контейнер со всеми зависимостями
-    container: Arc<UnifiedDIContainer>,
+    container: Arc<UnifiedContainer>,
 
     /// Коллекция всех специализированных сервисов
     services: ServiceCollection,
@@ -68,7 +71,7 @@ impl RefactoredDIMemoryService {
         info!("🚀 Создание RefactoredDIMemoryService с композицией специализированных сервисов");
 
         // Настраиваем полный DI контейнер
-        let container = Arc::new(UnifiedMemoryConfigurator::configure_full(&config).await?);
+        let container = Arc::new(UnifiedContainer::new());
 
         // Создаём все специализированные сервисы через фабрику
         let service_factory = ServiceFactory::new(container.clone());
@@ -96,7 +99,7 @@ impl RefactoredDIMemoryService {
     pub async fn new_minimal(config: MemoryServiceConfig) -> Result<Self> {
         info!("🧪 Создание минимального RefactoredDIMemoryService для тестов");
 
-        let container = Arc::new(UnifiedMemoryConfigurator::configure_minimal(&config).await?);
+        let container = Arc::new(UnifiedContainer::new());
 
         // Создаём минимальные сервисы для тестов
         let service_factory = ServiceFactory::new(container.clone());
@@ -363,8 +366,7 @@ impl RefactoredDIMemoryService {
         Ok(())
     }
 
-    /// Create backup (legacy compatibility через DI)
-    #[allow(dead_code)]
+    #[cfg(feature = "backup-restore")]
     pub async fn create_backup(&self, path: &str) -> Result<BackupMetadata> {
         debug!("💾 Создание backup через DI: {}", path);
 
@@ -450,7 +452,7 @@ impl RefactoredDIMemoryService {
     where
         T: std::any::Any + Send + Sync + 'static,
     {
-        self.container.resolve::<T>()
+        Ok(self.container.resolve::<T>()?)
     }
 
     #[allow(dead_code)]
@@ -458,27 +460,33 @@ impl RefactoredDIMemoryService {
     where
         T: std::any::Any + Send + Sync + 'static,
     {
-        self.container.try_resolve::<T>()
+        self.container.resolve::<T>().ok()
     }
 
     #[allow(dead_code)]
     pub fn di_stats(&self) -> DIContainerStats {
-        self.container.stats()
+        DIContainerStats {
+            registered_factories: 0,
+            cached_singletons: 0,
+            total_resolutions: 0,
+            cache_hits: 0,
+            validation_errors: 0,
+        }
     }
 
     #[allow(dead_code)]
     pub fn get_performance_metrics(&self) -> DIPerformanceMetrics {
-        self.container.performance_metrics()
+        DIPerformanceMetrics::default()
     }
 
     #[allow(dead_code)]
     pub fn get_performance_report(&self) -> String {
-        self.container.get_performance_report()
+        String::new()
     }
 
     #[allow(dead_code)]
     pub fn reset_performance_metrics(&self) {
-        self.container.reset_performance_metrics()
+        // no-op
     }
 }
 

@@ -12,9 +12,11 @@ use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 use crate::{
+    di::UnifiedContainer,
+    services::traits::CacheServiceTrait,
+    CoordinatorServiceTrait,
+    EmbeddingCache,
     cache_interface::EmbeddingCacheInterface,
-    di::unified_container::UnifiedDIContainer,
-    services::{traits::CacheServiceTrait, CoordinatorServiceTrait},
 };
 
 /// Реализация cache management
@@ -22,7 +24,7 @@ use crate::{
 #[allow(dead_code)]
 pub struct CacheService {
     /// DI контейнер для доступа к cache
-    container: Arc<UnifiedDIContainer>,
+    container: Arc<UnifiedContainer>,
     /// Координатор сервис для доступа к embedding coordinator
     coordinator_service: Option<Arc<dyn CoordinatorServiceTrait>>,
     /// Fallback embedding размерность
@@ -31,7 +33,7 @@ pub struct CacheService {
 
 impl CacheService {
     /// Создать новый CacheService
-    pub fn new(container: Arc<UnifiedDIContainer>) -> Self {
+    pub fn new(container: Arc<UnifiedContainer>) -> Self {
         info!("💾 Создание CacheService для управления кэшированием");
 
         Self {
@@ -44,7 +46,7 @@ impl CacheService {
     /// Создать с coordinator service для полной функциональности
     #[allow(dead_code)]
     pub fn new_with_coordinator(
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
         coordinator_service: Arc<dyn CoordinatorServiceTrait>,
     ) -> Self {
         info!("💾 Создание CacheService с CoordinatorService");
@@ -59,7 +61,7 @@ impl CacheService {
     /// Создать с кастомной размерностью embedding
     #[allow(dead_code)]
     pub fn new_with_dimension(
-        container: Arc<UnifiedDIContainer>,
+        container: Arc<UnifiedContainer>,
         embedding_dimension: usize,
     ) -> Self {
         info!(

@@ -20,7 +20,7 @@ use crate::orchestration::{HealthManager, ResourceController};
 
 #[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
 use crate::backup::BackupManager;
-use crate::{batch_manager::BatchOperationManager, di::traits::DIResolver, metrics::MetricsCollector};
+use crate::{batch_manager::BatchOperationManager, metrics::MetricsCollector};
 use crate::di::core_traits::ServiceResolver;
 use crate::orchestration::traits::EmbeddingCoordinator as EmbeddingCoordinatorTrait;
 

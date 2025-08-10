@@ -1,4 +1,4 @@
-use cli::progress::{AdaptiveSpinner, MultiStageProgress, ProgressBuilder, ProgressType};
+use cli::progress::{MultiStageProgress, ProgressBuilder, ProgressType};
 use std::time::Duration;
 use tokio::time::sleep;
 

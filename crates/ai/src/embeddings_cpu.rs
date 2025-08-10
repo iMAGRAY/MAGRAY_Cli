@@ -961,7 +961,7 @@ mod tests {
 
     #[test]
     fn test_gpu_service_creation() {
-        let mut config = EmbeddingConfig {
+        let config = EmbeddingConfig {
             model_name: "bge-m3".to_string(),
             max_length: 512,
             batch_size: 32, // Больше batch для GPU

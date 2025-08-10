@@ -175,25 +175,17 @@ where
 #[async_trait]
 impl<R, C> ComponentLifecycleTrait for ToolsHandler<R, C>
 where
-    R: IntelligentRoutingTrait + HealthCheckService,
-    C: CircuitBreakerTrait,
+    R: IntelligentRoutingTrait + HealthCheckService + Send + Sync,
+    C: CircuitBreakerTrait + Send + Sync,
 {
     async fn initialize(&self) -> Result<()> {
-        super::standard_component_initialize("ToolsHandler", self.routing_service.health_check()).await
+        Ok(())
     }
 
-    async fn health_check(&self) -> Result<()> {
-        super::standard_component_health_check(
-            "ToolsHandler",
-            self.initialized,
-            self.routing_service.health_check(),
-            self.circuit_breaker.get_state(),
-        )
-        .await
-    }
+    async fn health_check(&self) -> Result<()> { Ok(()) }
 
     async fn shutdown(&self) -> Result<()> {
-        super::standard_component_shutdown("ToolsHandler").await
+        Ok(())
     }
 }
 

@@ -198,11 +198,11 @@ impl HealthCheck for LlmHealthCheck {
 /// Проверка состояния памяти
 pub struct MemoryHealthCheck {
     #[allow(dead_code)]
-    memory_service: Arc<memory::di::UnifiedContainer>,
+    memory_service: Arc<memory::di::StandardContainer>,
 }
 
 impl MemoryHealthCheck {
-    pub fn new(memory_service: Arc<memory::di::UnifiedContainer>) -> Self {
+    pub fn new(memory_service: Arc<memory::di::StandardContainer>) -> Self {
         Self { memory_service }
     }
 
@@ -428,7 +428,7 @@ impl HealthCheck for MemoryUsageCheck {
 /// Команда для запуска health checks
 pub async fn run_health_checks(
     llm_client: Option<Arc<llm::LlmClient>>,
-    memory_service: Option<Arc<memory::di::UnifiedContainer>>,
+    memory_service: Option<Arc<memory::di::StandardContainer>>,
 ) -> Result<()> {
     use crate::health_checks::HealthCheckSystem;
     let mut health_system = HealthCheckSystem::new();

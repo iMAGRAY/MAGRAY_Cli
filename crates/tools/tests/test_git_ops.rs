@@ -87,6 +87,8 @@ async fn test_git_commit_with_message() -> Result<()> {
         command: "git_commit".to_string(),
         args,
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     // Execute git commit (may fail if nothing to commit, but shouldn't panic)
@@ -138,6 +140,8 @@ async fn test_git_status_formatted_output() -> Result<()> {
         command: "git_status".to_string(),
         args: HashMap::new(),
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = git_status.execute(input).await?;
@@ -163,6 +167,8 @@ async fn test_git_commit_metadata() -> Result<()> {
         command: "git_commit".to_string(),
         args,
         context: None,
+        dry_run: false,
+        timeout_ms: None,
     };
 
     let result = git_commit.execute(input).await?;
