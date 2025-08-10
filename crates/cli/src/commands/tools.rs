@@ -418,7 +418,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
         }
         ToolsSubcommand::Plugins { list, load_manifests, dir, json, export_tools } => {
             // Resolve plugin dir and config dir under ~/.magray
-            let mut home = crate::util::magray_home();
+            let home = crate::util::magray_home();
             let plugins_dir = if let Some(d) = dir { std::path::PathBuf::from(d) } else { let mut p = home.clone(); p.push("plugins"); p };
             let mut cfg_dir = home.clone(); cfg_dir.push("plugin-configs");
             tokio::fs::create_dir_all(&plugins_dir).await.ok();
@@ -489,9 +489,9 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             let mut args_map = std::collections::HashMap::new();
             for (k, v) in arg { args_map.insert(k, v); }
             // Load effective policy
-            let mut home = crate::util::magray_home();
-            home.push("policy.json");
-            let effective = load_effective_policy(if home.exists() { Some(&home) } else { None });
+            let mut policy_path = crate::util::magray_home();
+            policy_path.push("policy.json");
+            let effective = load_effective_policy(if policy_path.exists() { Some(&policy_path) } else { None });
             let policy = PolicyEngine::from_document(effective);
             // Enrich policy args
             if name == "web_fetch" {
