@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 //! Comprehensive unit тесты для CacheService
 //!
@@ -205,7 +205,6 @@ async fn test_cache_stats() -> Result<()> {
     let container = create_test_container();
     let service = CacheService::new(container);
 
-    // Test cache stats (should return zeros since no real cache is available)
     let (hits, misses, size) = service.get_cache_stats().await;
 
     assert_eq!(hits, 0, "Cache hits должно быть 0 без реального cache");
@@ -483,7 +482,6 @@ proptest::proptest! {
         misses in 0u64..1000
     ) {
         tokio_test::block_on(async {
-            // Create a mock service that can return custom stats
             let container = create_test_container();
             let service = CacheService::new(container);
 
@@ -520,7 +518,6 @@ proptest::proptest! {
                 let embedding = service.generate_fallback_embedding(text);
                 prop_assert_eq!(embedding.len(), dimension, "Все embeddings должны иметь одинаковую размерность");
 
-                // Test async version too
                 let async_embedding = service.get_or_create_embedding(text).await.unwrap();
                 prop_assert_eq!(async_embedding.len(), dimension, "Async embeddings должны иметь ту же размерность");
             }
@@ -616,7 +613,6 @@ async fn test_cache_service_with_real_coordinator() -> Result<()> {
     )?);
     container.register(cache.clone())?;
 
-    // Add required dependencies for CoordinatorService
     let gpu_processor = Arc::new(
         GpuBatchProcessor::new(
             memory::gpu_accelerated::BatchProcessorConfig::default(),

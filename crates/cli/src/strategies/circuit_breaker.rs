@@ -362,7 +362,7 @@ impl CircuitBreakerTrait for AdaptiveCircuitBreaker {
     }
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
     use tokio::time::{sleep, Duration};

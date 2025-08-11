@@ -14,7 +14,6 @@ async fn test_llm_client_configuration() {
 
     // Test that client can be cloned
     let _cloned_client = client.clone();
-    // clone successful if no panic
 }
 
 #[tokio::test]
@@ -520,7 +519,6 @@ async fn test_concurrent_requests() {
         handles.push(handle);
     }
 
-    // Wait for all requests to complete
     for handle in handles {
         let response = handle.await.unwrap().unwrap();
         assert_eq!(response, "Concurrent response");
@@ -566,7 +564,6 @@ fn test_provider_debug_formatting() {
     let debug_output = format!("{:?}", openai_provider);
     assert!(debug_output.contains("OpenAI"));
     assert!(debug_output.contains("gpt-4-turbo"));
-    // API key should be present in debug output (this is expected for debugging)
     assert!(debug_output.contains("sk-1234567890"));
 
     let anthropic_provider = LlmProvider::Anthropic {

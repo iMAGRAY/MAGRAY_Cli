@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AIRecommendArgs",
+  "type": "object",
+  "properties": {
+    "projectPath": {
+      "default": ".",
+      "type": "string"
+    },
+    "json": {
+      "default": null
+    },
+    "focus": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

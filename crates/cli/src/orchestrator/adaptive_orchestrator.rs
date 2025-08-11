@@ -9,7 +9,6 @@ use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-// use crate::agent_traits::*; // Не используется пока
 use super::{ResourceManager, StrategySelector, TaskAnalyzer};
 
 /// Priority levels for task orchestration
@@ -603,7 +602,6 @@ impl AdaptiveTaskOrchestrator {
             .estimate_resources(&complexity, &priority)
             .await;
 
-        // Check if resources can be allocated
         if !self
             .resource_manager
             .can_allocate_resources(&resource_requirements)
@@ -620,7 +618,6 @@ impl AdaptiveTaskOrchestrator {
         // Get system resource status
         let resource_status = self.resource_manager.get_resource_status().await;
 
-        // Create selection criteria for strategy selector
         let selection_criteria = super::SelectionCriteria {
             task_complexity: complexity.clone(),
             task_priority: priority.clone(),
@@ -681,7 +678,6 @@ impl AdaptiveTaskOrchestrator {
         let task_uuid = match Uuid::parse_str(&task_id.replace("task_", "")) {
             Ok(uuid) => uuid,
             Err(_) => {
-                // Fallback for invalid UUIDs
                 warn!("Invalid task UUID: {}", task_id);
                 return Ok(());
             }
@@ -708,7 +704,6 @@ impl AdaptiveTaskOrchestrator {
     pub async fn shutdown(&self) -> Result<()> {
         info!("🛑 Shutting down Adaptive Task Orchestrator");
 
-        // Wait for active tasks to complete (with timeout)
         let timeout_duration = std::time::Duration::from_secs(30);
         let start_time = std::time::Instant::now();
 
@@ -842,7 +837,6 @@ impl AdaptiveTaskOrchestrator {
         info!("🚀 Initializing Adaptive Task Orchestrator");
 
         // Initialize performance monitoring
-        // Here we could add specific initialization for components if needed
 
         // Verify all components are healthy
         if !self.is_healthy().await {
@@ -857,7 +851,6 @@ impl AdaptiveTaskOrchestrator {
 
     /// Check if the orchestrator is healthy and ready to process tasks
     pub async fn is_healthy(&self) -> bool {
-        // Check if all handlers are available
         let available_handlers = self.get_available_handlers().await;
 
         // Must have at least one handler available
@@ -867,7 +860,6 @@ impl AdaptiveTaskOrchestrator {
 
         // Check resource manager availability
         let _resource_status = self.resource_manager.get_resource_status().await;
-        // Resource manager doesn't return Result, so we assume it's always available
 
         // Check active tasks aren't overloaded
         let active_count = self.active_tasks.read().await.len();

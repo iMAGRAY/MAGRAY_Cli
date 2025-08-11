@@ -50,9 +50,6 @@ impl DatabaseManager {
             // Оптимизации для concurrent access
             .cache_capacity(64 * 1024 * 1024) // 64MB cache
             .flush_every_ms(Some(5000)) // Flush каждые 5 секунд
-            // .compression_factor(6) // отключено: конфликт zstd версий из-за tantivy
-            // .use_compression(true)
-            // Режим для лучшей производительности
             .mode(sled::Mode::HighThroughput);
 
         let db = config.open()?;

@@ -36,7 +36,9 @@ impl Tool for GitStatus {
         let mut cmd = Command::new("git");
         cmd.args(["status", "--porcelain"]);
         // optional cwd
-        if let Some(cwd) = _input.args.get("cwd") { cmd.current_dir(cwd); }
+        if let Some(cwd) = _input.args.get("cwd") {
+            cmd.current_dir(cwd);
+        }
         let output = cmd.output()?;
 
         if output.status.success() {
@@ -117,7 +119,10 @@ impl Tool for GitCommit {
             return Ok(ToolOutput {
                 success: true,
                 result: format!("[dry-run] git add . && git commit -m \"{}\"", message),
-                formatted_output: Some(format!("$ git add .\n$ git commit -m \"{}\"\n[dry-run: no side effects]", message)),
+                formatted_output: Some(format!(
+                    "$ git add .\n$ git commit -m \"{}\"\n[dry-run: no side effects]",
+                    message
+                )),
                 metadata: meta,
             });
         }
@@ -125,7 +130,9 @@ impl Tool for GitCommit {
         // Сначала проверяем, есть ли что коммитить
         let mut status_cmd = Command::new("git");
         status_cmd.args(["status", "--porcelain"]);
-        if let Some(ref d) = cwd { status_cmd.current_dir(d); }
+        if let Some(ref d) = cwd {
+            status_cmd.current_dir(d);
+        }
         let status = status_cmd.output()?;
 
         if status.status.success() && status.stdout.is_empty() {
@@ -140,7 +147,9 @@ impl Tool for GitCommit {
         // Добавляем все изменения
         let mut add_cmd = Command::new("git");
         add_cmd.args(["add", "."]);
-        if let Some(ref d) = cwd { add_cmd.current_dir(d); }
+        if let Some(ref d) = cwd {
+            add_cmd.current_dir(d);
+        }
         let add = add_cmd.output()?;
 
         if !add.status.success() {
@@ -156,7 +165,9 @@ impl Tool for GitCommit {
         // Создаем коммит
         let mut commit_cmd = Command::new("git");
         commit_cmd.args(["commit", "-m", &message]);
-        if let Some(ref d) = cwd { commit_cmd.current_dir(d); }
+        if let Some(ref d) = cwd {
+            commit_cmd.current_dir(d);
+        }
         let commit = commit_cmd.output()?;
 
         if commit.status.success() {
@@ -164,24 +175,40 @@ impl Tool for GitCommit {
             // Получаем хеш коммита
             let mut rev_cmd = Command::new("git");
             rev_cmd.args(["rev-parse", "HEAD"]);
-            if let Some(ref d) = cwd { rev_cmd.current_dir(d); }
+            if let Some(ref d) = cwd {
+                rev_cmd.current_dir(d);
+            }
             let rev = rev_cmd.output().ok();
-            let commit_hash = rev.as_ref().and_then(|o| String::from_utf8(o.stdout.clone()).ok()).map(|s| s.trim().to_string()).unwrap_or_default();
+            let commit_hash = rev
+                .as_ref()
+                .and_then(|o| String::from_utf8(o.stdout.clone()).ok())
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default();
 
             // Получаем список изменённых файлов в коммите
             let mut diff_tree_cmd = Command::new("git");
             if !commit_hash.is_empty() {
-                diff_tree_cmd.args(["diff-tree", "--no-commit-id", "--name-only", "-r", &commit_hash]);
+                diff_tree_cmd.args([
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-only",
+                    "-r",
+                    &commit_hash,
+                ]);
             } else {
                 diff_tree_cmd.args(["diff", "--name-only", "HEAD~1..HEAD"]);
             }
-            if let Some(ref d) = cwd { diff_tree_cmd.current_dir(d); }
+            if let Some(ref d) = cwd {
+                diff_tree_cmd.current_dir(d);
+            }
             if let Ok(diff_out) = diff_tree_cmd.output() {
                 if diff_out.status.success() {
                     let files = String::from_utf8(diff_out.stdout).unwrap_or_default();
                     for line in files.lines() {
                         let file = line.trim();
-                        if file.is_empty() { continue; }
+                        if file.is_empty() {
+                            continue;
+                        }
                         let file_owned = file.to_string();
                         let ch = commit_hash.clone();
                         tokio::spawn(async move {
@@ -273,7 +300,9 @@ impl Tool for GitDiff {
     async fn execute(&self, _input: ToolInput) -> Result<ToolOutput> {
         let mut cmd = Command::new("git");
         cmd.args(["diff"]);
-        if let Some(cwd) = _input.args.get("cwd") { cmd.current_dir(cwd); }
+        if let Some(cwd) = _input.args.get("cwd") {
+            cmd.current_dir(cwd);
+        }
         let output = cmd.output()?;
 
         if output.status.success() {
@@ -402,7 +431,6 @@ mod tests {
         assert_eq!(input.command, "git_commit");
         assert_eq!(input.args.get("message").unwrap(), "Fix bug");
 
-        // Test format without quotes (should use entire text)
         let input = git_commit.parse_natural_language("просто commit").await?;
         assert_eq!(input.command, "git_commit");
         assert_eq!(input.args.get("message").unwrap(), "просто commit");

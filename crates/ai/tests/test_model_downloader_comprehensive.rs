@@ -5,8 +5,8 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tokio::fs;
 use tempfile::TempDir;
+use tokio::fs;
 
 // Mock для тестирования HTTP клиента
 // Убираем зависимости на внешние тестовые фреймворки (mockall, proptest, rstest, wiremock, serial_test)
@@ -21,7 +21,6 @@ fn create_model_downloader(temp_dir: &TempDir) -> ModelDownloader {
     ModelDownloader::new(temp_dir.path()).expect("Failed to create ModelDownloader")
 }
 
-// Extension trait to add missing methods for tests
 trait ModelDownloaderExt {
     fn get_model_path(&self, model_name: &str) -> PathBuf;
     fn base_path(&self) -> &std::path::Path;
@@ -42,12 +41,10 @@ impl ModelDownloaderExt for ModelDownloader {
     }
 
     async fn get_cache_size(&self) -> Result<u64> {
-        // Mock implementation for tests
         Ok(1024)
     }
 
     async fn clear_cache(&self) -> Result<()> {
-        // Mock implementation for tests
         Ok(())
     }
 }
@@ -124,14 +121,12 @@ async fn test_ensure_model_download_new() -> Result<()> {
     // Arrange - создаем временную директорию внутри теста
     let temp_model_dir = create_temp_dir();
     // Arrange - настройка mock сервера для симуляции загрузки
-    // let mock_server = MockServer::start().await; // Removed MockServer
 
     let model_data = b"mock downloaded model data";
     // Mock::given(method("GET")) // Removed Mock
     //     .and(path("/models/test-model"))
     //     .respond_with(ResponseTemplate::new(200).set_body_bytes(model_data))
     //     .mount(&mock_server)
-    //     .await;
 
     let downloader = ModelDownloader::new(temp_model_dir.path())?;
 
@@ -177,13 +172,11 @@ async fn test_ensure_model_download_failure() -> Result<()> {
     let temp_dir = create_temp_dir();
     let model_downloader = create_model_downloader(&temp_dir);
     // Arrange - настройка mock сервера для симуляции ошибки загрузки
-    // let mock_server = MockServer::start().await; // Removed MockServer
 
     // Mock::given(method("GET")) // Removed Mock
     //     .and(path("/models/failing-model"))
     //     .respond_with(ResponseTemplate::new(404))
     //     .mount(&mock_server)
-    //     .await;
 
     // Act - попытка загрузки несуществующей модели
     let model_name = "failing-model";

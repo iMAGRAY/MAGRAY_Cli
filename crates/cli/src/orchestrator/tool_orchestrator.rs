@@ -151,7 +151,6 @@ impl ToolOrchestrator {
             orchestration_time
         );
 
-        // Step 2: Determine if task should be handled by tool system
         let should_use_tool_system = self
             .should_delegate_to_tool_system(&orchestration_result)
             .await;
@@ -217,8 +216,9 @@ impl ToolOrchestrator {
 
             // Calculate orchestrator-tool alignment score
             if let Some(result) = tool_result.as_ref() {
-                metrics.orchestrator_tool_alignment =
-                    self.calculate_alignment_score(&orchestration_result, result).await;
+                metrics.orchestrator_tool_alignment = self
+                    .calculate_alignment_score(&orchestration_result, result)
+                    .await;
             }
         }
 
@@ -269,7 +269,6 @@ impl ToolOrchestrator {
             return true;
         }
 
-        // Check for tool-related keywords in the response
         let response_lower = orchestration_result.response.to_lowercase();
         let tool_keywords = [
             "file",
@@ -324,7 +323,6 @@ impl ToolOrchestrator {
             return true;
         }
 
-        // Check if tool system suggested better alternatives
         if !tool_result.alternative_tools.is_empty() {
             debug!(
                 "⚡ Tool system found {} alternatives, updating orchestrator knowledge",
@@ -367,7 +365,6 @@ impl ToolOrchestrator {
 
         alignment_factors.push(success_alignment);
 
-        // Handler selection alignment (if tool was predicted correctly)
         let handler_alignment = if orchestration_result.handler_used == "tools" {
             0.9 // High score for correct tool selection
         } else {
@@ -522,7 +519,6 @@ impl ToolOrchestrator {
     pub async fn shutdown(&self) -> Result<()> {
         info!("🛑 Shutting down Integrated Tool Orchestrator");
 
-        // Shutdown task orchestrator (which waits for active tasks)
         self.task_orchestrator.shutdown().await?;
 
         info!("✅ Integrated Tool Orchestrator shutdown complete");

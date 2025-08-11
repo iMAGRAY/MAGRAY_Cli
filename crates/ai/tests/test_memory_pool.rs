@@ -48,7 +48,6 @@ fn test_memory_pool_output_buffer() {
     // Buffer will be returned automatically via Drop trait
     drop(buffer);
 
-    // Should reuse buffer
     let buffer2 = pool.get_output_buffer(512);
     assert!(buffer2.capacity() >= 512);
 
@@ -100,8 +99,6 @@ fn test_memory_pool_oversized_buffer() {
     // Create oversized buffer
     let buffer: Vec<i64> = vec![0; 20000];
 
-    // This method expects Vec<i64> but we have a Vec, not PooledBuffer
-    // Just drop it instead since the actual pool handles return automatically
     drop(buffer);
 
     // Oversized buffer should not be kept
@@ -131,7 +128,6 @@ fn test_memory_pool_thread_local() {
         handles.push(handle);
     }
 
-    // Wait for all threads
     for handle in handles {
         handle.join().unwrap();
     }

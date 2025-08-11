@@ -1,8 +1,17 @@
 use std::collections::HashMap;
+use tools::intelligent_selector::{
+    IntelligentToolSelector, SelectorConfig, TaskComplexity, ToolSelectionContext, UrgencyLevel,
+    UserExpertise,
+};
 use tools::{ToolSpec, UsageGuide};
-use tools::intelligent_selector::{IntelligentToolSelector, SelectorConfig, ToolSelectionContext, TaskComplexity, UrgencyLevel, UserExpertise};
 
-fn mk_guide(tags: Vec<&str>, caps: Vec<&str>, good_for: Vec<&str>, latency: &str, risk: u8) -> UsageGuide {
+fn mk_guide(
+    tags: Vec<&str>,
+    caps: Vec<&str>,
+    good_for: Vec<&str>,
+    latency: &str,
+    risk: u8,
+) -> UsageGuide {
     UsageGuide {
         usage_title: "t".into(),
         usage_summary: "s".into(),
@@ -47,7 +56,10 @@ fn ctx(query: &str, urgency: UrgencyLevel) -> ToolSelectionContext {
 }
 
 fn low_threshold_config() -> SelectorConfig {
-    SelectorConfig { min_confidence_threshold: 0.0, ..Default::default() }
+    SelectorConfig {
+        min_confidence_threshold: 0.0,
+        ..Default::default()
+    }
 }
 
 #[tokio::test]
@@ -57,50 +69,93 @@ async fn selector_prefers_tool_with_matching_tags_caps() {
     let a = mk_spec(
         "alpha",
         "Downloader tool",
-        Some(mk_guide(vec!["download", "http"], vec!["fetch"], vec!["web"], "fast", 1)),
+        Some(mk_guide(
+            vec!["download", "http"],
+            vec!["fetch"],
+            vec!["web"],
+            "fast",
+            1,
+        )),
     );
     let b = mk_spec("beta", "Generic tool", None);
 
     selector.register_tool(a.clone()).await;
     selector.register_tool(b.clone()).await;
 
-    let choices = selector.select_tools(&ctx("скачай страницу", UrgencyLevel::Normal)).await.unwrap();
+    let choices = selector
+        .select_tools(&ctx("скачай страницу", UrgencyLevel::Normal))
+        .await
+        .unwrap();
     assert!(!choices.is_empty());
     // alpha should rank higher than beta
     let pos_alpha = choices.iter().position(|c| c.tool_name == "alpha").unwrap();
     let pos_beta = choices.iter().position(|c| c.tool_name == "beta").unwrap();
-    assert!(pos_alpha < pos_beta, "alpha should outrank beta due to tags/caps match");
+    assert!(
+        pos_alpha < pos_beta,
+        "alpha should outrank beta due to tags/caps match"
+    );
 }
 
 #[tokio::test]
 async fn selector_accounts_for_latency_with_high_urgency() {
     let selector = IntelligentToolSelector::new(low_threshold_config());
 
-    let fast = mk_spec("fast", "Fast tool", Some(mk_guide(vec![], vec![], vec![], "fast", 3)));
-    let slow = mk_spec("slow", "Slow tool", Some(mk_guide(vec![], vec![], vec![], "slow", 3)));
+    let fast = mk_spec(
+        "fast",
+        "Fast tool",
+        Some(mk_guide(vec![], vec![], vec![], "fast", 3)),
+    );
+    let slow = mk_spec(
+        "slow",
+        "Slow tool",
+        Some(mk_guide(vec![], vec![], vec![], "slow", 3)),
+    );
 
     selector.register_tool(fast.clone()).await;
     selector.register_tool(slow.clone()).await;
 
-    let choices = selector.select_tools(&ctx("latency test", UrgencyLevel::High)).await.unwrap();
+    let choices = selector
+        .select_tools(&ctx("latency test", UrgencyLevel::High))
+        .await
+        .unwrap();
     let pos_fast = choices.iter().position(|c| c.tool_name == "fast").unwrap();
     let pos_slow = choices.iter().position(|c| c.tool_name == "slow").unwrap();
-    assert!(pos_fast < pos_slow, "fast latency should be preferred under high urgency");
+    assert!(
+        pos_fast < pos_slow,
+        "fast latency should be preferred under high urgency"
+    );
 }
 
 #[tokio::test]
 async fn selector_prefers_lower_risk() {
     let selector = IntelligentToolSelector::new(low_threshold_config());
 
-    let low = mk_spec("lowrisk", "Low risk", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
-    let high = mk_spec("highrisk", "High risk", Some(mk_guide(vec![], vec![], vec![], "fast", 5)));
+    let low = mk_spec(
+        "lowrisk",
+        "Low risk",
+        Some(mk_guide(vec![], vec![], vec![], "fast", 1)),
+    );
+    let high = mk_spec(
+        "highrisk",
+        "High risk",
+        Some(mk_guide(vec![], vec![], vec![], "fast", 5)),
+    );
 
     selector.register_tool(low.clone()).await;
     selector.register_tool(high.clone()).await;
 
-    let choices = selector.select_tools(&ctx("do something", UrgencyLevel::Normal)).await.unwrap();
-    let pos_low = choices.iter().position(|c| c.tool_name == "lowrisk").unwrap();
-    let pos_high = choices.iter().position(|c| c.tool_name == "highrisk").unwrap();
+    let choices = selector
+        .select_tools(&ctx("do something", UrgencyLevel::Normal))
+        .await
+        .unwrap();
+    let pos_low = choices
+        .iter()
+        .position(|c| c.tool_name == "lowrisk")
+        .unwrap();
+    let pos_high = choices
+        .iter()
+        .position(|c| c.tool_name == "highrisk")
+        .unwrap();
     assert!(pos_low < pos_high, "low risk should have slight bonus");
 }
 
@@ -108,18 +163,47 @@ async fn selector_prefers_lower_risk() {
 async fn selector_is_deterministic_for_same_input() {
     let selector = IntelligentToolSelector::new(SelectorConfig::default());
 
-    let t1 = mk_spec("t1", "Tool one", Some(mk_guide(vec!["tag1"], vec!["cap1"], vec!["general"], "fast", 1)));
-    let t2 = mk_spec("t2", "Tool two", Some(mk_guide(vec!["tag2"], vec!["cap2"], vec!["general"], "slow", 3)));
+    let t1 = mk_spec(
+        "t1",
+        "Tool one",
+        Some(mk_guide(
+            vec!["tag1"],
+            vec!["cap1"],
+            vec!["general"],
+            "fast",
+            1,
+        )),
+    );
+    let t2 = mk_spec(
+        "t2",
+        "Tool two",
+        Some(mk_guide(
+            vec!["tag2"],
+            vec!["cap2"],
+            vec!["general"],
+            "slow",
+            3,
+        )),
+    );
     selector.register_tool(t1.clone()).await;
     selector.register_tool(t2.clone()).await;
 
-    let c1 = selector.select_tools(&ctx("some query with tag1", UrgencyLevel::Normal)).await.unwrap();
-    let c2 = selector.select_tools(&ctx("some query with tag1", UrgencyLevel::Normal)).await.unwrap();
+    let c1 = selector
+        .select_tools(&ctx("some query with tag1", UrgencyLevel::Normal))
+        .await
+        .unwrap();
+    let c2 = selector
+        .select_tools(&ctx("some query with tag1", UrgencyLevel::Normal))
+        .await
+        .unwrap();
     assert_eq!(c1.len(), c2.len());
     // Compare order of tool names
     let names1: Vec<_> = c1.iter().map(|x| x.tool_name.clone()).collect();
     let names2: Vec<_> = c2.iter().map(|x| x.tool_name.clone()).collect();
-    assert_eq!(names1, names2, "selection should be deterministic for same input");
+    assert_eq!(
+        names1, names2,
+        "selection should be deterministic for same input"
+    );
 }
 
 #[tokio::test]
@@ -134,13 +218,19 @@ async fn selector_prefilters_shell_when_disallowed() {
         examples: vec![],
         input_schema: "{}".into(),
         usage_guide: None,
-        permissions: Some(tools::ToolPermissions { allow_shell: true, ..Default::default() }),
+        permissions: Some(tools::ToolPermissions {
+            allow_shell: true,
+            ..Default::default()
+        }),
         supports_dry_run: true,
     };
     let other = mk_spec("other", "Generic", None);
     selector.register_tool(shell).await;
     selector.register_tool(other.clone()).await;
-    let choices = selector.select_tools(&ctx("run command", UrgencyLevel::Normal)).await.unwrap();
+    let choices = selector
+        .select_tools(&ctx("run command", UrgencyLevel::Normal))
+        .await
+        .unwrap();
     // shell_exec must not appear
     assert!(choices.iter().all(|c| c.tool_name != "shell_exec"));
 }
@@ -156,13 +246,19 @@ async fn selector_prefilters_network_when_allowlist_empty() {
         examples: vec![],
         input_schema: "{}".into(),
         usage_guide: None,
-        permissions: Some(tools::ToolPermissions { net_allowlist: vec!["example.com".into()], ..Default::default() }),
+        permissions: Some(tools::ToolPermissions {
+            net_allowlist: vec!["example.com".into()],
+            ..Default::default()
+        }),
         supports_dry_run: true,
     };
     let other = mk_spec("other", "Generic", None);
     selector.register_tool(web).await;
     selector.register_tool(other.clone()).await;
-    let choices = selector.select_tools(&ctx("скачай страницу", UrgencyLevel::Normal)).await.unwrap();
+    let choices = selector
+        .select_tools(&ctx("скачай страницу", UrgencyLevel::Normal))
+        .await
+        .unwrap();
     assert!(choices.iter().all(|c| c.tool_name != "web_fetch"));
 }
 
@@ -178,13 +274,19 @@ async fn selector_prefilters_fs_when_sandbox_on_and_roots_insufficient() {
         examples: vec![],
         input_schema: "{}".into(),
         usage_guide: None,
-        permissions: Some(tools::ToolPermissions { fs_write_roots: vec!["/other".into()], ..Default::default() }),
+        permissions: Some(tools::ToolPermissions {
+            fs_write_roots: vec!["/other".into()],
+            ..Default::default()
+        }),
         supports_dry_run: true,
     };
     let ok = mk_spec("file_read", "Reader", None);
     selector.register_tool(needs_fs).await;
     selector.register_tool(ok.clone()).await;
-    let choices = selector.select_tools(&ctx("write file", UrgencyLevel::Normal)).await.unwrap();
+    let choices = selector
+        .select_tools(&ctx("write file", UrgencyLevel::Normal))
+        .await
+        .unwrap();
     assert!(choices.iter().all(|c| c.tool_name != "file_write"));
 }
 
@@ -196,7 +298,11 @@ async fn selector_prefers_lower_privilege_and_dry_run() {
     let selector = IntelligentToolSelector::new(low_threshold_config());
 
     // Tool A: needs shell + write FS (riskier), no dry-run
-    let mut a = mk_spec("risky", "Risky tool", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
+    let mut a = mk_spec(
+        "risky",
+        "Risky tool",
+        Some(mk_guide(vec![], vec![], vec![], "fast", 1)),
+    );
     a.permissions = Some(tools::ToolPermissions {
         allow_shell: true,
         fs_write_roots: vec!["/".into()],
@@ -205,17 +311,27 @@ async fn selector_prefers_lower_privilege_and_dry_run() {
     a.supports_dry_run = false;
 
     // Tool B: no explicit permissions (least-privilege), supports dry-run
-    let mut b = mk_spec("safe", "Safe tool", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
+    let mut b = mk_spec(
+        "safe",
+        "Safe tool",
+        Some(mk_guide(vec![], vec![], vec![], "fast", 1)),
+    );
     b.permissions = None;
     b.supports_dry_run = true;
 
     selector.register_tool(a.clone()).await;
     selector.register_tool(b.clone()).await;
 
-    let choices = selector.select_tools(&ctx("do something", UrgencyLevel::Normal)).await.unwrap();
+    let choices = selector
+        .select_tools(&ctx("do something", UrgencyLevel::Normal))
+        .await
+        .unwrap();
     let pos_safe = choices.iter().position(|c| c.tool_name == "safe").unwrap();
     let pos_risky = choices.iter().position(|c| c.tool_name == "risky").unwrap();
-    assert!(pos_safe < pos_risky, "Tools with fewer privileges and dry-run should rank higher");
+    assert!(
+        pos_safe < pos_risky,
+        "Tools with fewer privileges and dry-run should rank higher"
+    );
 }
 
 #[tokio::test]
@@ -225,18 +341,33 @@ async fn selector_explanations_include_permissions_and_dry_run() {
     std::env::set_var("MAGRAY_FS_SANDBOX", "0");
     let selector = IntelligentToolSelector::new(low_threshold_config());
 
-    let mut risky = mk_spec("risky2", "Risky tool 2", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
-    risky.permissions = Some(tools::ToolPermissions { allow_shell: true, fs_write_roots: vec!["/".into()], ..Default::default() });
+    let mut risky = mk_spec(
+        "risky2",
+        "Risky tool 2",
+        Some(mk_guide(vec![], vec![], vec![], "fast", 1)),
+    );
+    risky.permissions = Some(tools::ToolPermissions {
+        allow_shell: true,
+        fs_write_roots: vec!["/".into()],
+        ..Default::default()
+    });
     risky.supports_dry_run = false;
 
-    let mut safe = mk_spec("safe2", "Safe tool 2", Some(mk_guide(vec![], vec![], vec![], "fast", 1)));
+    let mut safe = mk_spec(
+        "safe2",
+        "Safe tool 2",
+        Some(mk_guide(vec![], vec![], vec![], "fast", 1)),
+    );
     safe.permissions = None;
     safe.supports_dry_run = true;
 
     selector.register_tool(risky.clone()).await;
     selector.register_tool(safe.clone()).await;
 
-    let exps = selector.select_tools_with_explanations(&ctx("do something", UrgencyLevel::Normal)).await.unwrap();
+    let exps = selector
+        .select_tools_with_explanations(&ctx("do something", UrgencyLevel::Normal))
+        .await
+        .unwrap();
     // Find both explanations
     let er = exps.iter().find(|e| e.tool_name == "risky2").unwrap();
     let es = exps.iter().find(|e| e.tool_name == "safe2").unwrap();

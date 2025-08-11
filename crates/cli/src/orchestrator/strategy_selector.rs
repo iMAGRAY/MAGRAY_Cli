@@ -112,7 +112,6 @@ impl StrategySelector {
     async fn analyze_optimal_strategy(&self, criteria: &SelectionCriteria) -> ExecutionStrategy {
         let mut scores = HashMap::new();
 
-        // Calculate base scores for each strategy
         scores.insert(
             ExecutionStrategy::Direct,
             self.score_direct_strategy(criteria),
@@ -138,7 +137,6 @@ impl StrategySelector {
             self.score_optimized_strategy(criteria),
         );
 
-        // Apply adaptive learning weights if enabled
         if self.adaptive_learning {
             for (strategy, score) in scores.iter_mut() {
                 if let Some(weight) = self.strategy_weights.get(strategy) {
@@ -159,19 +157,16 @@ impl StrategySelector {
     fn score_direct_strategy(&self, criteria: &SelectionCriteria) -> f32 {
         let mut score = 1.0;
 
-        // Favor direct execution for simple tasks
         match criteria.task_complexity {
             TaskComplexity::Simple => score += 0.5,
             TaskComplexity::Medium => score += 0.2,
             _ => score -= 0.3,
         }
 
-        // Favor for low system load
         if criteria.system_load < 0.3 {
             score += 0.3;
         }
 
-        // Favor for small queue
         if criteria.queue_depth < 3 {
             score += 0.2;
         }
@@ -190,7 +185,6 @@ impl StrategySelector {
             score -= 0.5; // Penalize if no similar tasks
         }
 
-        // Better for medium complexity tasks
         match criteria.task_complexity {
             TaskComplexity::Medium => score += 0.3,
             TaskComplexity::Complex => score += 0.2,
@@ -204,7 +198,6 @@ impl StrategySelector {
     fn score_prioritized_strategy(&self, criteria: &SelectionCriteria) -> f32 {
         let mut score = 1.0;
 
-        // Strongly favor for high priority tasks
         match criteria.task_priority {
             TaskPriority::Emergency => score += 2.0,
             TaskPriority::Critical => score += 1.5,
@@ -225,7 +218,6 @@ impl StrategySelector {
     fn score_parallel_strategy(&self, criteria: &SelectionCriteria) -> f32 {
         let mut score = 1.0;
 
-        // Favor for complex tasks that can be parallelized
         match criteria.task_complexity {
             TaskComplexity::Complex => score += 0.8,
             TaskComplexity::Expert => score += 1.2,
@@ -240,7 +232,6 @@ impl StrategySelector {
             score -= 0.8;
         }
 
-        // Favor for tasks with reasonable duration
         if criteria.estimated_duration > Duration::from_millis(500)
             && criteria.estimated_duration < Duration::from_secs(30)
         {
@@ -266,7 +257,6 @@ impl StrategySelector {
             score += 0.7;
         }
 
-        // Good for all complexity levels under load
         match criteria.task_complexity {
             TaskComplexity::Complex | TaskComplexity::Expert => score += 0.3,
             _ => score += 0.1,
@@ -279,7 +269,6 @@ impl StrategySelector {
     fn score_optimized_strategy(&self, criteria: &SelectionCriteria) -> f32 {
         let mut score = 1.0;
 
-        // Favor for expert level tasks
         match criteria.task_complexity {
             TaskComplexity::Expert => score += 1.5,
             TaskComplexity::Complex => score += 0.8,
@@ -287,14 +276,12 @@ impl StrategySelector {
             _ => score -= 0.2,
         }
 
-        // Favor for high priority tasks
         match criteria.task_priority {
             TaskPriority::Critical | TaskPriority::Emergency => score += 0.8,
             TaskPriority::High => score += 0.4,
             _ => score += 0.1,
         }
 
-        // Favor when resources are available for optimization overhead
         if criteria.resource_availability > 0.5 {
             score += 0.5;
         } else {
@@ -333,7 +320,6 @@ impl StrategySelector {
             _ => confidence += 0.1,
         }
 
-        // Apply historical success rate if available
         if self.performance_history.total_selections > 10 {
             let success_rate = self.performance_history.successful_executions as f32
                 / self.performance_history.total_selections as f32;
@@ -443,7 +429,6 @@ impl StrategySelector {
         let mut usage_vec: Vec<_> = self.performance_history.strategy_usage.iter().collect();
         usage_vec.sort_by(|a, b| b.1.cmp(a.1));
 
-        // Clone the usage_vec for later use
         let usage_vec_clone = usage_vec.clone();
 
         for (strategy, count) in usage_vec {

@@ -1,5 +1,3 @@
-// @component: {"k":"T","id":"batch_optimized_tests","t":"Comprehensive unit tests for BatchOptimizedProcessor","m":{"cur":100,"tgt":100,"u":"%"},"f":["testing","performance","batch","simd"]}
-
 //! Comprehensive Unit Tests для BatchOptimizedProcessor
 //!
 //! Покрывает критический компонент (95% готовности, 1200+ строк):

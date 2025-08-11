@@ -1,8 +1,8 @@
 use anyhow::Result;
 use std::path::Path;
 use std::sync::Arc;
-use tokenizers::{PaddingDirection, PaddingParams, PaddingStrategy, Tokenizer, TruncationParams};
 use tokenizers::EncodeInput;
+use tokenizers::{PaddingDirection, PaddingParams, PaddingStrategy, Tokenizer, TruncationParams};
 use tracing::{debug, info, warn};
 
 // Подмодули
@@ -57,7 +57,8 @@ impl OptimizedTokenizer {
         let path_str = tokenizer_path.to_string_lossy();
         let model_name = if path_str.contains("qwen3") {
             "qwen3"
-        } else if false { // legacy bge-m3 removed
+        } else if false {
+            // legacy bge-m3 removed
             "bge-m3"
         } else {
             "unknown"
@@ -201,7 +202,6 @@ impl OptimizedTokenizer {
                     .map(|&mask| mask as i64)
                     .collect();
 
-                // Truncate if necessary
                 if input_ids.len() > self.max_length {
                     debug!(
                         "Truncating from {} to {} tokens",
@@ -211,7 +211,6 @@ impl OptimizedTokenizer {
                     input_ids.truncate(self.max_length);
                     attention_mask.truncate(self.max_length);
 
-                    // Ensure we end with EOS token for BGE-M3
                     if let Some(eos_id) = self.get_eos_token_id() {
                         if !input_ids.is_empty() {
                             let last_idx = input_ids.len() - 1;
@@ -220,7 +219,6 @@ impl OptimizedTokenizer {
                     }
                 }
 
-                // BGE-M3 uses XLMRoberta which needs token_type_ids (all zeros for single sequence)
                 let token_type_ids = vec![0i64; input_ids.len()];
                 let length = input_ids.len();
 
@@ -240,7 +238,6 @@ impl OptimizedTokenizer {
     pub fn encode_pair(&self, text_a: &str, text_b: &str) -> Result<TokenizedInput> {
         match &self.inner {
             TokenizerImpl::SimpleQwen3(tokenizer) => {
-                // Fallback: concatenate with separator and use simple encode
                 let combined = format!("{} {} {}", text_a, "[SEP]", text_b);
                 Ok(tokenizer.encode(&combined))
             }
@@ -257,7 +254,6 @@ impl OptimizedTokenizer {
                     .map(|&mask| mask as i64)
                     .collect();
 
-                // Truncate if necessary
                 if input_ids.len() > self.max_length {
                     input_ids.truncate(self.max_length);
                     attention_mask.truncate(self.max_length);
@@ -316,7 +312,6 @@ impl OptimizedTokenizer {
                         .map(|&mask| mask as i64)
                         .collect();
 
-                    // Truncate if necessary
                     if input_ids.len() > self.max_length {
                         input_ids.truncate(self.max_length);
                         attention_mask.truncate(self.max_length);

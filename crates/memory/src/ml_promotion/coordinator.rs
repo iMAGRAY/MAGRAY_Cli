@@ -550,22 +550,12 @@ mod tests {
 
     // TODO: Create VectorStore trait and implement for MockVectorStore
     // #[async_trait::async_trait]
-    // impl VectorStore for MockVectorStore {
     //     // Заглушки для всех методов VectorStore trait
     //     // В реальном тесте здесь была бы полная реализация
     // }
 
     #[tokio::test]
     async fn test_coordinator_builder() {
-        // let store = Arc::new(MockVectorStore);
-        // let coordinator = PromotionCoordinatorBuilder::new()
-        //     .with_store(store)
-        //     .build()
-        //     .await;
-        //
-        // assert!(coordinator.is_ok());
-
-        // Тест требует полной mock реализации VectorStore
         assert!(true); // Placeholder
     }
 

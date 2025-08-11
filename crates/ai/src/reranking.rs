@@ -7,7 +7,6 @@ use tracing::{debug, info, warn};
 
 /// Reranking service with real ONNX inference
 pub struct RerankingService {
-    // Try to use optimized version first
     optimized_service: Option<Arc<OptimizedRerankingService>>,
     // Fallback to basic implementation
     session: Arc<OnnxSession>,
@@ -35,9 +34,7 @@ impl RerankingService {
         // Try to create optimized service first
         let optimized_service = match tokio::runtime::Handle::try_current() {
             Ok(handle) => {
-                // We're in an async context, check if multi-threaded runtime
                 if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread {
-                    // Multi-threaded runtime - can use block_in_place
                     match tokio::task::block_in_place(|| {
                         handle.block_on(OptimizedRerankingService::new(config.clone()))
                     }) {
@@ -51,7 +48,6 @@ impl RerankingService {
                         }
                     }
                 } else {
-                    // Single-threaded runtime - skip optimized service for now
                     warn!("Single-threaded runtime detected, skipping optimized reranking service");
                     None
                 }
@@ -94,7 +90,6 @@ impl RerankingService {
             return Self::new_mock(config.clone());
         }
 
-        // Load reranking model directly for fallback
         let session =
             crate::models::OnnxSession::new(config.model_name.clone(), model_path, config.use_gpu)?;
 
@@ -150,11 +145,9 @@ impl RerankingService {
             return Ok(vec![]);
         }
 
-        // Use optimized service if available
         if let Some(ref optimized) = self.optimized_service {
             debug!("Using optimized reranking service");
 
-            // Use block_in_place to run async code in sync context
             let optimized_results = tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(optimized.rerank(query, documents))
             })?;
@@ -202,7 +195,6 @@ impl RerankingService {
         documents: &[String],
         start_index: usize,
     ) -> Result<Vec<RerankResult>> {
-        // Check if we have a real session
         if self.session.is_fallback() {
             debug!(
                 "Using mock processing for batch of {} documents",
@@ -238,7 +230,6 @@ impl RerankingService {
 
         for (local_idx, document) in documents.iter().enumerate() {
             let score = if let Some(ref tokenizer) = self.tokenizer {
-                // Use real tokenizer for more accurate scoring
                 self.calculate_enhanced_similarity_with_tokenizer(query, document, tokenizer)?
             } else {
                 // Fallback to basic enhanced similarity
@@ -264,7 +255,6 @@ impl RerankingService {
         document: &str,
         tokenizer: &TokenizerService,
     ) -> Result<f32> {
-        // Tokenize query and document separately for cross-attention simulation
         let query_tokens = tokenizer.encode(query)?;
         let doc_tokens = tokenizer.encode(document)?;
 
@@ -339,7 +329,6 @@ impl RerankingService {
         let doc_len = document.len() as f32;
         let length_ratio = (query_len.min(doc_len) / query_len.max(doc_len).max(1.0)).sqrt();
 
-        // Position bonus for early matches
         let position_bonus = if let Some(first_word) = query_words.iter().next() {
             if !first_word.is_empty() && doc_lower.starts_with(first_word) {
                 0.1
@@ -436,7 +425,6 @@ impl RerankingService {
         // Simple mock scoring based on:
         // 1. Overlapping words
         // 2. Length ratio
-        // 3. Hash-based randomness for deterministic results
 
         let query_lower = query.to_lowercase();
         let doc_lower = document.to_lowercase();
@@ -452,7 +440,6 @@ impl RerankingService {
             0.0
         };
 
-        // Length penalty for very short or very long documents
         let query_len = query.len() as f32;
         let doc_len = document.len() as f32;
         let length_ratio = (query_len.min(doc_len) / query_len.max(doc_len)).max(0.1);

@@ -20,7 +20,6 @@ fn default_gpu_config() -> OptionalGpuConfig {
     None
 }
 
-// Helper function for no GPU config
 fn no_gpu_config() -> OptionalGpuConfig {
     None
 }

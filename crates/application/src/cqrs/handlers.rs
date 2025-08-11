@@ -88,7 +88,6 @@ impl CommandHandler<StoreMemoryCommand> for StoreMemoryCommandHandler {
             tags: command.tags,
         };
         
-        // Execute through use case
         let result = self.use_case.store_memory(request, context.clone()).await;
         
         match &result {
@@ -170,7 +169,6 @@ impl CommandHandler<BatchStoreMemoryCommand> for BatchStoreMemoryCommandHandler 
             },
         };
         
-        // Execute through use case
         let result = self.use_case.store_batch_memory(request, context.clone()).await;
         
         match &result {
@@ -220,7 +218,6 @@ impl CommandHandler<PromoteRecordsCommand> for PromoteRecordsCommandHandler {
             dry_run: command.dry_run,
         };
         
-        // Execute through use case
         let result = self.use_case.promote_records(request, context.clone()).await;
         
         match &result {
@@ -270,7 +267,6 @@ impl QueryHandler<SearchMemoryQuery> for SearchMemoryQueryHandler {
             tag_filters: query.tag_filters,
         };
         
-        // Execute through use case
         let result = self.use_case.search_memory(request, context.clone()).await;
         
         match &result {
@@ -321,7 +317,6 @@ impl QueryHandler<SimilaritySearchQuery> for SimilaritySearchQueryHandler {
             include_vectors: query.include_vectors,
         };
         
-        // Execute through use case
         let result = self.use_case.similarity_search(request, context.clone()).await;
         
         match &result {
@@ -370,7 +365,6 @@ impl QueryHandler<RetrieveMemoryQuery> for RetrieveMemoryQueryHandler {
             include_stats: query.include_stats,
         };
         
-        // Execute through use case
         let result = self.use_case.retrieve_memory(request, context.clone()).await;
         
         match &result {
@@ -419,7 +413,6 @@ impl QueryHandler<AnalyzeUsageQuery> for AnalyzeUsageQueryHandler {
             project_filter: query.project_filter,
         };
         
-        // Execute through use case
         let result = self.use_case.analyze_usage_patterns(request, context.clone()).await;
         
         match &result {
@@ -441,7 +434,6 @@ impl QueryHandler<AnalyzeUsageQuery> for AnalyzeUsageQueryHandler {
     }
 }
 
-// Helper implementations for metrics recording
 impl StoreMemoryCommandHandler {
     async fn record_success_metrics(&self, operation: &str, duration_ms: u64, response: &crate::dtos::StoreMemoryResponse) -> ApplicationResult<()> {
         let mut tags = std::collections::HashMap::new();

@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 //! Comprehensive tests for DIMemoryService
 //!
@@ -122,7 +122,6 @@ async fn test_batch_insert_operations() -> Result<()> {
     let records = create_test_records(100, Layer::Interact);
 
     // TODO: Implement batch_insert method for DIMemoryService
-    // let result = service.batch_insert(records.clone()).await?;
 
     // Fallback: insert records one by one
     let mut inserted = 0;
@@ -175,7 +174,6 @@ async fn test_batch_search_operations() -> Result<()> {
     let queries: Vec<String> = records.iter().take(10).map(|r| r.content.clone()).collect();
 
     // TODO: Implement batch_search method for DIMemoryService
-    // let result = service.batch_search(queries.clone(), Layer::Interact, SearchOptions::default()).await?;
 
     // Fallback: search one by one
     let start_time = std::time::Instant::now();

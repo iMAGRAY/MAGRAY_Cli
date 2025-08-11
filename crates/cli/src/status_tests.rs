@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 #[cfg(test)]
 mod tests {
@@ -92,9 +92,14 @@ mod tests {
     async fn test_status_command_performance() {
         use std::time::Instant;
         let start = Instant::now();
-        let timeout = tokio::time::timeout(std::time::Duration::from_secs(10), show_system_status()).await;
+        let timeout =
+            tokio::time::timeout(std::time::Duration::from_secs(10), show_system_status()).await;
         let duration = start.elapsed();
         assert!(timeout.is_ok(), "Status command timed out");
-        assert!(duration.as_secs() < 10, "Status command took too long: {:?}", duration);
+        assert!(
+            duration.as_secs() < 10,
+            "Status command took too long: {:?}",
+            duration
+        );
     }
 }

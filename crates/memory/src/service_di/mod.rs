@@ -108,9 +108,12 @@ impl Default for MemorySystemStats {
             batch_stats: BatchStats::default(),
             gpu_stats: None,
             di_container_stats: crate::DIContainerStats {
+                name: "default".to_string(),
+                service_count: 0,
+                total_resolutions: 0,
+                failed_resolutions: 0,
                 registered_factories: 0,
                 cached_singletons: 0,
-                total_resolutions: 0,
                 cache_hits: 0,
                 validation_errors: 0,
             },

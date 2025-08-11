@@ -126,7 +126,6 @@ impl VectorStore {
     ) -> Result<Self> {
         let db_path = db_path.as_ref();
 
-        // Create directory if it doesn't exist
         if !db_path.exists() {
             std::fs::create_dir_all(db_path)?;
         }
@@ -135,7 +134,6 @@ impl VectorStore {
         let flush_config = FlushConfig::from_env();
         let db = Self::open_database_with_recovery(db_path, &flush_config)?;
 
-        // Initialize indices for each layer with hnsw_rs config
         let mut indices = HashMap::new();
         let mut change_trackers = HashMap::new();
         let index_config = default_config;
@@ -165,10 +163,8 @@ impl VectorStore {
     }
 
     pub async fn init_layer(&self, layer: Layer) -> Result<()> {
-        // Create tree for layer if it doesn't exist
         self.db.open_tree(layer.table_name())?;
 
-        // Rebuild index for this layer
         self.rebuild_index(layer).await?;
 
         info!("Initialized layer {:?}", layer);
@@ -354,7 +350,6 @@ impl VectorStore {
         if let Some(index) = self.indices.get(&layer) {
             let results = index.search(query_embedding, limit)?;
 
-            // Get full records for the results
             let tree = self.get_tree(layer).await?;
             let mut records = Vec::new();
 
@@ -571,7 +566,6 @@ impl VectorStore {
             })
         });
 
-        // Apply limit if specified
         if let Some(limit) = limit {
             candidates.truncate(limit);
         }
@@ -590,7 +584,6 @@ impl VectorStore {
             return Ok(());
         }
 
-        // Group records by layer for efficient processing
         let mut records_by_layer: HashMap<Layer, Vec<&Record>> = HashMap::new();
         for record in records {
             records_by_layer
@@ -602,7 +595,6 @@ impl VectorStore {
         for (layer, layer_records) in records_by_layer {
             let tree = self.get_tree(layer).await?;
 
-            // Prepare data for batch insertion
             let mut stored_records = Vec::new();
             let mut vector_batch = Vec::new();
 
@@ -616,12 +608,10 @@ impl VectorStore {
                 // Store in database
                 tree.insert(key.as_bytes(), value)?;
 
-                // Prepare for vector index
                 stored_records.push((key.clone(), (*record).clone()));
                 vector_batch.push((key, record.embedding.clone()));
             }
 
-            // Add batch to vector index if it exists
             if let Some(index) = self.indices.get(&layer) {
                 index.add_batch(vector_batch)?;
             }
@@ -820,7 +810,6 @@ pub struct LayerMemoryStats {
 fn calculate_promotion_priority(record: &Record) -> f32 {
     use chrono::Utc;
 
-    // Age factor (newer is better for promotion)
     let age_hours = (Utc::now() - record.ts).num_hours() as f32;
     let age_factor = 1.0 / (1.0 + age_hours / 168.0); // Decay over a week
 

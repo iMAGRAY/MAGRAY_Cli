@@ -11,20 +11,12 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tracing::{debug, info, warn};
 
-use crate::{
-    di::UnifiedContainer,
-    orchestration::SearchCoordinator,
-    types::Record,
-    VectorStore,
-    MetricsCollector,
-    Layer,
-    SearchOptions,
-    BatchInsertResult,
-    BatchSearchResult,
-    CoreMemoryServiceTrait,
-};
-use crate::di::core_traits::ServiceResolver;
 use crate::batch_manager::BatchOperationManager;
+use crate::di::core_traits::ServiceResolver;
+use crate::{
+    di::UnifiedContainer, orchestration::SearchCoordinator, types::Record, BatchInsertResult,
+    BatchSearchResult, CoreMemoryServiceTrait, Layer, MetricsCollector, SearchOptions, VectorStore,
+};
 use common::OperationTimer;
 
 /// Реализация core memory операций

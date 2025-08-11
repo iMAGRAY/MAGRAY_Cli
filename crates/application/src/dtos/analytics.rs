@@ -429,7 +429,6 @@ impl Default for FormatOptions {
     }
 }
 
-// Additional DTOs needed by use cases
 
 /// Request to analyze memory usage patterns
 #[derive(Debug, Serialize, Deserialize, Clone, Validate)]

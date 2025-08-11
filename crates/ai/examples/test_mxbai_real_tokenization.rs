@@ -1,5 +1,4 @@
 use anyhow::Result;
-// use ai::reranker_qwen3::OptimizedQwen3RerankerService;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
@@ -92,7 +91,6 @@ fn main() -> Result<()> {
             all_valid = false;
         }
 
-        // Check if the most relevant document (index 1) ranks highly
         let most_relevant_rank = results.iter()
             .position(|r| r.index == 1)
             .map(|pos| pos + 1)

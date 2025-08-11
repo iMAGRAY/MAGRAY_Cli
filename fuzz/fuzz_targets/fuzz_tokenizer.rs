@@ -53,7 +53,6 @@ impl From<TokenizerTypeFuzz> for TokenizerType {
 }
 
 fuzz_target!(|input: TokenizerFuzzInput| {
-    // Create a simple runtime for async operations
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -92,7 +91,6 @@ fuzz_target!(|input: TokenizerFuzzInput| {
     });
 });
 
-// Additional fuzz target for testing tokenizer edge cases
 #[derive(Debug, Arbitrary)]
 struct TokenizerEdgeCaseInput {
     operations: Vec<TokenizerOperation>,

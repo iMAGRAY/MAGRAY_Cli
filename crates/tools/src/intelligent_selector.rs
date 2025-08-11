@@ -1,12 +1,12 @@
 // @component: {"k":"C","id":"intelligent_tool_selector","t":"AI-powered tool selection with context analysis","m":{"cur":5,"tgt":90,"u":"%"},"f":["ai","selection","nlp","context","intent"]}
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
-use serde::{Serialize, Deserialize};
 
 use crate::ToolSpec;
 
@@ -113,7 +113,6 @@ pub struct IntelligentToolSelector {
     // Context analysis patterns
     context_patterns: Arc<Mutex<HashMap<String, Vec<String>>>>, // intent -> tools
 
-    // Performance history for adaptive learning
     performance_history: Arc<Mutex<HashMap<String, ToolPerformanceData>>>,
 
     // Configuration
@@ -411,7 +410,6 @@ impl IntelligentToolSelector {
         candidates.sort();
         candidates.dedup();
 
-        // If no specific matches, return all available tools
         if candidates.is_empty() {
             let tools = self.available_tools.lock().await;
             candidates = tools.keys().cloned().collect();
@@ -443,10 +441,15 @@ impl IntelligentToolSelector {
             n == a || n.ends_with(&format!(".{}", a))
         };
         let roots_cover = |reqs: &Vec<String>| -> bool {
-            if reqs.is_empty() { return true; }
-            if fs_roots.is_empty() { return false; }
+            if reqs.is_empty() {
+                return true;
+            }
+            if fs_roots.is_empty() {
+                return false;
+            }
             // All required roots must fall under an allowed root
-            reqs.iter().all(|r| fs_roots.iter().any(|a| r.starts_with(a)))
+            reqs.iter()
+                .all(|r| fs_roots.iter().any(|a| r.starts_with(a)))
         };
 
         candidates.retain(|name| {
@@ -456,18 +459,29 @@ impl IntelligentToolSelector {
                         return false;
                     }
                     if !perms.net_allowlist.is_empty() {
-                        if net_disabled { return false; }
+                        if net_disabled {
+                            return false;
+                        }
                         let mut ok = false;
                         'outer: for need in &perms.net_allowlist {
                             for allow in &net_allowed {
-                                if domain_matches(allow, need) { ok = true; break 'outer; }
+                                if domain_matches(allow, need) {
+                                    ok = true;
+                                    break 'outer;
+                                }
                             }
                         }
-                        if !ok { return false; }
+                        if !ok {
+                            return false;
+                        }
                     }
                     if fs_sandbox_on {
-                        if !roots_cover(&perms.fs_read_roots) { return false; }
-                        if !roots_cover(&perms.fs_write_roots) { return false; }
+                        if !roots_cover(&perms.fs_read_roots) {
+                            return false;
+                        }
+                        if !roots_cover(&perms.fs_write_roots) {
+                            return false;
+                        }
                     }
                 }
             }
@@ -523,10 +537,12 @@ impl IntelligentToolSelector {
         let tool_spec = tools.get(tool_name)?.clone();
         drop(tools);
 
-        let (context_match, mut breakdown, matched) =
-            self.calculate_context_match_explained(&tool_spec, context).await;
-        let (capability_match, cap_breakdown) =
-            self.calculate_capability_match_explained(&tool_spec, context).await;
+        let (context_match, mut breakdown, matched) = self
+            .calculate_context_match_explained(&tool_spec, context)
+            .await;
+        let (capability_match, cap_breakdown) = self
+            .calculate_capability_match_explained(&tool_spec, context)
+            .await;
         breakdown.urgency_latency_bonus = cap_breakdown.urgency_latency_bonus;
         breakdown.low_risk_bonus = cap_breakdown.low_risk_bonus;
         breakdown.permissions_adjust = cap_breakdown.permissions_adjust;
@@ -554,7 +570,9 @@ impl IntelligentToolSelector {
         tool_spec: &ToolSpec,
         context: &ToolSelectionContext,
     ) -> f32 {
-        let (v, _, _) = self.calculate_context_match_explained(tool_spec, context).await;
+        let (v, _, _) = self
+            .calculate_context_match_explained(tool_spec, context)
+            .await;
         v
     }
 
@@ -564,7 +582,9 @@ impl IntelligentToolSelector {
         tool_spec: &ToolSpec,
         context: &ToolSelectionContext,
     ) -> f32 {
-        let (v, _) = self.calculate_capability_match_explained(tool_spec, context).await;
+        let (v, _) = self
+            .calculate_capability_match_explained(tool_spec, context)
+            .await;
         v
     }
 
@@ -589,7 +609,10 @@ impl IntelligentToolSelector {
         let desc_lower = tool_spec.description.to_lowercase();
         let desc_words: Vec<&str> = desc_lower.split_whitespace().collect();
         let query_words: Vec<&str> = query_lower.split_whitespace().collect();
-        let matching_words = desc_words.iter().filter(|&w| query_words.contains(w)).count();
+        let matching_words = desc_words
+            .iter()
+            .filter(|&w| query_words.contains(w))
+            .count();
         if !desc_words.is_empty() {
             bd.desc_overlap = 0.2 * (matching_words as f32 / desc_words.len() as f32);
             score += bd.desc_overlap;
@@ -634,7 +657,10 @@ impl IntelligentToolSelector {
         for example in &tool_spec.examples {
             let example_lower = example.to_lowercase();
             let example_words: Vec<&str> = example_lower.split_whitespace().collect();
-            let common_count = example_words.iter().filter(|&w| query_words.contains(w)).count();
+            let common_count = example_words
+                .iter()
+                .filter(|&w| query_words.contains(w))
+                .count();
             if !example_words.is_empty() {
                 bd.example_overlap = 0.1 * (common_count as f32 / example_words.len() as f32);
                 score += bd.example_overlap;
@@ -659,24 +685,40 @@ impl IntelligentToolSelector {
         };
         let mut bd = ScoreBreakdown::default();
         if let Some(guide) = &tool_spec.usage_guide {
-            if guide.risk_score <= 2 { bd.low_risk_bonus = 0.1; }
-            if matches!(context.urgency_level, UrgencyLevel::High | UrgencyLevel::Critical)
-                && guide.latency_class == "fast" { bd.urgency_latency_bonus = 0.1; }
+            if guide.risk_score <= 2 {
+                bd.low_risk_bonus = 0.1;
+            }
+            if matches!(
+                context.urgency_level,
+                UrgencyLevel::High | UrgencyLevel::Critical
+            ) && guide.latency_class == "fast"
+            {
+                bd.urgency_latency_bonus = 0.1;
+            }
         }
         // Permissions impact: prefer least-privilege and dry-run capable tools
         let mut perm_adjust = 0.0f32;
         if let Some(perms) = &tool_spec.permissions {
-            // Start neutral; subtract for riskier permissions
-            if perms.allow_shell { perm_adjust -= 0.08; }
-            if !perms.fs_write_roots.is_empty() { perm_adjust -= 0.06; }
-            if !perms.fs_read_roots.is_empty() { perm_adjust -= 0.03; }
-            if !perms.net_allowlist.is_empty() { perm_adjust -= 0.02; }
+            if perms.allow_shell {
+                perm_adjust -= 0.08;
+            }
+            if !perms.fs_write_roots.is_empty() {
+                perm_adjust -= 0.06;
+            }
+            if !perms.fs_read_roots.is_empty() {
+                perm_adjust -= 0.03;
+            }
+            if !perms.net_allowlist.is_empty() {
+                perm_adjust -= 0.02;
+            }
         } else {
             // No explicit permissions -> least-privilege by default
             perm_adjust += 0.05;
         }
         // Dry-run support is a safety/UX plus
-        if tool_spec.supports_dry_run { bd.dry_run_bonus = 0.05; }
+        if tool_spec.supports_dry_run {
+            bd.dry_run_bonus = 0.05;
+        }
         // Clamp and assign
         bd.permissions_adjust = perm_adjust.clamp(-0.15, 0.1);
 
@@ -735,7 +777,6 @@ impl IntelligentToolSelector {
                     + alpha * execution_time.as_millis() as f32) as u64,
             );
 
-            // Update satisfaction if provided
             if let Some(satisfaction) = user_satisfaction {
                 perf_data.user_satisfaction =
                     (1.0 - alpha) * perf_data.user_satisfaction + alpha * satisfaction;

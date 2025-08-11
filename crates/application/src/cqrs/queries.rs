@@ -398,7 +398,6 @@ impl From<GenerateInsightsRequest> for GenerateInsightsQuery {
     }
 }
 
-// Builder patterns for complex queries
 impl RetrieveMemoryQuery {
     pub fn new(record_id: &str) -> Self {
         Self {

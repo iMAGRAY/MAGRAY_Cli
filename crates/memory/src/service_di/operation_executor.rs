@@ -20,24 +20,26 @@ use crate::orchestration::{HealthManager, ResourceController};
 
 #[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
 use crate::backup::BackupManager;
-use crate::{batch_manager::BatchOperationManager, metrics::MetricsCollector};
 use crate::di::core_traits::ServiceResolver;
 use crate::orchestration::traits::EmbeddingCoordinator as EmbeddingCoordinatorTrait;
+use crate::{batch_manager::BatchOperationManager, metrics::MetricsCollector};
 
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 use crate::di::unified_container_impl::UnifiedContainer as UnifiedDIContainer;
 
 // NEW: Bring commonly used types into scope
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
-use crate::storage::VectorStore;
+use crate::orchestration::traits::SearchCoordinator as SearchCoordinatorTrait;
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
-use crate::types::{Layer, Record, SearchOptions};
+use crate::orchestration::{
+    EmbeddingCoordinator as EmbeddingCoordinatorImpl, SearchCoordinator as SearchCoordinatorImpl,
+};
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 use crate::orchestration::{RetryHandler, RetryPolicy, RetryResult};
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
-use crate::orchestration::traits::SearchCoordinator as SearchCoordinatorTrait;
+use crate::storage::VectorStore;
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
-use crate::orchestration::{EmbeddingCoordinator as EmbeddingCoordinatorImpl, SearchCoordinator as SearchCoordinatorImpl};
+use crate::types::{Layer, Record, SearchOptions};
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 use common::OperationTimer;
 
@@ -65,19 +67,35 @@ pub struct BatchSearchResult {
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 #[async_trait]
 pub trait OperationExecutor: Send + Sync {
-    async fn search(&self, query: &str, layer: crate::types::Layer, options: crate::types::SearchOptions) -> anyhow::Result<Vec<crate::types::Record>>;
+    async fn search(
+        &self,
+        query: &str,
+        layer: crate::types::Layer,
+        options: crate::types::SearchOptions,
+    ) -> anyhow::Result<Vec<crate::types::Record>>;
     async fn insert(&self, record: crate::types::Record) -> anyhow::Result<()>;
     async fn run_promotion(&self) -> anyhow::Result<crate::promotion::PromotionStats>;
     async fn get_stats(&self) -> crate::metrics::MemoryMetrics;
 
-    async fn batch_insert(&self, records: Vec<crate::types::Record>) -> anyhow::Result<BatchInsertResult>;
-    async fn batch_search(&self, queries: Vec<String>, layer: crate::types::Layer, options: crate::types::SearchOptions) -> anyhow::Result<BatchSearchResult>;
+    async fn batch_insert(
+        &self,
+        records: Vec<crate::types::Record>,
+    ) -> anyhow::Result<BatchInsertResult>;
+    async fn batch_search(
+        &self,
+        queries: Vec<String>,
+        layer: crate::types::Layer,
+        options: crate::types::SearchOptions,
+    ) -> anyhow::Result<BatchSearchResult>;
     async fn update(&self, record: crate::types::Record) -> anyhow::Result<()>;
     async fn delete(&self, id: &uuid::Uuid, layer: crate::types::Layer) -> anyhow::Result<()>;
     async fn initialize(&self) -> anyhow::Result<()>;
     async fn shutdown(&self) -> anyhow::Result<()>;
     async fn flush_all(&self) -> anyhow::Result<()>;
-    async fn create_backup(&self, path: &str) -> anyhow::Result<crate::orchestration::traits::BackupMetadata>;
+    async fn create_backup(
+        &self,
+        path: &str,
+    ) -> anyhow::Result<crate::orchestration::traits::BackupMetadata>;
 }
 
 /// Конфигурация для выполнения операций
@@ -518,7 +536,6 @@ impl OperationExecutor for ProductionOperationExecutor {
         debug!("💾 Flush всех слоев memory system");
         let _store = self.container.resolve::<VectorStore>()?;
 
-        // VectorStore doesn't have flush_all method, so we do nothing for now
         debug!("💾 Flush completed (no-op in production implementation)");
         Ok(())
     }
@@ -540,7 +557,10 @@ impl OperationExecutor for ProductionOperationExecutor {
     }
 
     /// Создать backup
-    async fn create_backup(&self, path: &str) -> Result<crate::orchestration::traits::BackupMetadata> {
+    async fn create_backup(
+        &self,
+        path: &str,
+    ) -> Result<crate::orchestration::traits::BackupMetadata> {
         let start = Instant::now();
         #[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
         let backup_manager = self.container.resolve::<crate::backup::BackupManager>()?;
@@ -701,7 +721,6 @@ impl OperationExecutor for SimpleOperationExecutor {
     async fn flush_all(&self) -> Result<()> {
         debug!("💾 Simple flush всех слоев");
         let _store = self.container.resolve::<VectorStore>()?;
-        // VectorStore doesn't have flush_all method, so we do nothing for now
         debug!("💾 Flush completed (no-op in simple implementation)");
         Ok(())
     }
@@ -713,7 +732,10 @@ impl OperationExecutor for SimpleOperationExecutor {
     }
 
     /// Простой backup (mock implementation)
-    async fn create_backup(&self, path: &str) -> Result<crate::orchestration::traits::BackupMetadata> {
+    async fn create_backup(
+        &self,
+        path: &str,
+    ) -> Result<crate::orchestration::traits::BackupMetadata> {
         let start = Instant::now();
         let duration = start.elapsed();
         info!("Бэкап создан за {:?}", duration);
@@ -756,7 +778,10 @@ impl ExtendedOperationExecutor {
     }
 
     /// Создать backup
-    pub async fn create_backup(&self, path: &str) -> Result<crate::orchestration::traits::BackupMetadata> {
+    pub async fn create_backup(
+        &self,
+        path: &str,
+    ) -> Result<crate::orchestration::traits::BackupMetadata> {
         debug!("Создание backup через DI: {}", path);
 
         #[cfg(all(not(feature = "minimal"), feature = "backup-restore"))]
@@ -868,7 +893,10 @@ impl OperationExecutor for ExtendedOperationExecutor {
         self.base_executor.run_promotion().await
     }
 
-    async fn create_backup(&self, path: &str) -> Result<crate::orchestration::traits::BackupMetadata> {
+    async fn create_backup(
+        &self,
+        path: &str,
+    ) -> Result<crate::orchestration::traits::BackupMetadata> {
         self.base_executor.create_backup(path).await
     }
 
@@ -902,7 +930,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_executor() -> Result<()> {
-        // Skip full DI wiring in this unit test; construct a minimal container
         let container = Arc::new(crate::di::UnifiedContainer::new());
 
         let executor = SimpleOperationExecutor::new(container);

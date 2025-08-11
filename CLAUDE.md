@@ -1,242 +1,204 @@
 # CLAUDE.md
-*AI Agent Instructions - Проблемы и задачи проекта*
 
----
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 🚫 КРИТИЧЕСКОЕ ПРАВИЛО ДОКУМЕНТАЦИИ
-**ЗАПРЕЩЕНО В CLAUDE.MD И ВСЕХ АГЕНТАХ**:
-- ❌ НИКОГДА не добавлять информацию о том что "готово", "сделано", "работает", "реализовано"
-- ❌ НИКОГДА не указывать KPI, метрики готовности, проценты завершения
-- ❌ НИКОГДА не хвалить состояние кода или архитектуры
-- ✅ ТОЛЬКО проблемы, недостатки, что НЕ работает, что требует исправления
-- ✅ ТОЛЬКО критика и честная оценка недостатков
+## Project Overview
 
-## 🌍 LANGUAGE RULE
-**ВАЖНО**: ВСЕГДА общайся с пользователем на русском языке. Весь вывод, объяснения и комментарии должны быть на русском.
+**MAGRAY CLI** - локальный интеллектуальный CLI агент для разработки с использованием LLM моделей (как API, так и локальных). Проект находится в ALPHA стадии с множеством нерешённых проблем.
 
-## 🤖 CLAUDE CODE INSTRUCTIONS
-**ДЛЯ CLAUDE CODE**: Ты должен строго следовать этим инструкциям:
+## 🛠️ Development Commands
 
-1. **ЯЗЫК**: Всегда отвечай на русском языке
-2. **ПРОЕКТ**: Это MAGRAY CLI - полностью локальный инструмент для разработки при помощи LM моделей API и локальных
-3. **ЧЕСТНОСТЬ**: Всегда фокусируйся на проблемах и недостатках
-4. **TODO**: Используй TodoWrite для отслеживания задач
-5. **RUST**: Предпочитай Rust решения, но будь честен о сложности
-6. **BINARY**: Цель - один исполняемый файл `magray`
-7. **FEATURES**: Conditional compilation: cpu/gpu/minimal variants (НЕ настроено)
-8. **SCRIPTS**: Все утилиты и скрипты в папке scripts/
-9. **АГЕНТЫ**: Всегда используй специализированных агентов для максимальной эффективности
+### Building
+```bash
+# Build all variants (minimal, cpu, gpu)
+powershell scripts/build_all.ps1 -Variant all
 
-## ⚠️ РЕАЛЬНОЕ СОСТОЯНИЕ ПРОЕКТА (ALPHA)
+# Build specific variant
+cargo build --release --no-default-features --features="cpu" --target-dir="target/cpu"
+cargo build --release --no-default-features --features="gpu" --target-dir="target/gpu"  
+cargo build --release --no-default-features --features="minimal" --target-dir="target/minimal"
 
-**Автоматический анализ от 2025-08-08 11:09:59 UTC:**
-
-### 🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:
-- **Критических issues**: 118
-- **High priority issues**: 319  
-- **Циклических зависимостей**: 0
-- **Технический долг**: 7908 часов
-- **Файлов с высокой сложностью**: 182
-
-### ❌ ЧТО НЕ РАБОТАЕТ:
-- **God Objects остаются**: 0 обнаружено
-- **Дублирование кода**: 999 случаев
-- **Покрытие тестами**: 25.1% (77/307 модулей, tests: 510, mocks: 30)
-
-### 📊 СТАТИСТИКА ПРОЕКТА:
-- **Crates**: 10
-- **Файлов**: 427
-- **Структур**: 868
-- **Функций**: 1540
-- **Тестов**: 510
-- **Моков**: 30
-
-### 🧪 ДЕТАЛЬНОЕ ПОКРЫТИЕ ТЕСТАМИ
-
-**Покрыто тестами (25.1%):**
-- ✅ ai/src/auto_device_selector.rs
-- ✅ ai/src/config.rs
-- ✅ ai/src/embeddings_bge_m3.rs
-- ✅ ai/src/embeddings_cpu.rs
-- ✅ ai/src/embeddings_gpu.rs
-- ✅ ai/src/errors.rs
-- ✅ ai/src/gpu_config.rs
-- ✅ ai/src/gpu_detector.rs
-- ✅ ai/src/gpu_fallback.rs
-- ✅ ai/src/gpu_memory_pool.rs
-
-...и еще 67 модулей
-
-**НЕ покрыто тестами (74.9%):**
-- ❌ ai/src/embeddings_qwen3.rs
-- ❌ ai/src/lib.rs
-- ❌ ai/src/reranker_qwen3.rs
-- ❌ ai/src/reranker_qwen3_optimized.rs
-- ❌ ai/src/reranking.rs
-- ❌ ai/src/tensorrt_cache.rs
-- ❌ ai/src/tokenization/simple_qwen3.rs
-- ❌ application/src/adapters/cache_service_adapter.rs
-- ❌ application/src/adapters/embedding_service_adapter.rs
-- ❌ application/src/adapters/memory_service_adapter.rs
-
-...и еще 220 модулей
-
-
-### 🔄 ДЕТАЛЬНЫЙ АНАЛИЗ ДУБЛИКАТОВ
-
-**1. `fn health_check` (59 копий):**
-- **application**: application_service_tests.rs, cache_service_adapter.rs, embedding_service_adapter.rs, memory_service_adapter.rs, metrics_collector_adapter.rs, notification_service_adapter.rs, search_service_adapter.rs, cache_provider.rs, embedding_provider.rs, llm_provider.rs, metrics_collector.rs, notification_service.rs, search_provider.rs, memory_application_service.rs
-- **cli**: agent_core.rs, agent_traits.rs, handler_registry.rs, unified_agent_v2.rs, admin_handler.rs, chat_handler.rs, memory_handler.rs, performance_monitor.rs, tools_handler.rs, tool_orchestrator.rs, llm_communication.rs, orchestrator.rs, intent_strategies.rs
-- **common**: service_macros.rs, service_traits.rs
-- **llm**: anthropic_provider.rs, azure_provider.rs, groq_provider.rs, local_provider.rs, mod.rs, openai_provider.rs
-- **memory**: api.rs, cache.rs, index.rs, orchestrator.rs, query.rs, storage.rs, traits.rs, background_task_manager.rs, backup_coordinator.rs, coordinator_registry.rs, embedding_coordinator.rs, health_checker.rs, health_manager.rs, lifecycle_manager.rs, metrics_collector.rs, promotion_coordinator.rs, resource_controller.rs, search_coordinator.rs, traits.rs, integration_example.rs
-- **tools**: enhanced_tool_system.rs, external_process.rs, plugin_manager.rs, wasm_plugin.rs
-
-**2. `fn shutdown` (37 копий):**
-- **cli**: agent_core.rs, agent_traits.rs, handler_registry.rs, refactored_unified_agent.rs, unified_agent_v2.rs, admin_handler.rs, chat_handler.rs, memory_handler.rs, performance_monitor.rs, tools_handler.rs, adaptive_orchestrator.rs, tool_orchestrator.rs
-- **common**: service_macros.rs, service_traits.rs
-- **memory**: batch_optimized.rs, database_manager.rs, migration_facade.rs, background_task_manager.rs, backup_coordinator.rs, coordinator_registry.rs, embedding_coordinator.rs, health_checker.rs, health_manager.rs, lifecycle_manager.rs, metrics_collector.rs, operation_executor.rs, orchestration_lifecycle_manager.rs, orchestrator_core.rs, promotion_coordinator.rs, resource_controller.rs, search_coordinator.rs, traits.rs, refactored_di_memory_service.rs, coordinator_factory.rs, lifecycle_manager.rs, operation_executor.rs, test_fixtures.rs
-
-**3. `fn initialize` (35 копий):**
-- **cli**: agent_core.rs, agent_traits.rs, handler_registry.rs, refactored_unified_agent.rs, unified_agent_v2.rs, admin_handler.rs, chat_handler.rs, memory_handler.rs, performance_monitor.rs, tools_handler.rs, adaptive_orchestrator.rs
-- **common**: service_macros.rs, service_traits.rs
-- **memory**: di_compatibility_stub.rs, migration_facade.rs, orchestrator.rs, background_task_manager.rs, backup_coordinator.rs, coordinator_registry.rs, embedding_coordinator.rs, health_checker.rs, health_manager.rs, lifecycle_manager.rs, metrics_collector.rs, operation_executor.rs, orchestration_lifecycle_manager.rs, orchestrator_core.rs, promotion_coordinator.rs, resource_controller.rs, search_coordinator.rs, traits.rs, refactored_di_memory_service.rs, coordinator_factory.rs, lifecycle_manager.rs, operation_executor.rs
-
-**4. `fn production` (31 копий):**
-- ai/src/config.rs
-- **common**: service_macros.rs, service_traits.rs
-- **memory**: batch_manager.rs, cache_lru.rs, health.rs, ml_promotion_original_backup.rs, notifications.rs, resource_manager.rs, streaming.rs, types.rs, container_configuration.rs, container_metrics_impl.rs, optimized_unified_container.rs, service_registry_impl.rs, service_resolver_impl.rs, unified_config.rs, unified_container.rs, unified_container_impl.rs, coordinator.rs, metrics.rs, rules_engine.rs, types.rs, factory_traits.rs, refactored_di_memory_service.rs, service_factory.rs, unified_factory.rs, circuit_breaker.rs, lifecycle_manager.rs, operation_executor.rs, simple_config.rs
-
-**5. `fn get_stats` (31 копий):**
-- **ai**: embeddings_cpu.rs, gpu_fallback.rs, gpu_memory_pool.rs, gpu_pipeline.rs, memory_pool.rs, reranker_qwen3.rs, tensorrt_cache.rs
-- **cli**: circuit_breaker_manager.rs, intent_analysis.rs
-- **common**: error_monitor.rs, service_macros.rs, service_traits.rs
-- **memory**: api.rs, batch_optimized.rs, gpu_accelerated.rs, migration.rs, dependency_graph_validator.rs, metrics_collector.rs, migration_facade.rs, service_registry_impl.rs, traits.rs, metrics.rs, traits.rs, refactored_di_memory_service.rs, circuit_breaker.rs, lifecycle_manager.rs, mock_services.rs
-- **todo**: service_v2.rs, store_v2.rs
-- **tools**: external_process.rs, wasm_plugin.rs
-
-**6. `fn execute` (31 копий):**
-- **application**: lib.rs, mod.rs
-- **cli**: agent_traits.rs, test_services_resilience.rs, gpu.rs, memory.rs, memory_stub.rs, models.rs, smart.rs, tasks.rs, tools.rs, admin_handler.rs, chat_handler.rs, memory_handler.rs, tools_handler.rs, circuit_breaker.rs
-- **common**: service_macros.rs, service_traits.rs
-- domain/src/lib.rs
-- **memory**: transaction.rs, retry_handler.rs
-- router/tests/test_router_async.rs
-- **tools**: file_ops.rs, git_ops.rs, lib.rs, mcp.rs, shell_ops.rs, web_ops.rs, test_registry.rs, external_process.rs, wasm_plugin.rs
-
-**7. `fn build` (31 копий):**
-- application/src/cqrs/mod.rs
-- **cli**: agent_core.rs, circuit_breaker_manager.rs, container_traits.rs, handler_registry.rs, performance_tracker.rs, refactored_unified_agent.rs
-- **common**: macros.rs, service_macros.rs, service_traits.rs, test_utils.rs
-- **memory**: batch_manager.rs, di_container_legacy.rs, config_presets.rs, container_builder.rs, container_factory.rs, core_traits.rs, migration_facade.rs, optimized_unified_container.rs, unified_container_impl.rs, mod.rs, coordinator.rs, coordinator_registry.rs, retry_handler.rs, refactored_di_memory_service.rs, unified_factory.rs, service_config.rs, builder.rs, simple_config.rs, mod.rs, test_fixtures.rs
-
-**8. `fn minimal` (29 копий):**
-- ai/src/config.rs
-- **common**: service_macros.rs, service_traits.rs
-- **memory**: batch_manager.rs, cache_lru.rs, health.rs, ml_promotion_original_backup.rs, notifications.rs, resource_manager.rs, streaming.rs, types.rs, container_configuration.rs, container_metrics_impl.rs, migration_facade.rs, optimized_unified_container.rs, service_registry_impl.rs, service_resolver_impl.rs, unified_config.rs, unified_container.rs, unified_container_impl.rs, types.rs, factory_traits.rs, refactored_di_memory_service.rs, unified_factory.rs, circuit_breaker.rs, coordinator_factory.rs, lifecycle_manager.rs, operation_executor.rs, simple_config.rs
-
-**9. `fn clear` (23 копий):**
-- ai/src/memory_pool.rs
-- **common**: service_macros.rs, service_traits.rs
-- **memory**: batch_optimized.rs, cache_interface.rs, cache_lru.rs, di_container_legacy.rs, vector_index_hnswlib.rs, container_builder.rs, container_cache.rs, container_core.rs, dependency_graph_validator.rs, dependency_validator.rs, object_safe_resolver.rs, optimized_unified_container.rs, service_registry_impl.rs, traits.rs, unified_container.rs, index.rs, cache.rs, traits.rs, container.rs, mock_services.rs
-
-**10. `fn is_ready` (23 копий):**
-- **cli**: agent_core.rs, agent_traits.rs, refactored_unified_agent.rs, unified_agent_v2.rs
-- common/src/service_macros.rs
-- **memory**: background_task_manager.rs, backup_coordinator.rs, coordinator_registry.rs, embedding_coordinator.rs, health_checker.rs, health_manager.rs, lifecycle_manager.rs, metrics_collector.rs, operation_executor.rs, orchestration_facade.rs, orchestration_lifecycle_manager.rs, orchestrator_core.rs, promotion_coordinator.rs, resource_controller.rs, search_coordinator.rs, traits.rs, lifecycle_manager.rs
-- todo/src/graph.rs
-
-...и еще 989 менее критичных дубликатов.
-**Серьезных дубликатов (>4 копий)**: 141
-
-
-## 📊 РЕАЛЬНОЕ СОСТОЯНИЕ КОДА
-
-⚠️ **КРИТИЧЕСКИЕ ПРОБЛЕМЫ:**
-- Критический долг: 1415 часов
-- Цикломатическая сложность 41 (должна быть < 10)
-- Цикломатическая сложность 31 (должна быть < 10)
-- Цикломатическая сложность 97 (должна быть < 10)
-- ...и еще 115 критических issues
-📋 **ДУБЛИКАТЫ:** 141 серьёзных случаев
-
----
-
-# ТЕКУЩЕЕ СОСТОЯНИЕ ПРОЕКТА:
-
-*Last updated: 2025-08-08 11:09:59 UTC*
-*Status: ALPHA - не готов к production использованию*
-
-## АВТОМАТИЧЕСКИ ОБНОВЛЯЕТСЯ ПРИ РЕДАКТИРОВАНИИ ФАЙЛОВ
-
-```mermaid
-graph TB
-
-    subgraph AI[AI/ONNX Models & GPU]
-    end
-
-    subgraph APPLICATION[Application Crate]
-    end
-
-    subgraph CLI[CLI Agent & Commands]
-    end
-
-    subgraph COMMON[Common Utilities]
-    end
-
-    subgraph DOMAIN[Domain Crate]
-    end
-
-    subgraph LLM[Multi-Provider LLM]
-    end
-
-    subgraph MEMORY[3-Layer HNSW Memory]
-    end
-
-    subgraph ROUTER[Smart Task Router]
-    end
-
-    subgraph TODO[Task DAG System]
-    end
-
-    subgraph TOOLS[Tools Registry]
-    end
-
-    %% Зависимости между крейтами
-    AI -.->|uses| COMMON
-    APPLICATION -.->|uses| DOMAIN
-    APPLICATION -.->|uses| COMMON
-    CLI -.->|uses| TODO
-    CLI -.->|uses| DOMAIN
-    CLI -.->|uses| ROUTER
-    CLI -.->|uses| LLM
-    CLI -.->|uses| COMMON
-    CLI -.->|uses| TOOLS
-    CLI -.->|uses| AI
-    CLI -.->|uses| MEMORY
-    MEMORY -.->|uses| COMMON
-    MEMORY -.->|uses| AI
-    ROUTER -.->|uses| TOOLS
-    ROUTER -.->|uses| LLM
-    TODO -.->|uses| MEMORY
-    TODO -.->|uses| LLM
-    TOOLS -.->|uses| LLM
-
-    classDef crate fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    classDef testFile fill:#ffebee,stroke:#c62828,stroke-width:1px,stroke-dasharray: 5 5
-    classDef mockFile fill:#fce4ec,stroke:#ad1457,stroke-width:1px,stroke-dasharray: 3 3
-    classDef exampleFile fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px
-    classDef problemFile fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+# Quick development build
+cargo build --features cpu
 ```
 
-## 📝 MEMORY
+### Testing
+```bash
+# Run all tests
+cargo test --workspace
 
-**Текущая памятка проекта:**
-- **ВСЕГДА использовать соответствующих агентов для каждой задачи**
-- **Полностью привести проект в порядок:**
-  - После выполнения всех Todos анализировать состояние проекта
-  - Затем обновлять todos
-  - И приступать к выполнению и так каждый раз по кругу, пока проект не будет завершен
-- **Быть максимально честно критичным к себе и создаваемым изменениям**
-- **НИКОГДА не писать о том, что было сделано, и не хвастаться успехами**
-- **Писать только о том, что не сделано**
+# Test specific variant
+cargo test --features=cpu --workspace
+cargo test --features=gpu --workspace  
+cargo test --features=minimal --workspace
+
+# Test specific crate
+cargo test -p memory --features=cpu
+cargo test -p ai --features=gpu
+
+# Run single test
+cargo test test_name -- --exact
+
+# Run tests with output
+cargo test -- --nocapture
+```
+
+### Linting & Format
+```bash
+# Run clippy
+cargo clippy --all-targets --all-features -- -D warnings
+
+# Format code
+cargo fmt --all
+
+# Check format without applying
+cargo fmt --all -- --check
+```
+
+### Coverage
+```bash
+# Generate coverage report
+powershell scripts/check_coverage.ps1
+
+# Or using tarpaulin directly
+cargo tarpaulin --out Html --output-dir coverage_report
+```
+
+## 🏗️ Architecture
+
+### Crate Structure
+```
+crates/
+├── ai/          # ONNX models, embeddings, GPU support
+├── application/ # Application layer with CQRS, adapters
+├── cli/         # Main CLI binary, agents, handlers
+├── common/      # Shared utilities, service traits
+├── domain/      # Domain models and business logic
+├── llm/         # Multi-provider LLM integration
+├── memory/      # 3-layer HNSW vector memory system
+├── router/      # Smart task routing
+├── todo/        # Task DAG system
+└── tools/       # External tools registry
+```
+
+### Key Design Patterns
+- **DI Container**: Extensive dependency injection in memory crate
+- **Service Traits**: Common service interface across all modules
+- **Agent System**: Specialized agents for different tasks (in cli/agents/)
+- **Feature Flags**: Conditional compilation for cpu/gpu/minimal builds
+- **SIMD Optimizations**: Vector operations in memory crate
+
+### Memory System Architecture
+- **3-Layer HNSW**: Hierarchical Navigable Small World index
+- **Vector Store**: Embeddings storage with SIMD acceleration
+- **Promotion System**: ML-based memory promotion between layers
+- **GPU Acceleration**: Optional CUDA/TensorRT support
+
+## ⚠️ Critical Issues (ALPHA Status)
+
+### Statistics (Auto-updated: 2025-08-08)
+- **Critical issues**: 118
+- **High priority issues**: 319
+- **Code duplications**: 999 cases
+- **Test coverage**: 25.1% (77/307 modules)
+- **Technical debt**: 7908 hours
+- **High complexity files**: 182
+
+### Major Architectural Issues
+- Excessive complexity in DI container (cyclomatic complexity up to 97)
+- Missing error handling in many modules (extensive unwrap() usage)
+- Incomplete GPU feature implementation
+- Memory leaks in vector operations
+- Race conditions in async handlers
+
+### Top Priority Fixes Needed
+1. Remove all unwrap() calls and add proper error handling
+2. Reduce code duplication (141 serious cases with >4 copies)
+3. Fix SIMD implementations causing segfaults
+4. Complete test coverage for critical paths
+5. Simplify DI container architecture
+6. Fix memory promotion system bugs
+7. Resolve async/sync boundary issues
+
+## 📦 Dependencies & Setup
+
+### Prerequisites
+- Rust toolchain (rustup)
+- CUDA Toolkit 12.x (for GPU builds)
+- ONNX Runtime libraries
+
+### Setup Steps
+```bash
+# Download ONNX Runtime
+powershell scripts/download_onnxruntime.ps1      # CPU version
+powershell scripts/download_onnxruntime_gpu.ps1  # GPU version
+
+# Install models
+python scripts/install_qwen3_minimal.py
+
+# Setup environment
+cp .env.example .env
+# Edit .env with your LLM provider keys
+```
+
+## 🔧 Common Development Tasks
+
+### Running the CLI
+```bash
+# Basic commands
+magray health
+magray chat "Your message"
+magray smart "analyze src/ and suggest refactoring"
+
+# Memory operations
+magray memory add "Important fact" --layer insights
+magray memory search "query"
+
+# Tool execution
+magray tool "create file hello.rs"
+magray tool "git status"
+```
+
+### Debugging
+```bash
+# Enable debug logging
+set RUST_LOG=debug
+magray [command]
+
+# Run with backtrace
+set RUST_BACKTRACE=1
+magray [command]
+```
+
+## 📝 Important Notes
+
+- **Python**: Use `py` command instead of `python` on Windows
+- **Code Comments**: Avoid Russian comments and emojis in code (causes formatting issues)
+- **Error Handling**: Always use proper error handling, avoid unwrap()
+- **Testing**: Write tests for all new functionality
+- **Performance**: Run benchmarks before optimizing
+
+## Scripts & Utilities
+
+### CTL (Claude Tensor Language) Tool
+```bash
+# Task management system
+python scripts/ctl.py add --kind T --id "task-1" --title "Fix memory leak"
+python scripts/ctl.py query --priority 1
+```
+
+### Architecture Analysis
+```bash
+# Run architecture daemon for continuous analysis
+powershell scripts/run_architecture_daemon.ps1
+
+# One-time analysis  
+powershell scripts/archilens-auto-analysis.ps1
+```
+
+### Model Management
+```bash
+# Download and install models
+python scripts/download_models.ps1
+python scripts/install_qwen3_onnx.py
+```

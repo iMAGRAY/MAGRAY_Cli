@@ -1,0 +1,13 @@
+{
+  "arguments": {
+    "detail_level": "standard",
+    "max_output_chars": 30000,
+    "sections": [
+      "summary",
+      "problems_validated",
+      "top_complexity_components"
+    ],
+    "top_n": 10
+  },
+  "tool": "export.ai_compact"
+}

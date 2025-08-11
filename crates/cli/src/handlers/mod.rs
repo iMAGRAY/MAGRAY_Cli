@@ -16,8 +16,8 @@ pub use performance_monitor::*;
 pub use tools_handler::*;
 
 use anyhow::{anyhow, Result};
-use tracing::info;
 use std::collections::HashMap;
+use tracing::info;
 
 /// Общая инициализация компонента с проверкой зависимости
 pub async fn standard_component_initialize<DFut, D, E>(
@@ -29,7 +29,10 @@ where
     E: std::fmt::Display,
 {
     info!("{}: инициализация начата", component_name);
-    dep_check.await.map(|_| ()).map_err(|e| anyhow!(e.to_string()))?;
+    dep_check
+        .await
+        .map(|_| ())
+        .map_err(|e| anyhow!(e.to_string()))?;
     info!("{}: инициализация завершена", component_name);
     Ok(())
 }

@@ -36,19 +36,27 @@ pub enum MemorySubcommand {
 }
 
 impl MemoryCommand {
-    pub async fn execute(self) -> Result<()> { handle(self.command).await }
+    pub async fn execute(self) -> Result<()> {
+        handle(self.command).await
+    }
 }
 
 async fn handle(cmd: MemorySubcommand) -> Result<()> {
     #[cfg(feature = "minimal")]
     {
-        println!("⚠️ Функции памяти отключены в минимальном профиле. Соберите без feature=minimal.");
+        println!(
+            "⚠️ Функции памяти отключены в минимальном профиле. Соберите без feature=minimal."
+        );
         return Ok(());
     }
 
     #[cfg(not(feature = "minimal"))]
     {
-        println!("⚠️ Путь memory_stub недоступен в текущей конфигурации. Используйте orchestrated путь.");
-        match cmd { _ => return Ok(()) }
+        println!(
+            "⚠️ Путь memory_stub недоступен в текущей конфигурации. Используйте orchestrated путь."
+        );
+        match cmd {
+            _ => return Ok(()),
+        }
     }
 }

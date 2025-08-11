@@ -299,10 +299,7 @@ impl ExecutionPipeline {
                 self.execute_with_circuit_breaker(tool, &metadata, input, &context)
                     .await
             }
-            _ => {
-                // Fallback to direct execution for other strategies
-                self.execute_direct(tool, &metadata, input, &context).await
-            }
+            _ => self.execute_direct(tool, &metadata, input, &context).await,
         };
 
         let execution_time = start_time.elapsed();
@@ -354,7 +351,6 @@ impl ExecutionPipeline {
                     .await
             }
             _ => {
-                // Use first candidate for other strategies
                 let tool_input = self.create_tool_input(&tool_candidates[0], &selection_context)?;
                 self.execute_tool(&tool_candidates[0].tool_name, tool_input, context, strategy)
                     .await
@@ -549,7 +545,6 @@ impl ExecutionPipeline {
             breaker.total_requests += 1;
 
             if matches!(breaker.state, CircuitBreakerState::Open) {
-                // Check if we should try half-open
                 if let Some(last_failure) = breaker.last_failure_time {
                     if last_failure.elapsed() > self.circuit_config.recovery_timeout {
                         breaker.state = CircuitBreakerState::HalfOpen;
@@ -651,7 +646,6 @@ impl ExecutionPipeline {
             return Err(anyhow!("No valid futures for parallel execution"));
         }
 
-        // Wait for first success
         let result = match futures.len() {
             1 => futures.into_iter().next().unwrap().await,
             2 => {
@@ -735,7 +729,6 @@ impl ExecutionPipeline {
         metadata: &ToolMetadata,
         context: &ExecutionContext,
     ) -> Result<()> {
-        // Check if user can execute tools of this security level
         let required_level = &metadata.security_level;
         let user_level = &context.security_level;
 
@@ -775,7 +768,6 @@ impl ExecutionPipeline {
         candidate: &ToolConfidence,
         context: &ToolSelectionContext,
     ) -> Result<ToolInput> {
-        // This is a simplified version - in production, would use more sophisticated parsing
         Ok(ToolInput {
             command: candidate.tool_name.clone(),
             args: HashMap::new(),
@@ -924,7 +916,6 @@ mod tests {
             metadata: HashMap::new(),
         };
 
-        // Should pass for Safe level
         assert!(pipeline
             .validate_security_permissions(&metadata, &context)
             .is_ok());

@@ -1,5 +1,3 @@
-// Simplified tests for BGE-M3 embeddings functionality
-
 #[test]
 fn test_text_preprocessing_basic() {
     let text = "  Hello, World!  \n\t";
@@ -117,7 +115,6 @@ fn test_memory_estimation() {
     let max_length = 512;
     let embedding_dim = 1024;
 
-    // Rough memory estimation for embeddings
     let input_memory = batch_size * max_length * 4; // 4 bytes per token
     let output_memory = batch_size * embedding_dim * 4; // 4 bytes per float
     let total_memory = input_memory + output_memory;

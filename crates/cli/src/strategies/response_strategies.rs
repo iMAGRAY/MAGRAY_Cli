@@ -133,7 +133,9 @@ impl RichResponseFormatter {
         let mut current_line = String::new();
 
         for word in words {
-            if current_line.len() + word.len() + 1 > self.max_line_length && !current_line.is_empty() {
+            if current_line.len() + word.len() + 1 > self.max_line_length
+                && !current_line.is_empty()
+            {
                 lines.push(current_line.clone());
                 current_line.clear();
             }
@@ -371,10 +373,7 @@ impl AdaptiveResponseFormatter {
         // Анализируем контекст для выбора форматировщика
 
         // Если в метаданных есть API флаг, используем JSON
-        if context
-            .metadata
-            .get("format")
-            .is_some_and(|f| f == "json")
+        if context.metadata.get("format").is_some_and(|f| f == "json")
             || context.metadata.contains_key("api_client")
         {
             return &self.json;
@@ -410,7 +409,9 @@ impl AdaptiveResponseFormatter {
 }
 
 impl Default for AdaptiveResponseFormatter {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait]
@@ -433,7 +434,7 @@ impl ResponseFormattingStrategy for AdaptiveResponseFormatter {
     }
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
     use std::collections::HashMap;

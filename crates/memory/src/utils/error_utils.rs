@@ -148,7 +148,7 @@ pub mod production_helpers {
 
 #[cfg(feature = "persistence")]
 pub fn open_db_with_context(path: &std::path::Path) -> Result<sled::Db> {
-    sled::open(path).with_context_fmt("Failed to open database", &[&path.display(), &"sled open"])        
+    sled::open(path).with_context_fmt("Failed to open database", &[&path.display(), &"sled open"])
 }
 
 #[cfg(feature = "persistence")]
@@ -159,12 +159,7 @@ pub fn flush_tree(tree: &sled::Tree, context: &str) -> Result<()> {
 }
 
 #[cfg(feature = "persistence")]
-pub fn insert_with_context<K, V>(
-    tree: &sled::Tree,
-    key: K,
-    value: V,
-    context: &str,
-) -> Result<()>
+pub fn insert_with_context<K, V>(tree: &sled::Tree, key: K, value: V, context: &str) -> Result<()>
 where
     K: AsRef<[u8]>,
     V: Into<sled::IVec>,

@@ -11,7 +11,9 @@ use std::fmt;
 /// - Interact: Hot, frequently accessed data (24h TTL)
 /// - Insights: Distilled knowledge (90d TTL)  
 /// - Assets: Cold, permanent storage
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, Default,
+)]
 pub enum LayerType {
     /// L1 - Hot context, frequent access (24h TTL)
     #[default]
@@ -52,7 +54,10 @@ impl LayerType {
 
     /// Check if this layer can be promoted to target layer
     pub fn can_promote_to(&self, target: LayerType) -> bool {
-        matches!((self, target), (LayerType::Interact, LayerType::Insights) | (LayerType::Insights, LayerType::Assets))
+        matches!(
+            (self, target),
+            (LayerType::Interact, LayerType::Insights) | (LayerType::Insights, LayerType::Assets)
+        )
     }
 
     /// Get next layer in promotion hierarchy

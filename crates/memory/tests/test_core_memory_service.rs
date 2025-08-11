@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests", not(feature = "minimal")))]
+#![cfg(all(feature = "extended-tests", not(feature = "minimal")))]
 
 //! Comprehensive unit тесты для CoreMemoryService
 //!
@@ -123,7 +123,6 @@ async fn test_core_memory_service_creation() -> Result<()> {
     // Test minimal creation
     let service = CoreMemoryService::new_minimal(container.clone());
     // operation_limiter is private, cannot access permits directly
-    // Service created successfully if no panic
 
     // Test production creation
     let production_service = CoreMemoryService::new_production(container.clone());
@@ -131,7 +130,6 @@ async fn test_core_memory_service_creation() -> Result<()> {
 
     // Test custom creation (operation_limiter is private, cannot access permits directly)
     let custom_service = CoreMemoryService::new(container, 50);
-    // Operation limiter is working if constructor doesn't panic
 
     Ok(())
 }
@@ -288,7 +286,6 @@ async fn test_delete_record() -> Result<()> {
     let result = service.delete(&record_id, Layer::Interact).await;
     assert!(result.is_ok(), "Delete должен завершиться успешно");
 
-    // Verify record is deleted (search should return fewer or no results)
     let results_after = service
         .search("Test record 1", Layer::Interact, default_search_options())
         .await?;
@@ -382,7 +379,6 @@ async fn test_concurrent_operations() -> Result<()> {
         }));
     }
 
-    // Wait for all inserts to complete
     let results = futures::future::join_all(tasks).await;
     for (i, result) in results.into_iter().enumerate() {
         assert!(

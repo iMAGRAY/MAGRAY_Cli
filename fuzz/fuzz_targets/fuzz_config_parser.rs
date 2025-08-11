@@ -29,7 +29,6 @@ fuzz_target!(|input: ConfigFuzzInput| {
     // Test JSON parsing
     test_json_parsing(&input.config_type, &input.json_data);
     
-    // Test YAML parsing (if enabled)
     test_yaml_parsing(&input.config_type, &input.yaml_data);
     
     // Test TOML parsing
@@ -69,7 +68,6 @@ fn test_json_parsing(config_type: &ConfigType, json_data: &str) {
 }
 
 fn test_yaml_parsing(_config_type: &ConfigType, _yaml_data: &str) {
-    // YAML parsing would go here if serde_yaml is available
     // For now, skip to avoid adding more dependencies to fuzz target
 }
 
@@ -87,7 +85,6 @@ fn test_config_validation(config_type: &ConfigType, json_data: &str) {
     match config_type {
         ConfigType::Embedding => {
             if let Ok(config) = serde_json::from_str::<EmbeddingConfig>(json_data) {
-                // Test config validation methods if they exist
                 test_embedding_config_invariants(&config);
             }
         }
@@ -201,7 +198,6 @@ fn test_gpu_config_invariants(config: &GpuConfigBase) {
     assert!(config.batch_size_multiplier <= 10.0, "Batch size multiplier must be reasonable");
 }
 
-// Additional fuzz target for complex config compositions
 #[derive(Debug, Arbitrary)]
 struct ConfigCompositionInput {
     configs: Vec<ConfigEntry>,
@@ -255,7 +251,6 @@ fuzz_target!(|input: ConfigCompositionInput| {
 
 fn test_config_merging() {
     // Test combining different config types
-    // This would test actual config composition logic if implemented
     
     // For now, just ensure we don't panic on config interactions
     let default_embedding = EmbeddingConfig::default();

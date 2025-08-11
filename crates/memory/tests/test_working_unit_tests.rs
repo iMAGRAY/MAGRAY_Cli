@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 // =============================================================================
 // WORKING UNIT TESTS - Unit тесты для memory crate с правильными API

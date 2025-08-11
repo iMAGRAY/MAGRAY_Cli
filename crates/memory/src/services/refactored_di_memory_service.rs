@@ -11,10 +11,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 
+#[cfg(feature = "backup-restore")]
+use crate::backup::BackupMetadata;
 use crate::{
     api::MemoryServiceTrait,
-    di::{DIResolver, UnifiedContainer},
     di::core_traits::ServiceResolver,
+    di::{DIResolver, UnifiedContainer},
     health::SystemHealthStatus,
     promotion::PromotionStats,
     service_di::{BatchInsertResult, BatchSearchResult, MemorySystemStats},
@@ -23,8 +25,6 @@ use crate::{
     types::{Layer, Record, SearchOptions},
     DIContainerStats, DIPerformanceMetrics,
 };
-#[cfg(feature = "backup-restore")]
-use crate::backup::BackupMetadata;
 // Конфигуратор отключён; используем UnifiedContainer::new()
 
 /// Refactored DIMemoryService использующий композицию специализированных сервисов
@@ -125,7 +125,6 @@ impl RefactoredDIMemoryService {
 
         // 1. Инициализируем базовые слои памяти (через core memory service)
         // NOTE: В текущей реализации core memory service не предоставляет этот метод
-        // В полной реализации здесь был бы вызов self.services.core_memory.initialize_memory_layers().await?;
 
         // 2. Инициализируем все сервисы
         self.services.initialize_all().await?;
@@ -545,10 +544,8 @@ impl MemoryServiceTrait for RefactoredDIMemoryService {
             ..Default::default()
         };
 
-        // Синхронно выполняем поиск через async runtime
         match tokio::runtime::Handle::try_current() {
             Ok(_handle) => {
-                // Мы в async контексте, используем block_in_place
                 tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current()
                         .block_on(async { self.search(query, layer, options).await })

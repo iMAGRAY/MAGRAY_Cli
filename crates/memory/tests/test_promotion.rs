@@ -1,4 +1,8 @@
-#![cfg(all(not(feature = "minimal"), feature = "persistence", feature = "hnsw-index"))]
+#![cfg(all(
+    not(feature = "minimal"),
+    feature = "persistence",
+    feature = "hnsw-index"
+))]
 
 use anyhow::Result;
 use chrono::{Duration, Utc};
@@ -6,9 +10,7 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use uuid::Uuid;
 
-use memory::{
-    promotion::PromotionEngine, storage::VectorStore, Layer, PromotionConfig, Record,
-};
+use memory::{promotion::PromotionEngine, storage::VectorStore, Layer, PromotionConfig, Record};
 
 #[tokio::test]
 async fn test_promotion_engine() -> Result<()> {

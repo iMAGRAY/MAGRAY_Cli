@@ -92,7 +92,6 @@ impl StoreMemoryUseCase for StoreMemoryUseCaseImpl {
         // Record metrics
         self.record_store_metrics(&memory_record, total_time, embedding_time, store_time).await?;
         
-        // Send notification for high-priority records
         if request.priority.unwrap_or(1) >= 3 {
             self.send_store_notification(&memory_record, &context).await?;
         }
@@ -144,7 +143,6 @@ impl StoreMemoryUseCase for StoreMemoryUseCaseImpl {
         // Record batch metrics
         self.record_batch_metrics(request.records.len(), successful, failed, total_time).await?;
         
-        // Send notification for batch completion
         self.send_batch_notification(request.records.len(), successful, failed, &context).await?;
         
         let response = BatchStoreMemoryResponse {
@@ -270,7 +268,6 @@ impl StoreMemoryUseCaseImpl {
     
     /// Determine target layer for storage
     async fn determine_target_layer(&self, request: &StoreMemoryRequest, embedding: &EmbeddingVector) -> ApplicationResult<LayerType> {
-        // Use explicit target if provided
         if let Some(target_layer) = request.target_layer {
             return Ok(target_layer);
         }
@@ -565,7 +562,6 @@ impl StoreMemoryUseCaseImpl {
     }
 }
 
-// Clone implementation for parallel processing
 impl Clone for StoreMemoryUseCaseImpl {
     fn clone(&self) -> Self {
         Self {

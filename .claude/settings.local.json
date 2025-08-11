@@ -39,7 +39,13 @@
       "Bash(cargo check:*)",
       "mcp__archlens__export_ai_compact",
       "Bash(where cargo)",
-      "mcp__archlens__analyze_project"
+      "mcp__archlens__analyze_project",
+      "Bash(cargo test:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(py --version)",
+      "Bash(py:*)",
+      "Bash(git lfs:*)",
+      "Bash(git clone:*)"
     ],
     "deny": []
   },

@@ -1,8 +1,7 @@
-#![cfg(all(not(feature = "minimal"), feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(all(not(feature = "minimal"), feature = "extended-tests"))]
 use clap::Parser;
 use cli::commands::ModelsCommand;
 
-// Helper struct to parse Models commands
 #[derive(Parser)]
 struct TestCli {
     #[command(subcommand)]
@@ -96,7 +95,6 @@ async fn test_models_show() {
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
-        // May fail if model doesn't exist, but should parse correctly
         assert!(result.is_ok());
     }
 }
@@ -140,22 +138,18 @@ async fn test_models_check() {
 
 #[test]
 fn test_models_command_aliases() {
-    // Test ls alias for list
     let args = vec!["test", "models", "ls"];
     let cli = TestCli::try_parse_from(args);
     assert!(cli.is_ok());
 
-    // Test diag alias for diagnose
     let args = vec!["test", "models", "diag"];
     let cli = TestCli::try_parse_from(args);
     assert!(cli.is_ok());
 
-    // Test info alias for show
     let args = vec!["test", "models", "info", "test"];
     let cli = TestCli::try_parse_from(args);
     assert!(cli.is_ok());
 
-    // Test rec alias for recommendations
     let args = vec!["test", "models", "rec"];
     let cli = TestCli::try_parse_from(args);
     assert!(cli.is_ok());
@@ -234,7 +228,6 @@ async fn test_models_show_nonexistent() {
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
-        // Should succeed even if model doesn't exist (just shows error message)
         assert!(result.is_ok());
     }
 }

@@ -2,7 +2,6 @@
 
 use libfuzzer_sys::fuzz_target;
 use arbitrary::Arbitrary;
-// For fuzzing we'll use simplified vector operations
 // since we don't need the full memory crate API
 
 #[derive(Debug, Arbitrary)]
@@ -95,7 +94,6 @@ fn test_vector_normalization(values: Vec<f32>) {
             assert!(val.is_finite(), "Normalized values should be finite");
         }
         
-        // Check magnitude is approximately 1 (if original wasn't zero vector)
         let original_magnitude: f32 = original_values.iter().map(|x| x * x).sum::<f32>().sqrt();
         if original_magnitude > 1e-8 {
             let normalized_magnitude: f32 = filtered_values.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -127,7 +125,6 @@ fn test_distance_computation(v1: Vec<f32>, v2: Vec<f32>) {
         let diff = (distance - distance_reversed).abs();
         assert!(diff < 1e-6, "Distance should be symmetric");
         
-        // Test self-distance (should be 0 for non-zero vectors)
         let self_distance = cosine_distance(&filtered_v1, &filtered_v1);
         if filtered_v1.iter().any(|&x| x != 0.0) {
             assert!(self_distance < 1e-6, "Self-distance should be near 0");
@@ -302,13 +299,10 @@ fn cosine_distance(v1: &[f32], v2: &[f32]) -> f32 {
 }
 
 fn simd_cosine_distance(v1: &[f32], v2: &[f32]) -> f32 {
-    // In a real implementation, this would use SIMD instructions
-    // For fuzzing, we use the same implementation to test consistency
     cosine_distance(v1, v2)
 }
 
 fn simd_dot_product(v1: &[f32], v2: &[f32]) -> f32 {
-    // In a real implementation, this would use SIMD instructions
     v1.iter().zip(v2.iter()).map(|(a, b)| a * b).sum()
 }
 

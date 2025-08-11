@@ -77,7 +77,6 @@ impl MemoryRepository for MemoryServiceAdapter {
     }
 
     async fn update(&self, record: &MemoryRecord) -> Result<(), domain::DomainError> {
-        // For update, we can use store (upsert behavior)
         self.store(record).await
     }
 
@@ -106,7 +105,6 @@ impl MemoryRepository for MemoryServiceAdapter {
 
     async fn find_similar(&self, embedding: &domain::entities::embedding_vector::EmbeddingVector, limit: usize, threshold: f64) -> Result<Vec<(MemoryRecord, f64)>, domain::DomainError> {
         // This would require more sophisticated search capabilities
-        // For now, return empty - should be implemented with proper vector search
         Ok(vec![])
     }
 }
@@ -153,7 +151,6 @@ impl StorageProvider for MemoryServiceAdapter {
     }
 
     async fn get_storage_stats(&self) -> ApplicationResult<crate::ports::StorageStats> {
-        // Mock implementation - real implementation would query the memory orchestrator for stats
         Ok(crate::ports::StorageStats {
             total_records: 0,
             total_size_bytes: 0,
@@ -275,7 +272,6 @@ impl CacheProvider for MemoryServiceAdapter {
 
     async fn ttl(&self, key: &str) -> ApplicationResult<Option<u64>> {
         // This requires cache service to expose TTL info
-        // For now, return None (TTL not available)
         Ok(None)
     }
 

@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/core",        # NEW: Domain models and contracts
     "crates/cli",
     "crates/llm",
     "crates/tools",
@@ -8,7 +9,7 @@ members = [
     "crates/todo",
     "crates/ai",
     "crates/common",
-    "crates/domain"
+    "crates/domain"       # TODO: Migrate to core
 ]
 exclude = [
     "fuzz",

@@ -1,5 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
-// @component: {"k":"T","id":"unified_agent_tests","t":"Comprehensive unit tests for UnifiedAgent","m":{"cur":100,"tgt":100,"u":"%"},"f":["testing","coverage","unit_tests","god_object"]}
+#![cfg(feature = "extended-tests")]
 
 //! Comprehensive Unit Tests для UnifiedAgent
 //!
@@ -172,13 +171,36 @@ mod tests {
         use uuid::Uuid;
 
         #[cfg(not(feature = "minimal"))]
-        let test_record = Record { id: Uuid::new_v4(), text: "Test message for storage".to_string(), embedding: vec![], layer: Layer::Interact, kind: "user_message".to_string(), tags: vec!["test".to_string()], project: "test_project".to_string(), session: "test_session".to_string(), ts: Utc::now(), score: 0.0, access_count: 1, last_access: Utc::now() };
+        let test_record = Record {
+            id: Uuid::new_v4(),
+            text: "Test message for storage".to_string(),
+            embedding: vec![],
+            layer: Layer::Interact,
+            kind: "user_message".to_string(),
+            tags: vec!["test".to_string()],
+            project: "test_project".to_string(),
+            session: "test_session".to_string(),
+            ts: Utc::now(),
+            score: 0.0,
+            access_count: 1,
+            last_access: Utc::now(),
+        };
 
         #[cfg(not(feature = "minimal"))]
         {
-            assert_eq!(test_record.layer, Layer::Interact, "Should be Interact layer");
-            assert_eq!(test_record.kind, "user_message", "Should be user_message kind");
-            assert!(test_record.tags.contains(&"test".to_string()), "Should contain test tag");
+            assert_eq!(
+                test_record.layer,
+                Layer::Interact,
+                "Should be Interact layer"
+            );
+            assert_eq!(
+                test_record.kind, "user_message",
+                "Should be user_message kind"
+            );
+            assert!(
+                test_record.tags.contains(&"test".to_string()),
+                "Should contain test tag"
+            );
         }
     }
 
@@ -188,13 +210,25 @@ mod tests {
         use memory::{Layer, SearchOptions};
 
         #[cfg(not(feature = "minimal"))]
-        let search_options = SearchOptions { layers: vec![Layer::Insights], top_k: 5, score_threshold: 0.7, tags: vec![], project: Some("test_project".to_string()) };
+        let search_options = SearchOptions {
+            layers: vec![Layer::Insights],
+            top_k: 5,
+            score_threshold: 0.7,
+            tags: vec![],
+            project: Some("test_project".to_string()),
+        };
 
         #[cfg(not(feature = "minimal"))]
         {
             assert_eq!(search_options.top_k, 5, "Should request top 5 results");
-            assert_eq!(search_options.score_threshold, 0.7, "Should have 0.7 threshold");
-            assert!(search_options.layers.contains(&Layer::Insights), "Should search Insights layer");
+            assert_eq!(
+                search_options.score_threshold, 0.7,
+                "Should have 0.7 threshold"
+            );
+            assert!(
+                search_options.layers.contains(&Layer::Insights),
+                "Should search Insights layer"
+            );
         }
     }
 
@@ -367,7 +401,10 @@ mod tests {
 
         #[cfg(not(feature = "minimal"))]
         {
-            assert!(std::mem::size_of::<DIMemoryService>() > 0, "DIMemoryService should have non-zero size");
+            assert!(
+                std::mem::size_of::<DIMemoryService>() > 0,
+                "DIMemoryService should have non-zero size"
+            );
         }
     }
 
@@ -459,7 +496,10 @@ mod tests {
         }
 
         #[cfg(not(feature = "minimal"))]
-        assert!(stats.health_status.is_err(), "Default health status should be error");
+        assert!(
+            stats.health_status.is_err(),
+            "Default health status should be error"
+        );
 
         #[cfg(not(feature = "minimal"))]
         {
@@ -498,14 +538,24 @@ mod tests {
 
         #[cfg(not(feature = "minimal"))]
         {
-            assert!(matches!(health.overall_status, HealthStatus::Healthy), "Overall should be healthy");
-            assert_eq!(health.component_statuses.len(), 3, "Should have 3 components");
+            assert!(
+                matches!(health.overall_status, HealthStatus::Healthy),
+                "Overall should be healthy"
+            );
+            assert_eq!(
+                health.component_statuses.len(),
+                3,
+                "Should have 3 components"
+            );
         }
 
         #[cfg(not(feature = "minimal"))]
         {
             if let Some(cache_eff) = health.metrics_summary.get("cache_efficiency") {
-                assert!((*cache_eff - 0.75).abs() < 1e-6, "Cache efficiency should be 0.75");
+                assert!(
+                    (*cache_eff - 0.75).abs() < 1e-6,
+                    "Cache efficiency should be 0.75"
+                );
             } else {
                 panic!("cache_efficiency not found");
             }

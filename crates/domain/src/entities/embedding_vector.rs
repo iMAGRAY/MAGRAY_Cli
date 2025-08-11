@@ -179,7 +179,6 @@ impl EmbeddingVector {
 
     /// Business validation: check if vector is valid for storage
     pub fn is_valid_for_storage(&self) -> bool {
-        // Check for NaN or infinite values (business rule)
         self.dimensions.iter().all(|&x| x.is_finite()) &&
         // Check reasonable range (business rule) 
         self.dimensions.iter().all(|&x| x.abs() <= 10.0)

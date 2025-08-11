@@ -1118,7 +1118,6 @@ mod tests {
 
         match GpuBatchProcessor::new(config, embedding_config, cache).await {
             Ok(processor) => {
-                // Test resilient embedding for edge cases
                 match processor.embed("").await {
                     Ok(embedding) => {
                         println!(

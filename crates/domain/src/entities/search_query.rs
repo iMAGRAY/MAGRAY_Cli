@@ -132,7 +132,6 @@ impl SearchQuery {
         self
     }
 
-    // Getters for query components
     pub fn query_text(&self) -> &str {
         &self.query_text
     }
@@ -358,16 +357,24 @@ mod tests {
             .with_kind("note".to_string())
             .unwrap()
             .with_score_threshold(ScoreThreshold::high())
-            .with_layers(vec![LayerType::Interact, LayerType::Insights, LayerType::Assets]);
+            .with_layers(vec![
+                LayerType::Interact,
+                LayerType::Insights,
+                LayerType::Assets,
+            ]);
         assert!(q.has_filters());
         assert!(!q.is_simple());
         assert_eq!(q.score_threshold().value(), ScoreThreshold::high().value());
 
         // invalid tag
-        let bad = SearchQuery::new("hello".to_string()).unwrap().with_tags(vec!["".into()]);
+        let bad = SearchQuery::new("hello".to_string())
+            .unwrap()
+            .with_tags(vec!["".into()]);
         assert!(bad.is_err());
         // invalid kind
-        let badk = SearchQuery::new("hello".to_string()).unwrap().with_kind("".into());
+        let badk = SearchQuery::new("hello".to_string())
+            .unwrap()
+            .with_kind("".into());
         assert!(badk.is_err());
     }
 

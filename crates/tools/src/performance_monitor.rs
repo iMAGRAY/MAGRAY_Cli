@@ -249,7 +249,6 @@ impl ToolPerformanceMonitor {
             },
         };
 
-        // Store snapshot for trend analysis
         {
             let mut snapshots = self.snapshots.lock().await;
             let tool_snapshots = snapshots
@@ -263,7 +262,6 @@ impl ToolPerformanceMonitor {
             tool_snapshots.retain(|s| s.timestamp > cutoff_time);
         }
 
-        // Check for performance alerts
         if self.config.enable_alerting {
             self.check_performance_alerts(tool_name, &snapshot).await;
         }
@@ -342,7 +340,6 @@ impl ToolPerformanceMonitor {
             }
         }
 
-        // Record error if failed
         if !success {
             if let Some(error_msg) = error_message {
                 let error = ToolError {
@@ -377,7 +374,6 @@ impl ToolPerformanceMonitor {
             _ => return PerformanceTrend::Insufficient,
         };
 
-        // Split snapshots into two halves for comparison
         let mid_point = tool_snapshots.len() / 2;
         let first_half = &tool_snapshots[0..mid_point];
         let second_half = &tool_snapshots[mid_point..];
@@ -536,14 +532,12 @@ impl ToolPerformanceMonitor {
     /// Get current memory usage (simplified)
     async fn get_current_memory_usage(&self) -> Option<u64> {
         // In a real implementation, this would get actual memory usage
-        // For now, return None as placeholder
         None
     }
 
     /// Get current CPU usage (simplified)
     async fn get_current_cpu_usage(&self) -> Option<f32> {
         // In a real implementation, this would get actual CPU usage
-        // For now, return None as placeholder
         None
     }
 

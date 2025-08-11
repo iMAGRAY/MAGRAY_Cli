@@ -60,7 +60,6 @@ impl SemanticVersion {
     }
 
     pub fn is_compatible(&self, required: &SemanticVersion) -> bool {
-        // Compatible if major version matches and minor.patch >= required
         if self.major != required.major {
             return false;
         }
@@ -235,11 +234,9 @@ impl PerformanceMetrics {
             .unwrap_or_default()
             .as_secs();
 
-        // Simple moving average (in production, use more sophisticated metrics)
         self.average_execution_time = (self.average_execution_time + execution_time) / 2;
 
         if success {
-            // Exponential moving average for success rate
             self.success_rate = self.success_rate * 0.9 + 0.1;
         } else {
             self.success_rate *= 0.9;
@@ -342,7 +339,9 @@ impl ToolMetadata {
             meta.permissions.network = if p.net_allowlist.is_empty() {
                 NetworkPermissions::None
             } else {
-                NetworkPermissions::Restricted { allowed_hosts: p.net_allowlist.clone() }
+                NetworkPermissions::Restricted {
+                    allowed_hosts: p.net_allowlist.clone(),
+                }
             };
             meta.permissions.system = if p.allow_shell {
                 SystemPermissions::ProcessControl

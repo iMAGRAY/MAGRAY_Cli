@@ -1,4 +1,4 @@
-#![cfg(all(feature = "embeddings", feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(all(feature = "embeddings", feature = "extended-tests"))]
 
 use ai::{
     errors::Result,
@@ -7,17 +7,14 @@ use ai::{
 use std::{collections::HashSet, sync::Arc};
 use tempfile::TempDir;
 
-// Helper function to create temp directory for tokenizer
 fn create_temp_dir() -> TempDir {
     TempDir::new().expect("Failed to create temp directory")
 }
 
-// Helper function to create a simple tokenizer for tests
 fn create_test_tokenizer() -> Result<OptimizedTokenizer> {
     let temp_dir = create_temp_dir();
     let tokenizer_path = temp_dir.path().join("tokenizer.json");
 
-    // Create a minimal valid tokenizer.json for testing
     let tokenizer_json = r#"{
         "version": "1.0",
         "truncation": null,
@@ -59,7 +56,6 @@ async fn test_tokenizer_basic_functionality() -> Result<()> {
     let tokenizer = match create_test_tokenizer() {
         Ok(t) => t,
         Err(_) => {
-            // Skip test if we can't create tokenizer
             println!("Skipping test: unable to create test tokenizer");
             return Ok(());
         }
@@ -114,9 +110,7 @@ async fn test_tokenizer_empty_text() -> Result<()> {
                 "Empty text should produce minimal tokens"
             );
         }
-        Err(_) => {
-            // It's okay if empty text fails
-        }
+        Err(_) => {}
     }
 
     Ok(())

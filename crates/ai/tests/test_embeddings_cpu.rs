@@ -65,7 +65,6 @@ fn test_embedding_batch_size_optimization() {
     let optimal_batch_sizes = [1, 2, 4, 8, 16, 32, 64];
 
     for batch_size in optimal_batch_sizes {
-        // Batch size should be reasonable for CPU
         assert!(batch_size > 0);
         // In heavily sandboxed CI, cpu_count may report 1; allow a looser upper bound
         assert!(batch_size <= (cpu_count * 16).max(64));
@@ -86,7 +85,6 @@ fn test_cpu_memory_estimation() {
         embedding_dim: Some(768),
     };
 
-    // Estimate memory usage for CPU embedding
     let batch_size = config.batch_size;
     let max_length = config.max_length;
     let embedding_dim = config.embedding_dim.unwrap_or(768);
@@ -103,7 +101,6 @@ fn test_cpu_memory_estimation() {
     let total_memory = input_memory + output_memory + model_memory;
 
     assert!(total_memory > 0);
-    // Should be reasonable for CPU (less than 8GB)
     assert!(total_memory < 8_000_000_000);
 }
 
@@ -210,13 +207,11 @@ fn test_tokenization_approximation() {
     ];
 
     for text in texts {
-        // Simple approximation: ~4 characters per token for English
         let estimated_tokens = (text.len() / 4).max(1);
 
         assert!(estimated_tokens > 0);
         assert!(estimated_tokens <= text.len()); // Can't have more tokens than characters
 
-        // Should be reasonable for processing
         if estimated_tokens > 512 {
             // Long text should be truncated or chunked
             assert!(text.len() > 2000); // Should indeed be long text
@@ -254,7 +249,6 @@ fn test_cpu_service_configuration_validation() {
     ];
 
     for config in configs {
-        // All configs should be valid for CPU
         assert!(!config.use_gpu);
         assert!(config.gpu_config.is_none());
         assert!(config.batch_size >= 1);

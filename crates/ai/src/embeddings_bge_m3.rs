@@ -26,12 +26,12 @@ impl BgeM3EmbeddingService {
     pub fn new(model_path: PathBuf) -> Result<Self> {
         info!("Initializing BGE-M3 embedding service");
 
-        // Setup DLL path for Windows
         #[cfg(target_os = "windows")]
         {
-            // Try multiple possible paths for ONNX Runtime DLL
             let possible_paths = vec![
-                std::env::current_dir().unwrap().join("scripts/onnxruntime/lib/onnxruntime.dll"),
+                std::env::current_dir()
+                    .unwrap_or_else(|_| PathBuf::from("."))
+                    .join("scripts/onnxruntime/lib/onnxruntime.dll"),
                 PathBuf::from("./scripts/onnxruntime/lib/onnxruntime.dll"),
                 PathBuf::from("C:/Users/1/Documents/GitHub/MAGRAY_Cli/scripts/onnxruntime/lib/onnxruntime.dll"),
             ];
@@ -39,7 +39,11 @@ impl BgeM3EmbeddingService {
             for dll_path in possible_paths {
                 if dll_path.exists() {
                     info!("Found ONNX Runtime DLL at: {}", dll_path.display());
-                    std::env::set_var("ORT_DYLIB_PATH", dll_path.to_str().unwrap());
+                    if let Some(path_str) = dll_path.to_str() {
+                        std::env::set_var("ORT_DYLIB_PATH", path_str);
+                    } else {
+                        warn!("Failed to convert DLL path to string: {}", dll_path.display());
+                    }
                     break;
                 }
             }
@@ -93,7 +97,8 @@ impl BgeM3EmbeddingService {
     /// Generate embedding for single text
     pub fn embed(&self, text: &str) -> Result<EmbeddingResult> {
         let results = self.embed_batch(&[text.to_string()])?;
-        Ok(results.into_iter().next().unwrap())
+        results.into_iter().next()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get embedding result from batch"))
     }
 
     /// Generate embeddings for multiple texts
@@ -106,7 +111,6 @@ impl BgeM3EmbeddingService {
 
         let mut results = Vec::new();
 
-        // Process each text individually for now (can be batched later)
         for text in texts {
             let embedding = self.process_single_text(text)?;
             let token_count = self.estimate_token_count(text);
@@ -128,7 +132,6 @@ impl BgeM3EmbeddingService {
         let tokenized = self.tokenizer.encode(text)?;
         let seq_len = tokenized.length;
 
-        // Create tensors for BGE-M3 (XLMRoberta inputs)
         let input_ids_tensor = Tensor::from_array(([1, seq_len], tokenized.input_ids))?;
         let attention_mask_tensor = Tensor::from_array(([1, seq_len], tokenized.attention_mask))?;
         let token_type_ids_tensor = Tensor::from_array(([1, seq_len], tokenized.token_type_ids))?;
@@ -150,7 +153,6 @@ impl BgeM3EmbeddingService {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
 
-                // Look for hidden states [batch, seq, hidden]
                 if shape_vec.len() == 3 && shape_vec[0] == 1 && shape_vec[1] == seq_len as i64 {
                     let hidden_size = shape_vec[2] as usize;
 
@@ -211,7 +213,6 @@ impl BgeM3EmbeddingService {
 
     /// Estimate token count
     fn estimate_token_count(&self, text: &str) -> usize {
-        // Use real tokenizer for accurate count
         self.tokenizer
             .encode(text)
             .map(|t| t.length)
@@ -256,7 +257,6 @@ mod tests {
         let model_path = PathBuf::from("test_models/bge-m3/model.onnx");
         match BgeM3EmbeddingService::new(model_path) {
             Err(e) => {
-                // Should fail because tokenizer.json is missing
                 let error_msg = e.to_string();
                 assert!(
                     error_msg.contains("Tokenizer")

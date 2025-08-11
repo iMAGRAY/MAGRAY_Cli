@@ -25,7 +25,6 @@ use tokio::time::{sleep, Duration, timeout};
 use uuid::Uuid;
 use chrono::Utc;
 
-
 /// Утилита для создания test service с orchestration
 async fn create_orchestration_test_service() -> Result<DIMemoryService> {
     let temp_dir = TempDir::new()?;

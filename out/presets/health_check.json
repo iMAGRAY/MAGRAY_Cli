@@ -1,0 +1,13 @@
+{
+  "arguments": {
+    "detail_level": "summary",
+    "max_output_chars": 15000,
+    "sections": [
+      "summary",
+      "problems_validated",
+      "cycles"
+    ],
+    "top_n": 5
+  },
+  "tool": "export.ai_compact"
+}

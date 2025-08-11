@@ -127,7 +127,6 @@ impl ResourceManager {
         let current = self.current_usage.lock().await;
         let reservations = self.active_reservations.lock().await;
 
-        // Calculate projected usage if this task is allocated
         let mut projected_cpu = current.cpu_usage;
         let mut projected_memory = current.memory_usage;
         let mut projected_io = current.io_usage;
@@ -247,7 +246,6 @@ impl ResourceManager {
         usage.active_tasks = reservations.len();
         usage.timestamp = Instant::now();
 
-        // Store in history for trend analysis
         let usage_snapshot = usage.clone();
         drop(usage);
         drop(reservations);
@@ -417,5 +415,7 @@ impl ResourceManager {
 }
 
 impl Default for ResourceManager {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }

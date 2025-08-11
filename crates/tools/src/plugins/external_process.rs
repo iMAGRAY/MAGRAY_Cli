@@ -23,21 +23,41 @@ fn map_permissions(p: &crate::registry::ToolPermissions) -> crate::ToolPermissio
     let mut fs_write = Vec::new();
     match &p.file_system {
         FileSystemPermissions::None => {}
-        FileSystemPermissions::ReadOnly => { fs_read.push("/".into()); }
-        FileSystemPermissions::ReadWrite | FileSystemPermissions::FullAccess => { fs_read.push("/".into()); fs_write.push("/".into()); }
+        FileSystemPermissions::ReadOnly => {
+            fs_read.push("/".into());
+        }
+        FileSystemPermissions::ReadWrite | FileSystemPermissions::FullAccess => {
+            fs_read.push("/".into());
+            fs_write.push("/".into());
+        }
         FileSystemPermissions::Restricted { allowed_paths } => {
-            for ap in allowed_paths { fs_read.push(ap.clone()); fs_write.push(ap.clone()); }
+            for ap in allowed_paths {
+                fs_read.push(ap.clone());
+                fs_write.push(ap.clone());
+            }
         }
     }
     let mut net = Vec::new();
     match &p.network {
         NetworkPermissions::None => {}
-        NetworkPermissions::LocalHost => { net.push("localhost".into()); net.push("127.0.0.1".into()); }
+        NetworkPermissions::LocalHost => {
+            net.push("localhost".into());
+            net.push("127.0.0.1".into());
+        }
         NetworkPermissions::InternalNetworks => { /* keep empty to enforce env allowlist */ }
         NetworkPermissions::Internet => { /* empty -> allow by env */ }
-        NetworkPermissions::Restricted { allowed_hosts } => { for h in allowed_hosts { net.push(h.clone()); } }
+        NetworkPermissions::Restricted { allowed_hosts } => {
+            for h in allowed_hosts {
+                net.push(h.clone());
+            }
+        }
     }
-    crate::ToolPermissions { fs_read_roots: fs_read, fs_write_roots: fs_write, net_allowlist: net, allow_shell: false }
+    crate::ToolPermissions {
+        fs_read_roots: fs_read,
+        fs_write_roots: fs_write,
+        net_allowlist: net,
+        allow_shell: false,
+    }
 }
 
 /// External process configuration
@@ -223,7 +243,6 @@ impl ProcessSandbox {
             }
         }
 
-        // Create input files if needed
         self.create_input_files(&mut env, input).await?;
 
         Ok(env)
@@ -284,7 +303,6 @@ impl ProcessSandbox {
         let process_id = child.id();
         debug!("Process spawned with PID: {:?}", process_id);
 
-        // Handle stdin if needed
         if let Some(mut stdin) = child.stdin.take() {
             let input_data = self.prepare_input_data(input)?;
             if let Err(e) = stdin.write_all(input_data.as_bytes()).await {
@@ -300,7 +318,6 @@ impl ProcessSandbox {
             None
         };
 
-        // Wait for process completion with timeout
         let output = match tokio::time::timeout(
             self.resource_limits.max_execution_time,
             child.wait_with_output(),
@@ -416,7 +433,6 @@ impl ProcessSandbox {
                 // 1. Check memory usage via /proc/[pid]/status or similar
                 // 2. Check CPU usage
                 // 3. Monitor file descriptors
-                // 4. Kill process if limits exceeded
 
                 // For now, just simulate monitoring
                 if let Some(max_memory) = limits.max_memory_mb {
@@ -437,7 +453,6 @@ impl ProcessSandbox {
     /// Get process memory usage (simplified implementation)
     async fn get_process_memory_usage(_pid: u32) -> u64 {
         // In a real implementation, this would read from /proc/[pid]/status on Linux
-        // or use platform-specific APIs on other systems
         0
     }
 
@@ -474,7 +489,6 @@ impl ProcessSandbox {
         env: &mut ExecutionEnvironment,
         input: &ToolInput,
     ) -> Result<()> {
-        // Create temporary input file if process expects file input
         if input.args.contains_key("input_file") {
             let temp_file = tempfile::NamedTempFile::new()?;
             let temp_path = temp_file.path().to_path_buf();
@@ -617,7 +631,6 @@ impl Tool for ExternalProcessPlugin {
     }
 
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
-        // Basic natural language parsing for external process plugins
         Ok(ToolInput {
             command: self.metadata.name.clone(),
             args: HashMap::from([("query".to_string(), query.to_string())]),
@@ -677,7 +690,6 @@ impl PluginInstance for ExternalProcessPlugin {
         // Get execution statistics
         let stats = self.sandbox.get_stats().await;
 
-        // Check for concerning patterns
         if stats.total_executions > 0 {
             let success_rate = stats.successful_executions as f64 / stats.total_executions as f64;
             if success_rate < 0.8 {

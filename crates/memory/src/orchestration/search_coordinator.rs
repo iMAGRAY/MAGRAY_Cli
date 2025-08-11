@@ -469,7 +469,16 @@ impl SearchCoordinatorTrait for SearchCoordinator {
 
         // 1) Векторные кандидаты
         let k_vec = options.top_k;
-        let vector_candidates = self.vector_search(&vector, layer, SearchOptions { top_k: k_vec, ..options }).await?;
+        let vector_candidates = self
+            .vector_search(
+                &vector,
+                layer,
+                SearchOptions {
+                    top_k: k_vec,
+                    ..options
+                },
+            )
+            .await?;
 
         // 2) Ключевые кандидаты (если индекс доступен)
         #[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
@@ -492,7 +501,9 @@ impl SearchCoordinatorTrait for SearchCoordinator {
                     if let Ok(Some(rec)) = self.store.get_by_id(&uuid, layer).await {
                         fused
                             .entry(id_str.clone())
-                            .and_modify(|e| { let _ = &e.1; }) // сохраняем vector rank без изменений
+                            .and_modify(|e| {
+                                let _ = &e.1;
+                            }) // сохраняем vector rank без изменений
                             .or_insert((rec, None, None));
                         if let Some(entry) = fused.get_mut(id_str) {
                             entry.2 = Some(rank + 1);
@@ -504,7 +515,7 @@ impl SearchCoordinatorTrait for SearchCoordinator {
 
         // RRF (reciprocal rank fusion) + веса alpha/beta
         let alpha = 0.6_f32; // вес вектора
-        let beta = 0.4_f32;  // вес keyword
+        let beta = 0.4_f32; // вес keyword
         let k_rrf = 60.0_f32; // сглаживание
 
         let mut scored: Vec<(Record, f32)> = fused
@@ -520,7 +531,14 @@ impl SearchCoordinatorTrait for SearchCoordinator {
         scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         scored.truncate(options.top_k);
 
-        let mut out: Vec<Record> = scored.into_iter().map(|mut t| { let mut r=t.0; r.score=t.1; r }).collect();
+        let mut out: Vec<Record> = scored
+            .into_iter()
+            .map(|mut t| {
+                let mut r = t.0;
+                r.score = t.1;
+                r
+            })
+            .collect();
         Ok(out)
     }
 
@@ -556,7 +574,11 @@ impl SearchCoordinatorTrait for SearchCoordinator {
         if let Some(model) = self.rerank_model.read().await.as_ref() {
             let start_time = Instant::now();
             let documents: Vec<String> = candidates.iter().map(|r| r.text.clone()).collect();
-            let batch = ai::RerankBatch { query: query.to_string(), documents, top_k: Some(options.top_k) };
+            let batch = ai::RerankBatch {
+                query: query.to_string(),
+                documents,
+                top_k: Some(options.top_k),
+            };
             match model.rerank_batch(&batch) {
                 Ok(batch_out) => {
                     let rerank_latency = start_time.elapsed().as_millis();
@@ -566,7 +588,8 @@ impl SearchCoordinatorTrait for SearchCoordinator {
                         metrics.rerank_operations += 1;
                     }
                     let mut new_order = Vec::with_capacity(batch_out.results.len());
-                    for item in batch_out.results { // item.index соответствует позиции в candidates
+                    for item in batch_out.results {
+                        // item.index соответствует позиции в candidates
                         if let Some(r) = candidates.get(item.index) {
                             let mut rr = r.clone();
                             rr.score = item.score;

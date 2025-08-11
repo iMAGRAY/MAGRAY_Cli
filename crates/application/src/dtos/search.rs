@@ -257,7 +257,6 @@ impl Default for MultiSearchOptions {
     }
 }
 
-// Additional DTOs for search use case
 
 /// Search memory request (simplified for use case)
 #[derive(Debug, Serialize, Deserialize, Clone, Validate)]

@@ -1,7 +1,6 @@
 #![cfg(feature = "gpu")]
 use ai::config::EmbeddingConfig;
 use anyhow::Result;
-// use serial_test::serial;
 
 // Helper function to create pipeline config
 #[allow(dead_code)]
@@ -147,7 +146,6 @@ async fn test_config_debug_format() -> Result<()> {
     Ok(())
 }
 
-// Stress test for config creation
 #[tokio::test]
 #[ignore] // Ignore by default, run with --ignored
 async fn stress_test_config_creation() -> Result<()> {

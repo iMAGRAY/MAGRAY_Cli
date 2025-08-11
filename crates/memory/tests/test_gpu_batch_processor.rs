@@ -1,7 +1,5 @@
 #![cfg(all(feature = "gpu-acceleration", feature = "extended-tests"))]
 
-// @component: {"k":"T","id":"gpu_batch_processor_tests","t":"Comprehensive unit tests for GpuBatchProcessor","m":{"cur":100,"tgt":100,"u":"%"},"f":["testing","gpu","performance","batch","fallback"]}
-
 //! Comprehensive Unit Tests для GpuBatchProcessor
 //!
 //! Покрывает критический компонент (90% готовности, 800+ строк):

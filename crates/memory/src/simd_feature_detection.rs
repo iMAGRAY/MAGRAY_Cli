@@ -152,8 +152,6 @@ impl SimdLevel {
     /// Detect cache sizes using various methods
     #[cfg(target_arch = "x86_64")]
     fn detect_cache_sizes() {
-        // Try to get cache info from CPUID if available
-        // Fallback to reasonable defaults for modern CPUs
 
         // Modern Intel/AMD defaults
         CACHE_LINE_SIZE.store(64, Ordering::Relaxed); // 64 bytes typical
@@ -215,8 +213,6 @@ impl CpuInfo {
 
     /// Get CPU brand name
     fn get_cpu_brand() -> String {
-        // In a real implementation, you'd use CPUID to get the actual brand
-        // For now, return a generic description
         format!("{}-core CPU", num_cpus::get_physical())
     }
 
@@ -385,7 +381,6 @@ impl AdaptiveAlgorithmSelector {
         base_strategy: AlgorithmStrategy,
         workload: &WorkloadProfile,
     ) -> AlgorithmStrategy {
-        // Check if we should use hybrid approach
         if workload.batch_size > 50 && workload.vector_dimension >= 512 {
             // Large workloads benefit from hybrid approaches
             if self.cpu_info.num_logical_cores >= 8 {
@@ -495,7 +490,9 @@ mod tests {
 
     #[test]
     fn test_simd_detection() {
-        if std::env::var("CI").is_ok() { return; }
+        if std::env::var("CI").is_ok() {
+            return;
+        }
         let level = SimdLevel::detect();
         println!("Detected SIMD level: {:?}", level);
         assert!(level >= SimdLevel::None);
@@ -503,7 +500,9 @@ mod tests {
 
     #[test]
     fn test_cpu_info() {
-        if std::env::var("CI").is_ok() { return; }
+        if std::env::var("CI").is_ok() {
+            return;
+        }
         let info = CpuInfo::detect();
         info.print_info();
         assert!(info.num_cores > 0);
@@ -512,7 +511,9 @@ mod tests {
 
     #[test]
     fn test_workload_profile() {
-        if std::env::var("CI").is_ok() { return; }
+        if std::env::var("CI").is_ok() {
+            return;
+        }
         let profile = WorkloadProfile::new(1024, 100, 60.0);
         assert_eq!(profile.vector_dimension, 1024);
         assert_eq!(profile.batch_size, 100);
@@ -521,7 +522,9 @@ mod tests {
 
     #[test]
     fn test_algorithm_selection() {
-        if std::env::var("CI").is_ok() { return; }
+        if std::env::var("CI").is_ok() {
+            return;
+        }
         let selector = AdaptiveAlgorithmSelector::new();
         let workload = WorkloadProfile::new(1024, 50, 120.0);
         let strategy = selector.select_algorithm(&workload);

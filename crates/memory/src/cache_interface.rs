@@ -33,7 +33,6 @@ pub trait EmbeddingCacheInterface: Send + Sync {
     }
 }
 
-// Implement the trait for LRU cache (единственный тип cache)
 impl EmbeddingCacheInterface for crate::cache_lru::EmbeddingCacheLRU {
     fn get(&self, text: &str, model: &str) -> Option<Vec<f32>> {
         self.get(text, model)

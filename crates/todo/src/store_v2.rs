@@ -1,7 +1,7 @@
+use crate::types::Layer;
 use crate::types::*;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use crate::types::Layer;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, Connection, OptionalExtension, Row};
@@ -638,13 +638,21 @@ impl TodoStoreV2 {
     }
 
     /// Обновить metadata задачи (мердж по ключам)
-    pub async fn update_metadata(&self, id: &Uuid, new_meta: HashMap<String, serde_json::Value>) -> Result<()> {
+    pub async fn update_metadata(
+        &self,
+        id: &Uuid,
+        new_meta: HashMap<String, serde_json::Value>,
+    ) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
 
         // Получаем текущий metadata
         let current_json: Option<String> = tx
-            .query_row("SELECT metadata FROM todos WHERE id = ?1", params![id.to_string()], |row| row.get(0))
+            .query_row(
+                "SELECT metadata FROM todos WHERE id = ?1",
+                params![id.to_string()],
+                |row| row.get(0),
+            )
             .optional()?;
 
         let mut meta_obj: serde_json::Map<String, serde_json::Value> = current_json
@@ -667,12 +675,21 @@ impl TodoStoreV2 {
     }
 
     /// Добавить элемент в массив внутри metadata по ключу (создает массив при отсутствии)
-    pub async fn append_metadata_array(&self, id: &Uuid, key: &str, element: serde_json::Value) -> Result<()> {
+    pub async fn append_metadata_array(
+        &self,
+        id: &Uuid,
+        key: &str,
+        element: serde_json::Value,
+    ) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
 
         let current_json: Option<String> = tx
-            .query_row("SELECT metadata FROM todos WHERE id = ?1", params![id.to_string()], |row| row.get(0))
+            .query_row(
+                "SELECT metadata FROM todos WHERE id = ?1",
+                params![id.to_string()],
+                |row| row.get(0),
+            )
             .optional()?;
 
         let mut root: serde_json::Value = current_json
@@ -684,7 +701,9 @@ impl TodoStoreV2 {
         }
 
         let obj = root.as_object_mut().unwrap();
-        let arr = obj.entry(key.to_string()).or_insert_with(|| serde_json::json!([]));
+        let arr = obj
+            .entry(key.to_string())
+            .or_insert_with(|| serde_json::json!([]));
         if !arr.is_array() {
             *arr = serde_json::json!([]);
         }

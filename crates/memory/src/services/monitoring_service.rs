@@ -13,6 +13,8 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
+use crate::di::core_traits::ServiceResolver;
+use crate::di::traits::DIContainerStats;
 use crate::{
     batch_manager::BatchStats,
     di::{traits::DIResolver, UnifiedContainer},
@@ -22,8 +24,6 @@ use crate::{
     services::traits::{MonitoringServiceTrait, ProductionMetrics},
     services::CoordinatorServiceTrait,
 };
-use crate::di::core_traits::ServiceResolver;
-use crate::di::traits::DIContainerStats;
 
 /// Реализация системного мониторинга
 /// Отвечает ТОЛЬКО за мониторинг и сбор метрик
@@ -239,7 +239,13 @@ impl MonitoringServiceTrait for MonitoringService {
         }
 
         // Базовые проверки DI контейнера
-        let di_stats = DIContainerStats { registered_factories: 0, cached_singletons: 0, total_resolutions: 0, cache_hits: 0, validation_errors: 0 };
+        let di_stats = DIContainerStats {
+            registered_factories: 0,
+            cached_singletons: 0,
+            total_resolutions: 0,
+            cache_hits: 0,
+            validation_errors: 0,
+        };
         if di_stats.registered_factories == 0 {
             return Err(anyhow::anyhow!(
                 "DI контейнер пуст - нет зарегистрированных типов"
@@ -270,7 +276,6 @@ impl MonitoringServiceTrait for MonitoringService {
         // Cache статистика (заглушка)
         let cache_stats = (0, 0, 0); // hits, misses, size
 
-        // Остальные статистики (заглушки, так как требуют async или сложной интеграции)
         let promotion_stats = PromotionStats::default();
         let batch_stats = BatchStats::default();
         let gpu_stats = None; // GPU stats требуют async
@@ -283,7 +288,13 @@ impl MonitoringServiceTrait for MonitoringService {
             promotion_stats,
             batch_stats,
             gpu_stats,
-            di_container_stats: DIContainerStats { registered_factories: 0, cached_singletons: 0, total_resolutions: 0, cache_hits: 0, validation_errors: 0 },
+            di_container_stats: DIContainerStats {
+                registered_factories: 0,
+                cached_singletons: 0,
+                total_resolutions: 0,
+                cache_hits: 0,
+                validation_errors: 0,
+            },
         }
     }
 
@@ -313,7 +324,13 @@ impl MonitoringServiceTrait for MonitoringService {
         } else {
             0
         };
-        let di_stats = DIContainerStats { registered_factories: 0, cached_singletons: 0, total_resolutions: 0, cache_hits: 0, validation_errors: 0 };
+        let di_stats = DIContainerStats {
+            registered_factories: 0,
+            cached_singletons: 0,
+            total_resolutions: 0,
+            cache_hits: 0,
+            validation_errors: 0,
+        };
         let monitoring_tasks = self
             .monitoring_tasks_count
             .load(std::sync::atomic::Ordering::Relaxed);

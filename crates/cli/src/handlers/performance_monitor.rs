@@ -71,7 +71,9 @@ impl PerformanceMonitor {
 }
 
 impl Default for PerformanceMonitor {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PerformanceMonitor {
@@ -399,7 +401,7 @@ impl ComponentLifecycleTrait for PerformanceMonitor {
     }
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
     use tokio::time::{sleep, Duration};

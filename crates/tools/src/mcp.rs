@@ -17,7 +17,12 @@ pub struct McpTool {
 
 impl McpTool {
     pub fn new(cmd: String, args: Vec<String>, remote_tool: String, description: String) -> Self {
-        Self { cmd, args, remote_tool, description }
+        Self {
+            cmd,
+            args,
+            remote_tool,
+            description,
+        }
     }
 }
 
@@ -43,7 +48,10 @@ impl Tool for McpTool {
             name: format!("mcp:{}", self.remote_tool),
             description: self.description.clone(),
             usage: "Proxy tool to a MCP stdio server".to_string(),
-            examples: vec![format!("mcp:{}: {{\"command\":\"run\", \"args\":{{}}}}", self.remote_tool)],
+            examples: vec![format!(
+                "mcp:{}: {{\"command\":\"run\", \"args\":{{}}}}",
+                self.remote_tool
+            )],
             input_schema: "{command: string, args: object, context?: string}".to_string(),
             usage_guide: None,
             permissions: None,
@@ -81,9 +89,13 @@ impl Tool for McpTool {
             let mut tmp = [0u8; 4096];
             loop {
                 let n = stdout.read(&mut tmp).await?;
-                if n == 0 { break; }
+                if n == 0 {
+                    break;
+                }
                 buf.extend_from_slice(&tmp[..n]);
-                if buf.contains(&b'\n') { break; }
+                if buf.contains(&b'\n') {
+                    break;
+                }
             }
             Ok::<(), anyhow::Error>(())
         })
@@ -106,9 +118,13 @@ impl Tool for McpTool {
         })
     }
 
-    fn supports_natural_language(&self) -> bool { false }
+    fn supports_natural_language(&self) -> bool {
+        false
+    }
 
     async fn parse_natural_language(&self, _query: &str) -> Result<ToolInput> {
-        Err(anyhow!("Natural language parsing is not supported for MCP tools"))
+        Err(anyhow!(
+            "Natural language parsing is not supported for MCP tools"
+        ))
     }
 }

@@ -1,11 +1,10 @@
 use crate::memory_pool::GLOBAL_MEMORY_POOL;
-use crate::{ModelLoader, RerankingConfig};
 use crate::should_disable_ort;
 use crate::tokenization::OptimizedTokenizer;
 #[cfg(feature = "gpu")]
 use crate::GpuInfo;
+use crate::{ModelLoader, RerankingConfig};
 use anyhow::Result as AnyhowResult;
-// use common::service_traits::StatisticsProvider;
 use ort::{inputs, session::Session, value::Tensor};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -52,7 +51,9 @@ pub struct BatchRerankResult {
 }
 
 impl OptimizedQwen3RerankerService {
-    pub fn model_path(&self) -> &PathBuf { &self.model_path }
+    pub fn model_path(&self) -> &PathBuf {
+        &self.model_path
+    }
     /// Create new optimized Qwen3 reranker service with GPU support
     pub fn new_with_config(config: RerankingConfig) -> AnyhowResult<Self> {
         // Centralized models directory
@@ -67,7 +68,6 @@ impl OptimizedQwen3RerankerService {
         info!("   Batch size: {}", batch_size);
         info!("   Model path: {}", model_path.display());
 
-        // Setup DLL path for Windows
         #[cfg(target_os = "windows")]
         {
             let possible_paths = vec![
@@ -200,11 +200,21 @@ impl OptimizedQwen3RerankerService {
                     processing_time_ms: 0,
                 })
                 .collect();
-            results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
-            if let Some(k) = batch.top_k { results.truncate(k); }
+            results.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            if let Some(k) = batch.top_k {
+                results.truncate(k);
+            }
             let total_time = start_time.elapsed().as_millis();
             let throughput = 1000.0 * documents.len() as f64 / (total_time.max(1)) as f64;
-            return Ok(BatchRerankResult { results, total_time_ms: total_time, throughput_docs_per_sec: throughput });
+            return Ok(BatchRerankResult {
+                results,
+                total_time_ms: total_time,
+                throughput_docs_per_sec: throughput,
+            });
         }
 
         // Process documents in optimized batches
@@ -237,7 +247,6 @@ impl OptimizedQwen3RerankerService {
         // Sort by score (descending)
         all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
 
-        // Apply top_k limit if specified
         if let Some(k) = batch.top_k {
             all_results.truncate(k);
         }
@@ -271,7 +280,6 @@ impl OptimizedQwen3RerankerService {
         let pairs: Vec<(&str, &str)> = documents.iter().map(|d| (query, d.as_str())).collect();
         let mut batch_tokenized = tokenizer.encode_batch_pairs(&pairs)?;
 
-        // Find maximum sequence length for padding
         let max_len = batch_tokenized
             .input_ids
             .iter()
@@ -285,7 +293,6 @@ impl OptimizedQwen3RerankerService {
         // Pad to uniform length
         tokenizer.pad_batch(&mut batch_tokenized, Some(padded_len))?;
 
-        // Use memory pools for batch data
         let total_elements = batch_size * padded_len;
         let mut flat_input_ids = GLOBAL_MEMORY_POOL.get_input_buffer(total_elements);
         let mut flat_attention_masks = GLOBAL_MEMORY_POOL.get_attention_buffer(total_elements);
@@ -313,7 +320,6 @@ impl OptimizedQwen3RerankerService {
         let position_ids_tensor =
             Tensor::from_array(([batch_size, padded_len], flat_position_ids.to_vec()))?;
 
-        // Single ONNX call for entire batch, extract scores while session is alive
         let scores: Vec<f32> = match &self.inner {
             RerankerInner::Ort(session_arc) => {
                 let mut session = session_arc
@@ -324,12 +330,13 @@ impl OptimizedQwen3RerankerService {
                     "attention_mask" => attention_mask_tensor,
                     "position_ids" => position_ids_tensor
                 ])?;
-                // Extract while outputs borrows session internals
                 self.extract_batch_scores(&outputs, batch_size)?
             }
             RerankerInner::Fallback => {
                 // Should not reach here, rerank_batch handles fallback early
-                return Err(anyhow::anyhow!("Fallback path should not call process_batch_optimized"));
+                return Err(anyhow::anyhow!(
+                    "Fallback path should not call process_batch_optimized"
+                ));
             }
         };
 
@@ -369,7 +376,9 @@ impl OptimizedQwen3RerankerService {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
 
-                if let Some(scores) = try_extract_scores_from_shape_and_data(batch_size, &shape_vec, data) {
+                if let Some(scores) =
+                    try_extract_scores_from_shape_and_data(batch_size, &shape_vec, data)
+                {
                     return Ok(scores);
                 }
             }
@@ -447,7 +456,11 @@ pub fn rerank(
         top_k,
     };
 
-    let service = OptimizedQwen3RerankerService::new(PathBuf::from("test_models/qwen3_reranker/model.onnx"), 512, 8)?;
+    let service = OptimizedQwen3RerankerService::new(
+        PathBuf::from("test_models/qwen3_reranker/model.onnx"),
+        512,
+        8,
+    )?;
     let batch_result = service.rerank_batch(&batch)?;
     Ok(batch_result.results)
 }
@@ -471,10 +484,16 @@ fn fallback_overlap_score(query: &str, doc: &str) -> f32 {
     }
     let q = tokenize(query);
     let d = tokenize(doc);
-    if q.is_empty() || d.is_empty() { return 0.0; }
+    if q.is_empty() || d.is_empty() {
+        return 0.0;
+    }
     let inter = q.intersection(&d).count() as f32;
     let union = q.union(&d).count() as f32;
-    if union <= 0.0 { 0.0 } else { inter / union }
+    if union <= 0.0 {
+        0.0
+    } else {
+        inter / union
+    }
 }
 
 #[cfg(test)]

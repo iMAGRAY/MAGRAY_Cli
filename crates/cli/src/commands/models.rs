@@ -68,11 +68,18 @@ impl ModelsCommand {
     /// Прогреть и удерживать в памяти модели
     fn warmup(models: Vec<String>) -> Result<()> {
         {
-            use ai::{model_registry::{MODEL_REGISTRY, ModelType}, warmup_models};
+            use ai::{
+                model_registry::{ModelType, MODEL_REGISTRY},
+                warmup_models,
+            };
             let names: Vec<String> = if models.is_empty() {
                 let mut v = Vec::new();
-                if let Some(m) = MODEL_REGISTRY.get_default_model(ModelType::Embedding) { v.push(m.name.clone()); }
-                if let Some(m) = MODEL_REGISTRY.get_default_model(ModelType::Reranker) { v.push(m.name.clone()); }
+                if let Some(m) = MODEL_REGISTRY.get_default_model(ModelType::Embedding) {
+                    v.push(m.name.clone());
+                }
+                if let Some(m) = MODEL_REGISTRY.get_default_model(ModelType::Reranker) {
+                    v.push(m.name.clone());
+                }
                 v
             } else {
                 models

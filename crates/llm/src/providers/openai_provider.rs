@@ -94,20 +94,17 @@ impl OpenAIProvider {
                 latency_class: LatencyClass::Fast,
                 reliability_score: 0.95,
             },
-            _ => {
-                // Default capabilities for unknown models
-                ProviderCapabilities {
-                    max_tokens: 4096,
-                    supports_streaming: false,
-                    supports_functions: false,
-                    supports_vision: false,
-                    context_window: 8192,
-                    cost_per_1k_input: 0.001,
-                    cost_per_1k_output: 0.003,
-                    latency_class: LatencyClass::Standard,
-                    reliability_score: 0.9,
-                }
-            }
+            _ => ProviderCapabilities {
+                max_tokens: 4096,
+                supports_streaming: false,
+                supports_functions: false,
+                supports_vision: false,
+                context_window: 8192,
+                cost_per_1k_input: 0.001,
+                cost_per_1k_output: 0.003,
+                latency_class: LatencyClass::Standard,
+                reliability_score: 0.9,
+            },
         }
     }
 }
@@ -180,15 +177,12 @@ impl LlmProvider for OpenAIProvider {
         // Build messages array
         let mut messages = Vec::new();
 
-        // Add system prompt if provided
         if let Some(system_prompt) = &request.system_prompt {
             messages.push(OpenAIMessage {
                 role: "system".to_string(),
                 content: system_prompt.clone(),
             });
         }
-
-        // Context handling can be added later if needed
 
         // Add main prompt
         messages.push(OpenAIMessage {
@@ -236,7 +230,6 @@ impl LlmProvider for OpenAIProvider {
         let usage = if let Some(usage) = openai_response.usage {
             TokenUsage::new(usage.prompt_tokens, usage.completion_tokens)
         } else {
-            // Fallback estimation if usage not provided
             let prompt_tokens = request.prompt.len() as u32 / 4;
             let completion_tokens = choice.message.content.len() as u32 / 4;
             TokenUsage::new(prompt_tokens, completion_tokens)
@@ -277,8 +270,6 @@ impl LlmProvider for OpenAIProvider {
                 content: system_prompt.clone(),
             });
         }
-
-        // Context handling can be added later if needed
 
         messages.push(OpenAIMessage {
             role: "user".to_string(),

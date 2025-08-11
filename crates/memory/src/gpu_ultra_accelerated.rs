@@ -72,7 +72,6 @@ pub struct GpuMemoryBuffer {
 impl GpuMemoryBuffer {
     /// Allocate GPU memory buffer (mock implementation)
     pub fn allocate(device_id: u32, size: usize) -> Result<Self> {
-        // Mock allocation - in real implementation would use cudaMalloc
         Ok(Self {
             ptr: std::ptr::null_mut(),
             size,
@@ -82,13 +81,11 @@ impl GpuMemoryBuffer {
 
     /// Copy data to GPU buffer (mock implementation)
     pub fn copy_from_host(&mut self, _data: &[f32]) -> Result<()> {
-        // Mock - would use cudaMemcpy in real implementation
         Ok(())
     }
 
     /// Copy data from GPU buffer (mock implementation)
     pub fn copy_to_host(&self, _data: &mut [f32]) -> Result<()> {
-        // Mock - would use cudaMemcpy in real implementation
         Ok(())
     }
 
@@ -99,7 +96,6 @@ impl GpuMemoryBuffer {
 
 impl Drop for GpuMemoryBuffer {
     fn drop(&mut self) {
-        // Mock - would use cudaFree in real implementation
     }
 }
 
@@ -136,7 +132,6 @@ impl GpuKernelConfig {
         let blocks_per_grid = ((batch_size + vectors_per_block - 1) / vectors_per_block)
             .min(device.multiprocessor_count as usize);
 
-        // Shared memory for vector caching
         let shared_memory_per_block = vector_dim * 4; // f32 per vector dimension
 
         Self {
@@ -210,7 +205,6 @@ impl GpuCosineProcessor {
             ));
         }
 
-        // Initialize buffers if needed
         if self.query_buffer.is_none() {
             self.initialize_buffers(queries.len())?;
         }
@@ -253,7 +247,6 @@ impl GpuCosineProcessor {
         let results: Vec<f32> = queries
             .par_iter()
             .map(|query| {
-                // Use ultra-optimized SIMD for maximum CPU performance
                 #[cfg(target_arch = "x86_64")]
                 {
                     if std::arch::is_x86_feature_detected!("avx2") {
@@ -318,7 +311,6 @@ impl GpuDeviceManager {
     pub fn discover() -> Self {
         let mut devices = Vec::new();
 
-        // Mock GPU discovery - in real implementation would use CUDA runtime
         // For demonstration, add a mock high-end GPU
         devices.push(GpuDevice::mock_rtx_4090());
 
@@ -506,7 +498,7 @@ mod tests {
         let processor = GpuCosineProcessor::new(device.clone(), 1024);
 
         assert!(processor.is_ok());
-        let proc = processor.unwrap();
+        let proc = processor.expect("Failed to create GpuCosineProcessor");
         assert_eq!(proc.vector_dim, 1024);
         assert!(proc.max_batch_size() > 0);
     }

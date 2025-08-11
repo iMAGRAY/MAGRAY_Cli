@@ -1,7 +1,6 @@
 use clap::Parser;
 use cli::commands::GpuCommand;
 
-// Helper struct to parse GPU commands
 #[derive(Parser)]
 struct TestCli {
     #[command(subcommand)]
@@ -112,7 +111,6 @@ async fn test_gpu_optimize_default() {
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;
-    // May fail if models not available, but should parse
     assert!(result.is_ok() || result.is_err());
 }
 

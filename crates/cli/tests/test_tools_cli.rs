@@ -6,7 +6,9 @@ use std::process::Command;
 #[test]
 fn tools_list_runs() {
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
-    cmd.args(["tools", "list"]).env("MAGRAY_CMD_TIMEOUT", "30").env("CI", "1");
+    cmd.args(["tools", "list"])
+        .env("MAGRAY_CMD_TIMEOUT", "30")
+        .env("CI", "1");
     let status = cmd.status().expect("run ok");
     assert!(status.success());
 }
@@ -14,7 +16,9 @@ fn tools_list_runs() {
 #[tokio::test]
 async fn tools_run_event_bus_smoke() {
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
-    cmd.args(["tools", "list"]).env("CI", "1").env("MAGRAY_CMD_TIMEOUT", "20");
+    cmd.args(["tools", "list"])
+        .env("CI", "1")
+        .env("MAGRAY_CMD_TIMEOUT", "20");
     let status = cmd.status().expect("run ok");
     assert!(status.success());
 }
@@ -24,10 +28,14 @@ fn tools_policy_block_shell_exec() {
     // Attempt to run blocked tool; expect non-zero exit
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
     cmd.args([
-        "tools", "run",
-        "--name", "shell_exec",
-        "--command", "echo",
-        "--arg", "command=echo",
+        "tools",
+        "run",
+        "--name",
+        "shell_exec",
+        "--command",
+        "echo",
+        "--arg",
+        "command=echo",
     ])
     .env("CI", "1")
     .env("MAGRAY_CMD_TIMEOUT", "20");
@@ -39,13 +47,17 @@ fn tools_policy_block_shell_exec() {
 fn tools_run_file_delete_smoke() {
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
     cmd.args([
-        "tools","run",
-        "--name","file_delete",
-        "--command","delete",
-        "--arg","path=/__definitely_not_exist__",
+        "tools",
+        "run",
+        "--name",
+        "file_delete",
+        "--command",
+        "delete",
+        "--arg",
+        "path=/__definitely_not_exist__",
     ])
-    .env("CI","1")
-    .env("MAGRAY_CMD_TIMEOUT","20")
-    .env("MAGRAY_NONINTERACTIVE","true");
+    .env("CI", "1")
+    .env("MAGRAY_CMD_TIMEOUT", "20")
+    .env("MAGRAY_NONINTERACTIVE", "true");
     let _ = cmd.status().expect("run ok");
 }

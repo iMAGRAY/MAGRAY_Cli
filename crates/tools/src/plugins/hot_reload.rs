@@ -1,4 +1,3 @@
-// @component: {"k":"C","id":"hot_reload","t":"Hot reload system for plugins with file watching","m":{"cur":0,"tgt":75,"u":"%"},"f":["hot-reload","file-watcher","plugins"]}
 
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -162,7 +161,6 @@ impl HotReloadManager {
     pub async fn start(&self) -> Result<()> {
         info!("🔥 Starting hot reload manager");
 
-        // Clone necessary components for the event loop
         let event_receiver = Arc::clone(&self.event_receiver);
         let reload_handlers = Arc::clone(&self.reload_handlers);
 
@@ -295,12 +293,10 @@ impl HotReloadManager {
                 self.execute_reload(plugin_id).await?;
             }
             ReloadPolicy::Manual | ReloadPolicy::OnDemand => {
-                // Store for later manual trigger
                 let mut pending = self.pending_reloads.write().await;
                 pending.insert(plugin_id.clone(), event);
             }
             ReloadPolicy::Scheduled => {
-                // Store for scheduled processing
                 let mut pending = self.pending_reloads.write().await;
                 pending.insert(plugin_id.clone(), event);
             }
@@ -341,7 +337,6 @@ pub trait ReloadHandler: Send + Sync {
 /// Plugin manager reload handler
 pub struct PluginManagerReloadHandler {
     // This would hold a reference to the plugin manager
-    // In a real implementation, this would use weak references or channels
 }
 
 #[async_trait::async_trait]

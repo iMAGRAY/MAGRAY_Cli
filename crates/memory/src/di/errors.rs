@@ -1,4 +1,4 @@
-//! DI error types and utilities
+﻿//! DI error types and utilities
 //!
 //! Example usage (non-compiling snippet):
 //! ```ignore
@@ -268,8 +268,7 @@ impl DIError {
     pub fn coordinator_error(
         message: impl Into<String>,
         coordinator_type: impl Into<String>,
-        operation: impl Into<String>,
-    ) -> Self {
+        operation: impl Into<String>) -> Self {
         DIError::Coordinator {
             message: message.into(),
             coordinator_type: coordinator_type.into(),
@@ -281,8 +280,7 @@ impl DIError {
     pub fn lifecycle_error(
         message: impl Into<String>,
         operation: impl Into<String>,
-        component: Option<impl Into<String>>,
-    ) -> Self {
+        component: Option<impl Into<String>>) -> Self {
         DIError::Lifecycle {
             message: message.into(),
             operation: operation.into(),
@@ -294,8 +292,7 @@ impl DIError {
     pub fn metrics_error(
         message: impl Into<String>,
         metric_type: impl Into<String>,
-        value: Option<impl Into<String>>,
-    ) -> Self {
+        value: Option<impl Into<String>>) -> Self {
         DIError::Metrics {
             message: message.into(),
             metric_type: metric_type.into(),
@@ -307,8 +304,7 @@ impl DIError {
     pub fn validation_error(
         message: impl Into<String>,
         dependency_type: Option<impl Into<String>>,
-        operation: impl Into<String>,
-    ) -> Self {
+        operation: impl Into<String>) -> Self {
         DIError::DependencyValidation {
             message: message.into(),
             dependency_type: dependency_type.map(|dt| dt.into()),
@@ -320,8 +316,7 @@ impl DIError {
     pub fn component_not_initialized(
         component: impl Into<String>,
         reason: impl Into<String>,
-        suggestion: Option<impl Into<String>>,
-    ) -> Self {
+        suggestion: Option<impl Into<String>>) -> Self {
         DIError::ComponentNotInitialized {
             component: component.into(),
             reason: reason.into(),
@@ -333,8 +328,7 @@ impl DIError {
     pub fn timeout_error(
         operation: impl Into<String>,
         timeout_ms: u64,
-        component: Option<impl Into<String>>,
-    ) -> Self {
+        component: Option<impl Into<String>>) -> Self {
         DIError::Timeout {
             operation: operation.into(),
             timeout_ms,
@@ -346,8 +340,7 @@ impl DIError {
     pub fn graph_operation_error(
         message: impl Into<String>,
         operation: impl Into<String>,
-        node_type: Option<impl Into<String>>,
-    ) -> Self {
+        node_type: Option<impl Into<String>>) -> Self {
         DIError::GraphOperation {
             message: message.into(),
             operation: operation.into(),
@@ -470,24 +463,21 @@ impl From<MetricsError> for DIError {
             MetricsError::InvalidValue { metric_type, value } => DIError::metrics_error(
                 format!("Invalid value: {}", value),
                 metric_type,
-                Some(value),
-            ),
+                Some(value)),
             MetricsError::ReporterError {
                 reporter_type,
                 operation,
             } => DIError::metrics_error(
                 format!("Reporter error during {}", operation),
                 reporter_type,
-                None::<String>,
-            ),
+                None::<String>),
             MetricsError::NotAvailable { metric_type } => {
                 DIError::metrics_error("Metric not available", metric_type, None::<String>)
             }
             MetricsError::AggregationFailed { operation, count } => DIError::metrics_error(
                 format!("Aggregation of {} items failed", count),
                 operation,
-                Some(count.to_string()),
-            ),
+                Some(count.to_string())),
         }
     }
 }
@@ -498,13 +488,11 @@ impl From<ValidationError> for DIError {
             ValidationError::CircularDependency { cycle } => DIError::validation_error(
                 format!("Circular dependency: {}", cycle),
                 None::<String>,
-                "cycle_detection",
-            ),
+                "cycle_detection"),
             ValidationError::DependencyNotFound { dependency_type } => DIError::validation_error(
                 "Dependency not found",
                 Some(dependency_type),
-                "resolution",
-            ),
+                "resolution"),
             ValidationError::GraphOperationFailed { operation, details } => {
                 DIError::graph_operation_error(details, operation, None::<String>)
             }
@@ -514,8 +502,7 @@ impl From<ValidationError> for DIError {
             ValidationError::InvalidRelationship { from, to } => DIError::validation_error(
                 format!("Invalid relationship: {} -> {}", from, to),
                 None::<String>,
-                "relationship_validation",
-            ),
+                "relationship_validation"),
             ValidationError::GraphCorrupted { details } => {
                 DIError::graph_operation_error(details, "integrity_check", None::<String>)
             }
@@ -548,8 +535,6 @@ impl<T> DIContextExt<T> for Result<T, DIError> {
     }
 }
 
-// Removed generic impl to avoid trait conflicts with Result<T, DIError>
-// Use anyhow::Context directly for other error types
 
 /// Convenience macro для создания DIError с context
 #[macro_export]
@@ -587,7 +572,7 @@ macro_rules! di_error {
     };
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
 
@@ -596,8 +581,7 @@ mod tests {
         let error = DIError::coordinator_error(
             "Test coordinator error",
             "embedding_coordinator",
-            "initialization",
-        );
+            "initialization");
 
         assert_eq!(error.category(), "coordinator");
         assert!(!error.is_recoverable());
@@ -640,8 +624,7 @@ mod tests {
         let result: Result<(), DIError> = Err(DIError::component_not_initialized(
             "test_component",
             "initialization failed",
-            Some("Call initialize() first"),
-        ));
+            Some("Call initialize() first")));
 
         let chained = result.di_context("During system startup");
         assert!(chained.is_err());

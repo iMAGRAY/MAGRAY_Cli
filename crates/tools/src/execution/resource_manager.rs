@@ -1,5 +1,3 @@
-// @component: {"k":"C","id":"resource_manager","t":"Resource management and monitoring for tool execution","m":{"cur":0,"tgt":90,"u":"%"},"f":["resource","management","monitoring","limits"]}
-
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -173,7 +171,6 @@ impl ResourceManager {
         requested_cores: u32,
         execution_timeout: Option<Duration>,
     ) -> Result<ResourceGuard> {
-        // Check if requests are within individual limits
         if requested_memory > self.limits.max_memory_mb {
             return Err(anyhow!(
                 "Requested memory ({} MB) exceeds limit ({} MB)",
@@ -195,7 +192,6 @@ impl ResourceManager {
             requested_memory, requested_cores, tool_id
         );
 
-        // Acquire semaphores (this will block if resources aren't available)
         let _concurrent_permit = Arc::clone(&self.semaphores.concurrent_executions)
             .acquire_owned()
             .await

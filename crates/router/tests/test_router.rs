@@ -149,7 +149,6 @@ fn test_extract_required_params_invalid_json() {
     let llm_client = create_test_llm_client();
     let router = SmartRouter::new(llm_client);
 
-    // Test with invalid JSON - should return fallback params
     let schema = "not a json";
     let params = router.extract_required_params(schema);
 

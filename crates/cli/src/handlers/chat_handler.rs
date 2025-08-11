@@ -12,8 +12,6 @@ use crate::agent_traits::{
     AgentResponse, CircuitBreakerTrait, ComponentLifecycleTrait, LlmServiceTrait, RequestContext,
 };
 
-// use common::MagrayCoreError;
-
 pub struct ChatHandler<L, C>
 where
     L: LlmServiceTrait,
@@ -184,7 +182,7 @@ where
     }
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
     use std::sync::Arc;

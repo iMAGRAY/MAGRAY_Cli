@@ -591,7 +591,7 @@ impl Default for PerformanceTrackerBuilder {
     }
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
     use tokio::time::sleep;
@@ -626,7 +626,6 @@ mod tests {
     async fn test_system_metrics_aggregation() {
         let tracker = PerformanceTracker::default();
 
-        // Simulate operations for both components
         for i in 0..5 {
             let op_id = tracker.start_operation("component1", "operation").await;
             sleep(Duration::from_millis(5)).await;

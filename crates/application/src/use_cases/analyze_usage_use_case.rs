@@ -222,13 +222,11 @@ impl AnalyzeUsageUseCase for AnalyzeUsageUseCaseImpl {
         // Analyze component health
         let component_health = self.analyze_component_health(&health_data).await?;
         
-        // Check for critical issues
         let critical_issues = self.identify_critical_issues(&health_data).await?;
         
         // Generate health score
         let health_score = self.calculate_health_score(&health_data, &critical_issues);
         
-        // Create recommendations for health improvements
         let health_recommendations = self.generate_health_recommendations(&health_data, &critical_issues).await?;
         
         let total_time = start_time.elapsed();
@@ -242,7 +240,6 @@ impl AnalyzeUsageUseCase for AnalyzeUsageUseCaseImpl {
             report_generation_time_ms: total_time.as_millis() as u64,
         };
         
-        // Send notification for critical health issues
         if health_score < 0.7 || !critical_issues.is_empty() {
             self.send_health_alert(&report, &context).await?;
         }
@@ -521,7 +518,6 @@ impl AnalyzeUsageUseCaseImpl {
     
     /// Generate predictive insights
     async fn generate_predictive_insights(&self, request: &GenerateInsightsRequest) -> ApplicationResult<Vec<crate::dtos::Insight>> {
-        // Implementation would use ML models for predictions
         Ok(vec![])
     }
     

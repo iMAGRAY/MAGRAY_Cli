@@ -224,9 +224,6 @@ impl PromotionEngine {
     #[allow(dead_code)] // Используется в условном коде
     fn estimate_available_memory_mb(&self) -> usize {
         // Базовая эвристика - в реальности заменить на:
-        // use sysinfo::{System, SystemExt};
-        // let mut sys = System::new_all();
-        // sys.refresh_memory();
         // sys.available_memory() / 1024 / 1024
 
         #[cfg(target_os = "windows")]

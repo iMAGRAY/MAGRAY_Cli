@@ -3,14 +3,12 @@ pub mod config;
 pub mod errors;
 pub mod memory_pool;
 
-// Only include embeddings for cpu/gpu builds
 #[cfg(feature = "embeddings")]
 pub mod embeddings_cpu;
 
 #[cfg(feature = "gpu")]
 pub mod embeddings_gpu;
 
-// GPU-related modules only for gpu builds
 #[cfg(feature = "gpu")]
 pub mod gpu_config;
 
@@ -29,7 +27,6 @@ pub mod gpu_pipeline;
 #[cfg(feature = "gpu")]
 pub mod tensorrt_cache;
 
-// Model management for cpu/gpu builds
 #[cfg(any(feature = "cpu", feature = "gpu"))]
 pub mod model_downloader;
 
@@ -42,7 +39,6 @@ pub mod models;
 #[cfg(any(feature = "cpu", feature = "gpu"))]
 pub mod ort_setup;
 
-// Reranking for cpu/gpu builds
 #[cfg(feature = "reranking")]
 pub mod reranker_qwen3;
 
@@ -52,7 +48,6 @@ pub mod reranker_qwen3_optimized;
 #[cfg(feature = "reranking")]
 pub mod reranking;
 
-// Tokenization for embeddings
 #[cfg(feature = "embeddings")]
 pub mod tokenization;
 
@@ -128,12 +123,22 @@ fn warmup_models_impl(model_names: &[&str]) -> anyhow::Result<()> {
 
     let mut guard = WARMED_MODELS.write();
     for &name in model_names {
-        if guard.contains_key(name) { continue; }
+        if guard.contains_key(name) {
+            continue;
+        }
         let model_path = MODEL_REGISTRY.get_model_path(name).join("model.onnx");
-        if !model_path.exists() { continue; }
+        if !model_path.exists() {
+            continue;
+        }
         // Создаем real/fallback сессию
         let session = models::OnnxSession::new(name.to_string(), model_path.clone(), false)
-            .unwrap_or_else(|e| models::OnnxSession::new_fallback(name.to_string(), model_path.clone(), e.to_string()));
+            .unwrap_or_else(|e| {
+                models::OnnxSession::new_fallback(
+                    name.to_string(),
+                    model_path.clone(),
+                    e.to_string(),
+                )
+            });
         guard.insert(name.to_string(), Arc::new(session));
     }
     Ok(())
@@ -172,6 +177,7 @@ pub fn ort_available() -> bool {
 }
 
 pub fn should_disable_ort() -> bool {
-    std::env::var("MAGRAY_FORCE_NO_ORT").map(|v| matches!(v.to_lowercase().as_str(), "1"|"true"|"yes"|"y"))
+    std::env::var("MAGRAY_FORCE_NO_ORT")
+        .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "y"))
         .unwrap_or(false)
 }

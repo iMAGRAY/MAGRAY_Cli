@@ -213,7 +213,8 @@ where
     C: CircuitBreakerTrait,
 {
     async fn initialize(&self) -> Result<()> {
-        super::standard_component_initialize("MemoryHandler", self.memory_service.health_check()).await
+        super::standard_component_initialize("MemoryHandler", self.memory_service.health_check())
+            .await
     }
 
     async fn health_check(&self) -> Result<()> {
@@ -231,7 +232,7 @@ where
     }
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
 

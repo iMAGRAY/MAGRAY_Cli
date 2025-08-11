@@ -232,7 +232,6 @@ impl SmartOrchestrationEngine {
             }
         }
         
-        // Apply cost optimization if enabled
         if self.config.cost_optimization_enabled {
             if let Ok(cost_optimizer) = self.cost_optimizer.lock() {
                 let cost_optimal = cost_optimizer.select_cheapest_provider(&capable_providers, request);
@@ -466,7 +465,6 @@ impl SmartOrchestrationEngine {
                 Err(e) => {
                     metrics.failed_requests += 1;
                     
-                    // Update error rate for this provider
                     let current_usage = metrics.provider_usage.get(&provider_name).copied().unwrap_or(0) as f64;
                     let current_errors = metrics.error_rates_by_provider.entry(provider_name).or_insert(0.0);
                     *current_errors = (*current_errors * (current_usage - 1.0) + 1.0) / current_usage;

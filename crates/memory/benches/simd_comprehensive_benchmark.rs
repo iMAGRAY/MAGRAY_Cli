@@ -83,7 +83,6 @@ fn bench_cosine_distance_variants(c: &mut Criterion) {
             bench.iter(|| black_box(cosine_distance_auto_ultra(black_box(a), black_box(b))))
         });
 
-        // Ultra-optimized AVX2 (if available)
         #[cfg(target_arch = "x86_64")]
         if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
             group.bench_with_input(BenchmarkId::new("avx2_ultra", dim), &dim, |bench, _| {
@@ -93,7 +92,6 @@ fn bench_cosine_distance_variants(c: &mut Criterion) {
             });
         }
 
-        // AVX-512 ultra (if available)
         #[cfg(target_arch = "x86_64")]
         if is_x86_feature_detected!("avx512f") && dim >= 64 && dim % 16 == 0 {
             group.bench_with_input(BenchmarkId::new("avx512_ultra", dim), &dim, |bench, _| {
@@ -117,7 +115,6 @@ fn bench_batch_cosine_distance(c: &mut Criterion) {
     // Test различных размеров batch'ей
     for &batch_size in &gen.batch_sizes {
         for &dim in &[1024] {
-            // Focus на 1024D для embedding use case
             let queries = gen.generate_test_vectors(dim, batch_size);
             let target = &gen.generate_test_vectors(dim, 1)[0];
 

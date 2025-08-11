@@ -350,21 +350,18 @@ impl ToolExecutionPipeline {
 
         let _start_time = Instant::now();
 
-        // Take top 3 candidates for parallel execution
         let top_candidates: Vec<_> = candidates.iter().take(3).collect();
 
         if top_candidates.is_empty() {
             return Err(anyhow!("No candidates for parallel execution"));
         }
 
-        // Create futures for parallel execution
         let mut futures = Vec::new();
         for candidate in &top_candidates {
             let future = self.execute_direct(&candidate.tool_name, context);
             futures.push(Box::pin(future));
         }
 
-        // Wait for first success
         let result = match futures.len() {
             1 => futures.into_iter().next().unwrap().await,
             2 => {
@@ -441,7 +438,6 @@ impl ToolExecutionPipeline {
 
             match breaker.state {
                 CircuitBreakerState::Open => {
-                    // Check if we should try half-open
                     if let Some(last_failure) = breaker.last_failure_time {
                         if last_failure.elapsed() > self.circuit_config.recovery_timeout {
                             breaker.state = CircuitBreakerState::HalfOpen;
@@ -566,7 +562,6 @@ impl ToolExecutionPipeline {
             .get(tool_name)
             .ok_or_else(|| anyhow!("Tool not found: {}", tool_name))?;
 
-        // Use tool's natural language parser if available
         if tool.supports_natural_language() {
             tool.parse_natural_language(&context.user_query).await
         } else {

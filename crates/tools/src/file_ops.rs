@@ -5,6 +5,153 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+// ===== Security Validation Functions =====
+
+/// SECURITY: Валидация пути на предмет Path Traversal атак
+fn validate_path_security(path: &str, operation: &str) -> Result<()> {
+    // 1. Проверка на path traversal паттерны
+    if path.contains("..") {
+        return Err(anyhow!(
+            "🔒 SECURITY ERROR: Path traversal паттерн обнаружен в пути: '{}' (операция: {})",
+            path,
+            operation
+        ));
+    }
+
+    // 2. Проверка на абсолютные пути к системным директориям (Windows & Unix)
+    let dangerous_paths = [
+        "/etc/",
+        "/root/",
+        "/boot/",
+        "/proc/",
+        "/sys/",
+        "/dev/",
+        "C:\\Windows\\",
+        "C:\\Program Files\\",
+        "C:\\Users\\Administrator\\",
+        "\\etc\\",
+        "\\root\\",
+        "\\boot\\",
+        "\\Windows\\",
+        "\\Program Files\\",
+    ];
+
+    let path_lower = path.to_lowercase();
+    for dangerous_path in &dangerous_paths {
+        if path_lower.starts_with(&dangerous_path.to_lowercase()) {
+            return Err(anyhow!(
+                "🔒 SECURITY ERROR: Попытка доступа к системной директории: '{}' (операция: {})",
+                path,
+                operation
+            ));
+        }
+    }
+
+    // 3. Проверка на null bytes (может использоваться для обхода валидации)
+    if path.contains('\0') {
+        return Err(anyhow!(
+            "🔒 SECURITY ERROR: Null byte в пути: '{}' (операция: {})",
+            path,
+            operation
+        ));
+    }
+
+    // 4. Проверка на слишком длинные пути (DoS защита)
+    if path.len() > 4096 {
+        return Err(anyhow!(
+            "🔒 SECURITY ERROR: Слишком длинный путь ({} символов) (операция: {})",
+            path.len(),
+            operation
+        ));
+    }
+
+    // 5. Валидация расширений файлов для write операций
+    if operation == "write" {
+        validate_file_extension(path)?;
+    }
+
+    Ok(())
+}
+
+/// SECURITY: Валидация расширений файлов для предотвращения создания опасных файлов
+fn validate_file_extension(path: &str) -> Result<()> {
+    let path_obj = Path::new(path);
+
+    if let Some(extension) = path_obj.extension() {
+        let ext_str = extension.to_string_lossy().to_lowercase();
+
+        // Blacklist опасных расширений
+        let dangerous_extensions = [
+            "exe", "bat", "cmd", "com", "pif", "scr", "vbs", "vbe", "js", "jar", "msi", "dll",
+            "sys", "scf", "lnk", "inf", "reg", "ps1", "sh", "bash", "zsh", "fish", "csh", "ksh",
+            "pl", "py", "rb", "php", "asp", "jsp",
+        ];
+
+        if dangerous_extensions.contains(&ext_str.as_str()) {
+            return Err(anyhow!(
+                "🔒 SECURITY ERROR: Создание файлов с расширением '{}' запрещено",
+                ext_str
+            ));
+        }
+
+        // Whitelist разрешенных расширений для операций записи
+        let allowed_extensions = [
+            "txt",
+            "md",
+            "rst",
+            "json",
+            "toml",
+            "yaml",
+            "yml",
+            "xml",
+            "csv",
+            "log",
+            "conf",
+            "cfg",
+            "ini",
+            "properties",
+            "rs",
+            "go",
+            "java",
+            "c",
+            "cpp",
+            "h",
+            "hpp",
+            "ts",
+            "tsx",
+            "css",
+            "scss",
+            "sass",
+            "html",
+            "htm",
+            "svg",
+            "png",
+            "jpg",
+            "jpeg",
+            "gif",
+            "webp",
+            "pdf",
+            "doc",
+            "docx",
+            "odt",
+            "rtf",
+            "backup",
+            "bak",
+            "tmp",
+        ];
+
+        if !allowed_extensions.contains(&ext_str.as_str()) {
+            return Err(anyhow!(
+                "🔒 SECURITY ERROR: Расширение файла '{}' не разрешено. Разрешенные: {:?}",
+                ext_str,
+                allowed_extensions
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 // ===== Filesystem Sandbox (env-driven) =====
 fn fs_sandbox_enabled() -> bool {
     common::sandbox_config::SandboxConfig::from_env().fs.enabled
@@ -12,7 +159,9 @@ fn fs_sandbox_enabled() -> bool {
 
 fn fs_sandbox_roots() -> Vec<PathBuf> {
     let cfg = common::sandbox_config::SandboxConfig::from_env();
-    if cfg.fs.roots.is_empty() { return Vec::new(); }
+    if cfg.fs.roots.is_empty() {
+        return Vec::new();
+    }
     cfg.fs
         .roots
         .iter()
@@ -32,18 +181,40 @@ fn err_outside_sandbox(path: &str) -> anyhow::Error {
 }
 
 fn ensure_read_allowed(path: &str) -> Result<()> {
-    if !fs_sandbox_enabled() { return Ok(()); }
+    // SECURITY: Валидация пути на предмет path traversal атак
+    validate_path_security(path, "read")?;
+
+    if !fs_sandbox_enabled() {
+        return Ok(());
+    }
     let roots = fs_sandbox_roots();
-    if roots.is_empty() { return Err(anyhow!("FS песочница включена, но MAGRAY_FS_ROOTS не задан")); }
+    if roots.is_empty() {
+        return Err(anyhow!(
+            "FS песочница включена, но MAGRAY_FS_ROOTS не задан"
+        ));
+    }
     let canon = std::fs::canonicalize(Path::new(path))
         .map_err(|e| anyhow!("Не удалось открыть '{}': {}", path, e))?;
-    if roots.iter().any(|r| canon.starts_with(r)) { Ok(()) } else { Err(err_outside_sandbox(path)) }
+    if roots.iter().any(|r| canon.starts_with(r)) {
+        Ok(())
+    } else {
+        Err(err_outside_sandbox(path))
+    }
 }
 
 fn ensure_write_allowed(path: &str) -> Result<()> {
-    if !fs_sandbox_enabled() { return Ok(()); }
+    // SECURITY: Валидация пути на предмет path traversal атак
+    validate_path_security(path, "write")?;
+
+    if !fs_sandbox_enabled() {
+        return Ok(());
+    }
     let roots = fs_sandbox_roots();
-    if roots.is_empty() { return Err(anyhow!("FS песочница включена, но MAGRAY_FS_ROOTS не задан")); }
+    if roots.is_empty() {
+        return Err(anyhow!(
+            "FS песочница включена, но MAGRAY_FS_ROOTS не задан"
+        ));
+    }
     let p = Path::new(path);
     let check_path = if p.exists() {
         std::fs::canonicalize(p).map_err(|e| anyhow!("Не удалось открыть '{}': {}", path, e))?
@@ -53,7 +224,11 @@ fn ensure_write_allowed(path: &str) -> Result<()> {
             .map_err(|e| anyhow!("Не удалось открыть родителя '{}': {}", parent.display(), e))?;
         parent_canon.join(p.file_name().unwrap_or_default())
     };
-    if roots.iter().any(|r| check_path.starts_with(r)) { Ok(()) } else { Err(err_outside_sandbox(path)) }
+    if roots.iter().any(|r| check_path.starts_with(r)) {
+        Ok(())
+    } else {
+        Err(err_outside_sandbox(path))
+    }
 }
 
 // FileReader - чтение файлов с простым форматированием
@@ -96,7 +271,6 @@ impl Tool for FileReader {
             .get("path")
             .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
 
-        // Enforce sandbox for read
         ensure_read_allowed(path)?;
 
         let content = fs::read_to_string(path)?;
@@ -187,16 +361,18 @@ impl Tool for FileWriter {
             return Ok(ToolOutput {
                 success: true,
                 result: format!("[dry-run] write {} bytes to {}", content.len(), path),
-                formatted_output: Some(format!("$ echo '<content:{} bytes>' > {}\n[dry-run: no side effects]", content.len(), path)),
+                formatted_output: Some(format!(
+                    "$ echo '<content:{} bytes>' > {}\n[dry-run: no side effects]",
+                    content.len(),
+                    path
+                )),
                 metadata: meta,
             });
         }
 
-        // Enforce sandbox for write
         ensure_write_allowed(path)?;
         fs::write(path, content)?;
 
-        // Publish fs.diff event for timeline/observability
         let path_for_evt = path.clone();
         let bytes_for_evt = content.len();
         tokio::spawn(async move {
@@ -279,7 +455,6 @@ impl Tool for DirLister {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'path'"))?;
 
         let path = Path::new(path);
-        // Enforce sandbox for read/list
         ensure_read_allowed(&path.to_string_lossy())?;
         if !path.is_dir() {
             return Err(anyhow!("'{}' не является директорией", path.display()));
@@ -391,7 +566,6 @@ impl Tool for FileSearcher {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'pattern'"))?;
         let search_path = input.args.get("path").map(|s| s.as_str()).unwrap_or(".");
 
-        // Enforce sandbox for traversal/search root
         ensure_read_allowed(search_path)?;
 
         let mut results = Vec::new();
@@ -499,11 +673,15 @@ impl Tool for FileSearcher {
 pub struct FileDeleter;
 
 impl FileDeleter {
-    pub fn new() -> Self { FileDeleter }
+    pub fn new() -> Self {
+        FileDeleter
+    }
 }
 
 impl Default for FileDeleter {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait::async_trait]
@@ -522,7 +700,6 @@ impl Tool for FileDeleter {
             permissions: None,
             supports_dry_run: true,
         };
-        // Mark as high risk and with side effects for policy dynamic Ask
         spec.usage_guide = Some(UsageGuide {
             usage_title: "file_delete".into(),
             usage_summary: "Удаляет файл по указанному пути".into(),
@@ -561,7 +738,6 @@ impl Tool for FileDeleter {
             });
         }
 
-        // Enforce sandbox for delete
         ensure_write_allowed(path)?;
 
         // Считываем размер до удаления (если есть)
@@ -597,7 +773,13 @@ impl Tool for FileDeleter {
         } else {
             args.insert("path".to_string(), query.to_string());
         }
-        Ok(ToolInput { command: "file_delete".to_string(), args, context: Some(query.to_string()), dry_run: false, timeout_ms: None })
+        Ok(ToolInput {
+            command: "file_delete".to_string(),
+            args,
+            context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
+        })
     }
 }
 
@@ -639,9 +821,9 @@ fn extract_path_from_query(query: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::{events, topics};
     use std::fs;
     use tempfile::TempDir;
-    use common::{events, topics};
 
     #[tokio::test]
     async fn test_file_reader_creation() {

@@ -1,4 +1,4 @@
-#![cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "rayon", feature = "legacy-tests"))]
+#![cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "rayon"))]
 
 use arbitrary::{Arbitrary, Unstructured};
 use memory::{
@@ -15,7 +15,6 @@ use std::{
 };
 use uuid::Uuid;
 
-// Custom Arbitrary implementations for complex types
 #[derive(Debug, Clone, Arbitrary)]
 struct TestVector {
     dimensions: u16, // 1-1000 dimensions
@@ -71,7 +70,6 @@ impl Arbitrary for HnswTestConfig {
     }
 }
 
-// Property-based tests for HNSW index invariants
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(50))]
 
@@ -116,7 +114,6 @@ proptest! {
             let d23 = cosine_distance(&v2, &v3);
             let d13 = cosine_distance(&v1, &v3);
 
-            // Assert - triangle inequality should hold (approximately for cosine distance)
             // Note: Cosine distance doesn't strictly satisfy triangle inequality,
             // but we test a relaxed version
             let tolerance = 0.1;
@@ -150,8 +147,7 @@ proptest! {
                 let record = Record::new(
                     format!("test_record_{}", i),
                     format!("test content {}", i),
-                    embedding,
-                );
+                    embedding);
 
                 let result = index.insert(record.clone()).await;
                 if result.is_ok() {
@@ -182,8 +178,7 @@ proptest! {
                 let duplicate_record = Record::new(
                     format!("test_record_{}", i), // Same ID
                     format!("test content {}", i),
-                    embedding,
-                );
+                    embedding);
 
                 let _ = index.insert(duplicate_record).await; // May succeed or fail, both are valid
             }
@@ -228,8 +223,7 @@ proptest! {
                 let record = Record::new(
                     format!("similar_{}", i),
                     format!("similar content {}", i),
-                    similar_embedding,
-                );
+                    similar_embedding);
 
                 if index.insert(record.clone()).await.is_ok() {
                     expected_order.push((record.id.clone(), distance));
@@ -239,7 +233,6 @@ proptest! {
             // Sort by expected distance (closer should come first)
             expected_order.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
-            // Act - search for similar vectors
             let search_results = index.search(&base_embedding, k.min(expected_order.len()), config.ef_search).await;
 
             // Assert - verify search consistency
@@ -254,7 +247,6 @@ proptest! {
                         i-1, results[i-1].score, i, results[i].score);
                 }
 
-                // Verify that closer vectors (if present) appear before more distant ones
                 if results.len() >= 2 {
                     let first_result_expected_pos = expected_order.iter()
                         .position(|(id, _)| *id == results[0].record_id);
@@ -273,7 +265,6 @@ proptest! {
     }
 }
 
-// QuickCheck tests for additional property verification
 quickcheck! {
     fn qc_simd_distance_consistency(v1: Vec<f32>, v2: Vec<f32>) -> TestResult {
         if v1.len() != v2.len() || v1.len() < 4 || v1.len() > 1000 {
@@ -352,7 +343,6 @@ quickcheck! {
     }
 }
 
-// Fuzz testing for edge cases
 #[test]
 fn fuzz_hnsw_operations_stability() {
     let mut data = vec![0u8; 10000];
@@ -456,14 +446,12 @@ fn property_search_performance_scaling() {
 
             assert!(results.is_ok(), "Search should succeed");
 
-            // Search time should scale sub-linearly with index size (logarithmically for HNSW)
             let time_per_vector = search_time.as_nanos() as f64 / size as f64;
             println!(
                 "Index size: {}, Search time: {:?}, Time per vector: {:.2}ns",
                 size, search_time, time_per_vector
             );
 
-            // For HNSW, search should be sub-linear. Allow generous bounds for test stability
             assert!(
                 search_time < Duration::from_millis(100),
                 "Search should complete within 100ms even for large indices"
@@ -512,7 +500,6 @@ fn property_memory_usage_scaling() {
                 size, memory_per_vector
             );
 
-            // Each vector should use reasonable memory (allow generous bounds)
             assert!(
                 memory_per_vector > dimensions as f64 * 4.0, // At least 4 bytes per dimension
                 "Memory usage should account for vector storage"
@@ -539,7 +526,6 @@ fn property_memory_usage_scaling() {
     });
 }
 
-// Helper functions for the tests
 fn cosine_distance(v1: &[f32], v2: &[f32]) -> f32 {
     assert_eq!(v1.len(), v2.len());
 
@@ -555,7 +541,6 @@ fn cosine_distance(v1: &[f32], v2: &[f32]) -> f32 {
 }
 
 fn simd_cosine_distance(v1: &[f32], v2: &[f32]) -> f32 {
-    // Simplified SIMD implementation - in practice would use actual SIMD instructions
     cosine_distance(v1, v2)
 }
 

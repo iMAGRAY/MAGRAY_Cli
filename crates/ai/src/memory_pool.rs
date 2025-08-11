@@ -277,14 +277,12 @@ mod tests {
     fn test_memory_pool_reuse() {
         let pool = MemoryPool::new();
 
-        // Allocate and return a buffer
         {
             let mut buf = pool.get_f32_buffer(100);
             buf.extend_from_slice(&[1.0, 2.0, 3.0]);
             assert_eq!(buf.len(), 3);
         } // Buffer returned to pool
 
-        // Get another buffer - should reuse the previous one
         {
             let buf = pool.get_f32_buffer(50);
             assert_eq!(buf.len(), 0); // Should be cleared

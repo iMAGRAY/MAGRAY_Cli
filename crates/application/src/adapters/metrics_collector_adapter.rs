@@ -49,7 +49,6 @@ impl MetricsCollector for MetricsCollectorAdapter {
         tags.insert("layer".to_string(), operation.layer);
         tags.insert("success".to_string(), operation.success.to_string());
 
-        // Record multiple metrics for the operation
         self.increment_counter("memory_operations_total", 1, Some(&tags)).await?;
         self.record_timing("memory_operation_duration", operation.processing_time_ms, Some(&tags)).await?;
         self.record_gauge("memory_operation_record_count", operation.record_count as f64, Some(&tags)).await?;

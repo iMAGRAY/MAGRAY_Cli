@@ -1,8 +1,8 @@
 #![cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use memory::di::{DIContainer, DIContainerBuilder, Lifetime};
-use memory::service_di_facade::{MemoryServiceConfig};
 use memory::di::core_traits::ServiceResolver;
+use memory::di::{DIContainer, DIContainerBuilder, Lifetime};
+use memory::service_di_facade::MemoryServiceConfig;
 use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
@@ -15,7 +15,10 @@ struct LightweightService {
 
 impl LightweightService {
     fn new(id: u64) -> Self {
-        Self { id, data: format!("service-{}", id) }
+        Self {
+            id,
+            data: format!("service-{}", id),
+        }
     }
 }
 
@@ -239,9 +242,10 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
     group.bench_function("minimal_configuration", |b| {
         b.to_async(&rt).iter(|| async {
             let config = create_test_config();
-            let container = memory::service_di_facade::UnifiedMemoryConfigurator::configure_minimal(config)
-                .await
-                .unwrap();
+            let container =
+                memory::service_di_facade::UnifiedMemoryConfigurator::configure_minimal(config)
+                    .await
+                    .unwrap();
             black_box(container)
         });
     });
@@ -249,9 +253,10 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
     group.bench_function("cpu_only_configuration", |b| {
         b.to_async(&rt).iter(|| async {
             let config = create_test_config();
-            let container = memory::service_di_facade::UnifiedMemoryConfigurator::configure_cpu_only(config)
-                .await
-                .unwrap();
+            let container =
+                memory::service_di_facade::UnifiedMemoryConfigurator::configure_cpu_only(config)
+                    .await
+                    .unwrap();
             black_box(container)
         });
     });
@@ -259,7 +264,10 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
     group.bench_function("full_configuration", |b| {
         b.to_async(&rt).iter(|| async {
             let config = create_test_config();
-            let container = memory::service_di_facade::UnifiedMemoryConfigurator::configure_full(config).await.unwrap();
+            let container =
+                memory::service_di_facade::UnifiedMemoryConfigurator::configure_full(config)
+                    .await
+                    .unwrap();
             black_box(container)
         });
     });

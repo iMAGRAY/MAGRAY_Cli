@@ -390,7 +390,6 @@ mod tests {
             Some(CircuitBreakerStatus::Open)
         );
 
-        // Wait for recovery timeout
         sleep(Duration::from_millis(150)).await;
 
         // Should allow one attempt (HalfOpen)

@@ -20,16 +20,16 @@ use anyhow::{Context, Result};
 use std::{sync::Arc, time::Duration};
 use tracing::{debug, info};
 
-use crate::{
-    di::{traits::DIResolver, UnifiedContainer},
-};
 use crate::di::core_traits::ServiceResolver;
-use crate::orchestration::{EmbeddingCoordinator, HealthManager, ResourceController, SearchCoordinator};
+use crate::di::{traits::DIResolver, UnifiedContainer};
+use crate::orchestration::{
+    EmbeddingCoordinator, HealthManager, ResourceController, SearchCoordinator,
+};
 use crate::service_di::coordinator_factory::OrchestrationCoordinators;
 use crate::services::{
     traits::{
-        CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait,
-        MonitoringServiceTrait, ResilienceServiceTrait,
+        CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait, MonitoringServiceTrait,
+        ResilienceServiceTrait,
     },
     CacheService, CoordinatorService, CoreMemoryService, MonitoringService, ResilienceService,
 };
@@ -579,20 +579,20 @@ impl UnifiedServiceFactory {
     async fn create_embedding_coordinator(&self) -> Result<Arc<EmbeddingCoordinator>> {
         debug!("🔤 Создание EmbeddingCoordinator...");
 
-        // Resolve зависимости через UnifiedDIContainer (вместо .unwrap())
         #[cfg(feature = "gpu-acceleration")]
-        let _gpu_processor = self.container.resolve::<crate::gpu_accelerated::GpuBatchProcessor>().ok();
+        let _gpu_processor = self
+            .container
+            .resolve::<crate::gpu_accelerated::GpuBatchProcessor>()
+            .ok();
         #[cfg(not(feature = "gpu-acceleration"))]
         let _gpu_processor: Option<std::sync::Arc<()>> = None;
 
         // Создаем cache с правильной конфигурацией
         let cache_path = std::env::temp_dir().join("embedding_cache");
-        let _cache = Arc::new(
-            crate::cache_lru::EmbeddingCacheLRU::new(
-                cache_path,
-                crate::cache_lru::CacheConfig::default(),
-            )?,
-        );
+        let _cache = Arc::new(crate::cache_lru::EmbeddingCacheLRU::new(
+            cache_path,
+            crate::cache_lru::CacheConfig::default(),
+        )?);
 
         let embedding_coordinator = Arc::new(EmbeddingCoordinator::new_stub());
         debug!("✅ EmbeddingCoordinator создан");
@@ -637,7 +637,9 @@ impl UnifiedServiceFactory {
     async fn create_resource_controller(&self) -> Result<Arc<ResourceController>> {
         debug!("⚡ Создание ResourceController...");
 
-        let resource_manager = self.container.resolve::<parking_lot::RwLock<crate::resource_manager::ResourceManager>>()?;
+        let resource_manager = self
+            .container
+            .resolve::<parking_lot::RwLock<crate::resource_manager::ResourceManager>>()?;
 
         let controller = Arc::new(ResourceController::new_production(resource_manager));
         debug!("✅ ResourceController создан");

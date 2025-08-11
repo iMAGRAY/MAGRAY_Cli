@@ -9,7 +9,6 @@ use std::sync::Arc;
 async fn test_end_to_end_chat_workflow() {
     let mut server = Server::new_async().await;
 
-    // Mock multiple API calls for complete workflow
     let intent_mock = server.mock("POST", "/chat/completions")
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -130,7 +129,6 @@ async fn test_multi_step_planning_workflow() {
 async fn test_conversational_vs_task_routing() {
     let mut server = Server::new_async().await;
 
-    // Mock for conversational query
     let chat_mock = server.mock("POST", "/chat/completions")
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -145,7 +143,6 @@ async fn test_conversational_vs_task_routing() {
         .create_async()
         .await;
 
-    // Mock for task-oriented query
     let task_mock = server.mock("POST", "/chat/completions")
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -264,7 +261,6 @@ async fn test_concurrent_agent_operations() {
         handles.push(handle);
     }
 
-    // Wait for all operations to complete
     let mut all_succeeded = true;
     for handle in handles {
         match handle.await {
@@ -350,7 +346,6 @@ async fn test_agent_context_preservation() {
         results.push(result);
     }
 
-    // All should use file tool (showing consistency)
     for result in results {
         assert_eq!(result.tool_name, "file");
         assert!(!result.reasoning.is_empty());
@@ -363,7 +358,6 @@ async fn test_agent_context_preservation() {
 async fn test_parameter_extraction_edge_cases() {
     let mut server = Server::new_async().await;
 
-    // Mock for missing parameters
     let missing_params_mock = server.mock("POST", "/chat/completions")
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -378,7 +372,6 @@ async fn test_parameter_extraction_edge_cases() {
         .create_async()
         .await;
 
-    // Mock for complex parameters
     let complex_params_mock = server.mock("POST", "/chat/completions")
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -487,7 +480,6 @@ async fn test_load_balancing_between_models() {
 
     let request = CompletionRequest::new("Test load balancing");
 
-    // Use different clients for load balancing
     let response1 = client1.complete(request.clone()).await.unwrap();
     let response2 = client2.complete(request).await.unwrap();
 

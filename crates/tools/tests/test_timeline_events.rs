@@ -1,13 +1,13 @@
 #![cfg(feature = "extended-tests")]
 
 use anyhow::Result;
-use tempfile::TempDir;
+use common::{events, topics};
 use std::collections::{HashMap, HashSet};
 use std::process::Command;
-use tools::{Tool, ToolInput};
-use tools::file_ops::{FileWriter, FileDeleter};
+use tempfile::TempDir;
+use tools::file_ops::{FileDeleter, FileWriter};
 use tools::git_ops::{GitCommit, GitDiff};
-use common::{events, topics};
+use tools::{Tool, ToolInput};
 
 #[tokio::test]
 async fn timeline_fs_diff_sequence() -> Result<()> {
@@ -16,11 +16,24 @@ async fn timeline_fs_diff_sequence() -> Result<()> {
     let repo_dir = tmp.path();
 
     // git init
-    let status = Command::new("git").arg("init").current_dir(repo_dir).status().unwrap();
+    let status = Command::new("git")
+        .arg("init")
+        .current_dir(repo_dir)
+        .status()
+        .unwrap();
     assert!(status.success(), "git init failed");
-    // setup user for commit
-    assert!(Command::new("git").args(["config","user.email","test@example.com"]).current_dir(repo_dir).status().unwrap().success());
-    assert!(Command::new("git").args(["config","user.name","Test User"]).current_dir(repo_dir).status().unwrap().success());
+    assert!(Command::new("git")
+        .args(["config", "user.email", "test@example.com"])
+        .current_dir(repo_dir)
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new("git")
+        .args(["config", "user.name", "Test User"])
+        .current_dir(repo_dir)
+        .status()
+        .unwrap()
+        .success());
 
     // subscribe to fs.diff before actions
     let mut rx = events::subscribe(topics::TOPIC_FS_DIFF).await;
@@ -57,12 +70,24 @@ async fn timeline_fs_diff_sequence() -> Result<()> {
 
     // 3) git diff (will likely be empty, but should publish a diff event)
     let diff = GitDiff::new();
-    let diff_input = ToolInput { command: "git_diff".into(), args: HashMap::from([("cwd".into(), repo_dir.to_string_lossy().to_string())]), context: None, dry_run: false, timeout_ms: None };
+    let diff_input = ToolInput {
+        command: "git_diff".into(),
+        args: HashMap::from([("cwd".into(), repo_dir.to_string_lossy().to_string())]),
+        context: None,
+        dry_run: false,
+        timeout_ms: None,
+    };
     let _ = diff.execute(diff_input).await?;
 
     // 4) delete file
     let deleter = FileDeleter::new();
-    let del_input = ToolInput { command: "file_delete".into(), args: HashMap::from([("path".into(), file_path.to_string_lossy().to_string())]), context: None, dry_run: false, timeout_ms: None };
+    let del_input = ToolInput {
+        command: "file_delete".into(),
+        args: HashMap::from([("path".into(), file_path.to_string_lossy().to_string())]),
+        context: None,
+        dry_run: false,
+        timeout_ms: None,
+    };
     let del_out = deleter.execute(del_input).await?;
     assert!(del_out.success);
 
@@ -70,11 +95,17 @@ async fn timeline_fs_diff_sequence() -> Result<()> {
     let mut ops: HashSet<String> = HashSet::new();
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1500);
     while std::time::Instant::now() < deadline {
-        if let Ok(Ok(evt)) = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv()).await {
+        if let Ok(Ok(evt)) =
+            tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv()).await
+        {
             if let Some(op) = evt.payload.get("op").and_then(|v| v.as_str()) {
                 ops.insert(op.to_string());
             }
-            if ops.contains("write") && ops.contains("commit") && ops.contains("diff") && ops.contains("delete") {
+            if ops.contains("write")
+                && ops.contains("commit")
+                && ops.contains("diff")
+                && ops.contains("delete")
+            {
                 break;
             }
         }

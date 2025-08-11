@@ -1,4 +1,7 @@
-#![cfg(all(feature = "extended-tests", any(feature = "hnsw-index", feature = "gpu-acceleration")))]
+#![cfg(all(
+    feature = "extended-tests",
+    any(feature = "hnsw-index", feature = "gpu-acceleration")
+))]
 
 //! Comprehensive Performance Validation - Ultimate HNSW Optimization Results
 //!
@@ -402,7 +405,6 @@ fn main() -> Result<()> {
     // Print comprehensive report
     final_results.print_comprehensive_report();
 
-    // Run ultra-optimized tests for additional validation
     println!("\n🔬 RUNNING ADDITIONAL ULTRA-OPTIMIZATION TESTS...");
     test_ultra_optimized_performance()?;
 

@@ -130,7 +130,6 @@ impl PromotionCriteria {
         }
     }
 
-    // Getters for criteria values
     pub fn min_access_count(&self) -> u32 {
         self.min_access_count
     }

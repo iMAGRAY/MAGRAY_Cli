@@ -1,14 +1,13 @@
 #![cfg(feature = "extended-tests")]
 use anyhow::Result;
+use std::collections::HashMap;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tools::web_ops::WebFetch;
 use tools::{Tool, ToolInput};
-use std::collections::HashMap;
 
 #[tokio::test]
 async fn web_fetch_http_truncates_and_sets_metadata() -> Result<()> {
-    // Allow localhost for net sandbox
     std::env::set_var("MAGRAY_NET_ALLOW", "localhost,127.0.0.1");
     // Start a local HTTP server
     let listener = TcpListener::bind("127.0.0.1:0").await?;
@@ -34,8 +33,14 @@ async fn web_fetch_http_truncates_and_sets_metadata() -> Result<()> {
                     Ok(n) => {
                         total += n;
                         if total >= 4 {
-                            if let Some(window) = buf[..total].windows(4).find(|w| *w == b"\r\n\r\n") { break; }
-                            if total >= buf.len() { break; }
+                            if let Some(window) =
+                                buf[..total].windows(4).find(|w| *w == b"\r\n\r\n")
+                            {
+                                break;
+                            }
+                            if total >= buf.len() {
+                                break;
+                            }
                         }
                     }
                     Err(_) => break,
@@ -54,16 +59,34 @@ async fn web_fetch_http_truncates_and_sets_metadata() -> Result<()> {
     let mut args = HashMap::new();
     args.insert("url".to_string(), url.clone());
     let out = tool
-        .execute(ToolInput { command: "web_fetch".into(), args, context: None, dry_run: false, timeout_ms: Some(5000) })
+        .execute(ToolInput {
+            command: "web_fetch".into(),
+            args,
+            context: None,
+            dry_run: false,
+            timeout_ms: Some(5000),
+        })
         .await?;
 
     assert!(out.success, "request should succeed");
     assert_eq!(out.metadata.get("status").map(String::as_str), Some("200"));
-    assert!(out.metadata.get("content_type").unwrap_or(&"".to_string()).contains("text/plain"));
+    assert!(out
+        .metadata
+        .get("content_type")
+        .unwrap_or(&"".to_string())
+        .contains("text/plain"));
     assert_eq!(out.metadata.get("source").map(String::as_str), Some("http"));
     // bytes should be capped at 1_048_576 (1MB)
-    assert_eq!(out.metadata.get("bytes").and_then(|s| s.parse::<usize>().ok()), Some(1_048_576));
-    let formatted = out.formatted_output.as_ref().expect("formatted_output exists");
+    assert_eq!(
+        out.metadata
+            .get("bytes")
+            .and_then(|s| s.parse::<usize>().ok()),
+        Some(1_048_576)
+    );
+    let formatted = out
+        .formatted_output
+        .as_ref()
+        .expect("formatted_output exists");
     assert!(formatted.len() >= 100_000);
     assert!(formatted.ends_with("[truncated]"));
 

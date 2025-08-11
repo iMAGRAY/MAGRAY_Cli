@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "persistence")]
@@ -6,9 +6,9 @@ use sled::Db;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{info, warn};
 #[cfg(feature = "persistence")]
 use tracing::{debug, error};
+use tracing::{info, warn};
 
 use common::{config_base::CacheConfigBase, ConfigTrait};
 
@@ -96,19 +96,6 @@ impl CacheConfig {
     } // Default batch size
 }
 
-impl CacheConfig {
-    pub fn production() -> Self {
-        Self {
-            base: CacheConfigBase::large(),
-        }
-    }
-
-    pub fn minimal() -> Self {
-        Self {
-            base: CacheConfigBase::small(),
-        }
-    }
-}
 
 pub struct EmbeddingCacheLRU {
     #[cfg(feature = "persistence")]
@@ -141,7 +128,6 @@ impl LruIndex {
     fn touch(&mut self, key: Vec<u8>, size: usize) {
         let now = current_timestamp();
 
-        // Remove from old position if exists
         if let Some((_old_time, _)) = self.entries.get(&key) {
             self.access_queue.retain(|k| k != &key);
         } else {
@@ -196,7 +182,6 @@ impl EmbeddingCacheLRU {
     pub fn new(cache_path: impl AsRef<std::path::Path>, config: CacheConfig) -> Result<Self> {
         let cache_path = cache_path.as_ref();
 
-        // Create directory if it doesn't exist
         if let Some(parent) = cache_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -221,7 +206,6 @@ impl EmbeddingCacheLRU {
             index_initialized: Arc::new(RwLock::new(false)),
         };
 
-        // Skip index rebuild during construction for faster startup
         // Index will be rebuilt lazily on first access
         info!("LRU cache created, index will be rebuilt on first use");
 
@@ -322,11 +306,9 @@ impl EmbeddingCacheLRU {
                         cached.last_accessed = current_timestamp();
                         cached.access_count += 1;
 
-                        // Update in database - don't fail if this fails
                         if let Ok(updated_bytes) = bincode::serialize(&cached) {
                             if let Err(e) = self.db.insert(&_key, updated_bytes) {
                                 warn!("Failed to update cache entry stats: {}", e);
-                                // Continue anyway - we can still return the cached value
                             }
                         }
 
@@ -388,7 +370,6 @@ impl EmbeddingCacheLRU {
         let key = self.make_key(text, model);
         let size_bytes = embedding.len() * std::mem::size_of::<f32>() + 256; // Overhead
 
-        // Check if we need to evict entries - don't fail insertion if eviction fails
         if let Err(e) = self.maybe_evict(size_bytes) {
             warn!("Eviction failed but continuing with insert: {}", e);
         }
@@ -503,7 +484,6 @@ impl EmbeddingCacheLRU {
 
     /// Remove an entry from cache
     fn remove_entry(&self, key: &[u8]) -> Result<()> {
-        // Try to update index, but don't fail if lock is poisoned
         if let Some(mut index) = self.lru_index.try_lock() {
             index.remove(key);
         } else {
@@ -552,7 +532,6 @@ impl EmbeddingCacheLRU {
             }
         }
 
-        // Try to flush, but don't fail if it doesn't work
         #[cfg(feature = "persistence")]
         if let Err(e) = self.db.flush() {
             warn!("Failed to flush cache after batch insert: {}", e);
@@ -563,7 +542,6 @@ impl EmbeddingCacheLRU {
             successful_inserts, failed_inserts
         );
 
-        // Only fail if ALL inserts failed
         if successful_inserts == 0 && failed_inserts > 0 {
             Err(anyhow::anyhow!(
                 "All {} batch inserts failed",
@@ -752,7 +730,9 @@ pub struct CacheStatsReport {
 
 fn current_timestamp() -> u64 {
     #[cfg(test)]
-    if let Some(ts) = _clock_mock::get() { return ts; }
+    if let Some(ts) = _clock_mock::get() {
+        return ts;
+    }
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -765,14 +745,16 @@ fn current_timestamp() -> u64 {
 /// Safe version that returns Result instead of panicking
 fn current_timestamp_safe() -> Result<u64> {
     #[cfg(test)]
-    if let Some(ts) = _clock_mock::get() { return Ok(ts); }
+    if let Some(ts) = _clock_mock::get() {
+        return Ok(ts);
+    }
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .map_err(|e| anyhow::anyhow!("System time error: {}", e))
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
     use std::time::Duration;
@@ -857,7 +839,6 @@ mod tests {
         // Should be retrievable immediately
         assert!(cache.get("text1", "model").is_some());
 
-        // Wait for expiration
         std::thread::sleep(Duration::from_secs(2));
 
         // Should be expired now

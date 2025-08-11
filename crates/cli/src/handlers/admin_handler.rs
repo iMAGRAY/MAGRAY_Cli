@@ -245,8 +245,6 @@ where
         info!("AdminHandler: инициализация начата");
 
         // Здесь можно добавить проверки админ сервиса
-        // self.admin_service.health_check().await
-        //     .map_err(|e| anyhow::anyhow!("Admin сервис недоступен: {}", e))?;
 
         info!("AdminHandler: инициализация завершена");
         Ok(())
@@ -258,7 +256,9 @@ where
             return Err(anyhow::anyhow!("AdminHandler не инициализирован"));
         }
         let state = self.circuit_breaker.get_state().await;
-        if state == "Open" { return Err(anyhow::anyhow!("Circuit breaker открыт")); }
+        if state == "Open" {
+            return Err(anyhow::anyhow!("Circuit breaker открыт"));
+        }
         Ok(())
     }
 
@@ -267,7 +267,7 @@ where
     }
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
 

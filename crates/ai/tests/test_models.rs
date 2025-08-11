@@ -1,4 +1,3 @@
-// Simplified tests for AI models functionality
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq)]

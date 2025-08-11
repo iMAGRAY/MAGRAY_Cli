@@ -21,7 +21,6 @@ use uuid::Uuid;
 use chrono::Utc;
 use std::collections::HashMap;
 
-
 /// Утилита для создания performance test service
 async fn create_performance_test_service() -> Result<DIMemoryService> {
     let temp_dir = TempDir::new()?;
@@ -754,7 +753,6 @@ async fn test_production_throughput_benchmarks() -> Result<()> {
     assert!(balanced_throughput >= 20.0, 
             "Balanced throughput too low: {:.1} ops/sec", balanced_throughput);
     
-    // Latency requirements for production
     assert!(latency_avg < 5.0, "Average latency SLA violation: {:.3}ms", latency_avg);
     assert!(latency_p95 < 10.0, "P95 latency too high: {:.3}ms", latency_p95);
     assert!(latency_p99 < 20.0, "P99 latency too high: {:.3}ms", latency_p99);

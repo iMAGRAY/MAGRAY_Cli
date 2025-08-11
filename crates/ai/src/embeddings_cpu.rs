@@ -1,9 +1,9 @@
 use crate::memory_pool::GLOBAL_MEMORY_POOL;
+use crate::should_disable_ort;
 use crate::tokenization::{
     BatchTokenized, OptimizedTokenizer, TokenizedInput as OptTokenizedInput,
 };
 use crate::EmbeddingConfig;
-use crate::should_disable_ort;
 #[cfg(feature = "gpu")]
 use crate::{GpuConfig, GpuInfo};
 use anyhow::Result as AnyhowResult;
@@ -44,7 +44,8 @@ impl CpuEmbeddingService {
         );
 
         // Получаем путь относительно корня проекта
-        let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let current_dir = std::env::current_dir()
+            .map_err(|e| anyhow::anyhow!("Failed to get current directory: {}", e))?;
 
         // Определяем путь к модели в зависимости от типа
         let (model_filename, hidden_size) = match config.model_name.as_str() {
@@ -112,7 +113,6 @@ impl CpuEmbeddingService {
             })?
             .clone();
 
-        // Setup DLL path for Windows
         #[cfg(target_os = "windows")]
         {
             let mut possible_paths = vec![
@@ -124,8 +124,7 @@ impl CpuEmbeddingService {
                 PathBuf::from("../../scripts/onnxruntime/lib/onnxruntime.dll"),
             ];
 
-            // Also search in target/debug/build for any onnxruntime-sys build
-            if let Ok(target_dir) = std::env::current_dir().map(|d| d.join("target/debug/build")) {
+            if let Ok(target_dir) = current_dir.join("target/debug/build").canonicalize() {
                 if let Ok(entries) = std::fs::read_dir(&target_dir) {
                     for entry in entries.flatten() {
                         if entry
@@ -147,14 +146,18 @@ impl CpuEmbeddingService {
             for dll_path in possible_paths {
                 if dll_path.exists() {
                     info!("Found ORT library at: {}", dll_path.display());
-                    if let Some(path_str) = dll_path.to_str() {
-                        std::env::set_var("ORT_DYLIB_PATH", path_str);
-                        break;
-                    } else {
-                        warn!(
-                            "Не удалось конвертировать путь к DLL в строку: {}",
-                            dll_path.display()
-                        );
+                    match dll_path.to_str() {
+                        Some(path_str) => {
+                            std::env::set_var("ORT_DYLIB_PATH", path_str);
+                            break;
+                        }
+                        None => {
+                            warn!(
+                                "Failed to convert DLL path to string: {}",
+                                dll_path.display()
+                            );
+                            continue;
+                        }
                     }
                 }
             }
@@ -282,14 +285,12 @@ impl CpuEmbeddingService {
         let start_time = std::time::Instant::now();
         info!("🚀 OPTIMIZED batch processing {} texts", texts.len());
 
-        // Convert to string references for batch tokenization
         let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
 
         // Batch tokenization - much faster than individual tokenization
         let mut batch_tokenized = self.tokenizer.encode_batch(&text_refs)?;
         debug!("Batch tokenized in {}ms", start_time.elapsed().as_millis());
 
-        // Pad to uniform length for efficient ONNX processing
         let tokenization_time = start_time.elapsed().as_millis();
         self.tokenizer.pad_batch(&mut batch_tokenized, None)?;
         debug!(
@@ -326,7 +327,6 @@ impl CpuEmbeddingService {
     fn process_single_optimized(&self, tokenized: &OptTokenizedInput) -> AnyhowResult<Vec<f32>> {
         let seq_len = tokenized.length;
 
-        // Use memory pool for tensor data to avoid allocations
         let mut input_ids_buf = GLOBAL_MEMORY_POOL.get_input_buffer(seq_len);
         let mut attention_mask_buf = GLOBAL_MEMORY_POOL.get_attention_buffer(seq_len);
         let mut token_type_buf = GLOBAL_MEMORY_POOL.get_token_type_buffer(seq_len);
@@ -381,7 +381,6 @@ impl CpuEmbeddingService {
             batch_size, seq_len, total_elements
         );
 
-        // Use memory pools for flattened batch data
         let mut flat_input_ids = GLOBAL_MEMORY_POOL.get_input_buffer(total_elements);
         let mut flat_attention_masks = GLOBAL_MEMORY_POOL.get_attention_buffer(total_elements);
         let mut flat_token_type_ids = GLOBAL_MEMORY_POOL.get_token_type_buffer(total_elements);
@@ -405,7 +404,6 @@ impl CpuEmbeddingService {
         let token_type_ids_tensor =
             Tensor::from_array(([batch_size, seq_len], flat_token_type_ids.to_vec()))?;
 
-        // Single ONNX call for entire batch
         let mut session = self
             .session
             .lock()
@@ -443,7 +441,6 @@ impl CpuEmbeddingService {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
 
-                // Look for hidden states [batch, seq, hidden] = [1, seq_len, 1024]
                 if shape_vec.len() == 3 && shape_vec[0] == 1 && shape_vec[1] == seq_len as i64 {
                     let hidden_size = shape_vec[2] as usize;
 
@@ -476,7 +473,6 @@ impl CpuEmbeddingService {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
                 let shape_vec: Vec<i64> = (0..shape.len()).map(|i| shape[i]).collect();
 
-                // Look for batch hidden states [batch_size, seq_len, hidden_size]
                 if shape_vec.len() == 3 && shape_vec[0] == batch_size as i64 {
                     let seq_len = shape_vec[1] as usize;
                     let hidden_size = shape_vec[2] as usize;
@@ -497,7 +493,6 @@ impl CpuEmbeddingService {
                             let item_data = &data[start_offset..end_offset];
                             let actual_seq_len = batch.lengths[batch_idx];
 
-                            // Optimized pooling for this item
                             let pooled =
                                 self.optimized_mean_pooling(item_data, actual_seq_len, hidden_size);
                             let normalized = self.optimized_normalize(pooled);
@@ -521,15 +516,15 @@ impl CpuEmbeddingService {
 
     /// Ultra-optimized SIMD mean pooling with AVX2/AVX-512 support
     fn optimized_mean_pooling(&self, data: &[f32], seq_len: usize, hidden_size: usize) -> Vec<f32> {
-        // Use memory pool for output buffer
         let mut pooled = GLOBAL_MEMORY_POOL.get_output_buffer(hidden_size);
         pooled.resize(hidden_size, 0.0f32);
 
         #[cfg(target_arch = "x86_64")]
         {
-            // Check if we can use SIMD optimizations
-            if hidden_size.is_multiple_of(8) && is_x86_feature_detected!("avx2") && hidden_size >= 64 {
-                // Ultra-optimized SIMD mean pooling for large embeddings
+            if hidden_size.is_multiple_of(8)
+                && is_x86_feature_detected!("avx2")
+                && hidden_size >= 64
+            {
                 unsafe {
                     self.simd_mean_pooling_avx2(data, &mut pooled, seq_len, hidden_size);
                 }
@@ -544,19 +539,25 @@ impl CpuEmbeddingService {
             self.scalar_mean_pooling_optimized(data, &mut pooled, seq_len, hidden_size);
         }
 
-        // Average (SIMD-optimized division if possible)
         let seq_len_f32 = seq_len as f32;
         self.simd_divide_inplace(&mut pooled, seq_len_f32);
 
-        // Take ownership and return as Vec<f32>
-        pooled.take().unwrap_or_default()
+        // Safely return pooled buffer contents
+        if let Some(buffer_data) = pooled.take() {
+            buffer_data
+        } else {
+            warn!("Failed to take pooled buffer, using default");
+            vec![0.0; self.hidden_size]
+        }
     }
 
     /// Ultra-optimized SIMD L2 normalization with AVX2/AVX-512
     fn optimized_normalize(&self, mut embedding: Vec<f32>) -> Vec<f32> {
         #[cfg(target_arch = "x86_64")]
         {
-            if embedding.len().is_multiple_of(8) && is_x86_feature_detected!("avx2") && embedding.len() >= 64
+            if embedding.len().is_multiple_of(8)
+                && is_x86_feature_detected!("avx2")
+                && embedding.len() >= 64
             {
                 // Ultra-optimized SIMD normalization
                 unsafe {
@@ -604,7 +605,7 @@ impl CpuEmbeddingService {
 
     // ========== ULTRA-OPTIMIZED SIMD IMPLEMENTATIONS ==========
 
-    /// Ultra-optimized AVX2 mean pooling for large embeddings
+    /// Safe SIMD AVX2 mean pooling with proper bounds checking
     #[cfg(target_arch = "x86_64")]
     #[target_feature(enable = "avx2")]
     unsafe fn simd_mean_pooling_avx2(
@@ -616,6 +617,12 @@ impl CpuEmbeddingService {
     ) {
         use std::arch::x86_64::*;
 
+        // Verify basic requirements
+        if data.len() < seq_len * hidden_size || pooled.len() < hidden_size {
+            warn!("SIMD bounds check failed, fallback to scalar");
+            return self.scalar_mean_pooling_optimized(data, pooled, seq_len, hidden_size);
+        }
+
         // Process 8 elements at a time with AVX2
         let chunks = hidden_size / 8;
         let remainder = hidden_size % 8;
@@ -623,12 +630,18 @@ impl CpuEmbeddingService {
         for seq_idx in 0..seq_len {
             let seq_start = seq_idx * hidden_size;
 
-            // SIMD processing for main chunks
+            // Verify sequence bounds
+            if seq_start + hidden_size > data.len() {
+                warn!("Sequence {} out of bounds, skipping", seq_idx);
+                continue;
+            }
+
             for chunk_idx in 0..chunks {
                 let hidden_start = chunk_idx * 8;
                 let data_idx = seq_start + hidden_start;
                 let pooled_idx = hidden_start;
 
+                // Double-check bounds before SIMD operations
                 if data_idx + 8 <= data.len() && pooled_idx + 8 <= pooled.len() {
                     // Load 8 data values
                     let data_vec = _mm256_loadu_ps(data.as_ptr().add(data_idx));
@@ -638,16 +651,20 @@ impl CpuEmbeddingService {
                     let sum_vec = _mm256_add_ps(pooled_vec, data_vec);
                     // Store back to pooled
                     _mm256_storeu_ps(pooled.as_mut_ptr().add(pooled_idx), sum_vec);
+                } else {
+                    warn!("SIMD chunk bounds violated, skipping chunk {}", chunk_idx);
                 }
             }
 
-            // Handle remainder elements
+            // Handle remainder elements safely
             let remainder_start = chunks * 8;
             for i in 0..remainder {
                 let data_idx = seq_start + remainder_start + i;
                 let pooled_idx = remainder_start + i;
                 if data_idx < data.len() && pooled_idx < pooled.len() {
                     pooled[pooled_idx] += data[data_idx];
+                } else {
+                    warn!("Remainder element {} out of bounds", i);
                 }
             }
         }
@@ -661,13 +678,11 @@ impl CpuEmbeddingService {
         seq_len: usize,
         hidden_size: usize,
     ) {
-        // Manual loop unrolling for better performance
         for seq_idx in 0..seq_len {
             let seq_start = seq_idx * hidden_size;
             let chunks = hidden_size / 4;
             let remainder = hidden_size % 4;
 
-            // Process 4 elements at a time for better ILP
             for chunk_idx in 0..chunks {
                 let base_idx = chunk_idx * 4;
                 let data_base = seq_start + base_idx;
@@ -776,7 +791,9 @@ impl CpuEmbeddingService {
             }
 
             // Handle remainder
-            for val in embedding.iter_mut().skip(chunks * 8) { *val *= inv_norm; }
+            for val in embedding.iter_mut().skip(chunks * 8) {
+                *val *= inv_norm;
+            }
         }
     }
 
@@ -838,7 +855,11 @@ pub(crate) fn mean_pool_scalar(data: &[f32], seq_len: usize, hidden_size: usize)
             }
         }
     }
-    let inv = if seq_len > 0 { 1.0 / (seq_len as f32) } else { 0.0 };
+    let inv = if seq_len > 0 {
+        1.0 / (seq_len as f32)
+    } else {
+        0.0
+    };
     for v in &mut pooled {
         *v *= inv;
     }
@@ -849,11 +870,15 @@ pub(crate) fn mean_pool_scalar(data: &[f32], seq_len: usize, hidden_size: usize)
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn l2_normalize_scalar(mut v: Vec<f32>) -> Vec<f32> {
     let mut norm_sq = 0.0f32;
-    for &x in &v { norm_sq += x * x; }
+    for &x in &v {
+        norm_sq += x * x;
+    }
     let norm = norm_sq.sqrt();
     if norm > 1e-8 {
         let inv = 1.0 / norm;
-        for x in &mut v { *x *= inv; }
+        for x in &mut v {
+            *x *= inv;
+        }
     }
     v
 }
@@ -866,11 +891,17 @@ pub(crate) fn extract_embedding_from_3d_scalar(
     seq_len: usize,
     hidden_size: usize,
 ) -> Option<Vec<f32>> {
-    if shape_vec.len() != 3 || shape_vec[0] != 1 || shape_vec[1] != seq_len as i64 || shape_vec[2] != hidden_size as i64 {
+    if shape_vec.len() != 3
+        || shape_vec[0] != 1
+        || shape_vec[1] != seq_len as i64
+        || shape_vec[2] != hidden_size as i64
+    {
         return None;
     }
     let need = seq_len.checked_mul(hidden_size)?;
-    if need > data.len() { return None; }
+    if need > data.len() {
+        return None;
+    }
     let pooled = mean_pool_scalar(&data[0..need], seq_len, hidden_size);
     Some(l2_normalize_scalar(pooled))
 }
@@ -882,16 +913,16 @@ mod extra_scalar_tests {
     #[test]
     fn test_mean_pool_scalar_basic() {
         // seq_len=2, hidden=4: rows [1,2,3,4] and [5,6,7,8]
-        let data = vec![1.0,2.0,3.0,4.0, 5.0,6.0,7.0,8.0];
+        let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
         let pooled = mean_pool_scalar(&data, 2, 4);
-        assert_eq!(pooled, vec![3.0,4.0,5.0,6.0]);
+        assert_eq!(pooled, vec![3.0, 4.0, 5.0, 6.0]);
     }
 
     #[test]
     fn test_l2_normalize_scalar_unit_norm() {
         let v = vec![3.0, 4.0];
         let n = l2_normalize_scalar(v);
-        let norm: f32 = n.iter().map(|x| x*x).sum::<f32>().sqrt();
+        let norm: f32 = n.iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-6);
     }
 
@@ -900,13 +931,13 @@ mod extra_scalar_tests {
         let seq_len = 2usize;
         let hidden = 4usize;
         let shape = [1i64, seq_len as i64, hidden as i64];
-        let data = vec![1.0,2.0,3.0,4.0, 5.0,6.0,7.0,8.0];
+        let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
         let emb = extract_embedding_from_3d_scalar(&shape, &data, seq_len, hidden).expect("ok");
         assert_eq!(emb.len(), hidden);
         // mean pooled = [3,4,5,6] → norm ~ sqrt(86) ≈ 9.2736 → normalized first ~ 0.323
         let expected0 = 3.0f32 / 86.0f32.sqrt();
         assert!((emb[0] - expected0).abs() < 1e-3);
-        let norm: f32 = emb.iter().map(|x| x*x).sum::<f32>().sqrt();
+        let norm: f32 = emb.iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-5);
     }
 

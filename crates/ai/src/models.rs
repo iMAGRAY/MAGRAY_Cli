@@ -84,28 +84,29 @@ impl OnnxSession {
         }
 
         // Определяем input/output информацию на основе модели
-        let (input_names, output_names, input_shapes, output_shapes) = if model_name.contains("embed") {
-            (
-                vec!["input_ids".to_string(), "attention_mask".to_string()],
-                vec!["last_hidden_state".to_string()],
-                vec![vec![-1, -1], vec![-1, -1]],
-                vec![vec![-1, -1, 768]],
-            )
-        } else if model_name.contains("rerank") {
-            (
-                vec!["input_ids".to_string(), "attention_mask".to_string()],
-                vec!["logits".to_string()],
-                vec![vec![-1, -1], vec![-1, -1]],
-                vec![vec![-1, 2]],
-            )
-        } else {
-            (
-                vec!["input".to_string()],
-                vec!["output".to_string()],
-                vec![vec![-1, 768]],
-                vec![vec![-1, 768]],
-            )
-        };
+        let (input_names, output_names, input_shapes, output_shapes) =
+            if model_name.contains("embed") {
+                (
+                    vec!["input_ids".to_string(), "attention_mask".to_string()],
+                    vec!["last_hidden_state".to_string()],
+                    vec![vec![-1, -1], vec![-1, -1]],
+                    vec![vec![-1, -1, 768]],
+                )
+            } else if model_name.contains("rerank") {
+                (
+                    vec!["input_ids".to_string(), "attention_mask".to_string()],
+                    vec!["logits".to_string()],
+                    vec![vec![-1, -1], vec![-1, -1]],
+                    vec![vec![-1, 2]],
+                )
+            } else {
+                (
+                    vec!["input".to_string()],
+                    vec!["output".to_string()],
+                    vec![vec![-1, 768]],
+                    vec![vec![-1, 768]],
+                )
+            };
 
         info!(
             "✅ Real ONNX session metadata extracted for: {}",

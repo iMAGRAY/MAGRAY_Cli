@@ -39,7 +39,9 @@ async fn verify_sha256(path: &Path, expected_hex: &str) -> Result<bool> {
     let mut buf = vec![0u8; 1024 * 1024];
     loop {
         let n = file.read(&mut buf).await?;
-        if n == 0 { break; }
+        if n == 0 {
+            break;
+        }
         hasher.update(&buf[..n]);
     }
     let result = hasher.finalize();
@@ -50,11 +52,12 @@ async fn verify_sha256(path: &Path, expected_hex: &str) -> Result<bool> {
 impl ModelDownloader {
     /// Создать новый загрузчик моделей
     pub fn new(base_path: impl AsRef<Path>) -> Result<Self> {
-        // Optional HF token for private/throttled downloads
         let mut headers = reqwest::header::HeaderMap::new();
         if let Ok(token) = std::env::var("HF_TOKEN") {
             if !token.is_empty() {
-                if let Ok(value) = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token)) {
+                if let Ok(value) =
+                    reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token))
+                {
                     headers.insert(reqwest::header::AUTHORIZATION, value);
                 }
             }
@@ -135,7 +138,12 @@ impl ModelDownloader {
 
         // Если есть известные контрольные суммы, проверим
         // (Сейчас нет реестра checksum'ов здесь; поле sha256 на каждом файле может быть задано из get_model_info)
-        let info = self.get_model_info(model_path.file_name().and_then(|s| s.to_str()).unwrap_or(""));
+        let info = self.get_model_info(
+            model_path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or(""),
+        );
         if let Ok(info) = info {
             for f in &info.files {
                 if let Some(sum) = &f.sha256 {
@@ -219,28 +227,58 @@ impl ModelDownloader {
         let mut out = Vec::new();
         match (model_name, filename) {
             ("qwen3emb", "tokenizer.json") => {
-                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/tokenizer.json".to_string());
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/tokenizer.json"
+                        .to_string(),
+                );
             }
             ("qwen3emb", "config.json") => {
-                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/config.json".to_string());
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/config.json"
+                        .to_string(),
+                );
             }
             ("qwen3emb", "model.onnx") => {
-                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/model.onnx".to_string());
-                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/onnx/model.onnx".to_string());
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/model.onnx"
+                        .to_string(),
+                );
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/onnx/model.onnx"
+                        .to_string(),
+                );
                 out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/onnx/encoder_model.onnx".to_string());
-                out.push("https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/model_fp16.onnx".to_string());
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/main/model_fp16.onnx"
+                        .to_string(),
+                );
             }
             ("qwen3_reranker", "tokenizer.json") => {
-                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/tokenizer.json".to_string());
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/tokenizer.json"
+                        .to_string(),
+                );
             }
             ("qwen3_reranker", "config.json") => {
-                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/config.json".to_string());
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/config.json"
+                        .to_string(),
+                );
             }
             ("qwen3_reranker", "model.onnx") => {
-                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/model.onnx".to_string());
-                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/onnx/model.onnx".to_string());
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/model.onnx"
+                        .to_string(),
+                );
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/onnx/model.onnx"
+                        .to_string(),
+                );
                 out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/onnx/encoder_model.onnx".to_string());
-                out.push("https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/model_fp16.onnx".to_string());
+                out.push(
+                    "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/resolve/main/model_fp16.onnx"
+                        .to_string(),
+                );
             }
             _ => {}
         }
@@ -286,7 +324,14 @@ impl ModelDownloader {
                         return Ok(());
                     }
                     Err(e) => {
-                        warn!("Попытка {}/{}: не удалось скачать {} из {}: {}", idx + 1, candidates.len(), file.filename, url, e);
+                        warn!(
+                            "Попытка {}/{}: не удалось скачать {} из {}: {}",
+                            idx + 1,
+                            candidates.len(),
+                            file.filename,
+                            url,
+                            e
+                        );
                         last_err = Some(e);
                         // небольшой backoff
                         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
@@ -295,7 +340,9 @@ impl ModelDownloader {
                 }
             }
             // Если ни один URL не сработал, возвращаем последнюю ошибку
-            if let Some(e) = last_err { return Err(e); }
+            if let Some(e) = last_err {
+                return Err(e);
+            }
             return Err(anyhow::anyhow!("Не удалось скачать {}", file.filename));
         }
 
@@ -309,7 +356,10 @@ impl ModelDownloader {
                         info!("✅ Файл {} уже загружен (checksum ok)", file.filename);
                         return Ok(());
                     }
-                    warn!("Checksum mismatch for existing {}, re-downloading", file.filename);
+                    warn!(
+                        "Checksum mismatch for existing {}, re-downloading",
+                        file.filename
+                    );
                 } else {
                     info!("✅ Файл {} уже загружен", file.filename);
                     return Ok(());
@@ -412,7 +462,10 @@ impl ModelDownloader {
         // Верификация checksum если задана
         if let Some(sum) = &file.sha256 {
             if !verify_sha256(&temp_path, sum).await? {
-                return Err(anyhow::anyhow!("Checksum verification failed for {}", file.filename));
+                return Err(anyhow::anyhow!(
+                    "Checksum verification failed for {}",
+                    file.filename
+                ));
             }
         }
 

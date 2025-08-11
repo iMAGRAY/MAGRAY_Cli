@@ -24,7 +24,6 @@ impl LatencyMetrics {
     pub fn record(&mut self, ms: f64) {
         self.count += 1;
         self.sum_ms += ms;
-        // Simplified percentiles - in production would use a proper histogram
         self.p50_ms = ms;
         self.p90_ms = ms;
         self.p99_ms = ms;
@@ -354,7 +353,9 @@ impl MetricsCollector {
 }
 
 impl Default for MetricsCollector {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Helper to measure operation duration

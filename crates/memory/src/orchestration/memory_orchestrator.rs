@@ -335,7 +335,6 @@ impl MemoryOrchestrator {
     pub async fn initialize_production(&self) -> Result<()> {
         info!("🔄 Запуск production инициализации MemoryOrchestrator");
 
-        // Early return если уже запущена
         if self.ready.load(Ordering::Relaxed) {
             warn!("Система уже инициализирована");
             return Ok(());
@@ -581,7 +580,6 @@ impl MemoryOrchestrator {
         info!("🛤️ Phase 1: Остановка background tasks");
         self.stop_background_tasks().await;
 
-        // === Phase 2: Wait for Active Operations ===
         info!("⏳ Phase 2: Ожидание завершения активных операций");
         let active_operations_timeout = Duration::from_secs(30);
         let active_operations_start = Instant::now();
@@ -1332,7 +1330,6 @@ mod tests {
         assert_eq!(circuit_breaker.state, CircuitBreakerStatus::Open);
         assert!(!circuit_breaker.can_execute());
 
-        // Wait for recovery timeout
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         // Should allow one attempt (HalfOpen)

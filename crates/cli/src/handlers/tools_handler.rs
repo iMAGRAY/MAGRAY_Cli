@@ -1,4 +1,4 @@
-//! Tools Handler - специализированный компонент для выполнения инструментов
+﻿//! Tools Handler - специализированный компонент для выполнения инструментов
 //!
 //! Реализует Single Responsibility для tool execution
 //! Интегрируется через DI с интеллектуальной маршрутизацией
@@ -182,14 +182,16 @@ where
         Ok(())
     }
 
-    async fn health_check(&self) -> Result<()> { Ok(()) }
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
     }
 }
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
 

@@ -92,7 +92,6 @@ where
             .context_search(query, project, session)
             .await?;
 
-        // Boost results that match current context
         self.boost_context_results(results, &context_records, &session_records)
             .await
     }
@@ -117,13 +116,11 @@ where
 
     async fn compute_query_vector(&self, _query: &SearchQuery) -> DomainResult<EmbeddingVector> {
         // This would normally call an embedding service
-        // For now, return a placeholder that matches expected dimensions
         let expected_dims = self.embedding_repo.expected_dimensions();
         Ok(EmbeddingVector::zero(expected_dims))
     }
 
     fn create_fallback_query(&self, original_query: SearchQuery) -> DomainResult<SearchQuery> {
-        // Broaden search criteria for fallback
         let fallback = SearchQuery::new(original_query.query_text().to_string())?
             .with_layers(LayerType::all_layers())
             .with_score_threshold(ScoreThreshold::low())

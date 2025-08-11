@@ -139,7 +139,6 @@ impl MemoryApplicationService for MemoryApplicationServiceImpl {
         // Validate request at application level
         self.validate_store_request(&request)?;
         
-        // Execute store use case
         let store_result = self.store_use_case.store_memory(request.clone(), context.clone()).await;
         
         match store_result {
@@ -163,7 +162,6 @@ impl MemoryApplicationService for MemoryApplicationServiceImpl {
                 // Record failure metrics
                 self.record_operation_failure("store_memory", &e, total_time.as_millis() as u64).await?;
                 
-                // Send error notification if critical
                 if self.is_critical_error(&e) {
                     self.send_error_notification("store_memory", &e, &context).await?;
                 }
@@ -183,14 +181,12 @@ impl MemoryApplicationService for MemoryApplicationServiceImpl {
         // Validate batch request
         self.validate_batch_request(&request)?;
         
-        // Begin transaction if enabled
         let _transaction_guard = if self.config.transaction_timeout_seconds > 0 {
             Some(self.begin_transaction(&context).await?)
         } else {
             None
         };
         
-        // Execute batch store use case
         let batch_result = self.store_use_case.store_batch_memory(request, context.clone()).await;
         
         match batch_result {
@@ -200,7 +196,6 @@ impl MemoryApplicationService for MemoryApplicationServiceImpl {
                 // Record batch metrics
                 self.record_batch_metrics(&response, total_time.as_millis() as u64).await?;
                 
-                // Send notification for large successful batches
                 if response.successful > 50 {
                     self.send_batch_success_notification(&response, &context).await?;
                 }
@@ -235,7 +230,6 @@ impl MemoryApplicationService for MemoryApplicationServiceImpl {
         // Validate promotion request
         self.validate_promotion_request(&request)?;
         
-        // Execute promotion use case
         let promotion_result = self.promotion_use_case.promote_records(request.clone(), context.clone()).await;
         
         match promotion_result {
@@ -245,7 +239,6 @@ impl MemoryApplicationService for MemoryApplicationServiceImpl {
                 // Record promotion metrics
                 self.record_promotion_metrics(&response, total_time.as_millis() as u64).await?;
                 
-                // Send notification for significant promotions
                 if response.promoted_records.len() > 20 {
                     self.send_promotion_success_notification(&response, &context).await?;
                 }
@@ -275,7 +268,6 @@ impl MemoryApplicationService for MemoryApplicationServiceImpl {
         
         info!("Analyzing promotion opportunities");
         
-        // Execute analysis through promotion use case
         let analysis_result = self.promotion_use_case.analyze_promotion_candidates(request, context.clone()).await;
         
         match analysis_result {
@@ -309,13 +301,11 @@ impl MemoryApplicationService for MemoryApplicationServiceImpl {
         // Step 1: Store the record
         let store_response = self.store_memory_record(request.clone(), context.clone()).await?;
         
-        // Step 2: Analyze if auto-promotion is enabled and record qualifies
         let mut promotion_analysis = None;
         let mut promotion_response = None;
         let mut workflow_recommendations = Vec::new();
         
         if self.config.auto_promotion_enabled {
-            // Check if record qualifies for immediate promotion analysis
             if self.should_analyze_for_promotion(&request, &store_response) {
                 let analysis_request = self.create_analysis_request(&request, &store_response)?;
                 
@@ -323,7 +313,6 @@ impl MemoryApplicationService for MemoryApplicationServiceImpl {
                     Ok(analysis) => {
                         promotion_analysis = Some(analysis);
                         
-                        // Step 3: Execute promotion if beneficial
                         if let Some(ref analysis) = promotion_analysis {
                             if self.should_auto_promote(&analysis) {
                                 let promotion_request = self.create_promotion_request(&analysis)?;
@@ -463,7 +452,6 @@ impl MemoryApplicationServiceImpl {
     
     /// Check if record should be analyzed for promotion
     fn should_analyze_for_promotion(&self, request: &StoreMemoryRequest, response: &StoreMemoryResponse) -> bool {
-        // Logic to determine if record qualifies for promotion analysis
         request.priority.unwrap_or(1) >= 3 || 
         response.estimated_retrieval_time_ms > 50 ||
         request.project.is_some()

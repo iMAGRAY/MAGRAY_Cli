@@ -87,7 +87,6 @@ fn test_path_operations() {
 
 #[test]
 fn test_async_concepts() {
-    // Тестируем основные async концепции
     use std::future::Future;
     use std::pin::Pin;
     use std::task::{Context, Poll};
@@ -102,7 +101,6 @@ fn test_async_concepts() {
         }
     }
 
-    // Этот тест показывает что async machinery работает
     assert_eq!(42, 42);
 }
 

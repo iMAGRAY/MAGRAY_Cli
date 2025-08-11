@@ -291,7 +291,6 @@ impl DIResolver for OptimizedUnifiedContainer {
         // Determine lifetime from core registration
         let lifetime = self.get_registered_lifetime::<T>()?;
 
-        // Try cache first for non-transient types
         if let Some(cached) = self.cache.get::<T>(type_id, lifetime) {
             debug!("Cache hit for type: {}", type_name);
             return Ok(cached);
@@ -300,7 +299,6 @@ impl DIResolver for OptimizedUnifiedContainer {
         // Resolve through core
         let instance = self.core.resolve::<T>()?;
 
-        // Cache the instance if appropriate
         self.cache.store(type_id, instance.clone(), lifetime);
 
         let duration = start_time.elapsed();
@@ -328,7 +326,6 @@ impl OptimizedUnifiedContainer {
     /// Get registered lifetime for a type (helper method)
     fn get_registered_lifetime<T: Any + Send + Sync + 'static>(&self) -> Result<Lifetime> {
         // This is a simplified implementation - in practice, you'd store this information
-        // For now, we default to Transient and let the cache decide
         Ok(Lifetime::Transient)
     }
 }

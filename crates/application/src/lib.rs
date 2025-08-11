@@ -92,7 +92,6 @@ pub mod use_cases;
 pub mod cqrs;
 pub mod adapters;
 
-// Re-export common types for convenience
 pub use errors::ApplicationError;
 
 /// Application layer result type

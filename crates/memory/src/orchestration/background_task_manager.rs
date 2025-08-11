@@ -88,10 +88,8 @@ impl BackgroundTaskManager {
     pub async fn start_all_tasks(
         &self,
         health_coordinator: Arc<dyn HealthCoordinator>,
-        #[cfg(feature = "legacy-orchestrator")]
-        circuit_breaker_manager: Arc<CircuitBreakerManager>,
-        #[cfg(feature = "legacy-orchestrator")]
-        metrics_collector: Arc<MetricsCollector>,
+        #[cfg(feature = "legacy-orchestrator")] circuit_breaker_manager: Arc<CircuitBreakerManager>,
+        #[cfg(feature = "legacy-orchestrator")] metrics_collector: Arc<MetricsCollector>,
     ) -> Result<()> {
         info!("🔄 Запуск всех background задач");
 
@@ -331,7 +329,6 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
     use tokio::time::{sleep, Duration};
 
-    // Mock health coordinator for testing
     #[derive(Debug)]
     struct MockHealthCoordinator {
         call_count: Arc<AtomicU32>,
@@ -395,10 +392,18 @@ mod tests {
                 uptime_seconds: 0,
             })
         }
-        async fn component_health(&self, _component: &str) -> Result<bool> { Ok(true) }
-        async fn run_health_check(&self) -> Result<()> { Ok(()) }
-        async fn get_alerts(&self) -> Vec<String> { vec![] }
-        async fn clear_alerts(&self) -> Result<()> { Ok(()) }
+        async fn component_health(&self, _component: &str) -> Result<bool> {
+            Ok(true)
+        }
+        async fn run_health_check(&self) -> Result<()> {
+            Ok(())
+        }
+        async fn get_alerts(&self) -> Vec<String> {
+            vec![]
+        }
+        async fn clear_alerts(&self) -> Result<()> {
+            Ok(())
+        }
         async fn health_check(&self) -> Result<()> {
             self.call_count.fetch_add(1, Ordering::Relaxed);
 

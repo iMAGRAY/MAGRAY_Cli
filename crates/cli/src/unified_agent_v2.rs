@@ -24,10 +24,6 @@ use tools::enhanced_tool_system::EnhancedToolSystemConfig;
 use common::service_traits::{BaseService, HealthCheckService};
 
 // ============================================================================
-// ADAPTER IMPLEMENTATIONS FOR EXISTING SERVICES
-// ============================================================================
-
-/// Adapter для LlmClient -> LlmServiceTrait  
 pub struct LlmServiceAdapter {
     llm_client: llm::LlmClient,
 }
@@ -235,7 +231,6 @@ impl MemoryManagementTrait for MemoryManagementAdapter {
             last_access: Utc::now(),
         };
 
-        // UnifiedContainer doesn't expose async insert; use API trait or stub
         let _ = record;
         Ok(())
     }
@@ -282,7 +277,11 @@ impl MemoryManagementAdapter {
 #[cfg(feature = "minimal")]
 #[async_trait]
 impl MemoryManagementTrait for MemoryManagementAdapter {
-    async fn store_message(&self, _message: &str, _context: &HashMap<String, String>) -> Result<()> {
+    async fn store_message(
+        &self,
+        _message: &str,
+        _context: &HashMap<String, String>,
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -392,7 +391,6 @@ pub struct UnifiedAgentV2 {
     // Performance monitoring
     performance_monitor: Arc<PerformanceMonitor>,
 
-    // Circuit breakers for each component
     chat_circuit_breaker: BasicCircuitBreaker,
     tools_circuit_breaker: BasicCircuitBreaker,
     memory_circuit_breaker: BasicCircuitBreaker,
@@ -578,7 +576,9 @@ impl UnifiedAgentV2 {
         let routing_adapter = IntelligentRoutingAdapter::new(smart_router);
 
         // В CPU-профиле используем контейнер DI напрямую, без DIMemoryService конструктира
-        let memory_adapter = MemoryManagementAdapter::new(memory::di::DIContainer::new());
+        let memory_adapter = MemoryManagementAdapter::new(memory::di::UnifiedContainer::new(
+            "unified_agent".to_string(),
+        ));
 
         let admin_service = BasicAdminService::new(performance_monitor.clone());
 
@@ -856,7 +856,9 @@ impl RequestProcessorTrait for UnifiedAgentV2 {
 
         // Проверяем здоровье всех компонентов
         self.chat_handler.health_check().await.is_ok()
-            && ComponentLifecycleTrait::health_check(&self.tools_handler).await.is_ok()
+            && ComponentLifecycleTrait::health_check(&self.tools_handler)
+                .await
+                .is_ok()
             && self.memory_handler.health_check().await.is_ok()
             && self.admin_handler.health_check().await.is_ok()
     }
@@ -935,7 +937,10 @@ impl UnifiedAgentV2 {
         ));
         stats.push_str(&format!(
             "├─ Tools Handler: {}\n",
-            if ComponentLifecycleTrait::health_check(&self.tools_handler).await.is_ok() {
+            if ComponentLifecycleTrait::health_check(&self.tools_handler)
+                .await
+                .is_ok()
+            {
                 "✅ Healthy"
             } else {
                 "❌ Unhealthy"

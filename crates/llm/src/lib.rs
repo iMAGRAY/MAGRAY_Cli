@@ -309,7 +309,6 @@ impl LlmClient {
     }
 
     pub async fn complete(&self, request: CompletionRequest) -> Result<String> {
-        // Use orchestrator if available
         if let Some(orchestrator) = &self.orchestrator {
             info!("🎯 Using multi-provider orchestration for request");
             return orchestrator.complete_smart(request).await;
@@ -653,14 +652,12 @@ impl LlmClient {
 
         let mut providers = Vec::new();
 
-        // Try to add OpenAI if configured
         if let Ok(api_key) = env::var("OPENAI_API_KEY") {
             let model = env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
             providers.push(LlmProvider::OpenAI { api_key, model });
             info!("✅ Added OpenAI provider");
         }
 
-        // Try to add Anthropic if configured
         if let Ok(api_key) = env::var("ANTHROPIC_API_KEY") {
             let model = env::var("ANTHROPIC_MODEL")
                 .unwrap_or_else(|_| "claude-3-haiku-20240307".to_string());
@@ -668,7 +665,6 @@ impl LlmClient {
             info!("✅ Added Anthropic provider");
         }
 
-        // Try to add Groq if configured
         if let Ok(api_key) = env::var("GROQ_API_KEY") {
             let model =
                 env::var("GROQ_MODEL").unwrap_or_else(|_| "llama-3.1-8b-instant".to_string());

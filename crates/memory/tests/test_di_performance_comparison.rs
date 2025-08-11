@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 use anyhow::Result;
 use memory::{DIContainer, DIPerformanceMetrics, Lifetime};

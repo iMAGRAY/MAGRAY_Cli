@@ -81,7 +81,6 @@ impl BatchProcessingStrategy {
             return config.optimal_batch_size;
         }
 
-        // Early return для первых запусков
         if stats.total_batches_processed < 3 {
             return config.optimal_batch_size;
         }

@@ -1,7 +1,7 @@
 #![cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use memory::{Layer, Record};
 use memory::storage::VectorStore;
+use memory::{Layer, Record};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
@@ -67,12 +67,10 @@ fn bench_vector_store_operations(c: &mut Criterion) {
 fn bench_hnsw_search_performance(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
 
-    // Pre-populate store with data for search benchmarks
     let temp_dir = tempfile::tempdir().unwrap();
     let store = rt.block_on(async {
         let store = VectorStore::new(temp_dir.path()).await.unwrap();
 
-        // Insert 10k records for realistic search testing
         let records: Vec<_> = (0..10000)
             .map(|i| create_test_record(&format!("search_test_{}", i), DIMENSIONS))
             .collect();
@@ -170,7 +168,6 @@ fn bench_promotion_engine(c: &mut Criterion) {
                 rt.block_on(async {
                     let store = VectorStore::new(temp_dir.path()).await.unwrap();
 
-                    // Add records to Interact layer for promotion testing
                     let records: Vec<_> = (0..1000)
                         .map(|i| {
                             let mut record =

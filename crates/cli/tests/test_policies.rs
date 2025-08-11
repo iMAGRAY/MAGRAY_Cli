@@ -10,10 +10,14 @@ use tempfile::TempDir;
 fn default_policy_blocks_shell_exec() {
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
     cmd.args([
-        "tools", "run",
-        "--name", "shell_exec",
-        "--command", "echo",
-        "--arg", "command=echo",
+        "tools",
+        "run",
+        "--name",
+        "shell_exec",
+        "--command",
+        "echo",
+        "--arg",
+        "command=echo",
     ])
     .env("CI", "1")
     .env("MAGRAY_CMD_TIMEOUT", "15");
@@ -37,10 +41,14 @@ fn user_policy_overrides_allow_shell_exec() {
 
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
     cmd.args([
-        "tools", "run",
-        "--name", "shell_exec",
-        "--command", "echo",
-        "--arg", "command=echo",
+        "tools",
+        "run",
+        "--name",
+        "shell_exec",
+        "--command",
+        "echo",
+        "--arg",
+        "command=echo",
     ])
     .env("CI", "1")
     .env("MAGRAY_HOME", home.to_string_lossy().to_string())
@@ -52,7 +60,9 @@ fn user_policy_overrides_allow_shell_exec() {
 #[test]
 fn default_policy_allows_memory_backup() {
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
-    cmd.args(["memory", "backup"]).env("CI", "1").env("MAGRAY_CMD_TIMEOUT", "15");
+    cmd.args(["memory", "backup"])
+        .env("CI", "1")
+        .env("MAGRAY_CMD_TIMEOUT", "15");
     let status = cmd.status().expect("run ok");
     assert!(status.success());
 }
@@ -72,7 +82,10 @@ fn user_policy_blocks_memory_backup() {
     .unwrap();
 
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
-    cmd.args(["memory", "backup"]).env("CI", "1").env("MAGRAY_CMD_TIMEOUT", "15").env("MAGRAY_HOME", home.to_string_lossy().to_string());
+    cmd.args(["memory", "backup"])
+        .env("CI", "1")
+        .env("MAGRAY_CMD_TIMEOUT", "15")
+        .env("MAGRAY_HOME", home.to_string_lossy().to_string());
     let status = cmd.status().expect("run ok");
     assert!(!status.success());
 }
@@ -84,7 +97,6 @@ fn ask_policy_requires_confirmation_and_env_override_allows() {
     fs::create_dir_all(&home).unwrap();
     let policy_path = home.join("policy.json");
     let mut f = fs::File::create(&policy_path).unwrap();
-    // Set Ask for web_fetch (any args)
     write!(
         f,
         r#"{{"rules":[{{"subject_kind":"Tool","subject_name":"web_search","when_contains_args":null,"action":"Ask","reason":"medium"}}]}}"#
@@ -92,20 +104,39 @@ fn ask_policy_requires_confirmation_and_env_override_allows() {
 
     // Non-interactive should fail
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
-    cmd.args(["tools","run","--name","web_search","--command","search","--arg","query=rust"])
-    .env("CI","1").env("MAGRAY_NONINTERACTIVE","true")
+    cmd.args([
+        "tools",
+        "run",
+        "--name",
+        "web_search",
+        "--command",
+        "search",
+        "--arg",
+        "query=rust",
+    ])
+    .env("CI", "1")
+    .env("MAGRAY_NONINTERACTIVE", "true")
     .env("MAGRAY_HOME", home.to_string_lossy().to_string())
-    .env("MAGRAY_CMD_TIMEOUT","15");
+    .env("MAGRAY_CMD_TIMEOUT", "15");
     let status = cmd.status().expect("run ok");
     assert!(!status.success());
 
     // Auto-approve should pass
     let mut cmd2 = Command::cargo_bin("magray").expect("binary built");
-    cmd2.args(["tools","run","--name","web_search","--command","search","--arg","query=rust"])
-    .env("CI","1")
+    cmd2.args([
+        "tools",
+        "run",
+        "--name",
+        "web_search",
+        "--command",
+        "search",
+        "--arg",
+        "query=rust",
+    ])
+    .env("CI", "1")
     .env("MAGRAY_HOME", home.to_string_lossy().to_string())
-    .env("MAGRAY_AUTO_APPROVE_ASK","true")
-    .env("MAGRAY_CMD_TIMEOUT","15");
+    .env("MAGRAY_AUTO_APPROVE_ASK", "true")
+    .env("MAGRAY_CMD_TIMEOUT", "15");
     let status2 = cmd2.status().expect("run ok");
     assert!(status2.success());
 }
@@ -113,7 +144,9 @@ fn ask_policy_requires_confirmation_and_env_override_allows() {
 #[test]
 fn status_shows_policy_audit() {
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
-    cmd.args(["status"]).env("CI","1").env("MAGRAY_CMD_TIMEOUT","15");
+    cmd.args(["status"])
+        .env("CI", "1")
+        .env("MAGRAY_CMD_TIMEOUT", "15");
     let assert = cmd.assert();
     assert.success();
 }

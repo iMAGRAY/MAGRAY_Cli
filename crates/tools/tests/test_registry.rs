@@ -170,7 +170,6 @@ fn test_tool_input_serialization() {
         timeout_ms: None,
     };
 
-
     // Сериализация
     let json = serde_json::to_string(&input).unwrap();
     assert!(json.contains("test_cmd"));

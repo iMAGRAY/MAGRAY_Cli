@@ -7,7 +7,8 @@ use crate::{
     health::{ComponentType, HealthStatus, SystemHealthStatus},
     // promotion::PromotionStats,
     // services::RefactoredDIMemoryService,
-    Layer, Record,
+    Layer,
+    Record,
 };
 use common::event_bus::EventBus;
 use once_cell::sync::Lazy;
@@ -27,7 +28,6 @@ pub struct PromotionStats {
     pub cleanup_time_ms: u64,
 }
 
-// ===== Simple in-memory engine for CPU profile =====
 #[cfg(feature = "embeddings")]
 mod simple_engine {
     use super::*;
@@ -35,17 +35,24 @@ mod simple_engine {
     #[cfg(feature = "reranking")]
     use ai::{OptimizedQwen3RerankerService, RerankBatch, RerankingConfig};
     use parking_lot::RwLock;
-    use std::sync::OnceLock;
     use std::io::Write;
+    use std::sync::OnceLock;
 
-    // EventBus for memory events (recorded globally)
     #[derive(Debug, Clone)]
     pub enum MemoryEventPayload {
-        Remember { _id: uuid::Uuid, _layer: Layer },
-        Search { _query: String, _layer: Layer, _results: usize },
+        Remember {
+            _id: uuid::Uuid,
+            _layer: Layer,
+        },
+        Search {
+            _query: String,
+            _layer: Layer,
+            _results: usize,
+        },
     }
 
-    pub static MEMORY_EVENT_BUS: Lazy<EventBus<MemoryEventPayload>> = Lazy::new(|| EventBus::new(1024, std::time::Duration::from_millis(250)));
+    pub static MEMORY_EVENT_BUS: Lazy<EventBus<MemoryEventPayload>> =
+        Lazy::new(|| EventBus::new(1024, std::time::Duration::from_millis(250)));
 
     #[derive(Clone)]
     struct StoredRecord {
@@ -68,7 +75,8 @@ mod simple_engine {
         fn init() -> &'static SimpleMemoryEngine {
             ENGINE.get_or_init(|| {
                 // Try to create real embedding service
-                let model_name = std::env::var("MAGRAY_EMBED_MODEL").unwrap_or_else(|_| "qwen3emb".to_string());
+                let model_name =
+                    std::env::var("MAGRAY_EMBED_MODEL").unwrap_or_else(|_| "qwen3emb".to_string());
                 let cfg = EmbeddingConfig {
                     model_name: model_name.clone(),
                     max_length: 512,
@@ -77,43 +85,58 @@ mod simple_engine {
                     gpu_config: None,
                     embedding_dim: Some(1024),
                 };
-                let embedding_service = if ai::should_disable_ort() { None } else { CpuEmbeddingService::new(cfg).ok() };
+                let embedding_service = if ai::should_disable_ort() {
+                    None
+                } else {
+                    CpuEmbeddingService::new(cfg).ok()
+                };
                 let embedding_dim = 1024;
 
                 #[cfg(feature = "reranking")]
                 let reranker = {
                     let disable_rerank = std::env::var("MAGRAY_DISABLE_RERANK")
-                        .map(|v| matches!(v.to_lowercase().as_str(), "1"|"true"|"yes"|"y"))
+                        .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "y"))
                         .unwrap_or(false);
-                    if disable_rerank { None } else {
-                    let rcfg = RerankingConfig {
-                        model_name: "qwen3_reranker".to_string(),
-                        batch_size: 32,
-                        max_length: 512,
-                        use_gpu: false,
-                        gpu_config: None,
-                    };
-                    OptimizedQwen3RerankerService::new_with_config(rcfg).ok()
+                    if disable_rerank {
+                        None
+                    } else {
+                        let rcfg = RerankingConfig {
+                            model_name: "qwen3_reranker".to_string(),
+                            batch_size: 32,
+                            max_length: 512,
+                            use_gpu: false,
+                            gpu_config: None,
+                        };
+                        OptimizedQwen3RerankerService::new_with_config(rcfg).ok()
                     }
                 };
                 let store_path = Some(std::path::PathBuf::from(
-                    std::env::var("MAGRAY_MEMORY_FILE").unwrap_or_else(|_| "magray_memory.jsonl".to_string())
+                    std::env::var("MAGRAY_MEMORY_FILE")
+                        .unwrap_or_else(|_| "magray_memory.jsonl".to_string()),
                 ));
 
-                // Preload existing JSONL if present
                 let mut initial_records: Vec<StoredRecord> = Vec::new();
                 if let Some(path) = store_path.as_ref() {
                     if let Ok(text) = std::fs::read_to_string(path) {
                         for line in text.lines() {
-                            if line.trim().is_empty() { continue; }
+                            if line.trim().is_empty() {
+                                continue;
+                            }
                             if let Ok(mut rec) = serde_json::from_str::<Record>(line) {
                                 // Compute embedding
                                 let emb = match &embedding_service {
-                                    Some(svc) => svc.embed(&rec.text).map(|e| e.embedding).unwrap_or_else(|_| Self::mock_embed_static(&rec.text, embedding_dim)),
+                                    Some(svc) => {
+                                        svc.embed(&rec.text).map(|e| e.embedding).unwrap_or_else(
+                                            |_| Self::mock_embed_static(&rec.text, embedding_dim),
+                                        )
+                                    }
                                     None => Self::mock_embed_static(&rec.text, embedding_dim),
                                 };
                                 rec.score = 0.0;
-                                initial_records.push(StoredRecord { record: rec, embedding: emb });
+                                initial_records.push(StoredRecord {
+                                    record: rec,
+                                    embedding: emb,
+                                });
                             }
                         }
                     }
@@ -149,19 +172,33 @@ mod simple_engine {
             };
             // store score placeholder
             record.score = 0.0;
-            self.records.write().push(StoredRecord { record: record.clone(), embedding: emb });
-            // append to JSONL store for cross-process persistence
+            self.records.write().push(StoredRecord {
+                record: record.clone(),
+                embedding: emb,
+            });
             if let Some(path) = self.store_path.as_ref() {
-                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-                    if let Ok(line) = serde_json::to_string(&record) { let _ = writeln!(f, "{}", line); }
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(path)
+                {
+                    if let Ok(line) = serde_json::to_string(&record) {
+                        let _ = writeln!(f, "{}", line);
+                    }
                 }
             }
             // fire event (non-blocking publish with timeout inside)
-            let payload = MemoryEventPayload::Remember { _id: record.id, _layer: record.layer };
+            let payload = MemoryEventPayload::Remember {
+                _id: record.id,
+                _layer: record.layer,
+            };
             tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_UPSERT, payload));
-            // also forward to global JSON bus for cross-crate observability
-            let json_evt = serde_json::json!({"id": record.id, "layer": format!("{:?}", record.layer)});
-            tokio::spawn(common::events::publish(common::topics::TOPIC_MEMORY_UPSERT, json_evt));
+            let json_evt =
+                serde_json::json!({"id": record.id, "layer": format!("{:?}", record.layer)});
+            tokio::spawn(common::events::publish(
+                common::topics::TOPIC_MEMORY_UPSERT,
+                json_evt,
+            ));
             Ok(record.id)
         }
 
@@ -181,7 +218,6 @@ mod simple_engine {
                 .collect();
 
             scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-            // Take a wider beam for reranking if available
             let beam = top_k.max(16).min(scored.len());
             scored.truncate(beam);
 
@@ -190,7 +226,11 @@ mod simple_engine {
             if let Some(reranker) = &self.reranker {
                 let documents: Vec<String> = scored.iter().map(|(_, r)| r.text.clone()).collect();
                 if !documents.is_empty() {
-                    let batch = RerankBatch { query: query.to_string(), documents, top_k: Some(top_k) };
+                    let batch = RerankBatch {
+                        query: query.to_string(),
+                        documents,
+                        top_k: Some(top_k),
+                    };
                     if let Ok(reranked) = reranker.rerank_batch(&batch) {
                         // Map back according to returned order (top_k applied inside)
                         let mut new_order = Vec::with_capacity(reranked.results.len());
@@ -217,15 +257,21 @@ mod simple_engine {
             let returned = out.len().min(top_k);
             out.truncate(top_k);
             // fire event with summary
-            let payload = MemoryEventPayload::Search { _query: query.to_string(), _layer: layer, _results: returned };
+            let payload = MemoryEventPayload::Search {
+                _query: query.to_string(),
+                _layer: layer,
+                _results: returned,
+            };
             tokio::spawn(MEMORY_EVENT_BUS.publish(common::topics::TOPIC_MEMORY_SEARCH, payload));
             // also forward to global JSON bus
             let json_evt = serde_json::json!({"query": query, "layer": format!("{:?}", layer), "results": returned});
-            tokio::spawn(common::events::publish(common::topics::TOPIC_MEMORY_SEARCH, json_evt));
+            tokio::spawn(common::events::publish(
+                common::topics::TOPIC_MEMORY_SEARCH,
+                json_evt,
+            ));
             Ok(out)
         }
 
-        // Export/import helpers for backup/restore
         pub fn export_records(&self) -> Vec<Record> {
             self.records
                 .read()
@@ -244,7 +290,10 @@ mod simple_engine {
                 };
                 // Ensure score is sane
                 rec.score = 0.0;
-                self.records.write().push(StoredRecord { record: rec, embedding: emb });
+                self.records.write().push(StoredRecord {
+                    record: rec,
+                    embedding: emb,
+                });
                 inserted += 1;
             }
             Ok(inserted)
@@ -268,7 +317,9 @@ mod simple_engine {
                 na += av * av;
                 nb += bv * bv;
             }
-            if na <= 1e-8 || nb <= 1e-8 { return 0.0; }
+            if na <= 1e-8 || nb <= 1e-8 {
+                return 0.0;
+            }
             dot / (na.sqrt() * nb.sqrt())
         }
 
@@ -278,15 +329,28 @@ mod simple_engine {
             let mut idx = 0usize;
             for token in text.split_whitespace() {
                 let mut h: u64 = 1469598103934665603;
-                for b in token.as_bytes() { h ^= *b as u64; h = h.wrapping_mul(1099511628211); }
+                for b in token.as_bytes() {
+                    h ^= *b as u64;
+                    h = h.wrapping_mul(1099511628211);
+                }
                 let pos = (h as usize) % self.embedding_dim;
                 v[pos] += 1.0;
                 idx += 1;
-                if idx >= self.embedding_dim { break; }
+                if idx >= self.embedding_dim {
+                    break;
+                }
             }
             // L2 normalize
-            let mut norm = 0.0f32; for x in &v { norm += *x * *x; }
-            if norm > 0.0 { let inv = 1.0 / norm.sqrt(); for x in &mut v { *x *= inv; } }
+            let mut norm = 0.0f32;
+            for x in &v {
+                norm += *x * *x;
+            }
+            if norm > 0.0 {
+                let inv = 1.0 / norm.sqrt();
+                for x in &mut v {
+                    *x *= inv;
+                }
+            }
             v
         }
 
@@ -295,20 +359,35 @@ mod simple_engine {
             let mut idx = 0usize;
             for token in text.split_whitespace() {
                 let mut h: u64 = 1469598103934665603;
-                for b in token.as_bytes() { h ^= *b as u64; h = h.wrapping_mul(1099511628211); }
+                for b in token.as_bytes() {
+                    h ^= *b as u64;
+                    h = h.wrapping_mul(1099511628211);
+                }
                 let pos = (h as usize) % dim;
                 v[pos] += 1.0;
                 idx += 1;
-                if idx >= dim { break; }
+                if idx >= dim {
+                    break;
+                }
             }
-            let mut norm = 0.0f32; for x in &v { norm += *x * *x; }
-            if norm > 0.0 { let inv = 1.0 / norm.sqrt(); for x in &mut v { *x *= inv; } }
+            let mut norm = 0.0f32;
+            for x in &v {
+                norm += *x * *x;
+            }
+            if norm > 0.0 {
+                let inv = 1.0 / norm.sqrt();
+                for x in &mut v {
+                    *x *= inv;
+                }
+            }
             v
         }
     }
 
     // Public facade used by trait impl
-    pub(super) fn engine() -> &'static SimpleMemoryEngine { SimpleMemoryEngine::init() }
+    pub(super) fn engine() -> &'static SimpleMemoryEngine {
+        SimpleMemoryEngine::init()
+    }
 }
 
 /// Trait для абстракции над различными реализациями memory service
@@ -351,9 +430,13 @@ impl MemoryServiceTrait for DIMemoryService {
 
     fn get_system_health(&self) -> SystemHealthStatus {
         #[cfg(feature = "embeddings")]
-        { simple_engine::SimpleMemoryEngine::health_status() }
+        {
+            simple_engine::SimpleMemoryEngine::health_status()
+        }
         #[cfg(not(feature = "embeddings"))]
-        { SystemHealthStatus::default() }
+        {
+            SystemHealthStatus::default()
+        }
     }
 
     fn cache_stats(&self) -> (u64, u64, u64) {
@@ -458,7 +541,9 @@ impl UnifiedMemoryAPI {
         let records = engine.export_records();
         let json = serde_json::to_string_pretty(&records)?;
         let p = path.as_ref();
-        if let Some(parent) = p.parent() { fs::create_dir_all(parent)?; }
+        if let Some(parent) = p.parent() {
+            fs::create_dir_all(parent)?;
+        }
         fs::write(p, json)?;
         Ok(records.len())
     }
@@ -857,17 +942,23 @@ mod tests {
         }
         use crate::types::Layer;
         // Subscribe before actions
-        let mut rx_upsert = simple_engine::MEMORY_EVENT_BUS.subscribe(common::topics::TOPIC_MEMORY_UPSERT).await;
-        let mut rx_search = simple_engine::MEMORY_EVENT_BUS.subscribe(common::topics::TOPIC_MEMORY_SEARCH).await;
+        let mut rx_upsert = simple_engine::MEMORY_EVENT_BUS
+            .subscribe(common::topics::TOPIC_MEMORY_UPSERT)
+            .await;
+        let mut rx_search = simple_engine::MEMORY_EVENT_BUS
+            .subscribe(common::topics::TOPIC_MEMORY_SEARCH)
+            .await;
 
         // Use public API to trigger events
         let api = UnifiedMemoryAPI::new(Arc::new(DIMemoryService::new()));
         let _id = api
-            .remember("event bus note".to_string(), MemoryContext::new("note").with_layer(Layer::Insights))
+            .remember(
+                "event bus note".to_string(),
+                MemoryContext::new("note").with_layer(Layer::Insights),
+            )
             .await
             .expect("remember ok");
 
-        // await upsert event (tolerate lag)
         let upsert = tokio::time::timeout(std::time::Duration::from_secs(2), rx_upsert.recv())
             .await
             .expect("upsert timeout")
@@ -876,7 +967,12 @@ mod tests {
 
         // Trigger search
         let _ = api
-            .recall("note" , SearchOptions::default().in_layers(vec![Layer::Insights]).limit(1))
+            .recall(
+                "note",
+                SearchOptions::default()
+                    .in_layers(vec![Layer::Insights])
+                    .limit(1),
+            )
             .await
             .expect("recall ok");
 

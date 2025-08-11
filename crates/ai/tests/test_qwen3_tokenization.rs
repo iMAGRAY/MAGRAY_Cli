@@ -141,11 +141,7 @@ async fn test_qwen3_special_tokens() -> Result<()> {
     let tokenizer = OptimizedTokenizer::new(&tokenizer_path, 512)?;
 
     // Тест специальных токенов Qwen3
-    let special_texts = [
-        "<|endoftext|>",
-        "<|im_start|>",
-        "<|im_end|>",
-    ];
+    let special_texts = ["<|endoftext|>", "<|im_start|>", "<|im_end|>"];
 
     println!("Testing Qwen3 special tokens:");
     for text in special_texts {

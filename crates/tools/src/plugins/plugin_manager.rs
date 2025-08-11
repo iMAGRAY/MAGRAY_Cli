@@ -10,7 +10,6 @@ use tokio::sync::RwLock;
 use tracing::{debug, info};
 
 use crate::registry::{SecurityLevel, ToolPermissions};
-// use crate::{Tool, ToolInput, ToolOutput, ToolSpec}; // Не используется пока
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManifestPermissionsFs {
@@ -70,24 +69,50 @@ pub struct ToolManifest {
     pub permissions: ManifestPermissions,
 }
 
-fn default_mit() -> String { "MIT".into() }
+fn default_mit() -> String {
+    "MIT".into()
+}
 
 impl ToolManifest {
     fn parse_version(&self) -> Result<PluginVersion> {
         let mut parts = self.version.split('.');
-        let major = parts.next().ok_or_else(|| anyhow!("bad version"))?.parse::<u32>()?;
-        let minor = parts.next().ok_or_else(|| anyhow!("bad version"))?.parse::<u32>()?;
-        let patch = parts.next().unwrap_or("0").split(['-', '+']).next().unwrap_or("0").parse::<u32>()?;
-        Ok(PluginVersion { major, minor, patch, pre_release: None, build_metadata: None })
+        let major = parts
+            .next()
+            .ok_or_else(|| anyhow!("bad version"))?
+            .parse::<u32>()?;
+        let minor = parts
+            .next()
+            .ok_or_else(|| anyhow!("bad version"))?
+            .parse::<u32>()?;
+        let patch = parts
+            .next()
+            .unwrap_or("0")
+            .split(['-', '+'])
+            .next()
+            .unwrap_or("0")
+            .parse::<u32>()?;
+        Ok(PluginVersion {
+            major,
+            minor,
+            patch,
+            pre_release: None,
+            build_metadata: None,
+        })
     }
 
     fn parse_type(&self) -> PluginType {
         let p = self.plugin_type.to_lowercase();
-        if p == "wasm" { PluginType::Wasm }
-        else if p == "external" { PluginType::ExternalProcess }
-        else if p == "container" { PluginType::Container }
-        else if let Some(stripped) = p.strip_prefix("script:") { PluginType::Script(stripped.to_string()) }
-        else { PluginType::SharedLibrary }
+        if p == "wasm" {
+            PluginType::Wasm
+        } else if p == "external" {
+            PluginType::ExternalProcess
+        } else if p == "container" {
+            PluginType::Container
+        } else if let Some(stripped) = p.strip_prefix("script:") {
+            PluginType::Script(stripped.to_string())
+        } else {
+            PluginType::SharedLibrary
+        }
     }
 
     fn to_registry_permissions(&self) -> ToolPermissions {
@@ -99,7 +124,9 @@ impl ToolManifest {
                 "ro" => FileSystemPermissions::ReadOnly,
                 "rw" => FileSystemPermissions::ReadWrite,
                 "full" => FileSystemPermissions::FullAccess,
-                "restricted" => FileSystemPermissions::Restricted { allowed_paths: fs.allowed_paths.clone() },
+                "restricted" => FileSystemPermissions::Restricted {
+                    allowed_paths: fs.allowed_paths.clone(),
+                },
                 _ => FileSystemPermissions::None,
             };
         }
@@ -109,7 +136,9 @@ impl ToolManifest {
                 "localhost" => NetworkPermissions::LocalHost,
                 "internal" => NetworkPermissions::InternalNetworks,
                 "internet" => NetworkPermissions::Internet,
-                "restricted" => NetworkPermissions::Restricted { allowed_hosts: net.allowed_hosts.clone() },
+                "restricted" => NetworkPermissions::Restricted {
+                    allowed_hosts: net.allowed_hosts.clone(),
+                },
                 _ => NetworkPermissions::None,
             };
         }
@@ -133,8 +162,16 @@ impl ToolManifest {
         let version = self.parse_version()?;
         let plugin_type = self.parse_type();
         let registry_permissions = self.to_registry_permissions();
-        let configuration_schema = if self.configuration_schema.is_null() { serde_json::json!({}) } else { self.configuration_schema.clone() };
-        let default_config = if self.default_config.is_null() { serde_json::json!({}) } else { self.default_config.clone() };
+        let configuration_schema = if self.configuration_schema.is_null() {
+            serde_json::json!({})
+        } else {
+            self.configuration_schema.clone()
+        };
+        let default_config = if self.default_config.is_null() {
+            serde_json::json!({})
+        } else {
+            self.default_config.clone()
+        };
         let metadata = PluginMetadata {
             id: self.id,
             name: self.name,
@@ -358,7 +395,10 @@ impl PluginRegistry {
 
     /// Create a Tool instance from a registered plugin (supports: Wasm, ExternalProcess)
     pub async fn materialize_as_tool(&self, plugin_id: &str) -> Result<Box<dyn crate::Tool>> {
-        use super::external_process::{ExternalProcessPlugin, ProcessConfig, ProcessIsolation, ProcessResourceLimits, StderrMode, StdinMode, StdoutMode};
+        use super::external_process::{
+            ExternalProcessPlugin, ProcessConfig, ProcessIsolation, ProcessResourceLimits,
+            StderrMode, StdinMode, StdoutMode,
+        };
         use super::wasm_plugin::WasmPlugin;
 
         let metadata = self
@@ -377,7 +417,8 @@ impl PluginRegistry {
                     .as_ref()
                     .ok_or_else(|| anyhow!("No installation path for WASM plugin"))?
                     .join(&metadata.entry_point);
-                let mut instance = WasmPlugin::new(metadata.clone(), config.clone(), &wasm_path).await?;
+                let mut instance =
+                    WasmPlugin::new(metadata.clone(), config.clone(), &wasm_path).await?;
                 instance.start().await?;
                 Ok(Box::new(instance))
             }
@@ -553,7 +594,6 @@ impl PluginRegistry {
 
     /// Remove plugin from registry
     pub async fn unregister_plugin(&self, plugin_id: &str) -> Result<()> {
-        // Check if other plugins depend on this one
         let dependents = self.find_dependent_plugins(plugin_id).await;
         if !dependents.is_empty() {
             return Err(anyhow!(
@@ -651,8 +691,6 @@ impl PluginRegistry {
             .get(&config.plugin_id)
             .ok_or_else(|| anyhow!("Plugin not found: {}", config.plugin_id))?;
 
-        // In production, use a proper JSON schema validator
-        // For now, just check if it's a valid JSON object
         if !config.config.is_object() {
             return Err(anyhow!("Plugin configuration must be a JSON object"));
         }
@@ -694,7 +732,6 @@ impl PluginRegistry {
                         {
                             let plugin_id = metadata.id.clone();
 
-                            // Load configuration if exists
                             if let Ok(config) =
                                 self.load_plugin_configuration_from_file(&plugin_id).await
                             {
@@ -721,7 +758,9 @@ impl PluginRegistry {
     pub async fn load_manifests_from_directory(&self) -> Result<usize> {
         let mut count = 0usize;
         let root = self.plugin_directory.clone();
-        if !root.exists() { return Ok(0); }
+        if !root.exists() {
+            return Ok(0);
+        }
         let mut dirs = vec![root.clone()];
         while let Some(dir) = dirs.pop() {
             let mut rd = tokio::fs::read_dir(&dir).await?;
@@ -731,7 +770,11 @@ impl PluginRegistry {
                     dirs.push(p);
                     continue;
                 }
-                if p.file_name().and_then(|s| s.to_str()).map(|s| s.eq_ignore_ascii_case("tool.json")).unwrap_or(false) {
+                if p.file_name()
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.eq_ignore_ascii_case("tool.json"))
+                    .unwrap_or(false)
+                {
                     let parent = p.parent().map(|x| x.to_path_buf());
                     let content = tokio::fs::read_to_string(&p).await?;
                     let manifest: ToolManifest = serde_json::from_str(&content)?;
@@ -774,7 +817,6 @@ impl PluginRegistry {
             tokio::fs::remove_file(config_path).await?;
         }
 
-        // Remove plugin installation directory if exists
         if let Some(ref install_path) = metadata.installation_path {
             if install_path.exists() {
                 tokio::fs::remove_dir_all(install_path).await?;
@@ -970,19 +1012,15 @@ impl PluginManager {
             .update_plugin_state(plugin_id, PluginState::Unloading)
             .await?;
 
-        // Get plugin metadata for loader type
         let metadata = self
             .registry
             .get_plugin(plugin_id)
             .await
             .ok_or_else(|| anyhow!("Plugin metadata not found: {}", plugin_id))?;
 
-        // Get appropriate loader for cleanup
         let loaders = self.plugin_loaders.read().await;
         if let Some(_loader) = loaders.get(&metadata.plugin_type) {
-            // Convert Arc to Box for unloading
             // This is a simplified approach - in production you'd need better instance management
-            // loader.unload_plugin(instance_box).await?;
         }
 
         // Update state
@@ -1077,7 +1115,9 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let plugin_dir = temp_dir.path().join("plugins");
         let config_dir = temp_dir.path().join("configs");
-        tokio::fs::create_dir_all(plugin_dir.join("p1")).await.unwrap();
+        tokio::fs::create_dir_all(plugin_dir.join("p1"))
+            .await
+            .unwrap();
         tokio::fs::create_dir_all(&config_dir).await.unwrap();
 
         // Write tool.json
@@ -1093,7 +1133,9 @@ mod tests {
             "configuration_schema": {}
         });
         let mp = plugin_dir.join("p1").join("tool.json");
-        tokio::fs::write(&mp, serde_json::to_string_pretty(&manifest).unwrap()).await.unwrap();
+        tokio::fs::write(&mp, serde_json::to_string_pretty(&manifest).unwrap())
+            .await
+            .unwrap();
 
         let registry = PluginRegistry::new(plugin_dir.clone(), config_dir);
         let loaded = registry.load_manifests_from_directory().await.unwrap();

@@ -28,7 +28,6 @@ fn ndcg_at_k(ideal: &[u8], predicted: &[u8], k: usize) -> f64 {
 async fn rag_recall_smoke_golden() {
     let api = UnifiedMemoryAPI::new(Arc::new(UnifiedContainer::new()));
 
-    // Seed small corpus with labels for relevance to query "async runtime in rust"
     let docs = vec![
         ("rust ownership and borrowing rules", Layer::Insights, 0u8),
         ("tokio provides async runtime for rust", Layer::Insights, 3u8),
@@ -82,7 +81,6 @@ async fn rag_recall_smoke_golden() {
     let recall = if recall_den > 0.0 { hits / recall_den } else { 0.0 };
     let ndcg = if !ideal_rel.is_empty() && !predicted_rel.is_empty() { ndcg_at_k(&ideal_rel, &predicted_rel, k) } else { 0.0 };
 
-    // Golden expectations for mock embeddings path: should retrieve at least one relevant doc and decent ordering
     assert!(precision >= 0.2, "precision too low: {}", precision);
     assert!(recall >= 0.5, "recall too low: {}", recall);
     assert!(ndcg >= 0.4, "ndcg too low: {}", ndcg);

@@ -69,7 +69,6 @@ impl RequestAnalyzer {
             request.prompt
         ).to_lowercase();
         
-        // First, check for explicit complexity patterns
         for (pattern, complexity) in &self.complexity_patterns {
             if combined_text.contains(pattern) {
                 debug!("🎯 Complexity pattern match: '{}' -> {:?}", pattern, complexity);
@@ -97,7 +96,6 @@ impl RequestAnalyzer {
             request.prompt
         ).to_lowercase();
         
-        // Check for explicit priority patterns
         for (pattern, priority) in &self.priority_patterns {
             if combined_text.contains(pattern) {
                 debug!("🚨 Priority pattern match: '{}' -> {:?}", pattern, priority);
@@ -124,7 +122,6 @@ impl RequestAnalyzer {
         // Code: ~1 token per 3 characters (more dense)
         let char_count = text.len();
         
-        // Detect if text contains code
         let code_indicators = ["{", "}", "(", ")", "function", "class", "import", "def", "let", "var"];
         let has_code = code_indicators.iter().any(|&indicator| text.contains(indicator));
         

@@ -10,12 +10,6 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
-use crate::{
-    cache_interface::EmbeddingCacheInterface,
-    di::{traits::DIResolver, UnifiedContainer},
-    orchestration::EmbeddingCoordinator as EmbeddingCoordinatorImpl,
-    EmbeddingCache,
-};
 use crate::di::core_traits::ServiceResolver;
 #[cfg(feature = "gpu-acceleration")]
 use crate::gpu_accelerated::GpuBatchProcessor;
@@ -25,6 +19,12 @@ use crate::orchestration::{
 };
 use crate::services::traits::CoordinatorServiceTrait;
 use crate::storage::VectorStore;
+use crate::{
+    cache_interface::EmbeddingCacheInterface,
+    di::{traits::DIResolver, UnifiedContainer},
+    orchestration::EmbeddingCoordinator as EmbeddingCoordinatorImpl,
+    EmbeddingCache,
+};
 
 /// Структура для хранения всех координаторов
 #[allow(dead_code)]

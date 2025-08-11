@@ -343,14 +343,14 @@ mod tests {
         let text1 = "machine learning algorithms";
         let text2 = "deep learning neural networks";
 
-        let emb1 = service.embed(text1).unwrap();
-        let emb2 = service.embed(text2).unwrap();
+        let emb1 = service.embed(text1).expect("Failed to generate embedding for text1");
+        let emb2 = service.embed(text2).expect("Failed to generate embedding for text2");
 
         assert_eq!(emb1.len(), 384);
         assert_eq!(emb2.len(), 384);
 
         // Детерминистичность - один и тот же текст должен давать одинаковый результат
-        let emb1_repeat = service.embed(text1).unwrap();
+        let emb1_repeat = service.embed(text1).expect("Failed to generate repeat embedding for text1");
         assert_eq!(emb1, emb1_repeat);
 
         // Разные тексты должны давать разные embeddings
@@ -367,7 +367,7 @@ mod tests {
         let mut service = GracefulEmbeddingService::new(None, 384, 3);
 
         // Должен сразу использовать fallback
-        let embedding = service.embed("test text").unwrap();
+        let embedding = service.embed("test text").expect("Failed to generate embedding for test text");
         assert_eq!(embedding.len(), 384);
         // Без primary provider сервис находится в состоянии fallback по умолчанию
         // но флаг use_fallback не устанавливается до первой ошибки
@@ -378,12 +378,12 @@ mod tests {
     fn test_embed_batch_empty_and_zero_dim_path() {
         // Empty batch returns empty
         let mut svc = FallbackEmbeddingService::new(4);
-        let out = svc.embed_batch(&[]).unwrap();
+        let out = svc.embed_batch(&[]).expect("Failed to process empty batch");
         assert!(out.is_empty());
 
         // Zero-dimension triggers error path inside embed -> fallback zero-length vector in batch
         let mut svc0 = FallbackEmbeddingService::new(0);
-        let out0 = svc0.embed_batch(&["a".to_string()]).unwrap();
+        let out0 = svc0.embed_batch(&["a".to_string()]).expect("Failed to process batch with zero dimension");
         assert_eq!(out0.len(), 1);
         assert_eq!(out0[0].len(), 0);
     }
@@ -396,7 +396,7 @@ mod tests {
 
     impl EmbeddingProvider for MockProvider {
         fn embed(&self, _text: &str) -> Result<Vec<f32>> {
-            let mut left = self.remaining_failures.lock().unwrap();
+            let mut left = self.remaining_failures.lock().map_err(|_| anyhow::anyhow!("Failed to acquire lock for remaining_failures"))?;
             if *left > 0 {
                 *left -= 1;
                 return Err(anyhow::anyhow!("forced failure"));
@@ -417,7 +417,7 @@ mod tests {
         }
 
         fn is_available(&self) -> bool {
-            *self.available.lock().unwrap()
+            *self.available.lock().map_err(|_| anyhow::anyhow!("Failed to acquire lock for available"))?
         }
     }
 
@@ -433,20 +433,19 @@ mod tests {
 
         let mut svc = GracefulEmbeddingService::new(Some(Box::new(provider)), 8, 2);
 
-        // Two failures cause switch to fallback
         let _ = svc.embed("t1");
         let _ = svc.embed("t2");
         assert!(svc.is_using_fallback());
         assert!(svc.failure_count() >= 2);
 
         // Make primary available and recover
-        *available.lock().unwrap() = true;
+        *available.lock().expect("Failed to acquire lock for available") = true;
         assert!(svc.try_recover());
         assert!(!svc.is_using_fallback());
         assert_eq!(svc.failure_count(), 0);
 
         // Now embed succeeds via primary
-        let emb = svc.embed("ok").unwrap();
+        let emb = svc.embed("ok").expect("Failed to generate embedding after recovery");
         assert_eq!(emb.len(), 16);
     }
 
@@ -462,7 +461,7 @@ mod tests {
         let mut svc = GracefulEmbeddingService::new(Some(Box::new(provider)), 12, 1);
         svc.force_fallback();
         assert!(svc.is_using_fallback());
-        let emb = svc.embed("x").unwrap();
+        let emb = svc.embed("x").expect("Failed to generate embedding in forced fallback mode");
         assert_eq!(emb.len(), 12);
 
         let st = svc.status();

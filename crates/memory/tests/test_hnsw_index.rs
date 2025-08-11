@@ -11,17 +11,17 @@ fn hnsw_add_and_search_orders_by_distance() {
     let index = VectorIndex::new(cfg).expect("config ok");
 
     // two clusters around unit vectors
-    let a = vec![1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
-    let b = vec![0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0];
+    let a = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let b = vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
     index.add("A".into(), a.clone()).unwrap();
     index.add("B".into(), b.clone()).unwrap();
 
     // query near A
-    let q = vec![0.9,0.1,0.0,0.0,0.0,0.0,0.0,0.0];
+    let q = vec![0.9, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     let res = index.search(&q, 2).expect("search ok");
     assert_eq!(res.len(), 2);
-    let ids: Vec<String> = res.into_iter().map(|(id,_d)| id).collect();
+    let ids: Vec<String> = res.into_iter().map(|(id, _d)| id).collect();
     assert_eq!(ids[0], "A");
 }
 
@@ -31,8 +31,10 @@ fn hnsw_capacity_validation() {
     cfg.dimension = 4;
     cfg.max_elements = 1;
     let index = VectorIndex::new(cfg).unwrap();
-    index.add("one".into(), vec![1.0,0.0,0.0,0.0]).unwrap();
-    let err = index.add("two".into(), vec![0.0,1.0,0.0,0.0]).unwrap_err();
+    index.add("one".into(), vec![1.0, 0.0, 0.0, 0.0]).unwrap();
+    let err = index
+        .add("two".into(), vec![0.0, 1.0, 0.0, 0.0])
+        .unwrap_err();
     assert!(err.to_string().contains("capacity"));
 }
 
@@ -45,15 +47,15 @@ fn hnsw_parallel_search_basic() {
     let index = VectorIndex::new(cfg).unwrap();
 
     for i in 0..10 {
-        let mut v = vec![0.0,0.0,0.0,0.0];
+        let mut v = vec![0.0, 0.0, 0.0, 0.0];
         v[i % 4] = 1.0;
         index.add(format!("id{}", i), v).unwrap();
     }
 
     let queries = vec![
-        vec![1.0,0.0,0.0,0.0],
-        vec![0.0,1.0,0.0,0.0],
-        vec![0.0,0.0,1.0,0.0],
+        vec![1.0, 0.0, 0.0, 0.0],
+        vec![0.0, 1.0, 0.0, 0.0],
+        vec![0.0, 0.0, 1.0, 0.0],
     ];
     let out = index.parallel_search(&queries, 1).unwrap();
     assert_eq!(out.len(), 3);

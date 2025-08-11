@@ -1,9 +1,6 @@
-// @component: {"k":"C","id":"security_enforcer","t":"Security enforcement and sandboxing for tool execution","m":{"cur":0,"tgt":90,"u":"%"},"f":["security","sandbox","enforcement","isolation"]}
-
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-// use std::process::{Command, Stdio}; // Не используется пока
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
@@ -232,7 +229,6 @@ impl SecurityEnforcer {
                 .clone()
         };
 
-        // Check if permission is still valid
         if let Some(expires_at) = permissions.expires_at {
             if SystemTime::now() > expires_at {
                 self.log_violation(SecurityViolation {
@@ -436,9 +432,7 @@ impl SecurityEnforcer {
 
         // Setup sandbox environment based on isolation level
         match isolation_level {
-            ProcessIsolation::None => {
-                // No isolation, just return ID
-            }
+            ProcessIsolation::None => {}
             ProcessIsolation::Thread => {
                 // Thread-level isolation (limited)
                 self.setup_thread_isolation(&sandbox_id, &config).await?;
@@ -448,7 +442,6 @@ impl SecurityEnforcer {
                 self.setup_process_isolation(&sandbox_id, &config).await?;
             }
             ProcessIsolation::Container => {
-                // Container isolation (if available)
                 self.setup_container_isolation(&sandbox_id, &config).await?;
             }
             ProcessIsolation::VM => {
@@ -684,7 +677,6 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        // Test write access (should fail for ReadOnly)
         let result = enforcer
             .validate_file_access(
                 "test_tool",

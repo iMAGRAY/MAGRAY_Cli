@@ -21,8 +21,8 @@ use crate::{
     orchestration::{EmbeddingCoordinator, HealthManager, ResourceController, SearchCoordinator},
 };
 
-use crate::orchestration::Coordinator;
 use crate::di::core_traits::ServiceResolver;
+use crate::orchestration::Coordinator;
 
 /// Trait для создания координаторов (Dependency Inversion)
 #[allow(async_fn_in_trait)]
@@ -437,7 +437,9 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
         }
         #[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
         {
-            Err(anyhow::anyhow!("GpuBatchProcessor недоступен без фичи gpu-acceleration"))
+            Err(anyhow::anyhow!(
+                "GpuBatchProcessor недоступен без фичи gpu-acceleration"
+            ))
         }
     }
 
@@ -455,7 +457,9 @@ impl CoordinatorFactory for ProductionCoordinatorFactory {
             .ok_or_else(|| anyhow::anyhow!("Не удалось resolve VectorStore из DI container"))?;
 
         #[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
-        return Err(anyhow::anyhow!("VectorStore недоступен без фичи persistence"));
+        return Err(anyhow::anyhow!(
+            "VectorStore недоступен без фичи persistence"
+        ));
 
         let coordinator = Arc::new(SearchCoordinator::new_production(
             store,

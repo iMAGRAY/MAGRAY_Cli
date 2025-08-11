@@ -1,8 +1,8 @@
 // Проверка использования GPU в ONNX Runtime
-#[cfg(feature = "gpu")]
-use ai::gpu_detector::GpuDetector;
 use ai::config::EmbeddingConfig;
 use ai::embeddings_cpu::CpuEmbeddingService;
+#[cfg(feature = "gpu")]
+use ai::gpu_detector::GpuDetector;
 
 fn main() -> anyhow::Result<()> {
     // Инициализация логирования с максимальным уровнем

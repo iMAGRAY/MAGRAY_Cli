@@ -94,7 +94,9 @@ impl MockHttpClient {
 
         // Simulate network delay
         let delay_opt = *self.delay_simulation.read().unwrap();
-        if let Some(delay) = delay_opt { tokio::time::sleep(delay).await; }
+        if let Some(delay) = delay_opt {
+            tokio::time::sleep(delay).await;
+        }
 
         // Simulate random failures
         let failure_rate = *self.failure_rate.read().unwrap();
@@ -111,7 +113,9 @@ impl MockHttpClient {
                 .map(|(_, resp)| resp.clone())
         };
         if let Some(resp) = selected_response {
-            if let Some(delay) = resp.delay { tokio::time::sleep(delay).await; }
+            if let Some(delay) = resp.delay {
+                tokio::time::sleep(delay).await;
+            }
             return Ok(resp);
         }
 
@@ -119,7 +123,11 @@ impl MockHttpClient {
     }
 }
 
-impl Default for MockHttpClient { fn default() -> Self { Self::new() } }
+impl Default for MockHttpClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Builder for mock HTTP responses
 pub struct MockResponseBuilder {
@@ -380,7 +388,9 @@ impl MockDatabase {
 
     async fn simulate_operation_delay(&self) {
         let latency = *self.latency_simulation.read().unwrap();
-        if let Some(latency) = latency { tokio::time::sleep(latency).await; }
+        if let Some(latency) = latency {
+            tokio::time::sleep(latency).await;
+        }
     }
 
     async fn check_failure_scenarios(&self, operation: &str, table: &str) -> Result<(), String> {
@@ -401,7 +411,11 @@ impl MockDatabase {
     }
 }
 
-impl Default for MockDatabase { fn default() -> Self { Self::new() } }
+impl Default for MockDatabase {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct DatabaseStats {
@@ -512,7 +526,11 @@ impl MockEventSystem {
     }
 }
 
-impl Default for MockEventSystem { fn default() -> Self { Self::new() } }
+impl Default for MockEventSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Test data generators for realistic test scenarios
 pub struct TestDataGenerator;
@@ -753,7 +771,11 @@ impl MockMetricsCollector {
     }
 }
 
-impl Default for MockMetricsCollector { fn default() -> Self { Self::new() } }
+impl Default for MockMetricsCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 // Common test utilities
 /// Test timing utility for performance assertions
@@ -832,7 +854,5 @@ impl MemoryTracker {
 }
 
 fn get_memory_usage() -> usize {
-    // Simplified memory tracking - in real implementation would use proper system calls
-    // For now, return a mock value
     thread_rng().gen_range(1024..1024 * 1024)
 }

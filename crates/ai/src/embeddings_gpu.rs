@@ -413,7 +413,6 @@ impl GpuEmbeddingService {
                     // If output is (batch, seq_len, hidden_size), we need to pool
                     shape[2] as usize
                 } else {
-                    // If output is (batch, hidden_size), use directly
                     shape[1] as usize
                 };
 
@@ -444,7 +443,6 @@ impl GpuEmbeddingService {
                         result.push(embedding);
                     }
                 } else {
-                    // Output is (batch, hidden_size) - use directly
                     for i in 0..result_batch_size {
                         let start = i * hidden_size;
                         let end = start + hidden_size;

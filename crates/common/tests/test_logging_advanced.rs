@@ -282,7 +282,6 @@ fn test_operation_timer_callback_with_error() {
         }
     });
 
-    // Should return the result from callback
     assert!(result.is_ok() || result.is_err()); // Either is valid
 }
 

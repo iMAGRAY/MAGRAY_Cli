@@ -25,7 +25,6 @@ use crate::{
     },
 };
 
-// Mock test services for isolated testing
 #[derive(Debug, Clone)]
 struct MockSimpleService {
     id: String,

@@ -1,8 +1,8 @@
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
+use std::fs;
 use std::process::Command;
 use tempfile::TempDir;
-use std::fs;
 
 fn cmd_with_temp_home() -> (Command, TempDir) {
     let temp_home = TempDir::new().expect("temp home");
@@ -20,9 +20,10 @@ fn smart_runs_shell_and_creates_task_artifact() {
     cmd.arg("smart").arg("выполни команду echo from-smart");
 
     let assert = cmd.assert().success();
-    assert.stdout(predicate::str::contains("Smart планировщик"))
-          .stdout(predicate::str::contains("Выполнение завершено"))
-          .stdout(predicate::str::contains("from-smart"));
+    assert
+        .stdout(predicate::str::contains("Smart планировщик"))
+        .stdout(predicate::str::contains("Выполнение завершено"))
+        .stdout(predicate::str::contains("from-smart"));
 
     // Проверим, что создались директории ~/.magray и ~/.magray/artifacts
     let magray_home = home.path().join(".magray");

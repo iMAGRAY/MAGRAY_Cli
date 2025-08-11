@@ -136,7 +136,9 @@ pub struct AdaptiveStrategy {
 }
 
 impl Default for AdaptiveStrategy {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AdaptiveStrategy {

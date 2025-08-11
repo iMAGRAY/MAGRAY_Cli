@@ -22,7 +22,6 @@ fn test_reranker_initialization() {
         }
         Err(e) => {
             println!("❌ Failed to initialize reranker: {}", e);
-            // This is expected if model is not available
         }
     }
 }
@@ -37,7 +36,6 @@ fn test_reranker_mock() {
         gpu_config: None,
     };
 
-    // Should use mock when model doesn't exist
     let reranker = RerankingService::new(&config).unwrap();
 
     let query = "machine learning";

@@ -92,20 +92,17 @@ impl AnthropicProvider {
                 latency_class: LatencyClass::Slow,
                 reliability_score: 0.99,
             },
-            _ => {
-                // Default capabilities for unknown models
-                ProviderCapabilities {
-                    max_tokens: 4096,
-                    supports_streaming: false,
-                    supports_functions: false,
-                    supports_vision: false,
-                    context_window: 100_000,
-                    cost_per_1k_input: 0.003,
-                    cost_per_1k_output: 0.015,
-                    latency_class: LatencyClass::Standard,
-                    reliability_score: 0.95,
-                }
-            }
+            _ => ProviderCapabilities {
+                max_tokens: 4096,
+                supports_streaming: false,
+                supports_functions: false,
+                supports_vision: false,
+                context_window: 100_000,
+                cost_per_1k_input: 0.003,
+                cost_per_1k_output: 0.015,
+                latency_class: LatencyClass::Standard,
+                reliability_score: 0.95,
+            },
         }
     }
 }
@@ -187,8 +184,6 @@ impl LlmProvider for AnthropicProvider {
             });
         }
 
-        // Context handling can be added later if needed
-
         // Add main prompt
         messages.push(AnthropicMessage {
             role: "user".to_string(),
@@ -235,7 +230,6 @@ impl LlmProvider for AnthropicProvider {
         let usage = if let Some(usage) = anthropic_response.usage {
             TokenUsage::new(usage.input_tokens, usage.output_tokens)
         } else {
-            // Fallback estimation if usage not provided
             let prompt_tokens = request.prompt.len() as u32 / 4;
             let completion_tokens = content_block.text.len() as u32 / 4;
             TokenUsage::new(prompt_tokens, completion_tokens)
@@ -278,8 +272,6 @@ impl LlmProvider for AnthropicProvider {
                 content: system_prompt.clone(),
             });
         }
-
-        // Context handling can be added later if needed
 
         messages.push(AnthropicMessage {
             role: "user".to_string(),

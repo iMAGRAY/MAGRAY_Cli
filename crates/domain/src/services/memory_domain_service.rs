@@ -54,7 +54,6 @@ where
             .store_embedding(record_id, embedding)
             .await
         {
-            // Rollback: delete the record if embedding storage fails
             let _ = self.memory_repo.delete(record_id).await;
             return Err(e);
         }
@@ -177,7 +176,6 @@ where
             .find_promotion_candidates(from_layer)
             .await?;
 
-        // Apply business rules for promotion
         let filtered_candidates: Vec<_> = candidates
             .into_iter()
             .filter(|record| self.should_promote_record(record))
@@ -185,8 +183,6 @@ where
 
         Ok(filtered_candidates)
     }
-
-    // Private helper methods for business validation
 
     fn validate_record_for_storage(&self, record: &MemoryRecord) -> DomainResult<()> {
         if record.content().trim().is_empty() {
@@ -223,7 +219,6 @@ where
     }
 
     fn should_promote_record(&self, record: &MemoryRecord) -> bool {
-        // Business rules for promotion eligibility
         let access_pattern = record.access_pattern();
 
         // Must have minimum activity

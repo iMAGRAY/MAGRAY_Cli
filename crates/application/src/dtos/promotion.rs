@@ -259,7 +259,6 @@ impl Default for AnalysisDepth {
     }
 }
 
-// Additional DTOs for promotion use case
 
 /// Simplified promotion request DTO for use case
 #[derive(Debug, Serialize, Deserialize, Clone, Validate)]

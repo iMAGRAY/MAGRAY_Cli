@@ -152,15 +152,12 @@ impl LlmProvider for LocalProvider {
         // Build messages array
         let mut messages = Vec::new();
 
-        // Add system prompt if provided
         if let Some(system_prompt) = &request.system_prompt {
             messages.push(LocalMessage {
                 role: "system".to_string(),
                 content: system_prompt.clone(),
             });
         }
-
-        // Context handling can be added later if needed
 
         // Add main prompt
         messages.push(LocalMessage {
@@ -211,7 +208,6 @@ impl LlmProvider for LocalProvider {
             .first()
             .ok_or_else(|| anyhow!("Empty response from {} provider", self.provider_type))?;
 
-        // Most local providers don't return usage statistics
         let usage = if let Some(usage) = local_response.usage {
             TokenUsage::new(usage.prompt_tokens, usage.completion_tokens)
         } else {

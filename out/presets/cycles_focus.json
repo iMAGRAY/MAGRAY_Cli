@@ -1,0 +1,12 @@
+{
+  "arguments": {
+    "detail_level": "summary",
+    "max_output_chars": 20000,
+    "sections": [
+      "cycles",
+      "top_coupling"
+    ],
+    "top_n": 10
+  },
+  "tool": "export.ai_compact"
+}

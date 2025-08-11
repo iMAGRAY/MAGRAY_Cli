@@ -168,7 +168,6 @@ impl CqrsBus {
         // Validate query
         query.validate()?;
         
-        // Check cache if query is cacheable
         if query.is_cacheable() {
             if let Some(cache_key) = query.cache_key() {
                 // TODO: Implement caching logic
@@ -232,19 +231,16 @@ impl CqrsBusBuilder {
     
     pub fn with_memory_handlers(mut self) -> Self {
         // Register memory-related handlers
-        // Implementation would register handlers for memory commands/queries
         self
     }
     
     pub fn with_search_handlers(mut self) -> Self {
         // Register search-related handlers
-        // Implementation would register handlers for search commands/queries
         self
     }
     
     pub fn with_analytics_handlers(mut self) -> Self {
         // Register analytics-related handlers
-        // Implementation would register handlers for analytics commands/queries
         self
     }
 }

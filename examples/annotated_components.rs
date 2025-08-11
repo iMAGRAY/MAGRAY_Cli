@@ -113,5 +113,4 @@ pub struct EmbeddingCache {
 //     - uses: actions/checkout@v3
 //     - name: Sync documentation
 //       run: ./tools/sync_docs.sh
-//     - name: Check for changes
 //       run: git diff --exit-code CLAUDE.md || echo "Documentation updated"

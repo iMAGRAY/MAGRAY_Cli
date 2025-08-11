@@ -1,26 +1,45 @@
 use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
 use anyhow::{anyhow, Result};
-use std::collections::HashMap;
 use base64::Engine as _;
+use common::{validate_input_string, validate_input_url};
+use std::collections::HashMap;
 
 fn net_allowlist() -> Vec<String> {
-    common::sandbox_config::SandboxConfig::from_env().net.allowlist
+    common::sandbox_config::SandboxConfig::from_env()
+        .net
+        .allowlist
 }
 
 fn extract_domain(url: &str) -> Option<String> {
-    if let Some(rest) = url.strip_prefix("http://").or_else(|| url.strip_prefix("https://")) {
+    if let Some(rest) = url
+        .strip_prefix("http://")
+        .or_else(|| url.strip_prefix("https://"))
+    {
         let part = rest.split('/').next().unwrap_or("");
         let domain = part.split('@').next_back().unwrap_or("");
         let domain = domain.split(':').next().unwrap_or("");
-        if domain.is_empty() { None } else { Some(domain.to_lowercase()) }
-    } else { None }
+        if domain.is_empty() {
+            None
+        } else {
+            Some(domain.to_lowercase())
+        }
+    } else {
+        None
+    }
 }
 
 fn ensure_net_allowed(url: &str) -> Result<()> {
     let allow = net_allowlist();
-    if allow.is_empty() { return Err(anyhow!("Сеть запрещена: нет разрешённых доменов (установите MAGRAY_NET_ALLOW)")); }
+    if allow.is_empty() {
+        return Err(anyhow!(
+            "Сеть запрещена: нет разрешённых доменов (установите MAGRAY_NET_ALLOW)"
+        ));
+    }
     if let Some(domain) = extract_domain(url) {
-        if allow.iter().any(|d| domain == *d || domain.ends_with(&format!(".{d}"))) {
+        if allow
+            .iter()
+            .any(|d| domain == *d || domain.ends_with(&format!(".{d}")))
+        {
             return Ok(());
         }
         Err(anyhow!("Домен '{}' не входит в allowlist", domain))
@@ -50,7 +69,11 @@ enum WebSearchProviderKind {
 }
 
 fn select_search_provider_from_env() -> WebSearchProviderKind {
-    match std::env::var("MAGRAY_SEARCH_PROVIDER").unwrap_or_default().to_lowercase().as_str() {
+    match std::env::var("MAGRAY_SEARCH_PROVIDER")
+        .unwrap_or_default()
+        .to_lowercase()
+        .as_str()
+    {
         "duckduckgo" | "ddg" => WebSearchProviderKind::DuckDuckGo,
         _ => WebSearchProviderKind::Mock,
     }
@@ -81,10 +104,16 @@ impl Tool for WebSearch {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'query'"))?
             .to_string();
 
+        // SECURITY: Валидация поискового запроса
+        validate_input_string(&query, "search_query")?;
+
         if input.dry_run {
             let mut meta = HashMap::new();
             meta.insert("dry_run".into(), "true".into());
-            meta.insert("provider".into(), format!("{:?}", select_search_provider_from_env()));
+            meta.insert(
+                "provider".into(),
+                format!("{:?}", select_search_provider_from_env()),
+            );
             return Ok(ToolOutput {
                 success: true,
                 result: format!("[dry-run] search: {}", query),
@@ -100,15 +129,24 @@ impl Tool for WebSearch {
                     "🔍 Поиск: '{}'\n\n[Результаты]\n1. {} — Результат 1\n2. {} — Результат 2\n3. {} — Результат 3",
                     query, query, query, query
                 );
-                Ok(ToolOutput { success: true, result, formatted_output: None, metadata: HashMap::new() })
+                Ok(ToolOutput {
+                    success: true,
+                    result,
+                    formatted_output: None,
+                    metadata: HashMap::new(),
+                })
             }
             WebSearchProviderKind::DuckDuckGo => {
-                // Best-effort: HTML endpoint; in offline/CI this may fail, but policy/tests use mock provider by default
-                let url = format!("https://duckduckgo.com/html/?q={}", urlencoding::encode(&query));
+                let url = format!(
+                    "https://duckduckgo.com/html/?q={}",
+                    urlencoding::encode(&query)
+                );
                 ensure_net_allowed(&url)?;
                 let client = reqwest::Client::builder()
                     .user_agent("MagrayBot/0.1 (+https://example.local)")
-                    .timeout(std::time::Duration::from_secs(input.timeout_ms.unwrap_or(10_000) / 1000 + 10))
+                    .timeout(std::time::Duration::from_secs(
+                        input.timeout_ms.unwrap_or(10_000) / 1000 + 10,
+                    ))
                     .build()?;
                 let resp = client.get(&url).send().await?;
                 let status = resp.status();
@@ -125,14 +163,28 @@ impl Tool for WebSearch {
                             }
                         }
                     }
-                    if results.len() >= 5 { break; }
+                    if results.len() >= 5 {
+                        break;
+                    }
                 }
                 if results.is_empty() {
-                    return Ok(ToolOutput { success: status.is_success(), result: format!("🔍 Поиск: '{}'\n\n(нет результатов)", query), formatted_output: None, metadata: HashMap::new() });
+                    return Ok(ToolOutput {
+                        success: status.is_success(),
+                        result: format!("🔍 Поиск: '{}'\n\n(нет результатов)", query),
+                        formatted_output: None,
+                        metadata: HashMap::new(),
+                    });
                 }
                 let mut out = format!("🔍 Поиск: '{}'\n\n", query);
-                for (i, r) in results.iter().enumerate() { out.push_str(&format!("{}. {}\n", i+1, r)); }
-                Ok(ToolOutput { success: true, result: out, formatted_output: None, metadata: HashMap::new() })
+                for (i, r) in results.iter().enumerate() {
+                    out.push_str(&format!("{}. {}\n", i + 1, r));
+                }
+                Ok(ToolOutput {
+                    success: true,
+                    result: out,
+                    formatted_output: None,
+                    metadata: HashMap::new(),
+                })
             }
         }
     }
@@ -146,34 +198,60 @@ impl Tool for WebSearch {
             .trim()
             .to_string();
         args.insert("query".to_string(), query_clean);
-        Ok(ToolInput { command: "web_search".to_string(), args, context: Some(query.to_string()), dry_run: false, timeout_ms: None })
+        Ok(ToolInput {
+            command: "web_search".to_string(),
+            args,
+            context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
+        })
     }
 }
 
 pub struct WebFetch;
 
 impl WebFetch {
-    pub fn new() -> Self { WebFetch }
+    pub fn new() -> Self {
+        WebFetch
+    }
 }
 
-impl Default for WebFetch { fn default() -> Self { Self::new() } }
+impl Default for WebFetch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 fn is_textual_content(content_type: Option<&str>) -> bool {
     if let Some(ct) = content_type {
         let l = ct.to_lowercase();
-        return l.starts_with("text/") || l.contains("application/json") || l.contains("application/xml") || l.contains("application/javascript");
+        return l.starts_with("text/")
+            || l.contains("application/json")
+            || l.contains("application/xml")
+            || l.contains("application/javascript");
     }
     true
 }
 
-async fn fetch_http_with_limit(url: &str, timeout_ms: Option<u64>, max_bytes: usize) -> Result<(u16, String, String, usize)> {
+async fn fetch_http_with_limit(
+    url: &str,
+    timeout_ms: Option<u64>,
+    max_bytes: usize,
+) -> Result<(u16, String, String, usize)> {
     let client = reqwest::Client::builder()
         .user_agent("MagrayBot/0.1 (+https://example.local)")
-        .timeout(std::time::Duration::from_millis(timeout_ms.unwrap_or(10_000)))
+        .timeout(std::time::Duration::from_millis(
+            timeout_ms.unwrap_or(10_000),
+        ))
         .build()?;
     let resp = client.get(url).send().await?;
     let status = resp.status().as_u16();
-    let content_type = resp.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
     let mut collected: Vec<u8> = Vec::with_capacity(4096);
     let mut resp = resp;
     while let Some(bytes) = resp.chunk().await? {
@@ -182,10 +260,16 @@ async fn fetch_http_with_limit(url: &str, timeout_ms: Option<u64>, max_bytes: us
             break;
         }
         collected.extend_from_slice(&bytes);
-        if collected.len() >= max_bytes { break; }
+        if collected.len() >= max_bytes {
+            break;
+        }
     }
     let bytes_len = collected.len();
-    let body = if is_textual_content(Some(&content_type)) { String::from_utf8_lossy(&collected).to_string() } else { format!("[binary content: {} bytes]", bytes_len) };
+    let body = if is_textual_content(Some(&content_type)) {
+        String::from_utf8_lossy(&collected).to_string()
+    } else {
+        format!("[binary content: {} bytes]", bytes_len)
+    };
     Ok((status, content_type, body, bytes_len))
 }
 
@@ -196,7 +280,11 @@ fn decode_data_url(url: &str) -> Result<(String, usize)> {
     let meta = parts.next().ok_or_else(|| anyhow!("bad data url"))?;
     let data = parts.next().ok_or_else(|| anyhow!("bad data url"))?;
     let is_base64 = meta.ends_with(";base64");
-    let bytes = if is_base64 { base64::engine::general_purpose::STANDARD.decode(data)? } else { urlencoding::decode(data)?.into_owned().into_bytes() };
+    let bytes = if is_base64 {
+        base64::engine::general_purpose::STANDARD.decode(data)?
+    } else {
+        urlencoding::decode(data)?.into_owned().into_bytes()
+    };
     let text = String::from_utf8_lossy(&bytes).to_string();
     Ok((text, bytes.len()))
 }
@@ -226,33 +314,56 @@ impl Tool for WebFetch {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'url'"))?
             .to_string();
 
+        // SECURITY: Валидация URL перед fetch
+        validate_input_url(&url)?;
+
         if input.dry_run {
             let mut meta = HashMap::new();
             meta.insert("dry_run".into(), "true".into());
-            return Ok(ToolOutput { success: true, result: format!("[dry-run] GET {}", url), formatted_output: None, metadata: meta });
+            return Ok(ToolOutput {
+                success: true,
+                result: format!("[dry-run] GET {}", url),
+                formatted_output: None,
+                metadata: meta,
+            });
         }
 
         // Support schemes: http(s), file, data
         let max_bytes: usize = 1_048_576; // 1 MB cap
         let timeout_ms = input.timeout_ms;
-        let (success, result, formatted_output, metadata): (bool, String, Option<String>, HashMap<String, String>);
+        let (success, result, formatted_output, metadata): (
+            bool,
+            String,
+            Option<String>,
+            HashMap<String, String>,
+        );
         if url.starts_with("http://") || url.starts_with("https://") {
             ensure_net_allowed(&url)?;
             match fetch_http_with_limit(&url, timeout_ms, max_bytes).await {
                 Ok((status, content_type, body, bytes)) => {
-                    let truncated = if body.len() > 100_000 { format!("{}\n... [truncated]", &body[..100_000]) } else { body };
+                    let truncated = if body.len() > 100_000 {
+                        format!("{}\n... [truncated]", &body[..100_000])
+                    } else {
+                        body
+                    };
                     let mut meta = HashMap::new();
                     meta.insert("status".into(), status.to_string());
                     meta.insert("content_type".into(), content_type);
                     meta.insert("bytes".into(), bytes.to_string());
                     meta.insert("source".into(), "http".into());
-                    (success, result, formatted_output, metadata) = (status < 400, format!("📄 GET {} -> {} ({} bytes)", url, status, bytes), Some(truncated), meta);
+                    (success, result, formatted_output, metadata) = (
+                        status < 400,
+                        format!("📄 GET {} -> {} ({} bytes)", url, status, bytes),
+                        Some(truncated),
+                        meta,
+                    );
                 }
                 Err(e) => {
                     let mut meta = HashMap::new();
                     meta.insert("error".into(), e.to_string());
                     meta.insert("source".into(), "http".into());
-                    (success, result, formatted_output, metadata) = (false, format!("✗ HTTP error: {}", e), None, meta);
+                    (success, result, formatted_output, metadata) =
+                        (false, format!("✗ HTTP error: {}", e), None, meta);
                 }
             }
         } else if let Some(path) = url.strip_prefix("file://") {
@@ -263,13 +374,19 @@ impl Tool for WebFetch {
                     meta.insert("bytes".into(), len.to_string());
                     meta.insert("source".into(), "file".into());
                     let text = String::from_utf8_lossy(&bytes).to_string();
-                    (success, result, formatted_output, metadata) = (true, format!("📄 FILE {} ({} bytes)", path, len), Some(text), meta);
+                    (success, result, formatted_output, metadata) = (
+                        true,
+                        format!("📄 FILE {} ({} bytes)", path, len),
+                        Some(text),
+                        meta,
+                    );
                 }
                 Err(e) => {
                     let mut meta = HashMap::new();
                     meta.insert("error".into(), e.to_string());
                     meta.insert("source".into(), "file".into());
-                    (success, result, formatted_output, metadata) = (false, format!("✗ FILE error: {}", e), None, meta);
+                    (success, result, formatted_output, metadata) =
+                        (false, format!("✗ FILE error: {}", e), None, meta);
                 }
             }
         } else if url.starts_with("data:") {
@@ -278,20 +395,29 @@ impl Tool for WebFetch {
                     let mut meta = HashMap::new();
                     meta.insert("bytes".into(), bytes.to_string());
                     meta.insert("source".into(), "data".into());
-                    (success, result, formatted_output, metadata) = (true, format!("📄 DATA ({} bytes)", bytes), Some(text), meta);
+                    (success, result, formatted_output, metadata) =
+                        (true, format!("📄 DATA ({} bytes)", bytes), Some(text), meta);
                 }
                 Err(e) => {
                     let mut meta = HashMap::new();
                     meta.insert("error".into(), e.to_string());
                     meta.insert("source".into(), "data".into());
-                    (success, result, formatted_output, metadata) = (false, format!("✗ DATA error: {}", e), None, meta);
+                    (success, result, formatted_output, metadata) =
+                        (false, format!("✗ DATA error: {}", e), None, meta);
                 }
             }
         } else {
-            return Err(anyhow!("Неподдерживаемая схема URL. Используйте http(s)://, file:// или data:"));
+            return Err(anyhow!(
+                "Неподдерживаемая схема URL. Используйте http(s)://, file:// или data:"
+            ));
         }
 
-        Ok(ToolOutput { success, result, formatted_output, metadata })
+        Ok(ToolOutput {
+            success,
+            result,
+            formatted_output,
+            metadata,
+        })
     }
 
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
@@ -315,6 +441,12 @@ impl Tool for WebFetch {
             args.insert("url".to_string(), query.to_string());
         }
 
-        Ok(ToolInput { command: "web_fetch".to_string(), args, context: Some(query.to_string()), dry_run: false, timeout_ms: None })
+        Ok(ToolInput {
+            command: "web_fetch".to_string(),
+            args,
+            context: Some(query.to_string()),
+            dry_run: false,
+            timeout_ms: None,
+        })
     }
 }

@@ -235,11 +235,7 @@ pub type ServiceFactory = Box<
 >;
 #[cfg(feature = "minimal")]
 pub type ServiceFactory = Box<
-    dyn Fn(
-            &dyn DynamicDIContainer,
-        ) -> Result<Box<dyn Any + Send + Sync>, DIError>
-        + Send
-        + Sync,
+    dyn Fn(&dyn DynamicDIContainer) -> Result<Box<dyn Any + Send + Sync>, DIError> + Send + Sync,
 >;
 
 /// === CONTAINER BUILDER INTERFACE ===

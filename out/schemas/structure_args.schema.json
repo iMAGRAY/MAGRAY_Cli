@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StructureArgs",
+  "type": "object",
+  "properties": {
+    "projectPath": {
+      "default": ".",
+      "type": "string"
+    },
+    "detailLevel": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "maxOutputChars": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 0.0
+    },
+    "etag": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

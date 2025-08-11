@@ -158,7 +158,6 @@ impl BatchOperationManager {
             by_layer.entry(record.layer).or_default().push(record);
         }
 
-        // Add to pending batches with async lock
         let mut pending = self.pending_batches.write().await;
         let mut needs_flush = Vec::new();
 
@@ -166,7 +165,6 @@ impl BatchOperationManager {
             let batch = pending.entry(layer).or_default();
             batch.append(&mut new_records);
 
-            // Check if batch needs flushing
             if batch.len() >= self.config.max_batch_size {
                 needs_flush.push(layer);
             }
@@ -533,7 +531,6 @@ impl BatchOperationBuilder {
     }
 
     pub fn optimize_for_locality(mut self) -> Self {
-        // Sort records by layer for better cache locality
         self.records.sort_by_key(|r| r.layer);
         self
     }
@@ -717,7 +714,6 @@ mod tests {
             .add_record(create_test_record(Layer::Interact))
             .optimize_for_locality();
 
-        // Records should be sorted by layer for better locality
         let grouped = builder.group_by_layer();
         assert_eq!(grouped.len(), 3);
 

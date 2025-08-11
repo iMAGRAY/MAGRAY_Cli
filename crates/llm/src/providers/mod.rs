@@ -191,7 +191,6 @@ pub trait LlmProvider: Send + Sync {
         &self,
         request: LlmRequest,
     ) -> Result<tokio::sync::mpsc::Receiver<String>> {
-        // Default implementation for non-streaming providers
         let response = self.complete(request).await?;
         let (tx, rx) = tokio::sync::mpsc::channel(1);
 

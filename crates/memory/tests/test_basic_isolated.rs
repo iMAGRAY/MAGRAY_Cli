@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 // =============================================================================
 // ISOLATED BASIC TESTS - Минимальные изолированные тесты без зависимостей

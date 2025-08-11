@@ -24,7 +24,6 @@ use uuid::Uuid;
 use chrono::Utc;
 use std::collections::HashMap;
 
-
 /// Утилита для создания тестовых записей
 fn create_test_record(text: &str, layer: Layer, session: &str) -> Record {
     Record {

@@ -80,7 +80,6 @@ impl EmbeddingServiceAdapter {
 
     /// Generate embedding with fallback logic
     async fn embed_with_fallback(&self, text: &str) -> ApplicationResult<Vec<f32>> {
-        // Try GPU first if configured
         if self.should_use_gpu().await {
             if let Some(ref gpu_service) = self.gpu_service {
                 match gpu_service.embed(text).await {
@@ -107,7 +106,6 @@ impl EmbeddingServiceAdapter {
 
     /// Generate batch embeddings with optimal service selection
     async fn embed_batch_with_fallback(&self, texts: &[String]) -> ApplicationResult<Vec<Vec<f32>>> {
-        // Try GPU first if configured and available
         if self.should_use_gpu().await {
             if let Some(ref gpu_service) = self.gpu_service {
                 match gpu_service.embed_batch(texts).await {
@@ -244,7 +242,6 @@ impl EmbeddingProvider for EmbeddingServiceAdapter {
     }
 
     async fn get_embedding_dimensions(&self) -> ApplicationResult<usize> {
-        // Prefer GPU service if available, otherwise CPU
         if self.should_use_gpu().await {
             if let Some(ref gpu_service) = self.gpu_service {
                 return Ok(gpu_service.dimensions());

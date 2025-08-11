@@ -1,4 +1,7 @@
-#![cfg_attr(feature = "minimal", allow(dead_code, unused_imports, unused_variables))]
+#![cfg_attr(
+    feature = "minimal",
+    allow(dead_code, unused_imports, unused_variables)
+)]
 
 #[cfg(not(feature = "minimal"))]
 mod batch_manager;
@@ -9,14 +12,11 @@ mod cache_interface;
 #[cfg(not(feature = "minimal"))]
 mod cache_lru;
 #[cfg(not(feature = "minimal"))]
-mod cache_migration;
-#[cfg(not(feature = "minimal"))]
 pub mod fallback;
 #[cfg(not(feature = "minimal"))]
 pub mod health;
 #[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
-pub mod hnsw_index; // Модульная HNSW архитектура
-                    // pub mod layers; // ВРЕМЕННО ОТКЛЮЧЕНО для бенчмарка - проблемы с sqlx
+pub mod hnsw_index;
 #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 #[cfg(not(feature = "minimal"))]
@@ -38,10 +38,10 @@ pub mod simd_fixed; // Исправленная SIMD реализация для
 #[cfg(all(not(feature = "minimal"), feature = "rayon"))]
 pub mod simd_optimized; // SIMD оптимизации для векторных операций
 #[cfg(not(feature = "minimal"))]
+pub mod simd_safe_replacement; // БЕЗОПАСНАЯ замена для небезопасных SIMD операций
+#[cfg(not(feature = "minimal"))]
 pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance // FACADE для обратной совместимости
 
-// Re-export для обратной совместимости
-// pub use di::{DIMemoryService, DIMemoryServiceBuilder}; // ВРЕМЕННО ОТКЛЮЧЕНО
 #[cfg(not(feature = "minimal"))]
 pub use service_di::service_config::default_config;
 #[cfg(not(feature = "minimal"))]
@@ -54,8 +54,8 @@ mod database_manager;
 mod flush_config;
 #[cfg(not(feature = "minimal"))]
 pub mod gpu_accelerated;
-#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
-pub mod migration;
+#[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
+pub mod keyword_index;
 #[cfg(not(feature = "minimal"))]
 pub mod resource_manager;
 #[cfg(not(feature = "minimal"))]
@@ -69,24 +69,17 @@ pub mod transaction;
 #[cfg(not(feature = "minimal"))]
 pub mod types;
 #[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
-mod vector_index_hnswlib; // Critical for vector storage
-#[cfg(all(not(feature = "minimal"), feature = "keyword-search"))]
-pub mod keyword_index; // BM25/Tantivy индекс для гибридного поиска
-                          
+mod vector_index_hnswlib; // Critical for vector storage // BM25/Tantivy индекс для гибридного поиска
+
 // Экспорт единой DI-системы
 pub mod di;
-
-// container factory/config are not exported from unified di; remove these re-exports
 
 // ОСНОВНОЙ DI API (в минимальном профиле доступен базовый контейнер)
 #[cfg(not(feature = "minimal"))]
 pub use di::{
-    UnifiedContainer as DIContainer,
-    UnifiedContainerBuilder as DIContainerBuilder,
-    Lifetime,
+    Lifetime, UnifiedContainer as DIContainer, UnifiedContainerBuilder as DIContainerBuilder,
 };
 
-// Legacy API types - перенаправляем на реальные типы из di
 pub use di::{DIContainerStats, DIPerformanceMetrics};
 // Оркестрация системы памяти (отключаем по умолчанию для минимальной сборки)
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
@@ -97,24 +90,21 @@ pub mod services;
 // Utility functions и error handling
 #[cfg(not(feature = "minimal"))]
 pub mod utils;
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+pub use batch_manager::{BatchConfig, BatchOperationBuilder, BatchOperationManager, BatchStats};
 #[cfg(all(not(feature = "minimal"), feature = "vector-search"))]
 pub use batch_optimized::{
     AlignedBatchVectors, BatchOptimizedConfig, BatchOptimizedProcessor, BatchOptimizedStats,
 };
-#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
-pub use batch_manager::{BatchConfig, BatchOperationBuilder, BatchOperationManager, BatchStats};
 #[cfg(not(feature = "minimal"))]
 pub use cache_lru::{
     CacheConfig as LruCacheConfig, CacheConfig, EmbeddingCacheLRU as EmbeddingCache,
 };
 
-// Cache configuration type for service - теперь только LRU
 #[cfg(not(feature = "minimal"))]
 pub type CacheConfigType = LruCacheConfig;
 #[cfg(not(feature = "minimal"))]
 pub use types::{Layer, PromotionConfig, Record, SearchOptions};
-// Legacy MemoryService удален - используем DIMemoryService через unified_container
-// Batch result types доступны только при включенных orchestration-modules
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use service_di::{BatchInsertResult, BatchSearchResult};
 
@@ -143,19 +133,6 @@ pub use services::{
 #[cfg(all(not(feature = "minimal"), feature = "services-modules"))]
 pub use services::{RefactoredDIMemoryService, RefactoredDIMemoryServiceBuilder};
 
-// ВРЕМЕННО ОТКЛЮЧЕНО - НОВАЯ СЛОЕВАЯ АРХИТЕКТУРА
-// pub use layers::{
-//     // Trait definitions
-//     StorageLayer, IndexLayer, QueryLayer, CacheLayer, LayerHealth,
-//     // Concrete implementations
-//     LayeredMemoryBuilder, LayeredDIContainer,
-//     // Configuration types
-//     StorageConfig, IndexConfig, QueryConfig, CacheConfig,
-//     // Result types
-//     VectorSearchResult, StorageStats, IndexStats, QueryStats, RankingCriteria,
-//     LayerHealthStatus,
-// };
-// MemoryDIConfigurator moved to di/unified_container.rs
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub use database_manager::DatabaseManager;
 #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
@@ -195,13 +172,6 @@ pub use storage::VectorStore;
 #[cfg(not(feature = "minimal"))]
 pub use transaction::{Transaction, TransactionGuard, TransactionManager};
 
-/// Быстрое создание DI Memory Service с конфигурацией по умолчанию - ВРЕМЕННО ОТКЛЮЧЕНО
-/// DIMemoryService не существует - используйте RefactoredDIMemoryService
-// pub async fn create_di_memory_service() -> anyhow::Result<DIMemoryService> {
-//     let config = service_di::service_config::default_config()?;
-//     DIMemoryService::new(config).await
-// }
-
 // Профессиональная HNSW реализация - единственная векторная реализация
 #[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 pub use vector_index_hnswlib::{HnswRsConfig, HnswRsStats, VectorIndexHnswRs};
@@ -225,13 +195,6 @@ pub use streaming::{
     StreamingResult,
 };
 
-// Re-export for backward compatibility
 #[cfg(not(feature = "minimal"))]
 pub use types::Layer as MemoryLayer;
 
-// Utility functions для улучшенного error handling
-// ВРЕМЕННО ОТКЛЮЧЕНО для исправления ошибок компиляции
-// pub use utils::{production_helpers, test_helpers, ErrorUtils};
-
-// Deprecated types removed in v0.3.0
-// Use Layer enum and Record struct instead

@@ -473,7 +473,6 @@ impl RequestProcessorTrait for RefactoredUnifiedAgent {
             return Err(anyhow::anyhow!("RefactoredUnifiedAgent не инициализирован"));
         }
 
-        // Поскольку process_request_internal требует &mut self, а этот метод &self,
         // нам нужно сделать внутренние компоненты thread-safe или изменить архитектуру.
         // Для упрощения, сейчас вернем ошибку с пояснением.
         Err(anyhow::anyhow!(

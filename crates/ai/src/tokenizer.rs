@@ -89,13 +89,11 @@ impl TokenizerService {
         let mut input_ids = encoding.get_ids().to_vec();
         let mut attention_mask = encoding.get_attention_mask().to_vec();
 
-        // Truncate if too long
         if input_ids.len() > self.max_length {
             input_ids.truncate(self.max_length);
             attention_mask.truncate(self.max_length);
         }
 
-        // Pad if too short
         while input_ids.len() < self.max_length {
             input_ids.push(0); // PAD token
             attention_mask.push(0);

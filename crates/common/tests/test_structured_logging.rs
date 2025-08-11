@@ -181,8 +181,6 @@ fn test_init_structured_logging_idempotent() {
     // Multiple calls should not panic
     let _ = init_structured_logging();
     let _ = init_structured_logging();
-
-    // Test passed if no panic occurred
 }
 
 #[test]

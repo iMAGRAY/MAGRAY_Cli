@@ -3,11 +3,10 @@
 //! Combines memory and embedding operations for semantic search
 
 use crate::entities::{MemoryRecord, SearchQuery};
-use async_trait::async_trait;
-// Re-export SimilarityResult from embedding_repository for convenience
 use crate::errors::DomainResult;
 pub use crate::repositories::embedding_repository::SimilarityResult;
 use crate::SimilarityScore;
+use async_trait::async_trait;
 
 /// Repository abstraction for semantic search operations
 ///

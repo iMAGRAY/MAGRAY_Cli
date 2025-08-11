@@ -12,14 +12,20 @@ pub struct KeywordIndex {
 }
 
 impl KeywordIndex {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn add_document(&mut self, id: &str, text: &str, layer: Layer) -> Result<()> {
         let tokens = tokenize(text);
-        if tokens.is_empty() { return Ok(()); }
+        if tokens.is_empty() {
+            return Ok(());
+        }
 
         let mut tf_map: HashMap<String, u32> = HashMap::new();
-        for tok in tokens.iter() { *tf_map.entry(tok.clone()).or_insert(0) += 1; }
+        for tok in tokens.iter() {
+            *tf_map.entry(tok.clone()).or_insert(0) += 1;
+        }
 
         let id_string = id.to_string();
         let length = tokens.len() as u32;
@@ -28,14 +34,24 @@ impl KeywordIndex {
         self.total_docs += 1;
 
         for (token, tf) in tf_map.into_iter() {
-            self.inverted_index.entry(token).or_default().push((id_string.clone(), tf));
+            self.inverted_index
+                .entry(token)
+                .or_default()
+                .push((id_string.clone(), tf));
         }
         Ok(())
     }
 
-    pub fn search(&self, query: &str, k: usize, layer: Option<Layer>) -> Result<Vec<(String, f32)>> {
+    pub fn search(
+        &self,
+        query: &str,
+        k: usize,
+        layer: Option<Layer>,
+    ) -> Result<Vec<(String, f32)>> {
         let query_tokens = tokenize(query);
-        if query_tokens.is_empty() || self.total_docs == 0 { return Ok(vec![]); }
+        if query_tokens.is_empty() || self.total_docs == 0 {
+            return Ok(vec![]);
+        }
 
         let avgdl: f32 = {
             let sum: u64 = self.doc_len.values().map(|&l| l as u64).sum();
@@ -55,7 +71,9 @@ impl KeywordIndex {
                     if let Some(dl) = self.doc_len.get(doc_id) {
                         if let Some(l_filter) = layer {
                             if let Some(doc_layer) = self.id_to_layer.get(doc_id) {
-                                if *doc_layer != l_filter { continue; }
+                                if *doc_layer != l_filter {
+                                    continue;
+                                }
                             }
                         }
                         let tf = *tf as f32;
@@ -78,8 +96,11 @@ impl KeywordIndex {
 fn tokenize(text: &str) -> Vec<String> {
     let mut norm = String::with_capacity(text.len());
     for ch in text.chars() {
-        if ch.is_alphanumeric() { norm.push(ch.to_ascii_lowercase()); }
-        else { norm.push(' '); }
+        if ch.is_alphanumeric() {
+            norm.push(ch.to_ascii_lowercase());
+        } else {
+            norm.push(' ');
+        }
     }
     norm.split_whitespace().map(|s| s.to_string()).collect()
 }

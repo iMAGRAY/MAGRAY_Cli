@@ -148,11 +148,6 @@ impl HnswConfig {
     pub fn estimate_memory_usage(&self, element_count: usize) -> u64 {
         let actual_elements = element_count.min(self.max_elements);
 
-        // Приблизительная формула для HNSW:
-        // - каждый вектор: dimension * 4 bytes (f32)
-        // - граф соединений: connections * node_count * 4 bytes (usize)
-        // - служебные структуры: ~20% overhead
-
         let vector_data = (actual_elements * self.dimension * 4) as u64;
         let graph_data = (actual_elements * self.max_connections * 4) as u64;
         let overhead = ((vector_data + graph_data) as f64 * 0.2) as u64;

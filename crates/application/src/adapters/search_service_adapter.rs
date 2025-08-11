@@ -117,7 +117,6 @@ impl SearchProvider for SearchServiceAdapter {
             errors.push(format!("Text indexing failed: {}", e));
         }
         
-        // Index in vector search if embedding is available
         if let Some(ref embedding) = document.embedding {
             if let Err(e) = self.vector_search_service.add_vector(&document.id, embedding.as_vec()).await {
                 errors.push(format!("Vector indexing failed: {}", e));
@@ -284,7 +283,6 @@ impl SearchProvider for SearchServiceAdapter {
         // Perform both vector and text search
         let mut all_matches = std::collections::HashMap::new();
         
-        // Vector search (if embedding provided)
         if let Some(ref query_vector) = request.query_vector {
             let vector_request = VectorSearchRequest {
                 query_vector: query_vector.clone(),
@@ -422,7 +420,6 @@ impl SearchProvider for SearchServiceAdapter {
     }
 
     async fn get_document(&self, document_id: &str) -> ApplicationResult<Option<SearchDocument>> {
-        // This would require a document store - for now return None
         Ok(None)
     }
 

@@ -26,7 +26,6 @@ use tokio::time::{sleep, Duration, Instant};
 use uuid::Uuid;
 use chrono::Utc;
 
-
 /// Утилита для создания DI test service
 async fn create_di_test_service() -> Result<DIMemoryService> {
     let temp_dir = TempDir::new()?;

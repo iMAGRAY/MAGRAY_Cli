@@ -147,7 +147,6 @@ fn test_has_sufficient_memory() {
         driver_version: "530.41".to_string(),
     };
 
-    // Should have sufficient memory (using free memory for check)
     assert!(detector.has_sufficient_memory(8000)); // 8GB required, 14GB free
     assert!(detector.has_sufficient_memory(14000)); // Exactly 14GB free
 
@@ -280,13 +279,11 @@ fn test_multiple_gpus() {
     assert_eq!(detector.devices[0].index, 0);
     assert_eq!(detector.devices[1].index, 1);
 
-    // Should use highest free memory GPU for memory check
     assert!(detector.has_sufficient_memory(12000)); // Uses GPU 1 (14GB free)
 }
 
 #[test]
 fn test_gpu_detector_basic() {
-    // This will use whatever is available on the system
     let detector = GpuDetector::detect();
 
     // Should create a valid result regardless of GPU availability
@@ -300,7 +297,6 @@ fn test_gpu_detector_basic() {
             assert!(device.total_memory_mb > 0);
         }
     } else {
-        // Might be empty if no NVIDIA GPUs are available
         assert!(true); // Always passes
     }
 }

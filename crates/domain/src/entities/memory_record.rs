@@ -103,7 +103,9 @@ impl MemoryRecord {
     }
 
     /// Builder for creating MemoryRecord with optional metadata fields
-    pub fn builder() -> MemoryRecordBuilder { MemoryRecordBuilder::default() }
+    pub fn builder() -> MemoryRecordBuilder {
+        MemoryRecordBuilder::default()
+    }
 
     // Getters - immutable access to record data
     pub fn id(&self) -> RecordId {
@@ -262,14 +264,38 @@ pub struct MemoryRecordBuilder {
 }
 
 impl MemoryRecordBuilder {
-    pub fn id(mut self, id: RecordId) -> Self { self.id = Some(id); self }
-    pub fn content(mut self, content: impl Into<String>) -> Self { self.content = Some(content.into()); self }
-    pub fn layer(mut self, layer: LayerType) -> Self { self.layer = Some(layer); self }
-    pub fn kind(mut self, kind: impl Into<String>) -> Self { self.kind = Some(kind.into()); self }
-    pub fn project(mut self, project: impl Into<String>) -> Self { self.project = Some(project.into()); self }
-    pub fn session(mut self, session: impl Into<String>) -> Self { self.session = Some(session.into()); self }
-    pub fn created_at(mut self, ts: DateTime<Utc>) -> Self { self.created_at = Some(ts); self }
-    pub fn access_pattern(mut self, ap: AccessPattern) -> Self { self.access_pattern = Some(ap); self }
+    pub fn id(mut self, id: RecordId) -> Self {
+        self.id = Some(id);
+        self
+    }
+    pub fn content(mut self, content: impl Into<String>) -> Self {
+        self.content = Some(content.into());
+        self
+    }
+    pub fn layer(mut self, layer: LayerType) -> Self {
+        self.layer = Some(layer);
+        self
+    }
+    pub fn kind(mut self, kind: impl Into<String>) -> Self {
+        self.kind = Some(kind.into());
+        self
+    }
+    pub fn project(mut self, project: impl Into<String>) -> Self {
+        self.project = Some(project.into());
+        self
+    }
+    pub fn session(mut self, session: impl Into<String>) -> Self {
+        self.session = Some(session.into());
+        self
+    }
+    pub fn created_at(mut self, ts: DateTime<Utc>) -> Self {
+        self.created_at = Some(ts);
+        self
+    }
+    pub fn access_pattern(mut self, ap: AccessPattern) -> Self {
+        self.access_pattern = Some(ap);
+        self
+    }
 
     pub fn build(self) -> DomainResult<MemoryRecord> {
         let id = self.id.unwrap_or_default();
@@ -280,7 +306,9 @@ impl MemoryRecordBuilder {
         let session = self.session.unwrap_or_default();
         let created_at = self.created_at.unwrap_or_else(Utc::now);
         let access_pattern = self.access_pattern.unwrap_or_default();
-        if content.trim().is_empty() { return Err(DomainError::EmptyContent); }
+        if content.trim().is_empty() {
+            return Err(DomainError::EmptyContent);
+        }
         Ok(MemoryRecord {
             id,
             content,
@@ -386,7 +414,6 @@ mod tests {
             record.record_access();
         }
 
-        // Should be eligible for promotion now
         // (Note: this is simplified - real access pattern tracking is more complex)
         assert_eq!(record.access_pattern().access_count(), 6);
     }

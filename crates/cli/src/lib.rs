@@ -17,7 +17,6 @@ pub mod refactored_unified_agent;
 pub mod strategies;
 pub mod unified_agent_v2;
 pub mod util;
-// pub mod services; // Временно отключено - архитектурная несовместимость
 
 #[cfg(all(test, feature = "extended-tests"))]
 mod agent_tests;
@@ -44,4 +43,3 @@ pub use refactored_unified_agent::{
 };
 pub use strategies::*;
 pub use unified_agent_v2::UnifiedAgentV2; // Direct access to V2 implementation
-                                          // pub use services::{ServiceOrchestrator, create_services_container};

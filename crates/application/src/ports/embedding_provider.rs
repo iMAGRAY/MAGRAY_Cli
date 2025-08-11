@@ -182,7 +182,6 @@ impl EmbeddingProvider for MockEmbeddingProvider {
         if let Some(response) = self.responses.front() {
             response.clone()
         } else {
-            // Return random embedding for testing
             Ok((0..self.dimensions).map(|_| rand::random::<f32>()).collect())
         }
     }

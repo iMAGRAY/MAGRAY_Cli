@@ -77,7 +77,6 @@ pub struct ToolSpec {
     pub usage: String,
     pub examples: Vec<String>,
     pub input_schema: String,
-    // Usage guide for tool selection and UX
     pub usage_guide: Option<UsageGuide>,
     // Permissions and dry-run capability
     pub permissions: Option<ToolPermissions>,
@@ -93,11 +92,21 @@ impl ToolSpec {
 
 pub fn generate_usage_guide(spec: &ToolSpec) -> UsageGuide {
     let mut args_brief = HashMap::new();
-    if spec.input_schema.contains("url") { args_brief.insert("url".into(), "HTTP/HTTPS URL".into()); }
-    if spec.input_schema.contains("path") { args_brief.insert("path".into(), "File path".into()); }
-    if spec.input_schema.contains("cmd") { args_brief.insert("cmd".into(), "Shell command".into()); }
+    if spec.input_schema.contains("url") {
+        args_brief.insert("url".into(), "HTTP/HTTPS URL".into());
+    }
+    if spec.input_schema.contains("path") {
+        args_brief.insert("path".into(), "File path".into());
+    }
+    if spec.input_schema.contains("cmd") {
+        args_brief.insert("cmd".into(), "Shell command".into());
+    }
 
-    let examples = if !spec.examples.is_empty() { spec.examples.clone() } else { vec![format!("{} --help", spec.name)] };
+    let examples = if !spec.examples.is_empty() {
+        spec.examples.clone()
+    } else {
+        vec![format!("{} --help", spec.name)]
+    };
 
     UsageGuide {
         usage_title: spec.name.clone(),
@@ -123,7 +132,9 @@ pub fn generate_usage_guide(spec: &ToolSpec) -> UsageGuide {
 pub trait Tool: Send + Sync {
     fn spec(&self) -> ToolSpec;
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput>;
-    fn supports_natural_language(&self) -> bool { true }
+    fn supports_natural_language(&self) -> bool {
+        true
+    }
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput>;
 }
 
@@ -136,7 +147,10 @@ pub struct ToolRegistry {
 
 impl ToolRegistry {
     pub fn new() -> Self {
-        let mut registry = Self { tools: HashMap::new(), security_enforcer: None };
+        let mut registry = Self {
+            tools: HashMap::new(),
+            security_enforcer: None,
+        };
         // Регистрируем базовые инструменты
         registry.register("file_read", Box::new(file_ops::FileReader::new()));
         registry.register("file_write", Box::new(file_ops::FileWriter::new()));
@@ -161,17 +175,27 @@ impl ToolRegistry {
     }
 
     pub fn list_tools(&self) -> Vec<ToolSpec> {
-        self.tools.values().map(|tool| {
-            let mut spec = tool.spec();
-            if spec.usage_guide.is_none() {
-                spec.usage_guide = Some(generate_usage_guide(&spec));
-            }
-            spec
-        }).collect()
+        self.tools
+            .values()
+            .map(|tool| {
+                let mut spec = tool.spec();
+                if spec.usage_guide.is_none() {
+                    spec.usage_guide = Some(generate_usage_guide(&spec));
+                }
+                spec
+            })
+            .collect()
     }
 
     /// Зарегистрировать MCP tool, проксирующий удалённый MCP сервер/процесс по stdio
-    pub fn register_mcp_tool(&mut self, name: &str, cmd: String, args: Vec<String>, remote_tool: String, description: String) {
+    pub fn register_mcp_tool(
+        &mut self,
+        name: &str,
+        cmd: String,
+        args: Vec<String>,
+        remote_tool: String,
+        description: String,
+    ) {
         let tool = mcp::McpTool::new(cmd, args, remote_tool, description);
         self.register(name, Box::new(tool));
     }
@@ -183,4 +207,8 @@ impl ToolRegistry {
     }
 }
 
-impl Default for ToolRegistry { fn default() -> Self { Self::new() } }
+impl Default for ToolRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}

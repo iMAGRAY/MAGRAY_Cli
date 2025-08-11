@@ -8,7 +8,6 @@ pub mod search_memory_use_case;
 pub mod promote_records_use_case;
 pub mod analyze_usage_use_case;
 
-// Re-export use cases
 pub use store_memory_use_case::*;
 pub use search_memory_use_case::*;
 pub use promote_records_use_case::*;

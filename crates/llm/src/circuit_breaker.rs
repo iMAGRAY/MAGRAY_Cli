@@ -49,7 +49,6 @@ impl CircuitBreaker {
         match self.state {
             CircuitBreakerState::Closed => true,
             CircuitBreakerState::Open => {
-                // Check if enough time passed to try recovery
                 if let Some(last_failure) = self.last_failure_time {
                     if last_failure.elapsed() >= self.recovery_timeout {
                         info!("🔄 Circuit breaker moving to HALF_OPEN state");
@@ -183,7 +182,6 @@ mod tests {
         assert_eq!(cb.state, CircuitBreakerState::Open);
         assert!(!cb.can_execute());
 
-        // Wait for recovery timeout
         tokio::time::sleep(Duration::from_millis(150)).await;
         assert!(cb.can_execute()); // Should be half-open now
         assert_eq!(cb.state, CircuitBreakerState::HalfOpen);

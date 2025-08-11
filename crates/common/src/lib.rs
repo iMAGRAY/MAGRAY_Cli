@@ -1,15 +1,16 @@
 pub mod comprehensive_errors;
 pub mod config_base;
+pub mod event_bus;
+pub mod events;
+pub mod input_validation;
 pub mod macros;
+pub mod policy;
+pub mod sandbox_config;
+pub mod scheduler;
 pub mod service_macros;
 pub mod service_traits;
 pub mod structured_logging;
-pub mod event_bus;
 pub mod topics;
-pub mod scheduler;
-pub mod events;
-pub mod policy;
-pub mod sandbox_config;
 
 #[cfg(test)]
 pub mod test_utils;
@@ -26,13 +27,19 @@ pub use comprehensive_errors::{
     ResourceResult, SafeUnwrap,
 };
 
+// SECURITY: Export input validation functions
+pub use input_validation::{
+    validate_input_command, validate_input_path, validate_input_string, validate_input_url,
+    InputValidator, ValidationResult,
+};
+
 // Re-export service traits
 pub use service_traits::{
-    BaseService, BuildableService, CacheService, CacheStats as CacheLayerStats, CircuitBreakerService,
-    CircuitBreakerState, ClearableService, ConfigTrait, ConfigurationProfile, ExecutableService,
-    HealthCheckService, InitializableService, LifecycleService, LifecycleState, MetricsService,
-    PooledService, PoolStats, RetryConfig, RetryableService, SearchPage, SearchableService,
-    ServiceCoordinator, StatisticsProvider,
+    BaseService, BuildableService, CacheService, CacheStats as CacheLayerStats,
+    CircuitBreakerService, CircuitBreakerState, ClearableService, ConfigTrait,
+    ConfigurationProfile, ExecutableService, HealthCheckService, InitializableService,
+    LifecycleService, LifecycleState, MetricsService, PoolStats, PooledService, RetryConfig,
+    RetryableService, SearchPage, SearchableService, ServiceCoordinator, StatisticsProvider,
 };
 
 // Re-export config base components

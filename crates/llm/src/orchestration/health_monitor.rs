@@ -87,7 +87,6 @@ impl HealthMonitor {
             }));
         }
         
-        // Wait for all health checks to complete
         let results = futures::future::join_all(futures).await;
         
         let mut successful_checks = 0;

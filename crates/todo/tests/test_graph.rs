@@ -1,10 +1,13 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 use todo::{DependencyGraph, TaskState, TodoItem};
 use uuid::Uuid;
 
 fn create_test_task(title: &str) -> TodoItem {
-    TodoItem { title: title.to_string(), ..TodoItem::default() }
+    TodoItem {
+        title: title.to_string(),
+        ..TodoItem::default()
+    }
 }
 
 #[test]

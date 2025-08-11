@@ -197,7 +197,9 @@ impl EmbeddingCoordinator {
 
 #[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
 impl EmbeddingCoordinator {
-    pub fn new_stub() -> Self { Self }
+    pub fn new_stub() -> Self {
+        Self
+    }
 }
 
 #[async_trait]
@@ -310,11 +312,21 @@ impl Coordinator for EmbeddingCoordinator {
 #[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
 #[async_trait::async_trait]
 impl Coordinator for EmbeddingCoordinator {
-    async fn initialize(&self) -> Result<()> { Ok(()) }
-    async fn is_ready(&self) -> bool { true }
-    async fn health_check(&self) -> Result<()> { Ok(()) }
-    async fn shutdown(&self) -> Result<()> { Ok(()) }
-    async fn metrics(&self) -> serde_json::Value { serde_json::json!({"ready": true}) }
+    async fn initialize(&self) -> Result<()> {
+        Ok(())
+    }
+    async fn is_ready(&self) -> bool {
+        true
+    }
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+    async fn shutdown(&self) -> Result<()> {
+        Ok(())
+    }
+    async fn metrics(&self) -> serde_json::Value {
+        serde_json::json!({"ready": true})
+    }
 }
 
 #[async_trait]
@@ -460,13 +472,21 @@ impl EmbeddingCoordinatorTrait for EmbeddingCoordinator {
 #[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
 #[async_trait::async_trait]
 impl EmbeddingCoordinatorTrait for EmbeddingCoordinator {
-    async fn get_embedding(&self, _text: &str) -> Result<Vec<f32>> { Ok(vec![0.0; 1024]) }
+    async fn get_embedding(&self, _text: &str) -> Result<Vec<f32>> {
+        Ok(vec![0.0; 1024])
+    }
     async fn get_embeddings(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         Ok(texts.iter().map(|_| vec![0.0; 1024]).collect())
     }
-    async fn check_cache(&self, _text: &str) -> Option<Vec<f32>> { None }
-    async fn cache_stats(&self) -> (u64, u64, u64) { (0,0,0) }
-    async fn clear_cache(&self) -> Result<()> { Ok(()) }
+    async fn check_cache(&self, _text: &str) -> Option<Vec<f32>> {
+        None
+    }
+    async fn cache_stats(&self) -> (u64, u64, u64) {
+        (0, 0, 0)
+    }
+    async fn clear_cache(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
@@ -567,16 +587,25 @@ impl EmbeddingCoordinator {
         }
 
         // Простейшая адаптация: если средняя латентность растет - уменьшаем batch
-        let avg_latency: f64 =
-            config.recent_latencies.iter().map(|&x| x as f64).sum::<f64>()
-                / config.recent_latencies.len().max(1) as f64;
+        let avg_latency: f64 = config
+            .recent_latencies
+            .iter()
+            .map(|&x| x as f64)
+            .sum::<f64>()
+            / config.recent_latencies.len().max(1) as f64;
 
         if avg_latency > 50.0 && config.current_size > config.min_size {
             config.current_size = (config.current_size / 2).max(config.min_size);
-            debug!("📉 Снижаем batch размер до {} из-за высокой латентности {}ms", config.current_size, avg_latency);
+            debug!(
+                "📉 Снижаем batch размер до {} из-за высокой латентности {}ms",
+                config.current_size, avg_latency
+            );
         } else if avg_latency < 20.0 && config.current_size < config.max_size {
             config.current_size = (config.current_size * 2).min(config.max_size);
-            debug!("📈 Увеличиваем batch размер до {} при низкой латентности {}ms", config.current_size, avg_latency);
+            debug!(
+                "📈 Увеличиваем batch размер до {} при низкой латентности {}ms",
+                config.current_size, avg_latency
+            );
         }
     }
 }
@@ -584,8 +613,12 @@ impl EmbeddingCoordinator {
 #[cfg(not(all(not(feature = "minimal"), feature = "gpu-acceleration")))]
 impl EmbeddingCoordinator {
     async fn start_batch_processor(&self) {}
-    async fn warm_model(&self) -> Result<()> { Ok(()) }
-    pub async fn get_performance_metrics(&self) -> PerformanceMetrics { PerformanceMetrics::default() }
+    async fn warm_model(&self) -> Result<()> {
+        Ok(())
+    }
+    pub async fn get_performance_metrics(&self) -> PerformanceMetrics {
+        PerformanceMetrics::default()
+    }
     async fn adjust_batch_size(&self, _latency_ms: u64) {}
 }
 

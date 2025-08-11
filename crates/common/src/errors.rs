@@ -263,7 +263,6 @@ impl IsRecoverable for MagrayError {
             // Can fallback to CPU
             MagrayError::Gpu(_) => true,
             
-            // Can use cached value
             MagrayError::Network(_) => true,
             MagrayError::Embedding(_) => true,
             

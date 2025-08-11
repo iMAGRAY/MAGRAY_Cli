@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 //! Comprehensive unit tests для Unified Factory Architecture
 //!
@@ -380,16 +380,12 @@ async fn test_factory_integration_workflow() -> Result<()> {
     let factory = UnifiedServiceFactory::production(container.clone());
 
     // 2. В реальной ситуации мы бы создали все сервисы
-    // let services = factory.create_all_services().await?;
 
     // 3. И инициализировали их
-    // services.initialize_all_services().await?;
 
     // 4. И получили бы статистику
-    // let stats = services.get_comprehensive_statistics().await?;
 
     // 5. И выполнили graceful shutdown
-    // services.shutdown_all_services().await?;
 
     // Поскольку у нас нет полностью функциональных сервисов в тестах,
     // мы проверяем что основная логика работает

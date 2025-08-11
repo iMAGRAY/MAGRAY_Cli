@@ -61,7 +61,6 @@ async fn test_device_selection_with_config() {
 
     let result = selector.select_device(&config).await;
 
-    // Should return either success or error gracefully
     assert!(result.is_ok() || result.is_err());
 
     if let Ok(decision) = result {
@@ -81,7 +80,6 @@ async fn test_device_selection_caching() {
     // First call
     let result1 = selector.select_device(&config).await;
 
-    // Second call should potentially use cache
     let result2 = selector.select_device(&config).await;
 
     // Both should succeed or fail consistently

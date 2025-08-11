@@ -3,7 +3,6 @@ use std::process::Command;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Try full Python installer for Qwen3 ONNX models
     let status_full = Command::new("python3")
         .args(["scripts/install_qwen3_onnx.py", "--models-dir", "models"]) // run from workspace root
         .status();

@@ -763,10 +763,8 @@ mod tests {
         let semantic_analyzer = Box::new(SimpleSemanticAnalyzer::new());
 
         // Потребовала бы mock VectorStore для полного теста
-        // let processor = MLDataProcessor::new(store, usage_tracker, semantic_analyzer, config).await.unwrap();
 
         let record = create_test_record();
-        // let features = processor.extract_features(&record).await.unwrap();
 
         // assert!(features.age_hours > 0.0);
         // assert!(features.access_count > 0.0);

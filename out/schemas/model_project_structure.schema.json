@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ProjectStructure",
+  "type": "object",
+  "required": [
+    "file_types",
+    "files",
+    "layers",
+    "total_files"
+  ],
+  "properties": {
+    "total_files": {
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0.0
+    },
+    "file_types": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "format": "uint",
+        "minimum": 0.0
+      }
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/FileInfo"
+      }
+    }
+  },
+  "definitions": {
+    "FileInfo": {
+      "type": "object",
+      "required": [
+        "extension",
+        "name",
+        "path",
+        "size"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "extension": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}

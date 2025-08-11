@@ -175,7 +175,6 @@ impl CostOptimizer {
             }
         }
 
-        // For normal tasks, optimize for cost
         let mut best_provider = suitable_providers[0];
         let mut best_cost = f32::MAX;
 

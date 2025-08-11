@@ -40,10 +40,7 @@ impl DependencyGraph {
         self.graph.entry(from).or_default().push(to);
 
         // Добавляем в обратный граф
-        self.reverse_graph
-            .entry(to)
-            .or_default()
-            .push(from);
+        self.reverse_graph.entry(to).or_default().push(from);
 
         // Сохраняем имена для отладки
         if let Some(name) = from_name {

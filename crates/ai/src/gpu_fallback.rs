@@ -326,7 +326,6 @@ impl GpuFallbackManager {
 
         let results = self.cpu_service.embed_batch(texts)?;
 
-        // Конвертируем OptimizedEmbeddingResult в Vec<Vec<f32>>
         let embeddings: Vec<Vec<f32>> = results.into_iter().map(|r| r.embedding).collect();
 
         let elapsed = start.elapsed();

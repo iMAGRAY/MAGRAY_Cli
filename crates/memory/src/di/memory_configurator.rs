@@ -9,7 +9,6 @@ use tracing::{info, warn};
 
 use super::{traits::Lifetime, unified_container::UnifiedDIContainer};
 use crate::service_di::service_config::MemoryServiceConfig;
-// Add required imports for DI resolution traits and cache entry type
 use crate::di::traits::DIResolver;
 use crate::di::container_cache::CacheEntry;
 use crate::database_manager::DatabaseManager;
@@ -17,7 +16,6 @@ use crate::cache_lru::EmbeddingCacheLRU;
 use crate::gpu_accelerated::GpuBatchProcessor;
 use crate::metrics::MetricsCollector;
 use crate::health::HealthMonitor;
-// use crate::notifications::NotificationService;
 use crate::orchestration::{
     BackupCoordinator, EmbeddingCoordinator, HealthManager, PromotionCoordinator,
     ResourceController, SearchCoordinator,
@@ -163,7 +161,6 @@ impl UnifiedMemoryConfigurator {
     ) -> Result<()> {
         info!("🔧 Настройка storage layer...");
 
-        // DatabaseManager (use available constructor)
         container.register(|_| Ok(DatabaseManager::new()), Lifetime::Singleton)?;
 
         // TODO: В будущем добавить async factory для VectorStore
@@ -230,7 +227,6 @@ impl UnifiedMemoryConfigurator {
         info!("🔧 Настройка CPU processing layer...");
 
         // TODO: Добавить CPU-specific компоненты когда они будут реализованы
-        // use crate::cpu_processor::CpuBatchProcessor;
         // container.register(...)?;
 
         info!("✅ CPU processing layer configured");
@@ -244,7 +240,6 @@ impl UnifiedMemoryConfigurator {
     ) -> Result<()> {
         info!("🔧 Настройка GPU processing layer...");
 
-        // Skip GPU processor registration if specific constructor not available
         // It will be optionally resolved elsewhere when implemented
 
         info!("✅ GPU processing layer configured");
@@ -289,7 +284,6 @@ impl UnifiedMemoryConfigurator {
                 let gpu = container.try_resolve::<crate::gpu_accelerated::GpuBatchProcessor>();
                 let cache = container.resolve::<crate::cache_lru::EmbeddingCacheLRU>()?;
                 let cache: Arc<dyn crate::cache_interface::EmbeddingCacheInterface> = cache;
-                // If GPU processor is not available, construct a CPU-compatible processor via helper
                 let processor = gpu.unwrap_or_else(|_| Arc::new(crate::gpu_accelerated::GpuBatchProcessor::cpu_fallback()));
                 Ok(EmbeddingCoordinator::new(processor, cache))
             },
@@ -458,7 +452,7 @@ mod tests {
         let result = UnifiedMemoryConfigurator::configure_minimal(&config).await;
         assert!(result.is_ok());
 
-        let container = result.unwrap();
+        let container = result.expect("Failed to configure minimal memory container");
         assert!(container.registration_count() > 0);
 
         // Базовые компоненты должны быть зарегистрированы

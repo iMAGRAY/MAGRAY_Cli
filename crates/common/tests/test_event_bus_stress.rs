@@ -1,5 +1,3 @@
-// stress test enabled by default; guard can be reintroduced via workspace features if needed
-
 use common::event_bus::{EventBus, Topic};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -41,17 +39,29 @@ async fn event_bus_fanout_stress_no_loss() {
         let done = counters
             .iter()
             .all(|c| c.load(Ordering::Relaxed) >= messages);
-        if done { break; }
-        if std::time::Instant::now() > deadline { break; }
+        if done {
+            break;
+        }
+        if std::time::Instant::now() > deadline {
+            break;
+        }
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
 
     // Join tasks
-    for h in handles { let _ = h.await; }
+    for h in handles {
+        let _ = h.await;
+    }
 
     // Verify no loss
     for (idx, c) in counters.iter().enumerate() {
         let v = c.load(Ordering::Relaxed);
-        assert_eq!(v, messages, "subscriber {} missed {} msgs", idx, messages - v);
+        assert_eq!(
+            v,
+            messages,
+            "subscriber {} missed {} msgs",
+            idx,
+            messages - v
+        );
     }
 }

@@ -27,13 +27,17 @@ struct Inner<T: Clone + Send + Sync + Debug + 'static> {
 }
 
 impl<T: Clone + Send + Sync + Debug + 'static> Default for EventBus<T> {
-    fn default() -> Self { Self::new(1000, Duration::from_secs(1)) }
+    fn default() -> Self {
+        Self::new(1000, Duration::from_secs(1))
+    }
 }
 
 impl<T: Clone + Send + Sync + Debug + 'static> EventBus<T> {
     pub fn new(subscribe_buffer: usize, publish_timeout: Duration) -> Self {
         Self {
-            inner: Arc::new(RwLock::new(Inner { topics: HashMap::new() })),
+            inner: Arc::new(RwLock::new(Inner {
+                topics: HashMap::new(),
+            })),
             publish_timeout,
             subscribe_buffer,
         }
@@ -50,7 +54,11 @@ impl<T: Clone + Send + Sync + Debug + 'static> EventBus<T> {
 
     pub async fn publish(&self, topic: Topic, payload: T) {
         self.ensure_topic(topic.clone()).await;
-        let envelope = EventEnvelope { topic: topic.clone(), payload, ts_ms: current_ts_ms() };
+        let envelope = EventEnvelope {
+            topic: topic.clone(),
+            payload,
+            ts_ms: current_ts_ms(),
+        };
         let tx_opt = { self.inner.read().await.topics.get(topic.0).cloned() };
         if let Some(tx) = tx_opt {
             let timeout_dur = self.publish_timeout;
@@ -87,7 +95,10 @@ impl<T: Clone + Send + Sync + Debug + 'static> EventBus<T> {
 
 fn current_ts_ms() -> u128 {
     use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
 }
 
 #[cfg(test)]
@@ -121,7 +132,6 @@ mod tests {
         // This publish may hit timeout or warn due to full buffer
         bus.publish(Topic("bp.topic"), 2).await;
 
-        // First recv may return Lagged if oldest was overwritten
         match rx.recv().await {
             Ok(evt) => {
                 assert!(evt.payload == 1 || evt.payload == 2);

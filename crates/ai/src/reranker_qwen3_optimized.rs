@@ -91,7 +91,6 @@ impl OptimizedRerankingService {
             .with_intra_threads(4)?
             .with_memory_pattern(true)?;
 
-        // Add GPU support if available
         #[cfg(feature = "gpu")]
         if config.use_gpu {
             if let Some(ref gpu_config) = config.gpu_config {
@@ -123,7 +122,6 @@ impl OptimizedRerankingService {
             inputs, outputs
         );
 
-        // Log input and output names for debugging
         for (i, input) in session.inputs.iter().enumerate() {
             info!(
                 "  Input {}: {} (type: {:?})",
@@ -137,7 +135,6 @@ impl OptimizedRerankingService {
             );
         }
 
-        // Check expected inputs for cross-encoder
         if inputs < 2 {
             warn!(
                 "Expected at least 2 inputs for cross-encoder (input_ids, attention_mask), got {}",
@@ -212,7 +209,6 @@ impl OptimizedRerankingService {
         let mut all_attention_mask = Vec::new();
         let mut all_token_type_ids = Vec::new();
 
-        // For cross-encoder, we concatenate query and document for Qwen3 reranking
         for document in documents {
             // For Qwen3 reranking: query + document (no special separator needed)
             let combined_text = format!("{query}\n{document}");
@@ -221,12 +217,10 @@ impl OptimizedRerankingService {
                 .encode(&combined_text)
                 .map_err(|e| AiError::TokenizerError(e.to_string()))?;
 
-            // Convert to i64 for ONNX
             let mut input_ids: Vec<i64> = tokenized.input_ids.to_vec();
             let mut attention_mask: Vec<i64> = tokenized.attention_mask.to_vec();
             let mut token_type_ids: Vec<i64> = tokenized.token_type_ids.to_vec();
 
-            // Qwen3 handles token types internally, no need for manual [SEP] detection
             // token_type_ids are properly set by the tokenizer
 
             // Pad or truncate to max_length
@@ -262,7 +256,6 @@ impl OptimizedRerankingService {
             attention_mask_array.into_raw_vec(),
         ))?;
 
-        // Add token_type_ids if needed
         let mut session = self.session.lock().await;
         let input_names: Vec<String> = session.inputs.iter().map(|i| i.name.clone()).collect();
 
@@ -346,7 +339,6 @@ impl OptimizedRerankingService {
                 });
             }
         } else {
-            // Log all outputs for debugging
             warn!("Unexpected output shape from reranker: {:?}", shape);
             for (name, tensor) in outputs.iter() {
                 let (shape, _) = tensor.try_extract_tensor::<f32>()?;

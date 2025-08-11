@@ -119,10 +119,6 @@ pub trait ResponseFormattingStrategy: Send + Sync {
 }
 
 // ============================================================================
-// CORE COMPONENT TRAITS (Dependency Inversion)
-// ============================================================================
-
-/// Высокоуровневая абстракция для LLM взаимодействия
 #[async_trait]
 pub trait LlmServiceTrait: Send + Sync {
     /// Простой chat запрос

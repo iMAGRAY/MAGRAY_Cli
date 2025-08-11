@@ -121,28 +121,24 @@ impl OrchestrationFacade {
         _options: SearchOptions,
     ) -> Result<Vec<Record>> {
         // Временно заглушка для исправления compile error
-        // OperationExecutorTrait::execute_search(self.operation_executor.as_ref(), query, layer, options).await
         Ok(vec![])
     }
 
     /// Production embedding (аналог оригинального get_embedding)
     pub async fn get_embedding(&self, _text: &str) -> Result<Vec<f32>> {
         // Временно заглушка
-        // OperationExecutorTrait::execute_embedding(self.operation_executor.as_ref(), text).await
         Ok(vec![])
     }
 
     /// Production promotion (аналог оригинального run_promotion)
     pub async fn run_promotion(&self) -> Result<PromotionStats> {
         // Временно заглушка
-        // OperationExecutorTrait::execute_promotion(self.operation_executor.as_ref()).await
         Ok(crate::promotion::PromotionStats::default())
     }
 
     /// Production backup (аналог оригинального create_backup)
     pub async fn create_backup(&self, _path: &str) -> Result<BackupMetadata> {
         // Временно заглушка
-        // OperationExecutorTrait::execute_backup(self.operation_executor.as_ref(), path).await
         Ok(crate::backup::BackupMetadata::default())
     }
 

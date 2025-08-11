@@ -21,21 +21,41 @@ fn map_permissions(p: &crate::registry::ToolPermissions) -> crate::ToolPermissio
     let mut fs_write = Vec::new();
     match &p.file_system {
         FileSystemPermissions::None => {}
-        FileSystemPermissions::ReadOnly => { fs_read.push("/".into()); }
-        FileSystemPermissions::ReadWrite | FileSystemPermissions::FullAccess => { fs_read.push("/".into()); fs_write.push("/".into()); }
+        FileSystemPermissions::ReadOnly => {
+            fs_read.push("/".into());
+        }
+        FileSystemPermissions::ReadWrite | FileSystemPermissions::FullAccess => {
+            fs_read.push("/".into());
+            fs_write.push("/".into());
+        }
         FileSystemPermissions::Restricted { allowed_paths } => {
-            for ap in allowed_paths { fs_read.push(ap.clone()); fs_write.push(ap.clone()); }
+            for ap in allowed_paths {
+                fs_read.push(ap.clone());
+                fs_write.push(ap.clone());
+            }
         }
     }
     let mut net = Vec::new();
     match &p.network {
         NetworkPermissions::None => {}
-        NetworkPermissions::LocalHost => { net.push("localhost".into()); net.push("127.0.0.1".into()); }
+        NetworkPermissions::LocalHost => {
+            net.push("localhost".into());
+            net.push("127.0.0.1".into());
+        }
         NetworkPermissions::InternalNetworks => { /* keep empty to enforce env allowlist */ }
         NetworkPermissions::Internet => { /* empty -> allow by env */ }
-        NetworkPermissions::Restricted { allowed_hosts } => { for h in allowed_hosts { net.push(h.clone()); } }
+        NetworkPermissions::Restricted { allowed_hosts } => {
+            for h in allowed_hosts {
+                net.push(h.clone());
+            }
+        }
     }
-    crate::ToolPermissions { fs_read_roots: fs_read, fs_write_roots: fs_write, net_allowlist: net, allow_shell: false }
+    crate::ToolPermissions {
+        fs_read_roots: fs_read,
+        fs_write_roots: fs_write,
+        net_allowlist: net,
+        allow_shell: false,
+    }
 }
 
 /// WASM runtime configuration
@@ -200,7 +220,6 @@ impl WasmSandbox {
 
     /// Validate WASM module for security and correctness
     fn validate_wasm_module(&self, wasm_bytes: &[u8]) -> Result<(), WasmPluginError> {
-        // Basic validation - in production, use proper WASM parser/validator
         if wasm_bytes.len() < 8 {
             return Err(WasmPluginError::Validation(
                 "WASM module too small".to_string(),
@@ -225,9 +244,7 @@ impl WasmSandbox {
         }
 
         // Additional security checks would go here
-        // - Check for dangerous imports
         // - Validate memory usage patterns
-        // - Check for potential infinite loops
 
         Ok(())
     }
@@ -340,7 +357,6 @@ impl WasmRuntime {
     }
 
     async fn set_input(&mut self, input: &ToolInput) -> Result<(), WasmPluginError> {
-        // Serialize input for WASM module
         let input_json = serde_json::to_string(input)
             .map_err(|e| WasmPluginError::Runtime(format!("Failed to serialize input: {}", e)))?;
 
@@ -374,7 +390,6 @@ impl WasmRuntime {
         let input: ToolInput = serde_json::from_str(input_json)
             .map_err(|e| WasmPluginError::Runtime(format!("Failed to deserialize input: {}", e)))?;
 
-        // Simple echo processing for demonstration
         let output = ToolOutput {
             success: true,
             result: format!("WASM processed: {}", input.command),
@@ -407,7 +422,6 @@ impl WasmRuntime {
     ) -> Result<Vec<u8>, WasmPluginError> {
         // Get the host function first, then call it
         if let Some(_host_func) = self.host_functions.get(name) {
-            // Clone function for the call to avoid borrow conflicts
             let func_name = name.to_string();
             match func_name.as_str() {
                 "log" => {
@@ -601,7 +615,6 @@ impl Tool for WasmPlugin {
     }
 
     async fn parse_natural_language(&self, query: &str) -> Result<ToolInput> {
-        // Basic natural language parsing for WASM plugins
         Ok(ToolInput {
             command: self.metadata.name.clone(),
             args: HashMap::from([("query".to_string(), query.to_string())]),
@@ -647,7 +660,6 @@ impl PluginInstance for WasmPlugin {
     async fn reload(&mut self) -> Result<()> {
         info!("🔄 Reloading WASM plugin: {}", self.metadata.name);
 
-        // Reload WASM bytes if path is available
         if let Some(ref install_path) = self.metadata.installation_path {
             let wasm_path = install_path.join(&self.metadata.entry_point);
             self.wasm_bytes = tokio::fs::read(wasm_path).await?;
@@ -669,7 +681,6 @@ impl PluginInstance for WasmPlugin {
         // Get execution statistics
         let stats = self.sandbox.get_stats().await;
 
-        // Check for concerning patterns
         if stats.errors > 0 && stats.executions > 0 {
             let error_rate = stats.errors as f64 / stats.executions as f64;
             if error_rate > 0.1 {

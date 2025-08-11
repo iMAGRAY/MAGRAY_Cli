@@ -57,14 +57,19 @@ pub fn configure_ort_env() {
 
     for path in candidate_paths() {
         if path.exists() {
-            if let Some(parent) = path.parent() {
-                // Extend LD_LIBRARY_PATH/DYLD_LIBRARY_PATH for current process
+            if let Some(_parent) = path.parent() {
                 #[cfg(any(target_os = "linux", target_os = "macos"))]
                 {
-                    let key = if cfg!(target_os = "macos") { "DYLD_LIBRARY_PATH" } else { "LD_LIBRARY_PATH" };
+                    let key = if cfg!(target_os = "macos") {
+                        "DYLD_LIBRARY_PATH"
+                    } else {
+                        "LD_LIBRARY_PATH"
+                    };
                     let mut new_val = parent.display().to_string();
                     if let Ok(prev) = std::env::var(key) {
-                        if !prev.is_empty() { new_val = format!("{}:{}", parent.display(), prev); }
+                        if !prev.is_empty() {
+                            new_val = format!("{}:{}", parent.display(), prev);
+                        }
                     }
                     std::env::set_var(key, &new_val);
                 }

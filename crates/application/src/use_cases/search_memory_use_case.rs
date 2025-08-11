@@ -70,7 +70,6 @@ impl SearchMemoryUseCase for SearchMemoryUseCaseImpl {
         // Validate request
         self.validate_search_request(&request)?;
         
-        // Create query hash for caching
         let query_hash = self.create_query_hash(&request);
         
         // Check cache first
@@ -111,7 +110,6 @@ impl SearchMemoryUseCase for SearchMemoryUseCaseImpl {
             layers_searched: request.layers.clone().unwrap_or_else(|| vec![LayerType::Cache, LayerType::Index, LayerType::Storage]),
         };
         
-        // Cache results if requested
         if request.use_cache {
             self.cache_search_results(&query_hash, &response).await?;
         }
@@ -338,7 +336,6 @@ impl SearchMemoryUseCaseImpl {
     ) -> ApplicationResult<Vec<crate::dtos::SearchResult>> {
         let mut processed = results;
         
-        // Apply custom filtering if specified
         if let Some(filters) = &request.filters {
             processed = self.apply_custom_filters(processed, filters).await?;
         }
@@ -353,7 +350,6 @@ impl SearchMemoryUseCaseImpl {
             }
         });
         
-        // Apply final limit if necessary
         if let Some(limit) = request.limit {
             processed.truncate(limit);
         }

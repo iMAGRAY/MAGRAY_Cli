@@ -2,13 +2,13 @@ use crate::progress::ProgressBuilder;
 use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 use colored::*;
-use memory::api::{MemoryContext, UnifiedMemoryAPI, MemoryServiceTrait};
+use common::policy::PolicyEngine;
+use common::{events, topics};
+use memory::api::{MemoryContext, MemoryServiceTrait, UnifiedMemoryAPI};
 use memory::types::Layer;
 use prettytable::{row, Table};
 use std::path::PathBuf;
 use std::sync::Arc;
-use common::{events, topics};
-use common::policy::PolicyEngine;
 
 /// Команда для управления системой памяти
 #[derive(Debug, Args)]
@@ -138,18 +138,21 @@ impl MemoryCommand {
 
 async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
     let _config = memory::default_config()?;
-    let container = memory::di::UnifiedContainer::new();
+    let container = memory::di::UnifiedContainer::new("memory_command".to_string());
     let api = UnifiedMemoryAPI::new(Arc::new(container) as Arc<dyn MemoryServiceTrait>);
 
-    // Prepare effective policy for commands (env-json > env-path/file > default)
     let mut home = crate::util::magray_home();
     home.push("policy.json");
-    let effective = common::policy::load_effective_policy(if home.exists() { Some(&home) } else { None });
+    let effective =
+        common::policy::load_effective_policy(if home.exists() { Some(&home) } else { None });
     let policy = PolicyEngine::from_document(effective);
 
     match cmd {
         MemorySubcommand::Stats { detailed } => {
-            tokio::spawn(events::publish(topics::TOPIC_INTENT, serde_json::json!({"command":"memory.stats","detailed":detailed })));
+            tokio::spawn(events::publish(
+                topics::TOPIC_INTENT,
+                serde_json::json!({"command":"memory.stats","detailed":detailed }),
+            ));
             show_memory_stats(&api, detailed).await?;
         }
 
@@ -162,9 +165,12 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
             hybrid,
         } => {
             // intent event
-            tokio::spawn(events::publish(topics::TOPIC_INTENT, serde_json::json!({
-                "command": "memory.search", "query": query, "top_k": top_k, "rerank": rerank, "hybrid": hybrid
-            })));
+            tokio::spawn(events::publish(
+                topics::TOPIC_INTENT,
+                serde_json::json!({
+                    "command": "memory.search", "query": query, "top_k": top_k, "rerank": rerank, "hybrid": hybrid
+                }),
+            ));
             search_memory(&api, &query, layer, top_k, min_score, rerank, hybrid).await?;
         }
 
@@ -174,85 +180,133 @@ async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
             tags,
             kind,
         } => {
-            tokio::spawn(events::publish(topics::TOPIC_INTENT, serde_json::json!({
-                "command": "memory.add", "layer": layer, "kind": kind
-            })));
+            tokio::spawn(events::publish(
+                topics::TOPIC_INTENT,
+                serde_json::json!({
+                    "command": "memory.add", "layer": layer, "kind": kind
+                }),
+            ));
             add_to_memory(&api, text, &layer, tags, &kind).await?;
         }
 
         MemorySubcommand::Backup { name } => {
-            // Check policy for command
-            let decision = policy.evaluate_command("memory.backup", &std::collections::HashMap::new());
+            let decision =
+                policy.evaluate_command("memory.backup", &std::collections::HashMap::new());
             if !decision.allowed {
-                let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());
+                let reason = decision
+                    .matched_rule
+                    .and_then(|r| r.reason)
+                    .unwrap_or_else(|| "blocked".into());
                 let evt = serde_json::json!({"command": "memory.backup", "reason": reason});
                 tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
                 anyhow::bail!("Command 'memory backup' blocked by policy");
             }
             if matches!(decision.action, common::policy::PolicyAction::Ask) {
-                let non_interactive = std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
+                let non_interactive =
+                    std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
                 if non_interactive {
-                    tokio::spawn(events::publish(topics::TOPIC_ERROR, serde_json::json!({"command":"memory.backup","error":"non-interactive ask"})));
+                    tokio::spawn(events::publish(
+                        topics::TOPIC_ERROR,
+                        serde_json::json!({"command":"memory.backup","error":"non-interactive ask"}),
+                    ));
                     anyhow::bail!("Command 'memory backup' requires confirmation (ask), but running non-interactive");
                 }
-                let auto_approve = std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
+                let auto_approve =
+                    std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
                 if !auto_approve {
                     use std::io::{self, Write};
-                    println!("\nОперация backup может занять время. Риск: {:?}", decision.risk);
+                    println!(
+                        "\nОперация backup может занять время. Риск: {:?}",
+                        decision.risk
+                    );
                     print!("Продолжить? [y/N]: ");
                     let _ = io::stdout().flush();
                     let mut answer = String::new();
-                    if io::stdin().read_line(&mut answer).is_err() { anyhow::bail!("confirmation failed"); }
+                    if io::stdin().read_line(&mut answer).is_err() {
+                        anyhow::bail!("confirmation failed");
+                    }
                     let ans = answer.trim().to_lowercase();
                     if !(ans == "y" || ans == "yes" || ans == "д" || ans == "да") {
-                        tokio::spawn(events::publish(topics::TOPIC_ERROR, serde_json::json!({"command":"memory.backup","error":"user-cancel"})));
+                        tokio::spawn(events::publish(
+                            topics::TOPIC_ERROR,
+                            serde_json::json!({"command":"memory.backup","error":"user-cancel"}),
+                        ));
                         anyhow::bail!("Отменено пользователем");
                     }
                 }
             }
-            tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({"job":"memory.backup","status":"started"})));
+            tokio::spawn(events::publish(
+                topics::TOPIC_JOB_PROGRESS,
+                serde_json::json!({"job":"memory.backup","status":"started"}),
+            ));
             create_backup(&api, name).await?;
-            tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({
-                "job": "memory.backup", "status": "done"
-            })));
+            tokio::spawn(events::publish(
+                topics::TOPIC_JOB_PROGRESS,
+                serde_json::json!({
+                    "job": "memory.backup", "status": "done"
+                }),
+            ));
         }
 
         MemorySubcommand::Restore { backup_path } => {
-            let decision = policy.evaluate_command("memory.restore", &std::collections::HashMap::new());
+            let decision =
+                policy.evaluate_command("memory.restore", &std::collections::HashMap::new());
             if !decision.allowed {
-                let reason = decision.matched_rule.and_then(|r| r.reason).unwrap_or_else(|| "blocked".into());
+                let reason = decision
+                    .matched_rule
+                    .and_then(|r| r.reason)
+                    .unwrap_or_else(|| "blocked".into());
                 let evt = serde_json::json!({"command": "memory.restore", "reason": reason});
                 tokio::spawn(events::publish(topics::TOPIC_POLICY_BLOCK, evt));
                 anyhow::bail!("Command 'memory restore' blocked by policy");
             }
             if matches!(decision.action, common::policy::PolicyAction::Ask) {
-                let auto_approve = std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
-                let non_interactive = std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
+                let auto_approve =
+                    std::env::var("MAGRAY_AUTO_APPROVE_ASK").unwrap_or_default() == "true";
+                let non_interactive =
+                    std::env::var("MAGRAY_NONINTERACTIVE").unwrap_or_default() == "true";
                 if non_interactive && auto_approve {
                     // proceed silently
                 } else if non_interactive && !auto_approve {
-                    tokio::spawn(events::publish(topics::TOPIC_ERROR, serde_json::json!({"command":"memory.restore","error":"non-interactive ask"})));
+                    tokio::spawn(events::publish(
+                        topics::TOPIC_ERROR,
+                        serde_json::json!({"command":"memory.restore","error":"non-interactive ask"}),
+                    ));
                     anyhow::bail!("Command 'memory restore' requires confirmation (ask), but running non-interactive");
                 }
                 if !auto_approve {
                     use std::io::{self, Write};
-                    println!("\nОперация restore может перезаписать данные. Риск: {:?}", decision.risk);
+                    println!(
+                        "\nОперация restore может перезаписать данные. Риск: {:?}",
+                        decision.risk
+                    );
                     print!("Продолжить? [y/N]: ");
                     let _ = io::stdout().flush();
                     let mut answer = String::new();
-                    if io::stdin().read_line(&mut answer).is_err() { anyhow::bail!("confirmation failed"); }
+                    if io::stdin().read_line(&mut answer).is_err() {
+                        anyhow::bail!("confirmation failed");
+                    }
                     let ans = answer.trim().to_lowercase();
                     if !(ans == "y" || ans == "yes" || ans == "д" || ans == "да") {
-                        tokio::spawn(events::publish(topics::TOPIC_ERROR, serde_json::json!({"command":"memory.restore","error":"user-cancel"})));
+                        tokio::spawn(events::publish(
+                            topics::TOPIC_ERROR,
+                            serde_json::json!({"command":"memory.restore","error":"user-cancel"}),
+                        ));
                         anyhow::bail!("Отменено пользователем");
                     }
                 }
             }
-            tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({"job":"memory.restore","status":"started"})));
+            tokio::spawn(events::publish(
+                topics::TOPIC_JOB_PROGRESS,
+                serde_json::json!({"job":"memory.restore","status":"started"}),
+            ));
             restore_backup(&api, backup_path).await?;
-            tokio::spawn(events::publish(topics::TOPIC_JOB_PROGRESS, serde_json::json!({
-                "job": "memory.restore", "status": "done"
-            })));
+            tokio::spawn(events::publish(
+                topics::TOPIC_JOB_PROGRESS,
+                serde_json::json!({
+                    "job": "memory.restore", "status": "done"
+                }),
+            ));
         }
 
         MemorySubcommand::ListBackups => {
@@ -400,24 +454,51 @@ async fn search_memory(
         ..Default::default()
     };
 
-    if rerank { println!("{}", "[hint] Rerank enabled (Qwen3)".dimmed()); }
-    if hybrid { println!("{}", "[hint] Hybrid (vector + keyword if available)".dimmed()); }
+    if rerank {
+        println!("{}", "[hint] Rerank enabled (Qwen3)".dimmed());
+    }
+    if hybrid {
+        println!(
+            "{}",
+            "[hint] Hybrid (vector + keyword if available)".dimmed()
+        );
+    }
 
-    // Orchestrated path (if enabled) uses SearchCoordinator with optional rerank
     #[cfg(feature = "orchestrated-search")]
     {
+        use memory::di::core_traits::ServiceResolver;
         use memory::orchestration::traits::SearchCoordinator as SearchCoordinatorTrait;
-        use memory::orchestration::SearchCoordinator;
-        use memory::di::core_traits::ServiceResolver; // import trait to enable resolve()
+        use memory::orchestration::SearchCoordinator; // import trait to enable resolve()
         let container = memory::di::UnifiedContainer::new();
         if let Ok(search) = container.resolve::<SearchCoordinator>() {
-            let layer_to_use = options.layers.clone().and_then(|v| v.first().cloned()).unwrap_or(Layer::Interact);
-            let coord_opts = memory::types::SearchOptions { top_k, ..Default::default() };
+            let layer_to_use = options
+                .layers
+                .clone()
+                .and_then(|v| v.first().cloned())
+                .unwrap_or(Layer::Interact);
+            let coord_opts = memory::types::SearchOptions {
+                top_k,
+                ..Default::default()
+            };
             let results = if rerank {
-                SearchCoordinatorTrait::search_with_rerank(&*search, query, layer_to_use, coord_opts, top_k).await?
+                SearchCoordinatorTrait::search_with_rerank(
+                    &*search,
+                    query,
+                    layer_to_use,
+                    coord_opts,
+                    top_k,
+                )
+                .await?
             } else if hybrid {
                 // hybrid: text embedding first; in future accept vector input
-                SearchCoordinatorTrait::hybrid_search(&*search, query, None, layer_to_use, coord_opts).await?
+                SearchCoordinatorTrait::hybrid_search(
+                    &*search,
+                    query,
+                    None,
+                    layer_to_use,
+                    coord_opts,
+                )
+                .await?
             } else {
                 SearchCoordinatorTrait::search(&*search, query, layer_to_use, coord_opts).await?
             };
@@ -447,7 +528,10 @@ async fn search_memory(
             }
             return Ok(());
         }
-        println!("{}", "[hint] Orchestrated search unavailable; falling back to unified API".dimmed());
+        println!(
+            "{}",
+            "[hint] Orchestrated search unavailable; falling back to unified API".dimmed()
+        );
     }
 
     println!("{} '{}'...", "Searching for".cyan(), query.bold());
@@ -532,10 +616,16 @@ async fn add_to_memory(
 async fn create_backup(api: &UnifiedMemoryAPI, name: Option<String>) -> Result<()> {
     let spinner = ProgressBuilder::backup("Creating memory backup...");
 
-    let backup_name = name.unwrap_or_else(|| format!("backup_{}.json", chrono::Utc::now().format("%Y%m%d_%H%M%S")));
+    let backup_name = name
+        .unwrap_or_else(|| format!("backup_{}.json", chrono::Utc::now().format("%Y%m%d_%H%M%S")));
     let path = std::path::PathBuf::from("backups").join(backup_name);
 
-    match tokio::time::timeout(std::time::Duration::from_secs(30), api.backup_to_path(&path)).await {
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        api.backup_to_path(&path),
+    )
+    .await
+    {
         Ok(Ok(count)) => {
             spinner.finish_success(Some("Backup created successfully!"));
             println!("{}: {}", "Path".cyan(), path.display());
@@ -555,20 +645,30 @@ async fn create_backup(api: &UnifiedMemoryAPI, name: Option<String>) -> Result<(
 }
 
 async fn restore_backup(api: &UnifiedMemoryAPI, backup_path: PathBuf) -> Result<()> {
-    let file_name = backup_path.file_name().unwrap_or_default().to_string_lossy();
+    let file_name = backup_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy();
     let spinner = ProgressBuilder::backup(&format!("Restoring from backup: {file_name}"));
 
-    match tokio::time::timeout(std::time::Duration::from_secs(45), api.restore_from_path(&backup_path)).await {
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(45),
+        api.restore_from_path(&backup_path),
+    )
+    .await
+    {
         Ok(Ok(inserted)) => {
             spinner.finish_success(Some("Restore completed!"));
             println!("{}: {}", "Path".cyan(), backup_path.display());
             println!("{}: {} records", "Restored".cyan(), inserted);
         }
         Ok(Err(_e)) => {
-            // Treat invalid/missing file as no-op restore for better UX in env-policy tests
             spinner.finish_success(Some("Restore completed (no data)"));
             println!("{}: {}", "Path".cyan(), backup_path.display());
-            println!("{}", "No records restored (empty or invalid backup)".yellow());
+            println!(
+                "{}",
+                "No records restored (empty or invalid backup)".yellow()
+            );
         }
         Err(_) => {
             spinner.finish_error("Restore timeout");
@@ -580,15 +680,23 @@ async fn restore_backup(api: &UnifiedMemoryAPI, backup_path: PathBuf) -> Result<
 }
 
 fn list_backups(_api: &UnifiedMemoryAPI) -> Result<()> {
-    use std::fs; use std::path::PathBuf;
+    use std::fs;
+    use std::path::PathBuf;
     let dir = PathBuf::from("backups");
     println!("{}", "Available backups:".bold());
     if let Ok(read) = fs::read_dir(&dir) {
         let mut any = false;
         for e in read.flatten() {
-            if let Ok(ft) = e.file_type() { if ft.is_file() { println!("- {}", e.path().display()); any = true; } }
+            if let Ok(ft) = e.file_type() {
+                if ft.is_file() {
+                    println!("- {}", e.path().display());
+                    any = true;
+                }
+            }
         }
-        if !any { println!("{}", "(no backups)".dimmed()); }
+        if !any {
+            println!("{}", "(no backups)".dimmed());
+        }
     } else {
         println!("{}", "(directory 'backups' not found)".dimmed());
     }

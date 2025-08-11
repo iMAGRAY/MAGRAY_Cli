@@ -397,7 +397,6 @@ mod tests {
         let result = resolver.try_resolve::<TestServiceB>();
         assert!(result.is_none());
 
-        // resolve() should return error
         let result = resolver.resolve::<TestServiceB>();
         assert!(result.is_err());
     }

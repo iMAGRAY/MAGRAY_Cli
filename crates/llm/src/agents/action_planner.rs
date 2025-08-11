@@ -12,7 +12,9 @@ pub struct ActionPlan {
     pub confidence: f32,
 }
 
-fn default_confidence() -> f32 { 0.9 }
+fn default_confidence() -> f32 {
+    0.9
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanStep {

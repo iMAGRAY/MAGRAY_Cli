@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 // =============================================================================
 // CRITICAL UNIT TESTS - Основные unit тесты для memory crate
@@ -325,7 +325,6 @@ mod error_handling_tests {
     }
 }
 
-// Async tests for stable async functionality
 #[cfg(test)]
 mod async_tests {
     use super::*;
@@ -368,7 +367,6 @@ mod async_tests {
     }
 }
 
-// Benchmarks for performance-critical operations
 #[cfg(test)]
 mod performance_tests {
     use super::*;
@@ -383,7 +381,6 @@ mod performance_tests {
         let _distance = cosine_distance_auto(&vec1, &vec2);
         let duration = start.elapsed();
 
-        // Should be very fast for 1K dimensions
         assert!(
             duration.as_millis() < 10,
             "Cosine distance should be fast, took {:?}",

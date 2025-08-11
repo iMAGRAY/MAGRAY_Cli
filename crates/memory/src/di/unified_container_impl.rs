@@ -27,11 +27,10 @@ use super::core_traits::*;
 use super::errors::{DIError, ValidationError};
 
 // Внешние зависимости для логирования
-// use log::debug;
 
 /// === CORE CONTAINER IMPLEMENTATION ===
 /// Единственная корректная реализация DI контейнера в проекте
-#[derive(Clone)]
+/// Note: Not Clone due to ServiceFactory limitations - use Arc<UnifiedContainer> instead
 pub struct UnifiedContainer {
     /// Регистрация сервисов (разделена от разрешения по SRP)
     registry: Arc<ServiceRegistryImpl>,
@@ -69,14 +68,8 @@ struct FactoryInfo {
     type_name: String,
 }
 
-// Manual Clone implementation since ServiceFactory (Box<dyn Fn>) is not Clone
-impl Clone for FactoryInfo {
-    fn clone(&self) -> Self {
-        // Note: ServiceFactory cannot be truly cloned due to Box<dyn Fn>
-        // This is a limitation - in practice factories are rarely cloned
-        panic!("FactoryInfo cannot be cloned - ServiceFactory contains Box<dyn Fn>")
-    }
-}
+// ServiceFactory cannot be cloned, so we don't implement Clone for FactoryInfo
+// This is a design limitation that we accept to avoid panics
 
 /// === RESOLVER IMPLEMENTATION ===
 /// Отвечает ТОЛЬКО за разрешение зависимостей (SRP)
@@ -276,7 +269,9 @@ impl UnifiedContainer {
 }
 
 impl Default for UnifiedContainer {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// === SERVICE REGISTRY TRAIT IMPLEMENTATION ===
@@ -317,7 +312,6 @@ impl ServiceResolver for UnifiedContainer {
 
         let result = self.resolver.resolve_with_container::<T>(self);
 
-        // Record metrics if enabled
         if let (Some(metrics), Some(start)) = (&self.metrics, start_time) {
             let duration = start.elapsed().as_nanos() as u64;
             match &result {
@@ -357,7 +351,7 @@ impl DIContainer for UnifiedContainer {
 
     fn create_typed_scope(&self) -> Self
     where
-        Self: Sized + Clone,
+        Self: Sized,
     {
         // Создать новый контейнер с тем же registry, но с отдельным кэшем
         let scoped_cache = Arc::new(RwLock::new(HashMap::new()));
@@ -451,15 +445,35 @@ impl ServiceRegistryImpl {
 
     fn is_registered<T: 'static>(&self) -> bool {
         let type_id = TypeId::of::<T>();
-        self.factories.read().unwrap().contains_key(&type_id)
+        self.factories.read()
+            .map(|factories| factories.contains_key(&type_id))
+            .unwrap_or_else(|e| {
+                eprintln!("Factory lock poisoned during is_registered check: {}", e);
+                false
+            })
     }
 
     fn registration_count(&self) -> usize {
-        self.factories.read().unwrap().len()
+        self.factories.read()
+            .map(|factories| factories.len())
+            .unwrap_or_else(|e| {
+                eprintln!("Factory lock poisoned during registration count: {}", e);
+                0
+            })
     }
 
     fn get_factory_info(&self, type_id: TypeId) -> Option<FactoryInfo> {
-        self.factories.read().unwrap().get(&type_id).cloned()
+        // Поскольку ServiceFactory не Clone, мы должны просто проверить существование
+        self.factories.read()
+            .map(|factories| factories.contains_key(&type_id))
+            .unwrap_or(false)
+            .then(|| {
+                // Мы не можем вернуть полную FactoryInfo из-за ограничений Clone
+                // Это означает, что get_factory_info() не может быть реализовано корректно
+                // в текущей архитектуре. Возвращаем None как индикатор проблемы дизайна.
+                None
+            })
+            .flatten()
     }
 
     /// Object-safe helper methods
@@ -487,16 +501,27 @@ impl ServiceRegistryImpl {
     }
 
     fn is_type_registered_internal(&self, type_id: TypeId) -> bool {
-        self.factories.read().unwrap().contains_key(&type_id)
+        self.factories.read()
+            .map(|factories| factories.contains_key(&type_id))
+            .unwrap_or_else(|e| {
+                eprintln!("Factory lock poisoned during type registration check: {}", e);
+                false
+            })
     }
 
     fn get_registered_types_internal(&self) -> Vec<(TypeId, String)> {
         self.factories
             .read()
-            .unwrap()
-            .iter()
-            .map(|(&type_id, factory_info)| (type_id, factory_info.type_name.clone()))
-            .collect()
+            .map(|factories| {
+                factories
+                    .iter()
+                    .map(|(&type_id, factory_info)| (type_id, factory_info.type_name.clone()))
+                    .collect()
+            })
+            .unwrap_or_else(|e| {
+                eprintln!("Factory lock poisoned during get_registered_types: {}", e);
+                vec![]
+            })
     }
 
     /// Concrete type registration methods (object-safe)
@@ -562,8 +587,12 @@ impl ServiceRegistryImpl {
 /// === RESOLVER IMPLEMENTATION ===
 impl ServiceResolverImpl {
     fn resolve<T: Send + Sync + 'static>(&self) -> Result<Arc<T>, DIError> {
-        // Этот метод больше не используется напрямую, используется resolve_with_container
-        panic!("resolve() should not be called directly, use resolve_with_container()")
+        // This method is deprecated - return error instead of panic
+        Err(DIError::InvalidState {
+            message: format!("resolve() is deprecated for {}, use resolve_with_container() instead", std::any::type_name::<T>()),
+            expected_state: "using resolve_with_container()".to_string(),
+            actual_state: "using deprecated resolve()".to_string(),
+        })
     }
 
     fn resolve_with_container<T: Send + Sync + 'static>(
@@ -599,16 +628,17 @@ impl ServiceResolverImpl {
         // Проверить кэш
         if let Ok(cache) = self.cache.read() {
             if let Some(cached) = cache.get(&type_id) {
-                return cached.clone().downcast::<T>().map_err(|_| {
-                    DIError::Factory {
+                return cached
+                    .clone()
+                    .downcast::<T>()
+                    .map_err(|_| DIError::Factory {
                         message: format!(
                             "Failed to downcast to type: {}",
                             std::any::type_name::<T>()
                         ),
                         factory_type: "type_cast".to_string(),
                         service_type: std::any::type_name::<T>().to_string(),
-                    }
-                });
+                    });
             }
         }
 
@@ -946,11 +976,21 @@ impl ContainerMetrics for ContainerMetricsImpl {
     }
 
     fn get_resolution_stats(&self) -> ResolutionStats {
-        self.stats.read().unwrap().resolution_stats.clone()
+        self.stats.read()
+            .map(|stats| stats.resolution_stats.clone())
+            .unwrap_or_else(|e| {
+                eprintln!("Stats lock poisoned during get_resolution_stats: {}", e);
+                ResolutionStats::default()
+            })
     }
 
     fn get_cache_stats(&self) -> CacheStats {
-        self.stats.read().unwrap().cache_stats.clone()
+        self.stats.read()
+            .map(|stats| stats.cache_stats.clone())
+            .unwrap_or_else(|e| {
+                eprintln!("Stats lock poisoned during get_cache_stats: {}", e);
+                CacheStats::default()
+            })
     }
 
     fn reset_metrics(&self) {

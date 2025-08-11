@@ -20,7 +20,6 @@ use chrono::Utc;
 use std::sync::Arc;
 use tokio::time::Instant;
 
-
 /// Test configuration builder
 pub struct TestConfigBuilder {
     cache_size: usize,

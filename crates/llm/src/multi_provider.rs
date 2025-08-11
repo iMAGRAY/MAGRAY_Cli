@@ -390,7 +390,6 @@ impl MultiProviderLlmOrchestrator {
 
     /// Simple token estimation
     fn estimate_tokens(&self, text: &str) -> u32 {
-        // Rough estimation: 1 token ≈ 4 characters for English
         (text.len() as f32 / 4.0) as u32
     }
 
@@ -646,7 +645,6 @@ impl MultiProviderLlmOrchestrator {
         request: &CompletionRequest,
         api_key: Option<&str>,
     ) -> Result<String> {
-        // Implement OpenAI-compatible request for local/alternative endpoints
         #[derive(Serialize)]
         struct OpenAIRequest {
             model: String,

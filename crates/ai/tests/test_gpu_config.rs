@@ -69,10 +69,10 @@ fn test_gpu_config_debug_format() {
 #[test]
 fn test_gpu_memory_limits() {
     let memory_limits = vec![
-        512 * 1024 * 1024,  // 512MB
-        1 * 1024 * 1024 * 1024, // 1GB
-        2 * 1024 * 1024 * 1024, // 2GB
-        8 * 1024 * 1024 * 1024, // 8GB
+        512 * 1024 * 1024,       // 512MB
+        1 * 1024 * 1024 * 1024,  // 1GB
+        2 * 1024 * 1024 * 1024,  // 2GB
+        8 * 1024 * 1024 * 1024,  // 8GB
         16 * 1024 * 1024 * 1024, // 16GB
     ];
 
@@ -165,7 +165,10 @@ fn test_provider_creation() {
     // Provider creation simulation
     assert!(matches!(
         config.preferred_provider,
-        GpuProviderType::Auto | GpuProviderType::CUDA | GpuProviderType::DirectML | GpuProviderType::OpenVINO
+        GpuProviderType::Auto
+            | GpuProviderType::CUDA
+            | GpuProviderType::DirectML
+            | GpuProviderType::OpenVINO
     ));
 }
 

@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests", not(feature = "minimal")))]
+#![cfg(all(feature = "extended-tests", not(feature = "minimal")))]
 
 //! Comprehensive error handling and edge case tests
 //!
@@ -17,7 +17,6 @@ use memory::{
 };
 
 // TODO: Uncomment when vector_index_hnswlib is public
-// use memory::vector_index_hnswlib::VectorIndexHNSW;
 use anyhow::{anyhow, Result};
 use chrono::Utc;
 use std::collections::HashMap;

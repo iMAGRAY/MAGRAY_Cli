@@ -1,8 +1,8 @@
 #![cfg(feature = "extended-tests")]
 
 use chrono::Utc;
-use todo::Layer;
 use std::collections::HashMap;
+use todo::Layer;
 use todo::{
     ExecutableTask, MemoryReference, Priority, TaskComplexity, TaskFeasibility, TaskState,
     TaskStats, TodoEvent, TodoItem, ToolSuggestion,
@@ -93,10 +93,18 @@ fn test_memory_reference_from_record() {
         layer: Layer,
         ts: chrono::DateTime<chrono::Utc>,
     }
-    let record = TestRecord { id: Uuid::new_v4(), layer: Layer::Interact, ts: Utc::now() };
+    let record = TestRecord {
+        id: Uuid::new_v4(),
+        layer: Layer::Interact,
+        ts: Utc::now(),
+    };
 
     // Адаптер для теста
-    let mem_ref = MemoryReference { record_id: record.id, layer: record.layer, created_at: record.ts };
+    let mem_ref = MemoryReference {
+        record_id: record.id,
+        layer: record.layer,
+        created_at: record.ts,
+    };
 
     assert_eq!(mem_ref.layer, Layer::Interact);
     assert_eq!(mem_ref.record_id, record.id);

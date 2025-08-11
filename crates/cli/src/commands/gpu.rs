@@ -1,5 +1,3 @@
-// use ai::{auto_device_selector::AutoDeviceSelector, EmbeddingConfig};
-
 #[cfg(feature = "gpu")]
 use ai::{
     gpu_detector::GpuDetector, gpu_memory_pool::GPU_MEMORY_POOL, tensorrt_cache::TENSORRT_CACHE,

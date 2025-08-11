@@ -1,11 +1,10 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 // =============================================================================
 // COMPREHENSIVE CORE TESTS - Complete test suite для критических компонентов
 // =============================================================================
 
 // Временно отключены imports пока не исправлены ошибки компиляции
-// use memory::{
 //     Layer, Record, SearchOptions, VectorStore,
 //     EmbeddingCache, CacheConfig, BatchConfig,
 //     cosine_distance_auto, batch_cosine_distance_optimized
@@ -25,7 +24,6 @@ mod types_tests {
     #[test]
     fn test_layer_enum_completeness() {
         // Проверяем что все слои присутствуют
-        // let layers = [Layer::Interact, Layer::Insights, Layer::Assets];
         // assert_eq!(layers.len(), 3);
 
         // Временная заглушка
@@ -34,8 +32,6 @@ mod types_tests {
 
     #[test]
     fn test_record_creation() {
-        // let record = Record::new(
-        //     "test content".to_string(),
         //     vec![1.0, 0.0, 0.0],
         //     Layer::Interact
         // );
@@ -47,7 +43,6 @@ mod types_tests {
 
     #[test]
     fn test_search_options_defaults() {
-        // let options = SearchOptions::default();
         // assert!(options.limit > 0);
         // assert!(options.threshold >= 0.0 && options.threshold <= 1.0);
 
@@ -98,7 +93,11 @@ mod vector_operations_tests {
             vec![1.0, 0.0, 0.0],
             vec![0.0, 1.0, 0.0],
             vec![0.0, 0.0, 1.0],
-            vec![std::f32::consts::FRAC_1_SQRT_2, std::f32::consts::FRAC_1_SQRT_2, 0.0],
+            vec![
+                std::f32::consts::FRAC_1_SQRT_2,
+                std::f32::consts::FRAC_1_SQRT_2,
+                0.0,
+            ],
         ];
 
         let query = vec![1.0, 0.0, 0.0];
@@ -188,10 +187,6 @@ mod storage_layer_tests {
     fn test_storage_operations_interface() {
         // Тест storage interface (пока mock)
         // Будет активирован после исправления VectorStore API
-
-        // let mut store = VectorStore::new(config);
-        // let record = Record::new("test".to_string(), vec![1.0, 0.0], Layer::Interact);
-        // store.store(record).await.unwrap();
 
         assert!(
             true,

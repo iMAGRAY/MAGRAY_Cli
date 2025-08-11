@@ -73,7 +73,7 @@ pub struct EnhancedToolSystem {
     tools: Arc<RwLock<HashMap<String, Arc<dyn Tool>>>>,
 
     /// System statistics
-    system_stats: Arc<tokio::sync::Mutex<SystemStats>>, 
+    system_stats: Arc<tokio::sync::Mutex<SystemStats>>,
 }
 
 /// System-wide statistics
@@ -131,7 +131,10 @@ impl EnhancedToolSystem {
 
         if self.config.enable_execution_pipeline {
             self.execution_pipeline
-                .register_tool(Arc::clone(&tool), crate::registry::ToolMetadata::from_spec(&spec))
+                .register_tool(
+                    Arc::clone(&tool),
+                    crate::registry::ToolMetadata::from_spec(&spec),
+                )
                 .await;
         }
 
@@ -175,7 +178,6 @@ impl EnhancedToolSystem {
 
         debug!("🔧 Using execution strategy: {:?}", execution_strategy);
 
-        // Start performance monitoring if enabled
         let execution_tracker = if self.config.enable_performance_monitoring {
             Some(
                 self.performance_monitor
@@ -203,7 +205,8 @@ impl EnhancedToolSystem {
                             .cloned()
                             .unwrap_or_else(|| "anonymous".into()),
                         security_level: crate::registry::SecurityLevel::Safe,
-                        resource_limits: crate::execution::resource_manager::ResourceLimits::default(),
+                        resource_limits:
+                            crate::execution::resource_manager::ResourceLimits::default(),
                         metadata: context.session_context.clone(),
                     },
                     execution_strategy,
@@ -248,7 +251,6 @@ impl EnhancedToolSystem {
             Vec::new()
         };
 
-        // Get alternative tools for context
         let alternative_tools = if self.config.enable_intelligent_selection {
             self.get_alternative_tools(&context).await
         } else {

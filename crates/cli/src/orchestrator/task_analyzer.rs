@@ -15,7 +15,9 @@ pub struct TaskAnalyzer {
 }
 
 impl Default for TaskAnalyzer {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TaskAnalyzer {
@@ -115,7 +117,6 @@ impl TaskAnalyzer {
         let mut complexity_score = 0;
         let mut matched_complexity = TaskComplexity::Simple;
 
-        // Check for complexity keywords
         for (keyword, complexity) in &self.complexity_keywords {
             if content.contains(keyword) {
                 let keyword_score = match complexity {
@@ -185,7 +186,6 @@ impl TaskAnalyzer {
         let mut priority_score = 0;
         let mut matched_priority = TaskPriority::Normal;
 
-        // Check for priority keywords
         for (keyword, priority) in &self.priority_keywords {
             if content.contains(keyword) {
                 let keyword_score = match priority {

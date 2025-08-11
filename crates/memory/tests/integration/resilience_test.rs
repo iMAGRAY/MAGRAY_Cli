@@ -22,7 +22,6 @@ use tokio::time::{sleep, Duration, timeout, Instant};
 use uuid::Uuid;
 use chrono::Utc;
 
-
 /// Утилита для создания resilience test service
 async fn create_resilience_test_service() -> Result<DIMemoryService> {
     let temp_dir = TempDir::new()?;

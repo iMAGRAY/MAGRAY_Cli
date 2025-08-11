@@ -1,13 +1,13 @@
 use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use clap::Args;
 use colored::*;
 use domain::orchestrator::{Executor, Goal, Orchestrator, Plan, Planner, StepResult, StepStatus};
-use async_trait::async_trait;
-use tools::{ToolInput, ToolOutput, ToolRegistry};
 use std::collections::HashMap;
-use todo::{TodoService, Priority, TaskState, create_default_service};
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
+use todo::{create_default_service, Priority, TaskState, TodoService};
+use tools::{ToolInput, ToolOutput, ToolRegistry};
 
 #[derive(Debug)]
 struct SimplePlanner;
@@ -62,8 +62,17 @@ impl Executor for SimpleExecutor {
                     if !out.result.trim().is_empty() {
                         if let Ok(path) = save_text_artifact(&task.id, &out.result) {
                             let mut meta = std::collections::HashMap::new();
-                            meta.insert("artifact_path".to_string(), serde_json::json!(path.to_string_lossy()));
-                            meta.insert("tool".to_string(), serde_json::json!(step.tool_hint.clone().unwrap_or_else(|| "auto".to_string())));
+                            meta.insert(
+                                "artifact_path".to_string(),
+                                serde_json::json!(path.to_string_lossy()),
+                            );
+                            meta.insert(
+                                "tool".to_string(),
+                                serde_json::json!(step
+                                    .tool_hint
+                                    .clone()
+                                    .unwrap_or_else(|| "auto".to_string())),
+                            );
                             todo_service.upsert_metadata(&task.id, meta).await.ok();
                         }
                     }
@@ -79,10 +88,14 @@ impl Executor for SimpleExecutor {
                     let mut meta = std::collections::HashMap::new();
                     meta.insert("error".to_string(), serde_json::json!(e.to_string()));
                     todo_service.upsert_metadata(&task.id, meta).await.ok();
-                    todo_service.update_state(&task.id, TaskState::Failed).await?;
+                    todo_service
+                        .update_state(&task.id, TaskState::Failed)
+                        .await?;
                     results.push(StepResult {
                         step_id: step.id.clone(),
-                        status: StepStatus::Failed { error: e.to_string() },
+                        status: StepStatus::Failed {
+                            error: e.to_string(),
+                        },
                         output: None,
                         artifacts: vec![],
                     })
@@ -110,7 +123,11 @@ fn save_text_artifact(task_id: &uuid::Uuid, text: &str) -> Result<PathBuf> {
     let mut path = dir;
     path.push(format!("{}.txt", task_id));
     // Ограничим размер до ~64KB
-    let truncated = if text.len() > 64 * 1024 { &text[..64 * 1024] } else { text };
+    let truncated = if text.len() > 64 * 1024 {
+        &text[..64 * 1024]
+    } else {
+        text
+    };
     fs::write(&path, truncated)?;
     Ok(path)
 }
@@ -126,7 +143,9 @@ impl<P: Planner, E: Executor> SimpleOrchestrator<P, E> {
 }
 
 #[async_trait]
-impl<P: Planner + Send + Sync, E: Executor + Send + Sync> Orchestrator for SimpleOrchestrator<P, E> {
+impl<P: Planner + Send + Sync, E: Executor + Send + Sync> Orchestrator
+    for SimpleOrchestrator<P, E>
+{
     async fn plan(&self, goal: Goal) -> Result<Plan> {
         self.planner.create_plan(&goal).await
     }
@@ -166,11 +185,17 @@ async fn run_smart(task: String) -> Result<()> {
     }
 
     let results = orchestrator.run(plan).await?;
-    println!("{} Выполнение завершено: {} шаг(ов)", "✓".green(), results.len());
+    println!(
+        "{} Выполнение завершено: {} шаг(ов)",
+        "✓".green(),
+        results.len()
+    );
     for r in results {
         println!("  • {}: {:?}", r.step_id.bold(), r.status);
         if let Some(out) = r.output {
-            if !out.trim().is_empty() { println!("{}", out); }
+            if !out.trim().is_empty() {
+                println!("{}", out);
+            }
         }
     }
 
@@ -184,10 +209,15 @@ fn detect_tool_hint(text: &str) -> Option<String> {
     {
         return Some("file_read".to_string());
     }
-    if lower.contains("создай файл") || lower.contains("write") || lower.contains("запиши в файл") {
+    if lower.contains("создай файл") || lower.contains("write") || lower.contains("запиши в файл")
+    {
         return Some("file_write".to_string());
     }
-    if lower.contains("папк") || lower.contains("директор") || lower.contains("list dir") || lower.contains("ls ") {
+    if lower.contains("папк")
+        || lower.contains("директор")
+        || lower.contains("list dir")
+        || lower.contains("ls ")
+    {
         return Some("dir_list".to_string());
     }
     if lower.contains("git diff") || lower.contains("показать diff") {
@@ -199,7 +229,11 @@ fn detect_tool_hint(text: &str) -> Option<String> {
     if lower.contains("git commit") || lower.contains("коммит") {
         return Some("git_commit".to_string());
     }
-    if lower.starts_with("выполни") || lower.contains("выполни команду") || lower.starts_with("exec") || lower.starts_with("run ") {
+    if lower.starts_with("выполни")
+        || lower.contains("выполни команду")
+        || lower.starts_with("exec")
+        || lower.starts_with("run ")
+    {
         return Some("shell_exec".to_string());
     }
     if lower.contains("найди ") || lower.contains("поиск ") || lower.contains("search ") {
@@ -209,20 +243,44 @@ fn detect_tool_hint(text: &str) -> Option<String> {
 }
 
 fn looks_like_path(text: &str) -> bool {
-    text.contains('/') || text.contains('\\') || text.contains(".rs") || text.contains(".md") || text.contains(".toml")
+    text.contains('/')
+        || text.contains('\\')
+        || text.contains(".rs")
+        || text.contains(".md")
+        || text.contains(".toml")
 }
 
-async fn execute_step(registry: &ToolRegistry, description: &str, hint: Option<String>) -> Result<ToolOutput> {
+async fn execute_step(
+    registry: &ToolRegistry,
+    description: &str,
+    hint: Option<String>,
+) -> Result<ToolOutput> {
     if let Some(name) = hint {
         if let Some(tool) = registry.get(&name) {
             // Попробуем использовать парсер NL, иначе отправим пустые args
             let input = if tool.supports_natural_language() {
                 match tool.parse_natural_language(description).await {
-                    Ok(mut i) => { i.dry_run = false; i.timeout_ms = None; i },
-                    Err(_) => ToolInput { command: name.clone(), args: HashMap::new(), context: Some(description.to_string()), dry_run: false, timeout_ms: None },
+                    Ok(mut i) => {
+                        i.dry_run = false;
+                        i.timeout_ms = None;
+                        i
+                    }
+                    Err(_) => ToolInput {
+                        command: name.clone(),
+                        args: HashMap::new(),
+                        context: Some(description.to_string()),
+                        dry_run: false,
+                        timeout_ms: None,
+                    },
                 }
             } else {
-                ToolInput { command: name.clone(), args: HashMap::new(), context: Some(description.to_string()), dry_run: false, timeout_ms: None }
+                ToolInput {
+                    command: name.clone(),
+                    args: HashMap::new(),
+                    context: Some(description.to_string()),
+                    dry_run: false,
+                    timeout_ms: None,
+                }
             };
             return tool.execute(input).await;
         } else {
@@ -232,12 +290,21 @@ async fn execute_step(registry: &ToolRegistry, description: &str, hint: Option<S
 
     // Автовыбор: пробуем набор инструментов в приоритетном порядке
     let candidates = [
-        "file_read", "file_write", "dir_list", "git_status", "git_diff", "git_commit", "shell_exec", "web_search",
+        "file_read",
+        "file_write",
+        "dir_list",
+        "git_status",
+        "git_diff",
+        "git_commit",
+        "shell_exec",
+        "web_search",
     ];
 
     for name in candidates {
         if let Some(tool) = registry.get(name) {
-            if !tool.supports_natural_language() { continue; }
+            if !tool.supports_natural_language() {
+                continue;
+            }
             if let Ok(input) = tool.parse_natural_language(description).await {
                 // Если парсер выдал какие‑то аргументы — пробуем исполнить
                 if !input.args.is_empty() || input.context.is_some() {

@@ -124,7 +124,11 @@ fn test_config_partial_update() {
 
 #[test]
 fn test_embedding_config_gpu_settings() {
-    let config = EmbeddingConfig { use_gpu: true, batch_size: 128, ..Default::default() };
+    let config = EmbeddingConfig {
+        use_gpu: true,
+        batch_size: 128,
+        ..Default::default()
+    };
 
     // Test GPU configuration
     assert!(config.use_gpu);
@@ -133,12 +137,14 @@ fn test_embedding_config_gpu_settings() {
 
 #[test]
 fn test_reranking_config_optimization() {
-    let config = RerankingConfig { use_gpu: true, ..Default::default() };
+    let config = RerankingConfig {
+        use_gpu: true,
+        ..Default::default()
+    };
 
     // Test optimization settings
     assert!(config.use_gpu);
 
-    // Smaller batch size for reranking
     assert!(config.batch_size <= 32);
 }
 
@@ -163,7 +169,6 @@ fn test_config_model_names() {
     assert!(!config.embedding.model_name.is_empty());
     assert!(!config.reranking.model_name.is_empty());
 
-    // Should not contain invalid characters for file paths
     assert!(!config.embedding.model_name.contains('/'));
     assert!(!config.embedding.model_name.contains('\\'));
     assert!(!config.reranking.model_name.contains('/'));
@@ -174,7 +179,6 @@ fn test_config_model_names() {
 fn test_embedding_config_dimensions() {
     let config = EmbeddingConfig::default();
 
-    // Embedding dimension should be reasonable if set
     if let Some(dim) = config.embedding_dim {
         assert!(dim > 0);
         assert!(dim <= 4096); // Reasonable upper bound

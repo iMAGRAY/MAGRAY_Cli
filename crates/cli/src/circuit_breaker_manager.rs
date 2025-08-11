@@ -495,7 +495,6 @@ mod tests {
         assert_eq!(stats.state, CircuitBreakerState::Open);
         assert!(!manager.can_execute("test").await.unwrap());
 
-        // Wait for recovery
         sleep(Duration::from_millis(150)).await;
 
         // Should allow one attempt (HalfOpen)

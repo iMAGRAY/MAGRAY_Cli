@@ -1,19 +1,48 @@
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-#[cfg(all(not(feature = "minimal",), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal",),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 use memory::{HnswRsConfig, Layer, Record, VectorIndexHnswRs, VectorStore};
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 use std::time::Instant;
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 use tokio::runtime::Runtime;
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 use uuid::Uuid;
 
-#[cfg(all(target_arch = "x86_64", not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 use std::arch::x86_64::*;
 
 /// Генерация случайных векторов для тестов
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 fn generate_random_vectors(count: usize, dimension: usize) -> Vec<Vec<f32>> {
     (0..count)
         .map(|_| {
@@ -40,7 +69,11 @@ fn generate_random_vectors(count: usize, dimension: usize) -> Vec<Vec<f32>> {
         .collect()
 }
 
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 fn create_test_records(vectors: Vec<Vec<f32>>, layer: Layer) -> Vec<Record> {
     vectors
         .into_iter()
@@ -61,7 +94,11 @@ fn create_test_records(vectors: Vec<Vec<f32>>, layer: Layer) -> Vec<Record> {
         .collect()
 }
 
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 fn bench_hnsw_insert(c: &mut Criterion) {
     let config = HnswRsConfig {
         dimension: 1024,
@@ -84,7 +121,9 @@ fn bench_hnsw_insert(c: &mut Criterion) {
                 |vectors| {
                     let rt = Runtime::new().unwrap();
                     rt.block_on(async {
-                        let store = VectorStore::with_config("/tmp", config.clone()).await.unwrap();
+                        let store = VectorStore::with_config("/tmp", config.clone())
+                            .await
+                            .unwrap();
                         let recs = create_test_records(vectors, Layer::Interact);
                         let refs: Vec<&Record> = recs.iter().collect();
                         store.insert_batch(&refs).await.unwrap();
@@ -97,7 +136,11 @@ fn bench_hnsw_insert(c: &mut Criterion) {
     group.finish();
 }
 
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 fn bench_hnsw_search(c: &mut Criterion) {
     let config = HnswRsConfig::default();
     let mut group = c.benchmark_group("hnsw_search");
@@ -109,7 +152,9 @@ fn bench_hnsw_search(c: &mut Criterion) {
                 let start = Instant::now();
                 let rt = Runtime::new().unwrap();
                 rt.block_on(async {
-                    let store = VectorStore::with_config("/tmp", config.clone()).await.unwrap();
+                    let store = VectorStore::with_config("/tmp", config.clone())
+                        .await
+                        .unwrap();
                     let vectors = generate_random_vectors(size, config.dimension);
                     let records = create_test_records(vectors, Layer::Interact);
                     let refs: Vec<&Record> = records.iter().collect();
@@ -125,14 +170,20 @@ fn bench_hnsw_search(c: &mut Criterion) {
     group.finish();
 }
 
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 fn bench_hybrid_end_to_end(c: &mut Criterion) {
     let config = HnswRsConfig::default();
     let rt = Runtime::new().unwrap();
 
     c.bench_function("hybrid_end_to_end", |b| {
         b.to_async(&rt).iter(|| async {
-            let store = VectorStore::with_config("/tmp", config.clone()).await.unwrap();
+            let store = VectorStore::with_config("/tmp", config.clone())
+                .await
+                .unwrap();
             let vectors = generate_random_vectors(1000, config.dimension);
             let records = create_test_records(vectors, Layer::Interact);
             let refs: Vec<&Record> = records.iter().collect();
@@ -143,10 +194,27 @@ fn bench_hybrid_end_to_end(c: &mut Criterion) {
     });
 }
 
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
-criterion_group!(benches, bench_hnsw_insert, bench_hnsw_search, bench_hybrid_end_to_end);
-#[cfg(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence"))]
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
+criterion_group!(
+    benches,
+    bench_hnsw_insert,
+    bench_hnsw_search,
+    bench_hybrid_end_to_end
+);
+#[cfg(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+))]
 criterion_main!(benches);
 
-#[cfg(not(all(not(feature = "minimal"), feature = "hnsw-index", feature = "persistence")))]
+#[cfg(not(all(
+    not(feature = "minimal"),
+    feature = "hnsw-index",
+    feature = "persistence"
+)))]
 fn main() {}

@@ -6,9 +6,7 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::{
-    types::SearchOptions, Layer, Record,
-};
+use crate::{types::SearchOptions, Layer, Record};
 
 #[cfg(all(not(feature = "minimal"), feature = "services-modules"))]
 use crate::services::RefactoredDIMemoryService as MemoryService;
@@ -16,10 +14,22 @@ use crate::services::RefactoredDIMemoryService as MemoryService;
 #[cfg(not(all(not(feature = "minimal"), feature = "services-modules")))]
 pub struct MemoryService;
 #[cfg(not(all(not(feature = "minimal"), feature = "services-modules")))]
-impl MemoryService { pub async fn insert(&self, _r: Record) -> Result<()> { Ok(()) } }
+impl MemoryService {
+    pub async fn insert(&self, _r: Record) -> Result<()> {
+        Ok(())
+    }
+}
 #[cfg(not(all(not(feature = "minimal"), feature = "services-modules")))]
-impl MemoryService { pub async fn search(&self, _q: &str, _l: Layer, _o: crate::types::SearchOptions) -> Result<Vec<Record>> { Ok(vec![]) } }
-
+impl MemoryService {
+    pub async fn search(
+        &self,
+        _q: &str,
+        _l: Layer,
+        _o: crate::types::SearchOptions,
+    ) -> Result<Vec<Record>> {
+        Ok(vec![])
+    }
+}
 
 /// Streaming API для real-time обработки embeddings
 pub struct StreamingMemoryAPI {

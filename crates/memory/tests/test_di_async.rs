@@ -1,4 +1,4 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 use anyhow::Result;
 use memory::{default_config, DIContainer, DIMemoryService, Lifetime};
@@ -33,7 +33,6 @@ async fn test_async_factory_pattern() -> Result<()> {
 
 #[tokio::test]
 async fn test_no_runtime_conflict() -> Result<()> {
-    // Тест что мы можем создать сервис внутри async контекста
     let handle = tokio::spawn(async {
         let config = default_config().unwrap();
         DIMemoryService::new(config).await

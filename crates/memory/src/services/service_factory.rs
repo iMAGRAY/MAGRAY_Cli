@@ -14,13 +14,14 @@ use tracing::{debug, info};
 use crate::{
     di::UnifiedContainer,
     services::traits::{
-        CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait,
-        MonitoringServiceTrait, ResilienceServiceTrait,
+        CacheServiceTrait, CoordinatorServiceTrait, CoreMemoryServiceTrait, MonitoringServiceTrait,
+        ResilienceServiceTrait,
     },
-    CacheServiceTrait as _, CoordinatorServiceTrait as _, CoreMemoryServiceTrait as _, MonitoringServiceTrait as _, ResilienceServiceTrait as _,
     services::{
         CacheService, CoordinatorService, CoreMemoryService, MonitoringService, ResilienceService,
     },
+    CacheServiceTrait as _, CoordinatorServiceTrait as _, CoreMemoryServiceTrait as _,
+    MonitoringServiceTrait as _, ResilienceServiceTrait as _,
 };
 
 /// Фабрика для создания всех специализированных сервисов

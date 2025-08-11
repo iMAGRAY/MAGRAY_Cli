@@ -4,9 +4,9 @@ pub mod memory;
 #[cfg(feature = "minimal")]
 pub mod memory_stub;
 pub mod models;
-pub mod tools;
 pub mod smart;
 pub mod tasks;
+pub mod tools;
 
 pub use gpu::GpuCommand;
 #[cfg(not(feature = "minimal"))]
@@ -14,6 +14,6 @@ pub use memory::MemoryCommand;
 #[cfg(feature = "minimal")]
 pub use memory_stub::MemoryCommand;
 pub use models::ModelsCommand;
-pub use tools::ToolsCommand;
 pub use smart::SmartCommand;
 pub use tasks::TasksCommand;
+pub use tools::ToolsCommand;

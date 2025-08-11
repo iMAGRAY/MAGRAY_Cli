@@ -96,7 +96,6 @@ impl PromoteRecordsUseCase for PromoteRecordsUseCaseImpl {
                 }
             }
         } else if request.dry_run {
-            // Convert candidates to promotion records for dry run response
             promoted_records = candidates.into_iter().map(|candidate| {
                 crate::dtos::RecordPromotion {
                     record_id: candidate.record_id().to_string(),
@@ -121,7 +120,6 @@ impl PromoteRecordsUseCase for PromoteRecordsUseCaseImpl {
             request.dry_run,
         ).await?;
         
-        // Send notifications for significant promotions
         if !request.dry_run && promoted_records.len() > 10 {
             self.send_promotion_notification(promoted_records.len(), &context).await?;
         }
@@ -262,7 +260,6 @@ impl PromoteRecordsUseCase for PromoteRecordsUseCaseImpl {
         // Record force promotion metrics
         self.record_force_promotion_metrics(promoted_records.len(), failed_count, total_time).await?;
         
-        // Send notification for force promotions
         self.send_force_promotion_notification(record_ids.len(), promoted_records.len(), target_layer, &context).await?;
         
         let response = PromoteRecordsResponse {

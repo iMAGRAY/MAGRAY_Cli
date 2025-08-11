@@ -1,4 +1,4 @@
-//! Service Configuration Module - Single Responsibility для конфигурации
+﻿//! Service Configuration Module - Single Responsibility для конфигурации
 //!
 //! Этот модуль отвечает ТОЛЬКО за конфигурацию DIMemoryService.
 //! Применяет Single Responsibility и Dependency Inversion принципы.
@@ -6,20 +6,22 @@
 use ai::AiConfig;
 use anyhow::Result;
 use common::service_traits::ConfigurationProfile;
+use common::ConfigTrait;
 use std::path::PathBuf;
 
-use crate::{
-    resource_manager::ResourceConfig,
-};
-#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
-use crate::gpu_accelerated::GpuDeviceManager;
-#[cfg(not(feature = "minimal"))]
-use crate::notifications::NotificationConfig;
-#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
-use crate::ml_promotion::MLPromotionConfig;
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 use crate::batch_manager::BatchConfig;
-use crate::{health::HealthMonitorConfig, streaming::StreamingConfig, types::PromotionConfig, CacheConfigType};
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+use crate::gpu_accelerated::GpuDeviceManager;
+#[cfg(all(not(feature = "minimal"), feature = "persistence"))]
+use crate::ml_promotion::MLPromotionConfig;
+#[cfg(not(feature = "minimal"))]
+use crate::notifications::NotificationConfig;
+use crate::resource_manager::ResourceConfig;
+use crate::{
+    health::HealthMonitorConfig, streaming::StreamingConfig, types::PromotionConfig,
+    CacheConfigType,
+};
 
 // Fallback BatchConfig when persistence is disabled
 #[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
@@ -32,14 +34,27 @@ pub struct BatchConfig {
 #[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
 impl Default for BatchConfig {
     fn default() -> Self {
-        Self { max_batch_size: 64, flush_interval_ms: 100 }
+        Self {
+            max_batch_size: 64,
+            flush_interval_ms: 100,
+        }
     }
 }
 
 #[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
 impl BatchConfig {
-    pub fn production() -> Self { Self { max_batch_size: 512, flush_interval_ms: 50 } }
-    pub fn minimal() -> Self { Self { max_batch_size: 16, flush_interval_ms: 250 } }
+    pub fn production() -> Self {
+        Self {
+            max_batch_size: 512,
+            flush_interval_ms: 50,
+        }
+    }
+    pub fn minimal() -> Self {
+        Self {
+            max_batch_size: 16,
+            flush_interval_ms: 250,
+        }
+    }
 }
 
 /// Типы конфигурации Memory Service
@@ -101,8 +116,8 @@ impl MemoryServiceConfig {
             #[cfg(not(all(not(feature = "minimal"), feature = "persistence")))]
             ml_promotion: None,
             streaming_config: Some(StreamingConfig::production()),
-            ai_config: AiConfig::production(),
-            cache_config: CacheConfigType::production(),
+            ai_config: <AiConfig as ConfigTrait>::production(),
+            cache_config: <CacheConfigType as ConfigTrait>::production(),
             health_enabled: true,
             health_config: HealthMonitorConfig::production(),
             resource_config: ResourceConfig::production(),
@@ -122,8 +137,8 @@ impl MemoryServiceConfig {
             promotion: PromotionConfig::minimal(),
             ml_promotion: None,
             streaming_config: None,
-            ai_config: AiConfig::minimal(),
-            cache_config: CacheConfigType::minimal(),
+            ai_config: <AiConfig as ConfigTrait>::minimal(),
+            cache_config: <CacheConfigType as ConfigTrait>::minimal(),
             health_enabled: false,
             health_config: HealthMonitorConfig::minimal(),
             resource_config: ResourceConfig::minimal(),
@@ -267,7 +282,7 @@ pub fn default_config() -> Result<MemoryServiceConfig> {
 /// Re-export для обратной совместимости
 pub type MemoryConfig = MemoryServiceConfig;
 
-#[cfg(all(test, feature = "extended-tests", feature = "legacy-tests"))]
+#[cfg(all(test, feature = "extended-tests"))]
 mod tests {
     use super::*;
 

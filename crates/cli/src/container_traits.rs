@@ -217,10 +217,6 @@ impl Default for ContainerBuilder {
 }
 
 // ============================================================================
-// ADAPTER ДЛЯ MEMORY::DICONTAINER
-// ============================================================================
-
-/// Adapter для интеграции с memory::DIContainer
 pub struct MemoryContainerAdapter {
     inner: memory::DIContainer,
     stats: std::sync::Arc<std::sync::Mutex<ContainerStats>>,

@@ -206,7 +206,6 @@ async fn test_retrieve_memory_not_found() {
     assert!(result.is_err());
 }
 
-// Additional mock for other use cases
 #[derive(Clone)]
 struct MockSearchMemoryUseCase;
 

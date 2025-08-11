@@ -75,7 +75,6 @@ impl InputValidator {
     }
 
     fn validate_schema(input: &ToolInput, schema: &serde_json::Value) -> Result<()> {
-        // Basic schema validation (in production, use a proper JSON schema validator)
         if let Some(obj) = schema.as_object() {
             for (key, _) in obj {
                 if !input.args.contains_key(key) {
@@ -126,7 +125,6 @@ impl InputValidator {
             .trim()
             .to_string();
 
-        // Check against allowed paths for restricted permissions
         match fs_perms {
             FileSystemPermissions::None => {
                 return Err(anyhow!("Tool does not have file system permissions"));
@@ -219,7 +217,6 @@ impl InputValidator {
     }
 
     fn perform_security_checks(input: &ToolInput, _metadata: &ToolMetadata) -> Result<()> {
-        // Check for SQL injection patterns
         for value in input.args.values() {
             if Self::contains_sql_injection(value) {
                 error!("SQL injection attempt detected in tool input");
@@ -227,7 +224,6 @@ impl InputValidator {
             }
         }
 
-        // Check for script injection
         if let Some(context) = &input.context {
             if Self::contains_script_injection(context) {
                 error!("Script injection attempt detected in context");
@@ -385,12 +381,10 @@ impl SecureToolRegistry {
             return Err(anyhow!("Insufficient permissions to register tools"));
         }
 
-        // Verify tool signature if required
         if self.security_config.require_signature_verification {
             self.verify_tool_signature(&metadata)?;
         }
 
-        // Check if untrusted tools are allowed
         if !metadata.trusted && !self.security_config.allow_untrusted_tools {
             return Err(anyhow!("Untrusted tools are not allowed in this registry"));
         }
@@ -534,7 +528,6 @@ impl SecureToolRegistry {
         metadata: &ToolMetadata,
         security_context: &SecurityContext,
     ) -> Result<()> {
-        // Check if tool requires higher trust level
         match metadata.security_level {
             SecurityLevel::HighRisk | SecurityLevel::Critical => {
                 if !security_context.permissions.can_execute_high_risk {
@@ -627,7 +620,6 @@ impl SecureToolRegistry {
 
     fn verify_tool_signature(&self, _metadata: &ToolMetadata) -> Result<()> {
         // In production, implement proper digital signature verification
-        // For now, just check if signature exists for trusted tools
         Ok(())
     }
 

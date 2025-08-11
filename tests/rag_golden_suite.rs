@@ -136,7 +136,6 @@ async fn rag_golden_suite_metrics() {
             })
             .collect();
 
-        // Ideal relevance vector: sorted label counts for the corpus' insight docs
         let mut ideal_rel: Vec<u8> = docs
             .iter()
             .filter(|(_, l)| *l == Layer::Insights)
@@ -190,7 +189,6 @@ async fn rag_golden_suite_metrics() {
         per_query_latencies_ms.iter().copied().map(|x| x as f64).sum::<f64>() / per_query_latencies_ms.len() as f64
     };
 
-    // Golden expectations tuned for mock embeddings (slightly stricter)
     assert!(prec_avg >= 0.28, "avg precision too low: {}", prec_avg);
     assert!(rec_avg >= 0.48, "avg recall too low: {}", rec_avg);
     assert!(ndcg_avg >= 0.48, "avg ndcg too low: {}", ndcg_avg);
@@ -223,7 +221,6 @@ async fn rag_golden_suite_metrics() {
         ("async runtime in rust", HashSet::from(["tokio","async"])) ,
     ] {
         let t0 = Instant::now();
-        // emulate rerank by using same API (our in-memory engine already applies rerank if enabled)
         let results = api
             .recall(q, SearchOptions::default().in_layers(vec![Layer::Insights]).limit(5))
             .await

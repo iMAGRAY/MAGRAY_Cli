@@ -52,19 +52,15 @@ impl AccessPattern {
         self.access_count += 1;
         self.last_access = now;
 
-        // Keep only last 10 accesses for pattern analysis
         self.recent_accesses.push(now);
         if self.recent_accesses.len() > 10 {
             self.recent_accesses.remove(0);
         }
 
-        // Initialize first access if this is the first one
         if self.access_count == 1 {
             self.first_access = now;
         }
     }
-
-    // Business metrics for ML promotion
 
     /// Get total access count
     pub fn access_count(&self) -> u32 {

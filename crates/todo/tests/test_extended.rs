@@ -1,14 +1,13 @@
-#![cfg(all(feature = "extended-tests", feature = "legacy-tests"))]
+#![cfg(feature = "extended-tests")]
 
 use anyhow::Result;
 use tempfile::NamedTempFile;
-use todo::DependencyGraph;
 use todo::service_v2::TodoServiceV2;
 use todo::store_v2::TodoStoreV2;
 use todo::types::*;
+use todo::DependencyGraph;
 use uuid::Uuid;
 
-// Test for basic service creation with different configurations
 #[tokio::test]
 async fn test_service_creation_variants() -> Result<()> {
     let temp_file = NamedTempFile::new()?;
@@ -132,7 +131,6 @@ async fn test_dependency_operations() -> Result<()> {
         .add_dependency(&child_task.id, &parent_task.id)
         .await?;
 
-    // Verify dependency was added by checking if child is blocked/not ready
     let ready_tasks = service.get_next_ready(10).await?;
     let ready_ids: Vec<Uuid> = ready_tasks.iter().map(|t| t.id).collect();
 
@@ -181,15 +179,12 @@ async fn test_search_functionality() -> Result<()> {
         )
         .await?;
 
-    // Search for tasks containing "Search"
     let results = service.search("Search", 10).await?;
     assert_eq!(results.len(), 2);
 
-    // Search for tasks containing "alpha"
     let results = service.search("alpha", 10).await?;
     assert_eq!(results.len(), 1);
 
-    // Search for all tasks (empty query)
     let results = service.search("", 10).await?;
     assert_eq!(results.len(), 3);
 
@@ -381,7 +376,6 @@ async fn test_edge_cases() -> Result<()> {
     Ok(())
 }
 
-// Test for TodoStore direct usage
 #[tokio::test]
 async fn test_todo_store_direct() -> Result<()> {
     let temp_file = NamedTempFile::new()?;
@@ -406,7 +400,6 @@ async fn test_todo_store_direct() -> Result<()> {
     Ok(())
 }
 
-// Test for DependencyGraph direct usage
 #[tokio::test]
 async fn test_dependency_graph_direct() -> Result<()> {
     let graph = DependencyGraph::new();
@@ -414,7 +407,6 @@ async fn test_dependency_graph_direct() -> Result<()> {
     let task1_id = Uuid::new_v4();
     let task2_id = Uuid::new_v4();
 
-    // Create fake tasks for graph testing
     let task1 = TodoItem {
         id: task1_id,
         title: "Task 1".to_string(),
@@ -432,7 +424,6 @@ async fn test_dependency_graph_direct() -> Result<()> {
     graph.add_task(&task1)?;
     graph.add_task(&task2)?;
 
-    // Check if tasks are ready (both should be ready as graph doesn't track state)
     assert!(graph.is_ready(&task1_id)?);
     assert!(graph.is_ready(&task2_id)?); // Graph doesn't check completed state
 
@@ -461,7 +452,6 @@ async fn test_concurrent_operations() -> Result<()> {
         }));
     }
 
-    // Wait for all tasks to complete
     let mut created_tasks = vec![];
     for handle in handles {
         let task = handle.await??;

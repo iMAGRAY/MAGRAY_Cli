@@ -40,7 +40,6 @@ async fn test_gpu_fallback_manager_creation() {
     let manager = manager.unwrap();
 
     let stats = manager.get_stats();
-    // Check that rates are zero for fresh manager
     assert_eq!(stats.gpu_success_rate(), 0.0);
     assert_eq!(stats.fallback_rate(), 0.0);
 }
@@ -52,7 +51,6 @@ async fn test_gpu_fallback_manager_cpu_only() {
 
     let manager = GpuFallbackManager::new(config).await.unwrap();
 
-    // Should use CPU when GPU is disabled
     let texts = vec!["test text".to_string()];
     let _result = manager.embed_batch_with_fallback(texts).await;
 
@@ -103,7 +101,6 @@ async fn test_reset_circuit_breaker() {
     // Reset circuit breaker
     manager.reset_circuit_breaker();
 
-    // Now GPU should be available again (if it was available initially)
     // Testing the reset functionality
     assert!(true); // Circuit breaker was reset without panic
 }

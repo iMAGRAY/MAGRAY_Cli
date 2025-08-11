@@ -13,11 +13,13 @@ pub struct ScheduledJob {
 
 #[derive(Clone)]
 pub struct Scheduler {
-    inner: Arc<RwLock<Inner>>,    
+    inner: Arc<RwLock<Inner>>,
 }
 
 impl Default for Scheduler {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 struct Inner {
@@ -27,10 +29,13 @@ struct Inner {
 impl Scheduler {
     pub fn new() -> Self {
         let (tx, _rx) = broadcast::channel(8);
-        Self { inner: Arc::new(RwLock::new(Inner { shutdown_tx: tx })) }
+        Self {
+            inner: Arc::new(RwLock::new(Inner { shutdown_tx: tx })),
+        }
     }
 
-    pub async fn spawn_periodic<F, Fut>(&self, job: ScheduledJob, f: F) where
+    pub async fn spawn_periodic<F, Fut>(&self, job: ScheduledJob, f: F)
+    where
         F: FnMut() -> Fut + Send + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
@@ -72,13 +77,18 @@ mod tests {
         let sched = Scheduler::new();
         let counter = Arc::new(AtomicUsize::new(0));
         let c2 = counter.clone();
-        let job = ScheduledJob { id: JobId("test.job"), interval: Duration::from_millis(20) };
-        sched.spawn_periodic(job, move || {
-            let c = c2.clone();
-            async move {
-                c.fetch_add(1, Ordering::Relaxed);
-            }
-        }).await;
+        let job = ScheduledJob {
+            id: JobId("test.job"),
+            interval: Duration::from_millis(20),
+        };
+        sched
+            .spawn_periodic(job, move || {
+                let c = c2.clone();
+                async move {
+                    c.fetch_add(1, Ordering::Relaxed);
+                }
+            })
+            .await;
 
         tokio::time::sleep(Duration::from_millis(75)).await;
         sched.shutdown().await;
@@ -93,15 +103,40 @@ mod tests {
         let c2 = Arc::new(AtomicUsize::new(0));
         let c1c = c1.clone();
         let c2c = c2.clone();
-        let j1 = ScheduledJob { id: JobId("job.1"), interval: Duration::from_millis(15) };
-        let j2 = ScheduledJob { id: JobId("job.2"), interval: Duration::from_millis(22) };
-        sched.spawn_periodic(j1, move || { let cc = c1c.clone(); async move { cc.fetch_add(1, Ordering::Relaxed); } }).await;
-        sched.spawn_periodic(j2, move || { let cc = c2c.clone(); async move { cc.fetch_add(1, Ordering::Relaxed); } }).await;
+        let j1 = ScheduledJob {
+            id: JobId("job.1"),
+            interval: Duration::from_millis(15),
+        };
+        let j2 = ScheduledJob {
+            id: JobId("job.2"),
+            interval: Duration::from_millis(22),
+        };
+        sched
+            .spawn_periodic(j1, move || {
+                let cc = c1c.clone();
+                async move {
+                    cc.fetch_add(1, Ordering::Relaxed);
+                }
+            })
+            .await;
+        sched
+            .spawn_periodic(j2, move || {
+                let cc = c2c.clone();
+                async move {
+                    cc.fetch_add(1, Ordering::Relaxed);
+                }
+            })
+            .await;
 
         tokio::time::sleep(Duration::from_millis(80)).await;
         sched.shutdown().await;
         let n1 = c1.load(Ordering::Relaxed);
         let n2 = c2.load(Ordering::Relaxed);
-        assert!(n1 > 0 && n2 > 0, "jobs must tick independently: n1={}, n2={}", n1, n2);
+        assert!(
+            n1 > 0 && n2 > 0,
+            "jobs must tick independently: n1={}, n2={}",
+            n1,
+            n2
+        );
     }
 }
