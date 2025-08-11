@@ -212,3 +212,4 @@ crates/memory/models/qwen3_reranker/model.opt.onnx
 crates/memory/models/BGE-reranker-v2-m3/
 crates/memory/models/the-stack-smol-xs/
 /models/gpt-oss-20b
+models/Qwen3-Embedding-0.6B-ONNX/
