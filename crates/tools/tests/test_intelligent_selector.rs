@@ -35,7 +35,7 @@ fn mk_spec(name: &str, desc: &str, guide: Option<UsageGuide>) -> ToolSpec {
     ToolSpec {
         name: name.into(),
         description: desc.into(),
-        usage: format!("{} <args>", name),
+        usage: format!("{name} <args>"),
         examples: vec![format!("{} example", name)],
         input_schema: "{}".into(),
         usage_guide: guide,
@@ -85,11 +85,17 @@ async fn selector_prefers_tool_with_matching_tags_caps() {
     let choices = selector
         .select_tools(&ctx("скачай страницу", UrgencyLevel::Normal))
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert!(!choices.is_empty());
     // alpha should rank higher than beta
-    let pos_alpha = choices.iter().position(|c| c.tool_name == "alpha").unwrap();
-    let pos_beta = choices.iter().position(|c| c.tool_name == "beta").unwrap();
+    let pos_alpha = choices
+        .iter()
+        .position(|c| c.tool_name == "alpha")
+        .expect("Test operation should succeed");
+    let pos_beta = choices
+        .iter()
+        .position(|c| c.tool_name == "beta")
+        .expect("Test operation should succeed");
     assert!(
         pos_alpha < pos_beta,
         "alpha should outrank beta due to tags/caps match"
@@ -117,9 +123,15 @@ async fn selector_accounts_for_latency_with_high_urgency() {
     let choices = selector
         .select_tools(&ctx("latency test", UrgencyLevel::High))
         .await
-        .unwrap();
-    let pos_fast = choices.iter().position(|c| c.tool_name == "fast").unwrap();
-    let pos_slow = choices.iter().position(|c| c.tool_name == "slow").unwrap();
+        .expect("Test operation should succeed");
+    let pos_fast = choices
+        .iter()
+        .position(|c| c.tool_name == "fast")
+        .expect("Test operation should succeed");
+    let pos_slow = choices
+        .iter()
+        .position(|c| c.tool_name == "slow")
+        .expect("Test operation should succeed");
     assert!(
         pos_fast < pos_slow,
         "fast latency should be preferred under high urgency"
@@ -147,15 +159,15 @@ async fn selector_prefers_lower_risk() {
     let choices = selector
         .select_tools(&ctx("do something", UrgencyLevel::Normal))
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     let pos_low = choices
         .iter()
         .position(|c| c.tool_name == "lowrisk")
-        .unwrap();
+        .expect("Test operation should succeed");
     let pos_high = choices
         .iter()
         .position(|c| c.tool_name == "highrisk")
-        .unwrap();
+        .expect("Test operation should succeed");
     assert!(pos_low < pos_high, "low risk should have slight bonus");
 }
 
@@ -191,11 +203,11 @@ async fn selector_is_deterministic_for_same_input() {
     let c1 = selector
         .select_tools(&ctx("some query with tag1", UrgencyLevel::Normal))
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     let c2 = selector
         .select_tools(&ctx("some query with tag1", UrgencyLevel::Normal))
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert_eq!(c1.len(), c2.len());
     // Compare order of tool names
     let names1: Vec<_> = c1.iter().map(|x| x.tool_name.clone()).collect();
@@ -230,7 +242,7 @@ async fn selector_prefilters_shell_when_disallowed() {
     let choices = selector
         .select_tools(&ctx("run command", UrgencyLevel::Normal))
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     // shell_exec must not appear
     assert!(choices.iter().all(|c| c.tool_name != "shell_exec"));
 }
@@ -258,7 +270,7 @@ async fn selector_prefilters_network_when_allowlist_empty() {
     let choices = selector
         .select_tools(&ctx("скачай страницу", UrgencyLevel::Normal))
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert!(choices.iter().all(|c| c.tool_name != "web_fetch"));
 }
 
@@ -286,7 +298,7 @@ async fn selector_prefilters_fs_when_sandbox_on_and_roots_insufficient() {
     let choices = selector
         .select_tools(&ctx("write file", UrgencyLevel::Normal))
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert!(choices.iter().all(|c| c.tool_name != "file_write"));
 }
 
@@ -325,9 +337,15 @@ async fn selector_prefers_lower_privilege_and_dry_run() {
     let choices = selector
         .select_tools(&ctx("do something", UrgencyLevel::Normal))
         .await
-        .unwrap();
-    let pos_safe = choices.iter().position(|c| c.tool_name == "safe").unwrap();
-    let pos_risky = choices.iter().position(|c| c.tool_name == "risky").unwrap();
+        .expect("Test operation should succeed");
+    let pos_safe = choices
+        .iter()
+        .position(|c| c.tool_name == "safe")
+        .expect("Test operation should succeed");
+    let pos_risky = choices
+        .iter()
+        .position(|c| c.tool_name == "risky")
+        .expect("Test operation should succeed");
     assert!(
         pos_safe < pos_risky,
         "Tools with fewer privileges and dry-run should rank higher"
@@ -367,10 +385,16 @@ async fn selector_explanations_include_permissions_and_dry_run() {
     let exps = selector
         .select_tools_with_explanations(&ctx("do something", UrgencyLevel::Normal))
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     // Find both explanations
-    let er = exps.iter().find(|e| e.tool_name == "risky2").unwrap();
-    let es = exps.iter().find(|e| e.tool_name == "safe2").unwrap();
+    let er = exps
+        .iter()
+        .find(|e| e.tool_name == "risky2")
+        .expect("Test operation should succeed");
+    let es = exps
+        .iter()
+        .find(|e| e.tool_name == "safe2")
+        .expect("Test operation should succeed");
 
     // Expect penalties/bonuses present
     assert!(er.breakdown.permissions_adjust <= 0.0);

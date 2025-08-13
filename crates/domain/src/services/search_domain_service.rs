@@ -141,9 +141,11 @@ where
         }
 
         // Sort by business relevance (combination of similarity and business score)
-        results
-            .records
-            .sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap());
+        results.records.sort_by(|a, b| {
+            b.relevance_score
+                .partial_cmp(&a.relevance_score)
+                .expect("Operation failed - converted from unwrap()")
+        });
 
         // Update ranks after sorting
         for (index, result_record) in results.records.iter_mut().enumerate() {
@@ -169,6 +171,39 @@ where
 
         Ok(results)
     }
+
+    /// Search across specific memory layers with filtering
+    pub async fn search_across_layers(
+        &self,
+        query: SearchQuery,
+        layers: &[LayerType],
+        limit: usize,
+        threshold: Option<&ScoreThreshold>,
+        project: Option<&str>,
+        filters: Option<&std::collections::HashMap<String, String>>,
+    ) -> DomainResult<SearchResults> {
+        // Create search query with layer restrictions
+        let mut layer_query = query.with_layers(layers.to_vec());
+
+        if let Some(threshold) = threshold {
+            layer_query = layer_query.with_score_threshold(*threshold);
+        }
+
+        layer_query = layer_query.with_max_results(limit)?;
+
+        // Apply project filter if provided
+        if let Some(project) = project {
+            layer_query = layer_query.with_project(project.to_string())?;
+        }
+
+        // Apply additional filters if provided
+        if let Some(_filters) = filters {
+            // Filters would need specific implementation in SearchQuery
+            // For now, just use the query as-is
+        }
+
+        self.search_with_intelligence(layer_query).await
+    }
 }
 
 /// Trait for search domain service operations
@@ -182,6 +217,15 @@ pub trait SearchDomainServiceTrait: Send + Sync {
         query: SearchQuery,
         project: &str,
         session: &str,
+    ) -> DomainResult<SearchResults>;
+    async fn search_across_layers(
+        &self,
+        query: SearchQuery,
+        layers: &[LayerType],
+        limit: usize,
+        threshold: Option<&ScoreThreshold>,
+        project: Option<&str>,
+        filters: Option<&std::collections::HashMap<String, String>>,
     ) -> DomainResult<SearchResults>;
 }
 
@@ -207,5 +251,18 @@ where
         session: &str,
     ) -> DomainResult<SearchResults> {
         self.context_aware_search(query, project, session).await
+    }
+
+    async fn search_across_layers(
+        &self,
+        query: SearchQuery,
+        layers: &[LayerType],
+        limit: usize,
+        threshold: Option<&ScoreThreshold>,
+        project: Option<&str>,
+        filters: Option<&std::collections::HashMap<String, String>>,
+    ) -> DomainResult<SearchResults> {
+        self.search_across_layers(query, layers, limit, threshold, project, filters)
+            .await
     }
 }

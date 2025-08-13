@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 #![cfg(all(feature = "embeddings", feature = "extended-tests"))]
 
 use ai::ort_setup::configure_ort_env;
@@ -7,7 +8,7 @@ fn ort_env_respects_preexisting_var() {
     // If already set, function should not override
     std::env::set_var("ORT_DYLIB_PATH", "/tmp/libonnxruntime.so");
     configure_ort_env();
-    let val = std::env::var("ORT_DYLIB_PATH").unwrap();
+    let val = std::env::var("ORT_DYLIB_PATH").expect("Test operation should succeed");
     assert_eq!(val, "/tmp/libonnxruntime.so");
 }
 

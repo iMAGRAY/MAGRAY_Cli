@@ -1,19 +1,21 @@
-﻿//! Request Routing Service - маршрутизация запросов
-//! 
+//! Request Routing Service - маршрутизация запросов
+//!
 //! Сервис отвечает за принятие решения о том, как обработать запрос:
-//! - Чат с LLM 
+//! - Чат с LLM
 //! - Выполнение инструментов через SmartRouter
+
+#![allow(dead_code)] // Allow unused code during development
 //! - Смешанные операции
-//! 
+//!
 //! Работает на основе результатов IntentAnalysisService и применяет
 //! business logic для выбора оптимального способа обработки.
 
+use super::types::{AgentResponse, IntentDecision, OperationResult, RequestContext};
 use anyhow::Result;
+use router::SmartRouter;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, info, warn};
-use router::SmartRouter;
-use super::types::{IntentDecision, AgentResponse, RequestContext, OperationResult};
 
 /// Trait для сервиса маршрутизации запросов
 #[async_trait::async_trait]
@@ -24,17 +26,17 @@ pub trait RequestRoutingService: Send + Sync {
         context: &RequestContext,
         intent: &IntentDecision,
     ) -> Result<OperationResult<AgentResponse>>;
-    
+
     /// Получить рекомендацию по маршрутизации без выполнения
     async fn recommend_routing(
         &self,
         context: &RequestContext,
         intent: &IntentDecision,
     ) -> Result<RoutingRecommendation>;
-    
+
     /// Получить статистику маршрутизации
     async fn get_routing_stats(&self) -> RoutingStats;
-    
+
     /// Сбросить статистику (для тестов)
     async fn reset_stats(&self);
 }
@@ -50,7 +52,7 @@ pub struct RoutingRecommendation {
 }
 
 /// Тип маршрута для обработки запроса
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum RouteType {
     /// Простой чат с LLM
     DirectChat,
@@ -87,10 +89,10 @@ pub struct RoutingStats {
 pub struct DefaultRequestRoutingService {
     /// SmartRouter для выполнения инструментов
     smart_router: SmartRouter,
-    
+
     /// Статистика работы
     stats: parking_lot::RwLock<RoutingStats>,
-    
+
     /// Конфигурация маршрутизации
     config: RoutingConfig,
 }
@@ -100,16 +102,16 @@ pub struct DefaultRequestRoutingService {
 pub struct RoutingConfig {
     /// Минимальная уверенность для прямого выполнения
     pub min_confidence_direct: f64,
-    
+
     /// Порог для выбора гибридного подхода
     pub hybrid_threshold: f64,
-    
+
     /// Максимальное время выполнения запросов
     pub max_execution_time: Duration,
-    
+
     /// Включить ли интеллектуальную маршрутизацию
     pub enable_smart_routing: bool,
-    
+
     /// Список запрещённых паттернов
     pub blocked_patterns: Vec<String>,
 }
@@ -135,7 +137,7 @@ impl DefaultRequestRoutingService {
     pub fn new(smart_router: SmartRouter) -> Self {
         Self::with_config(smart_router, RoutingConfig::default())
     }
-    
+
     /// Создать экземпляр с кастомной конфигурацией
     pub fn with_config(smart_router: SmartRouter, config: RoutingConfig) -> Self {
         Self {
@@ -144,25 +146,30 @@ impl DefaultRequestRoutingService {
             config,
         }
     }
-    
+
     /// Проверить, не заблокирован ли запрос
     fn is_request_blocked(&self, message: &str) -> bool {
         let message_lower = message.to_lowercase();
-        self.config.blocked_patterns.iter()
+        self.config
+            .blocked_patterns
+            .iter()
             .any(|pattern| message_lower.contains(&pattern.to_lowercase()))
     }
-    
+
     /// Применить business logic для выбора маршрута
     fn determine_route_type(&self, intent: &IntentDecision, context: &RequestContext) -> RouteType {
         // Проверка на заблокированные запросы
         if self.is_request_blocked(&context.message) {
-            warn!("🚫 Запрос заблокирован по безопасности: {}", context.message);
+            warn!(
+                "🚫 Запрос заблокирован по безопасности: {}",
+                context.message
+            );
             return RouteType::Reject;
         }
-        
+
         let confidence = intent.confidence;
         let action_type = intent.action_type.as_str();
-        
+
         match action_type {
             "chat" => {
                 if confidence >= self.config.min_confidence_direct {
@@ -186,14 +193,21 @@ impl DefaultRequestRoutingService {
             }
             _ => {
                 // Неизвестный тип намерения - используем гибридный подход
-                warn!("⚠️ Неизвестный тип намерения: {}, используем гибридный подход", action_type);
+                warn!(
+                    "⚠️ Неизвестный тип намерения: {}, используем гибридный подход",
+                    action_type
+                );
                 RouteType::Hybrid
             }
         }
     }
-    
+
     /// Оценить требования к ресурсам
-    fn estimate_resource_requirements(&self, route_type: &RouteType, context: &RequestContext) -> ResourceRequirements {
+    fn estimate_resource_requirements(
+        &self,
+        route_type: &RouteType,
+        context: &RequestContext,
+    ) -> ResourceRequirements {
         match route_type {
             RouteType::DirectChat => ResourceRequirements {
                 estimated_memory_mb: 50,
@@ -225,28 +239,32 @@ impl DefaultRequestRoutingService {
             },
         }
     }
-    
+
     /// Обновить статистику
     fn update_stats(&self, route_type: RouteType, duration: Duration, success: bool) {
         let mut stats = self.stats.write();
         stats.total_requests += 1;
-        
-        *stats.route_distribution.entry(route_type.clone()).or_insert(0) += 1;
-        
+
+        *stats
+            .route_distribution
+            .entry(route_type.clone())
+            .or_insert(0) += 1;
+
         if success {
             stats.successful_routes += 1;
         } else {
             stats.failed_routes += 1;
         }
-        
+
         if route_type == RouteType::Reject {
             stats.rejected_routes += 1;
         }
-        
+
         // Обновляем среднее время маршрутизации
         let duration_ms = duration.as_millis() as f64;
         let total = stats.total_requests as f64;
-        stats.avg_routing_time_ms = ((stats.avg_routing_time_ms * (total - 1.0)) + duration_ms) / total;
+        stats.avg_routing_time_ms =
+            ((stats.avg_routing_time_ms * (total - 1.0)) + duration_ms) / total;
     }
 }
 
@@ -259,15 +277,18 @@ impl RequestRoutingService for DefaultRequestRoutingService {
     ) -> Result<OperationResult<AgentResponse>> {
         use std::time::Instant;
         use tokio::time::timeout;
-        
+
         let start_time = Instant::now();
-        
+
         debug!("🔀 Маршрутизация запроса: {}", context.message);
-        
+
         let route_type = self.determine_route_type(intent, context);
-        
-        debug!("📍 Выбран маршрут: {:?} (confidence: {:.2})", route_type, intent.confidence);
-        
+
+        debug!(
+            "📍 Выбран маршрут: {:?} (confidence: {:.2})",
+            route_type, intent.confidence
+        );
+
         let result = match route_type {
             RouteType::DirectChat => {
                 // Для чата возвращаем специальный ответ, который будет обработан LlmCommunicationService
@@ -298,8 +319,7 @@ impl RequestRoutingService for DefaultRequestRoutingService {
                         // Комбинируем результат инструментов с запросом на чат
                         let combined_response = format!(
                             "HYBRID_RESULT: {}\nCHAT_FOLLOWUP: {}",
-                            tool_result,
-                            context.message
+                            tool_result, context.message
                         );
                         Ok(AgentResponse::ToolExecution(combined_response))
                     }
@@ -322,17 +342,15 @@ impl RequestRoutingService for DefaultRequestRoutingService {
             }
             RouteType::Reject => {
                 warn!("🚫 Запрос отклонён: {}", context.message);
-                Err(anyhow::anyhow!(
-                    "Запрос отклонён по политике безопасности"
-                ))
+                Err(anyhow::anyhow!("Запрос отклонён по политике безопасности"))
             }
         };
-        
+
         let duration = start_time.elapsed();
         let success = result.is_ok();
-        
+
         self.update_stats(route_type, duration, success);
-        
+
         Ok(OperationResult {
             result,
             duration,
@@ -340,7 +358,7 @@ impl RequestRoutingService for DefaultRequestRoutingService {
             from_cache: false,
         })
     }
-    
+
     async fn recommend_routing(
         &self,
         context: &RequestContext,
@@ -348,21 +366,21 @@ impl RequestRoutingService for DefaultRequestRoutingService {
     ) -> Result<RoutingRecommendation> {
         let route_type = self.determine_route_type(intent, context);
         let resource_requirements = self.estimate_resource_requirements(&route_type, context);
-        
+
         let estimated_duration = match route_type {
             RouteType::DirectChat => Duration::from_secs(10),
             RouteType::ToolExecution => Duration::from_secs(30),
             RouteType::Hybrid => Duration::from_secs(45),
             RouteType::Reject => Duration::from_millis(1),
         };
-        
+
         let reasoning = match route_type {
             RouteType::DirectChat => "Высокая уверенность в чат намерении".to_string(),
             RouteType::ToolExecution => "Чёткое намерение выполнить инструменты".to_string(),
             RouteType::Hybrid => "Неоднозначное намерение, комбинированный подход".to_string(),
             RouteType::Reject => "Запрос нарушает политику безопасности".to_string(),
         };
-        
+
         Ok(RoutingRecommendation {
             route_type,
             confidence: intent.confidence,
@@ -371,12 +389,12 @@ impl RequestRoutingService for DefaultRequestRoutingService {
             resource_requirements,
         })
     }
-    
+
     async fn get_routing_stats(&self) -> RoutingStats {
         let stats = self.stats.read();
         stats.clone()
     }
-    
+
     async fn reset_stats(&self) {
         let mut stats = self.stats.write();
         *stats = RoutingStats::default();
@@ -398,9 +416,7 @@ impl Default for RoutingStats {
 }
 
 /// Factory функция для DI контейнера
-pub fn create_request_routing_service(
-    smart_router: SmartRouter,
-) -> Arc<dyn RequestRoutingService> {
+pub fn create_request_routing_service(smart_router: SmartRouter) -> Arc<dyn RequestRoutingService> {
     Arc::new(DefaultRequestRoutingService::new(smart_router))
 }
 
@@ -409,24 +425,27 @@ pub fn create_request_routing_service_with_config(
     smart_router: SmartRouter,
     config: RoutingConfig,
 ) -> Arc<dyn RequestRoutingService> {
-    Arc::new(DefaultRequestRoutingService::with_config(smart_router, config))
+    Arc::new(DefaultRequestRoutingService::with_config(
+        smart_router,
+        config,
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::Utc;
-    
+
     fn create_test_context(message: &str) -> RequestContext {
         RequestContext {
             message: message.to_string(),
             user_id: Some("test_user".to_string()),
-            session_id: Some("test_session".to_string()),  
+            session_id: Some("test_session".to_string()),
             timestamp: Utc::now(),
             metadata: std::collections::HashMap::new(),
         }
     }
-    
+
     fn create_test_intent(action_type: &str, confidence: f64) -> IntentDecision {
         IntentDecision {
             action_type: action_type.to_string(),
@@ -435,55 +454,63 @@ mod tests {
             extracted_params: std::collections::HashMap::new(),
         }
     }
-    
+
     #[test]
     fn test_blocked_requests() {
         // Создаём минимальный мок SmartRouter
         // В реальном коде это был бы полноценный mock
-        let smart_router = SmartRouter::new(llm::LlmClient::from_env().unwrap());
+        let smart_router = SmartRouter::new(
+            llm::LlmClient::from_env().expect("Operation failed - converted from unwrap()"),
+        );
         let service = DefaultRequestRoutingService::new(smart_router);
-        
+
         assert!(service.is_request_blocked("rm -rf /"));
         assert!(service.is_request_blocked("Please format c: drive"));
         assert!(!service.is_request_blocked("Покажи файлы в папке"));
     }
-    
+
     #[test]
     fn test_route_type_determination() {
-        let smart_router = SmartRouter::new(llm::LlmClient::from_env().unwrap());
+        let smart_router = SmartRouter::new(
+            llm::LlmClient::from_env().expect("Operation failed - converted from unwrap()"),
+        );
         let service = DefaultRequestRoutingService::new(smart_router);
-        
+
         let context = create_test_context("прочитай файл test.rs");
-        
+
         // Высокая уверенность в инструментах
         let intent = create_test_intent("tools", 0.9);
         let route_type = service.determine_route_type(&intent, &context);
         assert_eq!(route_type, RouteType::ToolExecution);
-        
+
         // Высокая уверенность в чате
         let intent = create_test_intent("chat", 0.9);
         let route_type = service.determine_route_type(&intent, &context);
         assert_eq!(route_type, RouteType::DirectChat);
-        
+
         // Низкая уверенность - гибридный подход
         let intent = create_test_intent("tools", 0.4);
         let route_type = service.determine_route_type(&intent, &context);
         assert_eq!(route_type, RouteType::ToolExecution); // Fallback
     }
-    
+
     #[test]
     fn test_resource_estimation() {
-        let smart_router = SmartRouter::new(llm::LlmClient::from_env().unwrap());
+        let smart_router = SmartRouter::new(
+            llm::LlmClient::from_env().expect("Operation failed - converted from unwrap()"),
+        );
         let service = DefaultRequestRoutingService::new(smart_router);
-        
+
         let context = create_test_context("привет мир");
-        
-        let chat_resources = service.estimate_resource_requirements(&RouteType::DirectChat, &context);
+
+        let chat_resources =
+            service.estimate_resource_requirements(&RouteType::DirectChat, &context);
         assert_eq!(chat_resources.estimated_memory_mb, 50);
         assert!(chat_resources.requires_network);
         assert!(!chat_resources.requires_file_system);
-        
-        let tool_resources = service.estimate_resource_requirements(&RouteType::ToolExecution, &context);
+
+        let tool_resources =
+            service.estimate_resource_requirements(&RouteType::ToolExecution, &context);
         assert_eq!(tool_resources.estimated_memory_mb, 100);
         assert!(tool_resources.requires_file_system);
     }

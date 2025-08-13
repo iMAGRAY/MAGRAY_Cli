@@ -253,12 +253,12 @@ mod tests {
         
         // Simple request
         let simple_request = LlmRequest::new("Hello, how are you?");
-        let complexity = analyzer.analyze_complexity(&simple_request).await.unwrap();
+        let complexity = analyzer.analyze_complexity(&simple_request).await.expect("Async operation should succeed");
         assert_eq!(complexity, RequestComplexity::Simple);
         
         // Complex request
         let complex_request = LlmRequest::new("Design a microservices architecture for a high-traffic e-commerce platform with considerations for scalability, fault tolerance, and data consistency.");
-        let complexity = analyzer.analyze_complexity(&complex_request).await.unwrap();
+        let complexity = analyzer.analyze_complexity(&complex_request).await.expect("Async operation should succeed");
         assert!(matches!(complexity, RequestComplexity::Complex | RequestComplexity::Expert));
     }
     
@@ -268,12 +268,12 @@ mod tests {
         
         // Critical request
         let critical_request = LlmRequest::new("URGENT: Production is down and users can't access the system!");
-        let priority = analyzer.analyze_priority(&critical_request).await.unwrap();
+        let priority = analyzer.analyze_priority(&critical_request).await.expect("Async operation should succeed");
         assert!(matches!(priority, TaskPriority::Critical | TaskPriority::High));
         
         // Low priority request
         let low_request = LlmRequest::new("When you have time, could you help clean up this code?");
-        let priority = analyzer.analyze_priority(&low_request).await.unwrap();
+        let priority = analyzer.analyze_priority(&low_request).await.expect("Async operation should succeed");
         assert_eq!(priority, TaskPriority::Low);
     }
     
@@ -302,7 +302,7 @@ mod tests {
         let analyzer = RequestAnalyzer::new();
         let request = LlmRequest::new("URGENT: Please review this complex architecture design and provide feedback ASAP");
         
-        let report = analyzer.get_analysis_report(&request).await.unwrap();
+        let report = analyzer.get_analysis_report(&request).await.expect("Async operation should succeed");
         
         assert!(matches!(report.complexity, RequestComplexity::Medium | RequestComplexity::Complex));
         assert_eq!(report.priority, TaskPriority::Critical);

@@ -5,7 +5,7 @@
 //!
 //! РЕШАЕМЫЕ ПРОБЛЕМЫ:
 //! - Дублирование между ServiceFactory и CoordinatorFactory  
-//! - .unwrap() вызовы в ProductionCoordinatorFactory
+//! - .expect("Operation failed - converted from unwrap()") вызовы в ProductionCoordinatorFactory
 //! - Неконсистентные интерфейсы между factory
 //! - Отсутствие единой конфигурации для всех сервисов
 //!

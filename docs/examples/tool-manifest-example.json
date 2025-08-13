@@ -1,0 +1,38 @@
+{
+  "$schema": "https://magray.dev/schemas/tool-manifest/v1.json",
+  "name": "file-processor",
+  "version": "1.2.3",
+  "description": "Advanced file processing tool with WASM execution",
+  "type": "wasm",
+  "capabilities": [
+    "filesystem",
+    "ui"
+  ],
+  "entry_point": "file_processor.wasm",
+  "runtime_config": {
+    "max_memory_mb": 128,
+    "max_execution_time_ms": 60000,
+    "fuel_limit": 5000000
+  },
+  "permissions": {
+    "filesystem": ["read", "write"],
+    "network": null,
+    "shell": null
+  },
+  "metadata": {
+    "author": "MAGRAY Development Team",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/magray/tools/file-processor",
+    "homepage": "https://magray.dev/tools/file-processor",
+    "documentation": "https://docs.magray.dev/tools/file-processor"
+  },
+  "config": {
+    "default_encoding": "utf-8",
+    "supported_formats": ["txt", "json", "yaml", "toml"],
+    "processing_options": {
+      "preserve_timestamps": true,
+      "create_backups": true,
+      "batch_size": 100
+    }
+  }
+}

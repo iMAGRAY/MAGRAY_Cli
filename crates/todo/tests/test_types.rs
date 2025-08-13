@@ -24,17 +24,32 @@ fn test_task_state_display() {
 fn test_task_state_from_str() {
     use std::str::FromStr;
 
-    assert_eq!(TaskState::from_str("planned").unwrap(), TaskState::Planned);
-    assert_eq!(TaskState::from_str("ready").unwrap(), TaskState::Ready);
     assert_eq!(
-        TaskState::from_str("in_progress").unwrap(),
+        TaskState::from_str("planned").expect("Test operation should succeed"),
+        TaskState::Planned
+    );
+    assert_eq!(
+        TaskState::from_str("ready").expect("Test operation should succeed"),
+        TaskState::Ready
+    );
+    assert_eq!(
+        TaskState::from_str("in_progress").expect("Test operation should succeed"),
         TaskState::InProgress
     );
-    assert_eq!(TaskState::from_str("blocked").unwrap(), TaskState::Blocked);
-    assert_eq!(TaskState::from_str("done").unwrap(), TaskState::Done);
-    assert_eq!(TaskState::from_str("failed").unwrap(), TaskState::Failed);
     assert_eq!(
-        TaskState::from_str("cancelled").unwrap(),
+        TaskState::from_str("blocked").expect("Test operation should succeed"),
+        TaskState::Blocked
+    );
+    assert_eq!(
+        TaskState::from_str("done").expect("Test operation should succeed"),
+        TaskState::Done
+    );
+    assert_eq!(
+        TaskState::from_str("failed").expect("Test operation should succeed"),
+        TaskState::Failed
+    );
+    assert_eq!(
+        TaskState::from_str("cancelled").expect("Test operation should succeed"),
         TaskState::Cancelled
     );
 
@@ -234,12 +249,13 @@ fn test_todo_item_serialization() {
     item.tags = vec!["test".to_string(), "rust".to_string()];
 
     // Serialize to JSON
-    let json = serde_json::to_string(&item).unwrap();
+    let json = serde_json::to_string(&item).expect("Test operation should succeed");
     assert!(json.contains("Test task"));
     assert!(json.contains("High"));
 
     // Deserialize back
-    let deserialized: TodoItem = serde_json::from_str(&json).unwrap();
+    let deserialized: TodoItem =
+        serde_json::from_str(&json).expect("Test operation should succeed");
     assert_eq!(deserialized.title, item.title);
     assert_eq!(deserialized.priority, item.priority);
     assert_eq!(deserialized.tags.len(), 2);

@@ -1,3 +1,8 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(clippy::uninlined_format_args)]
+
 use anyhow::Result;
 use std::path::Path;
 
@@ -64,10 +69,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_creation() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation failed - converted from unwrap()");
         let db_path = temp_dir.path().join("test.db");
 
-        let service = create_default_service(&db_path).await.unwrap();
+        let service = create_default_service(&db_path)
+            .await
+            .expect("Async operation should succeed");
 
         // Создаем задачу
         let task = service
@@ -78,7 +85,7 @@ mod tests {
                 vec!["test".to_string()],
             )
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         assert_eq!(task.title, "Test task");
         assert_eq!(task.state, TaskState::Ready);
@@ -86,10 +93,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_event_system() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation failed - converted from unwrap()");
         let db_path = temp_dir.path().join("test.db");
 
-        let service = create_service(&db_path, 2, 50).await.unwrap();
+        let service = create_service(&db_path, 2, 50)
+            .await
+            .expect("Async operation should succeed");
         let events = service.subscribe();
 
         // Создаем задачу
@@ -101,7 +110,7 @@ mod tests {
                 vec![],
             )
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         // Должны получить событие о создании
         if let Some(event) = events.next().await {

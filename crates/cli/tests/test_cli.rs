@@ -80,9 +80,18 @@ fn test_path_operations() {
     use std::path::Path;
 
     let path = Path::new("test/file.txt");
-    assert_eq!(path.extension().unwrap(), "txt");
-    assert_eq!(path.file_name().unwrap(), "file.txt");
-    assert_eq!(path.parent().unwrap(), Path::new("test"));
+    assert_eq!(
+        path.extension().expect("Test operation should succeed"),
+        "txt"
+    );
+    assert_eq!(
+        path.file_name().expect("Test operation should succeed"),
+        "file.txt"
+    );
+    assert_eq!(
+        path.parent().expect("Test operation should succeed"),
+        Path::new("test")
+    );
 }
 
 #[test]

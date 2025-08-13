@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::uninlined_format_args)]
 use ai::tokenization::OptimizedTokenizer;
 use anyhow::Result;
 use std::path::PathBuf;

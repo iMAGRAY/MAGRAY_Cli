@@ -381,9 +381,13 @@ impl GpuEmbeddingService {
                 let token_type_ids_tensor =
                     Tensor::from_array((token_type_ids_shape, token_type_ids_data))?;
 
-                // Проверяем количество входов модели
-                let outputs = if session.inputs.len() == 2 {
-                    // Модель Qwen3 имеет только 2 входа (input_ids и attention_mask)
+                // Проверяем модель и количество входов
+                // Qwen3 models NEVER support token_type_ids, so explicitly exclude them
+                let is_qwen3 = self.model_path.to_string_lossy().contains("qwen3");
+                let supports_token_type_ids = !is_qwen3 && session.inputs.len() > 2;
+
+                let outputs = if !supports_token_type_ids {
+                    // Модель Qwen3 или другие модели с 2 входами (input_ids и attention_mask)
                     session.run(inputs![
                         "input_ids" => input_ids_tensor,
                         "attention_mask" => attention_mask_tensor

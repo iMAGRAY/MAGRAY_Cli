@@ -30,7 +30,7 @@ fn test_execution_context_with_all_fields() {
     };
 
     // Test serialization
-    let json = serde_json::to_value(&context).unwrap();
+    let json = serde_json::to_value(&context).expect("Test operation should succeed");
     assert_eq!(json["request_id"], "req-abc123");
     assert_eq!(json["user_id"], "user-def456");
     assert_eq!(json["app_version"], "2.1.0");
@@ -50,7 +50,7 @@ fn test_performance_metrics_serialization() {
         cache_misses: Some(10),
     };
 
-    let json = serde_json::to_string(&metrics).unwrap();
+    let json = serde_json::to_string(&metrics).expect("Test operation should succeed");
     assert!(json.contains("\"duration_ms\":1500"));
     assert!(json.contains("\"cpu_usage_percent\":87.3"));
     assert!(json.contains("\"cache_hits\":150"));
@@ -67,7 +67,7 @@ fn test_performance_metrics_minimal() {
         cache_misses: None,
     };
 
-    let json = serde_json::to_value(&metrics).unwrap();
+    let json = serde_json::to_value(&metrics).expect("Test operation should succeed");
     assert_eq!(json["duration_ms"], 100);
 
     // Optional fields should not be present when None
@@ -235,7 +235,7 @@ fn test_structured_log_entry_full_context() {
     };
 
     // Test serialization of full entry
-    let json = serde_json::to_string(&entry).unwrap();
+    let json = serde_json::to_string(&entry).expect("Test operation should succeed");
     assert!(json.contains("full-req"));
     assert!(json.contains("full-user"));
     assert!(json.contains("\"duration_ms\":250"));
@@ -264,7 +264,7 @@ fn test_structured_log_entry_partial_context() {
     };
 
     assert!(entry.context.is_some());
-    let ctx = entry.context.unwrap();
+    let ctx = entry.context.expect("Test operation should succeed");
     assert!(ctx.request_id.is_none());
     assert_eq!(ctx.user_id, Some("partial-user".to_string()));
 }
@@ -296,7 +296,7 @@ fn test_performance_metrics_edge_cases() {
         cache_misses: Some(0),        // Zero misses
     };
 
-    let json = serde_json::to_value(&metrics).unwrap();
+    let json = serde_json::to_value(&metrics).expect("Test operation should succeed");
     assert_eq!(json["duration_ms"], 0);
     assert_eq!(json["cpu_usage_percent"], 0.0);
     assert_eq!(json["cache_hits"], 0);

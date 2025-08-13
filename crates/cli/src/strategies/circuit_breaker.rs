@@ -90,8 +90,8 @@ impl BasicCircuitBreaker {
 
     /// Проверка и обновление состояния
     fn check_and_update_state(&self) -> CircuitBreakerState {
-        let mut state = self.state.lock().unwrap();
-        let mut metrics = self.metrics.lock().unwrap();
+        let mut state = self.state.lock().expect("Lock should not be poisoned");
+        let mut metrics = self.metrics.lock().expect("Lock should not be poisoned");
 
         match *state {
             CircuitBreakerState::Closed => {
@@ -149,7 +149,7 @@ impl BasicCircuitBreaker {
 
     /// Записать успешное выполнение
     fn record_success(&self) {
-        let mut metrics = self.metrics.lock().unwrap();
+        let mut metrics = self.metrics.lock().expect("Lock should not be poisoned");
         metrics.success_count += 1;
         metrics.last_success_time = Some(Instant::now());
 
@@ -161,7 +161,7 @@ impl BasicCircuitBreaker {
 
     /// Записать сбой
     fn record_failure(&self) {
-        let mut metrics = self.metrics.lock().unwrap();
+        let mut metrics = self.metrics.lock().expect("Lock should not be poisoned");
         metrics.failure_count += 1;
         metrics.last_failure_time = Some(Instant::now());
 
@@ -173,8 +173,8 @@ impl BasicCircuitBreaker {
 
     /// Получить подробные метрики
     pub fn get_detailed_metrics(&self) -> String {
-        let state = self.state.lock().unwrap();
-        let metrics = self.metrics.lock().unwrap();
+        let state = self.state.lock().expect("Lock should not be poisoned");
+        let metrics = self.metrics.lock().expect("Lock should not be poisoned");
 
         format!(
             "CircuitBreaker '{}' Metrics:\n\
@@ -217,7 +217,7 @@ impl CircuitBreakerTrait for BasicCircuitBreaker {
         // Проверяем можно ли выполнить операцию
         if !self.can_execute() {
             let time_to_retry = {
-                let metrics = self.metrics.lock().unwrap();
+                let metrics = self.metrics.lock().expect("Lock should not be poisoned");
                 let elapsed = metrics.state_change_time.elapsed();
                 if elapsed < self.recovery_timeout {
                     self.recovery_timeout - elapsed
@@ -256,8 +256,8 @@ impl CircuitBreakerTrait for BasicCircuitBreaker {
     }
 
     async fn force_open(&self) {
-        let mut state = self.state.lock().unwrap();
-        let mut metrics = self.metrics.lock().unwrap();
+        let mut state = self.state.lock().expect("Lock should not be poisoned");
+        let mut metrics = self.metrics.lock().expect("Lock should not be poisoned");
 
         warn!("CircuitBreaker '{}': принудительное открытие", self.name);
         *state = CircuitBreakerState::Open;
@@ -265,8 +265,8 @@ impl CircuitBreakerTrait for BasicCircuitBreaker {
     }
 
     async fn force_close(&self) {
-        let mut state = self.state.lock().unwrap();
-        let mut metrics = self.metrics.lock().unwrap();
+        let mut state = self.state.lock().expect("Lock should not be poisoned");
+        let mut metrics = self.metrics.lock().expect("Lock should not be poisoned");
 
         info!("CircuitBreaker '{}': принудительное закрытие", self.name);
         *state = CircuitBreakerState::Closed;
@@ -276,7 +276,7 @@ impl CircuitBreakerTrait for BasicCircuitBreaker {
     }
 
     async fn get_state(&self) -> String {
-        let state = self.state.lock().unwrap();
+        let state = self.state.lock().expect("Lock should not be poisoned");
         format!("{:?}", *state)
     }
 }
@@ -320,7 +320,11 @@ impl AdaptiveCircuitBreaker {
 
     /// Адаптация порога на основе истории
     fn adapt_threshold(&self) -> u32 {
-        let metrics = self.basic.metrics.lock().unwrap();
+        let metrics = self
+            .basic
+            .metrics
+            .lock()
+            .expect("Lock should not be poisoned");
 
         // Простая адаптация на основе времени в состоянии
         let time_in_state = metrics.state_change_time.elapsed().as_secs() as f32;

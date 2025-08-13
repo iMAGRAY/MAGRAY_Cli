@@ -1,24 +1,24 @@
 //! Analytics DTOs for usage analysis and reporting
 
+use domain::LayerType;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-use domain::value_objects::layer_type::LayerType;
 
 /// Usage analysis request DTO
 #[derive(Debug, Serialize, Deserialize, Clone, Validate)]
 pub struct UsageAnalysisRequest {
     /// Time range for analysis
     pub time_range: TimeRange,
-    
+
     /// Analysis dimensions
     pub dimensions: Vec<AnalysisDimension>,
-    
+
     /// Aggregation level
     pub aggregation: AggregationLevel,
-    
+
     /// Filters
     pub filters: AnalysisFilters,
-    
+
     /// Report format preferences
     pub format_options: FormatOptions,
 }
@@ -332,6 +332,11 @@ pub enum InsightType {
     Anomaly,
     Trend,
     Prediction,
+    PerformanceTrends,
+    UsageAnomalies,
+    OptimizationOpportunities,
+    ResourceUtilization,
+    PredictiveAnalysis,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -391,11 +396,11 @@ pub struct ImpactEstimate {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ImplementationEffort {
-    Trivial,    // < 1 hour
-    Low,        // 1-4 hours
-    Medium,     // 1-3 days
-    High,       // 1-2 weeks
-    VeryHigh,   // > 2 weeks
+    Trivial,  // < 1 hour
+    Low,      // 1-4 hours
+    Medium,   // 1-3 days
+    High,     // 1-2 weeks
+    VeryHigh, // > 2 weeks
 }
 
 /// Chart data for visualizations
@@ -429,13 +434,12 @@ impl Default for FormatOptions {
     }
 }
 
-
 /// Request to analyze memory usage patterns
 #[derive(Debug, Serialize, Deserialize, Clone, Validate)]
 pub struct AnalyzeUsageRequest {
     #[validate(range(min = 1, max = 8760))]
     pub time_window_hours: u32,
-    
+
     pub layers: Option<Vec<LayerType>>,
     pub project_filter: Option<String>,
     pub include_detailed_breakdown: bool,
@@ -526,15 +530,6 @@ pub struct Insight {
     pub metrics: Option<std::collections::HashMap<String, f64>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum InsightType {
-    PerformanceTrends,
-    UsageAnomalies,
-    OptimizationOpportunities,
-    ResourceUtilization,
-    PredictiveAnalysis,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum InsightSeverity {
     Info = 1,
@@ -610,19 +605,4 @@ pub struct HealthRecommendation {
     pub description: String,
     pub action_items: Vec<String>,
     pub estimated_resolution_time_hours: u32,
-}
-
-/// Re-export common pattern from ImpactEstimate for use cases
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ImpactEstimate {
-    pub performance_improvement: f64,
-    pub cost_reduction: f64,
-    pub implementation_effort: ImplementationEffort,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ImplementationEffort {
-    Low,
-    Medium,
-    High,
 }

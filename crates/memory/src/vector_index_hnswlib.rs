@@ -89,20 +89,27 @@ mod tests {
     #[test]
     fn test_hnsw_rs_basic() {
         let config = HnswRsConfig::default();
-        let index = VectorIndexHnswRs::new(config).unwrap();
+        let index =
+            VectorIndexHnswRs::new(config).expect("Test requires HNSW index initialization");
 
         // Тест добавления
         let vector1 = vec![0.1; 1024];
         let vector2 = vec![0.2; 1024];
 
-        index.add("doc1".to_string(), vector1).unwrap();
-        index.add("doc2".to_string(), vector2).unwrap();
+        index
+            .add("doc1".to_string(), vector1)
+            .expect("Test requires vector addition to work");
+        index
+            .add("doc2".to_string(), vector2)
+            .expect("Test requires vector addition to work");
 
         assert_eq!(index.len(), 2);
 
         // Тест поиска
         let query = vec![0.15; 1024];
-        let results = index.search(&query, 2).unwrap();
+        let results = index
+            .search(&query, 2)
+            .expect("Test requires vector search to work");
 
         println!("Результаты поиска: {:?}", results);
         assert_eq!(results.len(), 2);
@@ -125,7 +132,8 @@ mod tests {
     #[test]
     fn test_hnsw_rs_batch() {
         let config = HnswRsConfig::default();
-        let index = VectorIndexHnswRs::new(config).unwrap();
+        let index =
+            VectorIndexHnswRs::new(config).expect("Test requires HNSW index initialization");
 
         // Тест пакетного добавления
         let vectors = vec![
@@ -134,7 +142,9 @@ mod tests {
             ("doc3".to_string(), vec![0.3; 1024]),
         ];
 
-        index.add_batch(vectors).unwrap();
+        index
+            .add_batch(vectors)
+            .expect("Test requires batch vector addition to work");
         assert_eq!(index.len(), 3);
 
         // Статистика

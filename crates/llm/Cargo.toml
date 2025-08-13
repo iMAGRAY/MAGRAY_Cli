@@ -36,9 +36,15 @@ tokio = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-reqwest = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true, features = ["stream"] }
 tracing = { workspace = true }
 dotenv = { workspace = true }
 async-trait = "0.1.74"
+tokio-stream = "0.1"
+futures-util = "0.3"
+futures = "0.3"
+bytes = "1.0"
+rand = "0.8"
+uuid = { version = "1.0", features = ["v4", "serde"] }
 [dev-dependencies]
 mockito = "1.5"

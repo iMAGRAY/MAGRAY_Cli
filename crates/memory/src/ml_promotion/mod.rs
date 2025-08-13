@@ -56,7 +56,7 @@
 pub mod algorithms;
 pub mod coordinator;
 pub mod data_processor;
-pub mod legacy_facade;
+// pub mod legacy_facade; // TODO: Implement legacy facade
 pub mod metrics;
 pub mod rules_engine;
 pub mod traits;
@@ -72,11 +72,16 @@ pub use metrics::{MLPromotionMetricsCollector, MetricsConfig, PerformanceBreakdo
 pub use rules_engine::{
     BusinessRule, ConfigurableRulesEngine, LayerStrategy, RulesConfig, SpecialCondition,
 };
-pub use traits::{DataProcessor, PromotionAlgorithm, PromotionMetrics, PromotionRulesEngine};
+pub use traits::{
+    DataProcessor, PromotionAlgorithm, PromotionMetrics, PromotionRulesEngine, UsageTracker,
+};
 pub use types::{MLPromotionConfig, MLPromotionStats, PromotionDecision, PromotionFeatures};
 
 // Legacy API compatibility - 100% drop-in replacement
-pub use legacy_facade::{MLPromotionEngine, PerformanceOptimizer, SemanticAnalyzer, UsageTracker};
+// pub use legacy_facade::{MLPromotionEngine, PerformanceOptimizer, SemanticAnalyzer, UsageTracker}; // TODO: Implement
+
+// Temporary alias для backward compatibility while legacy facade is TODO
+pub use coordinator::PromotionCoordinator as MLPromotionEngine;
 
 /// Factory function для быстрого создания production-ready coordinator
 pub async fn create_production_coordinator(

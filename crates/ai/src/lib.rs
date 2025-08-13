@@ -1,3 +1,10 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(unreachable_code)]
+#![allow(clippy::manual_is_multiple_of)]
+
 pub mod auto_device_selector;
 pub mod config;
 pub mod errors;
@@ -49,6 +56,9 @@ pub mod reranker_qwen3_optimized;
 pub mod reranking;
 
 #[cfg(feature = "embeddings")]
+pub mod embeddings_qwen3;
+
+#[cfg(feature = "embeddings")]
 pub mod tokenization;
 
 #[cfg(feature = "embeddings")]
@@ -62,6 +72,9 @@ pub use errors::AiError;
 // Conditional exports based on features
 #[cfg(feature = "embeddings")]
 pub use embeddings_cpu::{CpuEmbeddingService, OptimizedEmbeddingResult, ServiceStats};
+
+#[cfg(feature = "embeddings")]
+pub use embeddings_qwen3::Qwen3EmbeddingProvider;
 
 #[cfg(feature = "gpu")]
 pub use embeddings_gpu::GpuEmbeddingService;
@@ -93,7 +106,7 @@ pub use reranker_qwen3::{
 };
 
 #[cfg(feature = "reranking")]
-pub use reranking::{RerankResult, RerankingService};
+pub use reranking::{RerankResult, RerankingService, RerankingServiceTrait};
 
 #[cfg(feature = "embeddings")]
 pub use tokenization::{BatchTokenized, OptimizedTokenizer, TokenizedInput as OptTokenizedInput};

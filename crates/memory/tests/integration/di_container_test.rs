@@ -371,9 +371,9 @@ async fn test_di_lifecycle_management() -> Result<()> {
     
     if all_resolved {
         // Для singletons, instances должны быть consistent
-        let first_ready = orchestrator_1.as_ref().unwrap().all_ready().await;
-        let second_ready = orchestrator_2.as_ref().unwrap().all_ready().await;
-        let third_ready = orchestrator_3.as_ref().unwrap().all_ready().await;
+        let first_ready = orchestrator_1.as_ref().expect("Test operation should succeed").all_ready().await;
+        let second_ready = orchestrator_2.as_ref().expect("Test operation should succeed").all_ready().await;
+        let third_ready = orchestrator_3.as_ref().expect("Test operation should succeed").all_ready().await;
         
         println!("   Singleton consistency: {} {} {}", first_ready, second_ready, third_ready);
         
@@ -700,7 +700,7 @@ async fn test_error_propagation_through_di_chain() -> Result<()> {
                 SearchOptions { top_k: 3, ..Default::default() }
             ).await;
             
-            if search_result.is_ok() && !search_result.unwrap().is_empty() {
+            if search_result.is_ok() && !search_result.expect("Test operation should succeed").is_empty() {
                 recovery_success += 1;
             }
         }

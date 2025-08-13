@@ -5,7 +5,7 @@ use tempfile::TempDir;
 
 fn cmd_with_temp_home() -> (Command, TempDir) {
     let temp_home = TempDir::new().expect("temp home");
-    let mut cmd = Command::cargo_bin("magray").unwrap();
+    let mut cmd = Command::cargo_bin("magray").expect("Test operation should succeed");
     cmd.env("MAGRAY_NO_ANIM", "1");
     cmd.env("HOME", temp_home.path());
     (cmd, temp_home)

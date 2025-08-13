@@ -1,0 +1,34 @@
+#!/bin/sh
+# Pre-commit hook для предотвращения плохого кода
+
+echo "[PRE-COMMIT] Checking code quality..."
+
+# Проверка форматирования
+echo "  • Checking formatting..."
+cargo fmt --all --check > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "    ❌ Code not formatted! Run: cargo fmt --all"
+    exit 1
+fi
+echo "    ✅ Format OK"
+
+# Проверка clippy
+echo "  • Running clippy..."
+cargo clippy --workspace --all-targets -- -D warnings > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "    ❌ Clippy errors found! Run: cargo clippy --workspace --all-targets"
+    exit 1
+fi
+echo "    ✅ Clippy OK"
+
+# Проверка компиляции
+echo "  • Checking compilation..."
+cargo check --workspace --quiet > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "    ❌ Code doesn't compile! Fix compilation errors before committing"
+    exit 1
+fi
+echo "    ✅ Compilation OK"
+
+echo "[PRE-COMMIT] ✅ All checks passed!"
+exit 0

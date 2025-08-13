@@ -1,0 +1,291 @@
+{
+  "dependency_graph": {
+    "version": "1.0",
+    "last_updated": "2025-08-15T10:30:00Z",
+    "description": "Task dependency relationships for MAGRAY CLI project"
+  },
+  "critical_blockers_dependencies": {
+    "BLOCKER_1": {
+      "id": "CLI_Integration", 
+      "depends_on": [],
+      "blocks": ["P1_1_USAGE", "ORCHESTRATOR_FUNCTIONALITY", "BLOCKER_4"],
+      "description": "Must be resolved first - enables orchestrator usage"
+    },
+    "BLOCKER_2": {
+      "id": "Qwen3_Embeddings",
+      "depends_on": [],
+      "blocks": ["MEMORY_SYSTEM", "SEARCH_FUNCTIONALITY", "BLOCKER_3"], 
+      "description": "Independent but critical for memory operations"
+    },
+    "BLOCKER_3": {
+      "id": "Tool_Context_Builder",
+      "depends_on": ["BLOCKER_2"],
+      "blocks": ["INTELLIGENT_TOOL_SELECTION"],
+      "description": "Requires Qwen3 embeddings for reranking"
+    },
+    "BLOCKER_4": {
+      "id": "Basic_TUI_Framework",
+      "depends_on": ["BLOCKER_1"],
+      "blocks": ["UX_WORKFLOW"],
+      "description": "Requires working orchestrator for plan display"
+    }
+  },
+  "phase_dependencies": {
+    "P0_Security": {
+      "depends_on": [],
+      "enables": ["P1_Core", "P1_Plus_UX", "P2_Enhancement"],
+      "internal_dependencies": {
+        "P0.1.4": {"depends_on": [], "enables": ["web_operations_security"]},
+        "P0.1.5": {"depends_on": [], "enables": ["shell_operations_security"]},
+        "P0.1.6": {"depends_on": [], "enables": ["P0.1.7"]},
+        "P0.1.7": {"depends_on": ["P0.1.6"], "enables": ["filesystem_security"]}
+      }
+    },
+    "P1_Core": {
+      "depends_on": ["P0_Security", "BLOCKER_1", "BLOCKER_2", "BLOCKER_3"],
+      "enables": ["P1_Plus_UX"],
+      "internal_dependencies": {
+        "P1.1_Multi_Agent": {"depends_on": ["BLOCKER_1"], "enables": ["agent_workflow"]},
+        "P1.2_Tools_Platform": {"depends_on": [], "enables": ["P1.3_Context_Builder"]},
+        "P1.3_Context_Builder": {"depends_on": ["BLOCKER_2", "P1.2_Tools_Platform"], "enables": ["intelligent_selection"]}
+      }
+    },
+    "P1_Plus_UX": {
+      "depends_on": ["P1_Core", "BLOCKER_4"],
+      "enables": ["P2_Enhancement"],
+      "internal_dependencies": {
+        "P1+.1_TUI": {"depends_on": ["BLOCKER_4", "P1.1_Multi_Agent"], "enables": ["interactive_workflow"]},
+        "P1+.2_Recipes": {"depends_on": ["P1.2_Tools_Platform"], "enables": ["automated_workflows"]}
+      }
+    },
+    "P2_Enhancement": {
+      "depends_on": ["P1_Core", "P1_Plus_UX"],
+      "enables": ["production_deployment"],
+      "internal_dependencies": {
+        "P2.1_Memory": {"depends_on": ["BLOCKER_2"], "enables": ["advanced_memory_features"]},
+        "P2.2_LLM": {"depends_on": ["P1_Core"], "enables": ["llm_optimization"]},
+        "P2.3_Production": {"depends_on": ["P1_Plus_UX"], "enables": ["production_readiness"]}
+      }
+    }
+  },
+  "detailed_task_dependencies": {
+    "P1.1.2_IntentAnalyzer": {
+      "depends_on": ["P1.1.1_Orchestrator_Crate", "BLOCKER_1"],
+      "enables": ["P1.1.3_Planner", "agent_workflow"],
+      "blocks_if_missing": ["user_intent_processing"]
+    },
+    "P1.1.3_Planner": {
+      "depends_on": ["P1.1.2_IntentAnalyzer", "BLOCKER_3"],
+      "enables": ["P1.1.4_Executor", "plan_generation"], 
+      "blocks_if_missing": ["action_planning"]
+    },
+    "P1.1.4_Executor": {
+      "depends_on": ["P1.1.3_Planner", "P1.2_Tools_Platform"],
+      "enables": ["P1.1.5_Critic", "plan_execution"],
+      "blocks_if_missing": ["task_execution"]
+    },
+    "P1.1.5_Critic": {
+      "depends_on": ["P1.1.4_Executor"],
+      "enables": ["feedback_loop", "quality_assessment"],
+      "blocks_if_missing": ["result_analysis"]
+    },
+    "P1.3.1_ToolContextBuilder": {
+      "depends_on": ["BLOCKER_2", "P1.2_Tools_Registry"],
+      "enables": ["P1.3.2_Embedding_Selection", "P1.3.3_Qwen3_Reranking"],
+      "blocks_if_missing": ["intelligent_tool_selection"]
+    },
+    "P1.3.3_Qwen3_Reranking": {
+      "depends_on": ["BLOCKER_2", "P1.3.1_ToolContextBuilder"],
+      "enables": ["accurate_tool_ranking"],
+      "blocks_if_missing": ["ai_tool_selection"]
+    },
+    "P1+.1.2_Plan_Viewer": {
+      "depends_on": ["BLOCKER_4", "P1.1.3_Planner"],
+      "enables": ["interactive_plan_display"],
+      "blocks_if_missing": ["plan_visualization"]
+    },
+    "P1+.1.3_Diff_Center": {
+      "depends_on": ["BLOCKER_4", "P1.1.4_Executor"],
+      "enables": ["diff_visualization"],
+      "blocks_if_missing": ["change_preview"]
+    }
+  },
+  "architectural_dependencies": {
+    "Multi_Agent_System": {
+      "requires": ["BLOCKER_1", "P1.1_All_Agents"],
+      "provides": ["orchestrated_workflows", "agent_communication"],
+      "critical_path": true
+    },
+    "Memory_System": {
+      "requires": ["BLOCKER_2", "P2.1_Memory_Enhancement"],
+      "provides": ["embedding_search", "knowledge_storage"], 
+      "critical_path": true
+    },
+    "Tool_Selection": {
+      "requires": ["BLOCKER_3", "P1.3_Context_Builder"],
+      "provides": ["intelligent_tool_ranking", "context_awareness"],
+      "critical_path": true
+    },
+    "User_Interface": {
+      "requires": ["BLOCKER_4", "P1+.1_TUI_Framework"],
+      "provides": ["interactive_workflow", "visual_feedback"],
+      "critical_path": false
+    },
+    "Security_Layer": {
+      "requires": ["P0_All_Security_Tasks"],
+      "provides": ["secure_operations", "policy_enforcement"],
+      "critical_path": true
+    }
+  },
+  "integration_points": {
+    "CLI_Orchestrator_Integration": {
+      "components": ["crates/cli/src/main.rs", "crates/orchestrator/"],
+      "dependencies": ["BLOCKER_1"], 
+      "risk": "HIGH - Complex integration with existing CLI",
+      "validation": "End-to-end CLI workflow testing"
+    },
+    "Memory_Embeddings_Integration": {
+      "components": ["crates/ai/src/embeddings_qwen3.rs", "crates/memory/"],
+      "dependencies": ["BLOCKER_2"],
+      "risk": "HIGH - Model loading and performance", 
+      "validation": "Memory search performance testing"
+    },
+    "TUI_Core_Integration": {
+      "components": ["crates/ui/src/tui/", "crates/orchestrator/"],
+      "dependencies": ["BLOCKER_4", "BLOCKER_1"],
+      "risk": "MEDIUM - UI state synchronization",
+      "validation": "Interactive workflow testing"
+    },
+    "Tools_Context_Integration": {
+      "components": ["crates/tools/src/context/", "crates/orchestrator/"],
+      "dependencies": ["BLOCKER_3", "BLOCKER_2"],
+      "risk": "MEDIUM - AI model integration complexity",
+      "validation": "Tool selection accuracy testing"
+    }
+  },
+  "parallel_execution_opportunities": {
+    "independent_tracks": [
+      {
+        "track_name": "Security_Completion",
+        "tasks": ["P0.1.4", "P0.1.5", "P0.1.6", "P0.1.7"],
+        "can_run_parallel_with": ["BLOCKER_1"],
+        "estimated_time": "25 minutes"
+      },
+      {
+        "track_name": "BLOCKER_2_and_3",
+        "tasks": ["BLOCKER_2_partial", "BLOCKER_3_preparation"],
+        "can_run_parallel_with": ["BLOCKER_1"],
+        "estimated_time": "4 hours"
+      },
+      {
+        "track_name": "Tools_Platform_Enhancement",
+        "tasks": ["P1.2.2", "P1.2.3", "P1.2.4"],
+        "can_run_parallel_with": ["Multi_Agent_Implementation"],
+        "estimated_time": "2 hours"
+      }
+    ],
+    "sequential_requirements": [
+      {
+        "sequence": ["BLOCKER_1", "BLOCKER_4"],
+        "reason": "TUI requires working orchestrator for plan display"
+      },
+      {
+        "sequence": ["BLOCKER_2", "BLOCKER_3"], 
+        "reason": "Tool Context Builder requires embeddings for reranking"
+      },
+      {
+        "sequence": ["P1_Core", "P1_Plus_UX"],
+        "reason": "UX requires core functionality to be stable"
+      },
+      {
+        "sequence": ["P1_Plus_UX", "P2_Enhancement"],
+        "reason": "Enhancement builds on stable UX foundation"
+      }
+    ]
+  },
+  "risk_dependencies": {
+    "high_risk_chains": [
+      {
+        "chain": ["BLOCKER_2", "BLOCKER_3", "P1.3_All_Tasks"],
+        "risk": "Qwen3 model loading issues cascade to tool selection",
+        "mitigation": "Implement fallback tool selection without AI"
+      },
+      {
+        "chain": ["BLOCKER_1", "P1.1_All_Agents", "BLOCKER_4"],
+        "risk": "CLI integration complexity affects entire workflow",
+        "mitigation": "Start with minimal integration, expand incrementally"
+      }
+    ],
+    "single_points_of_failure": [
+      {
+        "task": "BLOCKER_1",
+        "impact": "Entire orchestrator unusable via CLI",
+        "mitigation": "Ensure direct API access for testing"
+      },
+      {
+        "task": "BLOCKER_2", 
+        "impact": "Memory system and tool selection affected",
+        "mitigation": "Implement simple embedding fallback"
+      }
+    ]
+  },
+  "validation_dependencies": {
+    "integration_tests": [
+      {
+        "test_name": "CLI_to_Orchestrator_Workflow",
+        "depends_on": ["BLOCKER_1", "P1.1.2", "P1.1.3", "P1.1.4"],
+        "validates": ["end_to_end_command_execution"]
+      },
+      {
+        "test_name": "Memory_Search_Performance", 
+        "depends_on": ["BLOCKER_2", "P2.1.1"],
+        "validates": ["embedding_generation_and_search"]
+      },
+      {
+        "test_name": "Tool_Selection_Accuracy",
+        "depends_on": ["BLOCKER_3", "P1.3.1", "P1.3.2", "P1.3.3"],
+        "validates": ["intelligent_tool_ranking"]
+      },
+      {
+        "test_name": "Plan_Preview_Execute_Workflow",
+        "depends_on": ["BLOCKER_4", "P1+.1.2", "P1+.1.3", "P1+.1.4"],
+        "validates": ["interactive_user_workflow"]
+      }
+    ]
+  },
+  "rollback_dependencies": {
+    "safe_rollback_points": [
+      {
+        "point": "P0_Security_Complete",
+        "description": "Security foundation stable, can rollback P1 changes",
+        "dependencies_safe": ["all_security_tasks"]
+      },
+      {
+        "point": "BLOCKER_1_Complete",
+        "description": "CLI integration working, can rollback agent implementations",
+        "dependencies_safe": ["cli_orchestrator_integration"]
+      },
+      {
+        "point": "P1_Core_Complete", 
+        "description": "Core functionality stable, can rollback UX changes",
+        "dependencies_safe": ["multi_agent_workflow", "tool_selection"]
+      }
+    ]
+  },
+  "optimization_paths": {
+    "critical_path_analysis": {
+      "longest_path": ["BLOCKER_1", "P1.1_All", "BLOCKER_4", "P1+.1_All"],
+      "duration_hours": 35,
+      "bottlenecks": ["CLI_integration", "TUI_framework"]
+    },
+    "parallel_optimization": {
+      "max_parallelism": 3,
+      "optimal_tracks": [
+        "Security_and_BLOCKER_1_parallel",
+        "BLOCKER_2_independent", 
+        "Tools_platform_independent"
+      ],
+      "time_savings_hours": 8
+    }
+  }
+}

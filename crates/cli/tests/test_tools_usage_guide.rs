@@ -122,8 +122,11 @@ fn tools_select_json_contains_permissions_and_dryrun_breakdown() {
 
 #[test]
 fn fs_sandbox_blocks_outside_root() {
-    let tmp = TempDir::new().unwrap();
-    let allowed = tmp.path().canonicalize().unwrap();
+    let tmp = TempDir::new().expect("Test operation should succeed");
+    let allowed = tmp
+        .path()
+        .canonicalize()
+        .expect("Test operation should succeed");
     // Try write into /tmp (allowed) and into / (blocked) — we check blocked path deterministically using parent dir
     let mut cmd = Command::cargo_bin("magray").expect("built");
     let out = cmd

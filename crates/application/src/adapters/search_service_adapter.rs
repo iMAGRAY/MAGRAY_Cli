@@ -2,13 +2,16 @@
 //!
 //! Адаптер для интеграции с поисковыми сервисами из memory crate
 
-use std::sync::Arc;
-use async_trait::async_trait;
-use crate::{ApplicationResult, ApplicationError};
 use crate::ports::SearchProvider;
-use crate::ports::{SearchDocument, VectorSearchRequest, VectorSearchResult, TextSearchRequest, TextSearchResult, HybridSearchRequest, HybridSearchResult, SimilaritySearchMatch};
-use domain::entities::embedding_vector::EmbeddingVector;
+use crate::ports::{
+    HybridSearchRequest, HybridSearchResult, SearchDocument, SimilaritySearchMatch,
+    TextSearchRequest, TextSearchResult, VectorSearchRequest, VectorSearchResult,
+};
+use crate::{ApplicationError, ApplicationResult};
+use async_trait::async_trait;
 use domain::value_objects::{layer_type::LayerType, score_threshold::ScoreThreshold};
+use domain::EmbeddingVector;
+use std::sync::Arc;
 
 /// Adapter for search services from memory crate
 pub struct SearchServiceAdapter {
@@ -39,9 +42,16 @@ pub trait VectorSearchServiceTrait: Send + Sync {
         limit: usize,
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchMatch>, Box<dyn std::error::Error + Send + Sync>>;
-    
-    async fn add_vector(&self, id: &str, vector: &[f32]) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-    async fn remove_vector(&self, id: &str) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
+
+    async fn add_vector(
+        &self,
+        id: &str,
+        vector: &[f32],
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn remove_vector(
+        &self,
+        id: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
 }
 
 /// Trait abstraction for text search service
@@ -52,9 +62,16 @@ pub trait TextSearchServiceTrait: Send + Sync {
         query: &str,
         limit: usize,
     ) -> Result<Vec<TextSearchMatch>, Box<dyn std::error::Error + Send + Sync>>;
-    
-    async fn index_document(&self, id: &str, content: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-    async fn remove_document(&self, id: &str) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
+
+    async fn index_document(
+        &self,
+        id: &str,
+        content: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn remove_document(
+        &self,
+        id: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
 }
 
 /// Vector search match from memory crate
@@ -88,54 +105,79 @@ impl SearchServiceAdapter {
     }
 
     /// Convert internal vector match to SearchDocument
-    async fn convert_vector_match_to_document(&self, vm: &VectorSearchMatch) -> ApplicationResult<SearchDocument> {
+    async fn convert_vector_match_to_document(
+        &self,
+        vm: &VectorSearchMatch,
+    ) -> ApplicationResult<SearchDocument> {
         // This would typically retrieve full document info from storage
         // For now, create a minimal document
         Ok(SearchDocument::new(&vm.id, "")
-            .with_layer(LayerType::Index)
-            .with_embedding(EmbeddingVector::new(vm.vector.clone().unwrap_or_default())
-                .map_err(|e| ApplicationError::Domain(e))?))
+            .with_layer(LayerType::Insights)
+            .with_embedding(
+                EmbeddingVector::new(vm.vector.clone().unwrap_or_default(), 384)
+                    .map_err(|e| ApplicationError::Domain(e))?,
+            ))
     }
 
     /// Convert internal text match to SearchDocument
-    async fn convert_text_match_to_document(&self, tm: &TextSearchMatch) -> ApplicationResult<SearchDocument> {
-        Ok(SearchDocument::new(&tm.id, &tm.content)
-            .with_layer(LayerType::Index))
+    async fn convert_text_match_to_document(
+        &self,
+        tm: &TextSearchMatch,
+    ) -> ApplicationResult<SearchDocument> {
+        Ok(SearchDocument::new(&tm.id, &tm.content).with_layer(LayerType::Insights))
     }
 }
 
 #[async_trait]
 impl SearchProvider for SearchServiceAdapter {
-    async fn index_document(&self, document: &SearchDocument) -> ApplicationResult<crate::ports::IndexResult> {
+    async fn index_document(
+        &self,
+        document: &SearchDocument,
+    ) -> ApplicationResult<crate::ports::IndexResult> {
         let start_time = std::time::Instant::now();
-        
+
         // Index in both vector and text search services
         let mut errors = Vec::new();
-        
+
         // Index in text search
-        if let Err(e) = self.text_search_service.index_document(&document.id, &document.content).await {
+        if let Err(e) = self
+            .text_search_service
+            .index_document(&document.id, &document.content)
+            .await
+        {
             errors.push(format!("Text indexing failed: {}", e));
         }
-        
+
         if let Some(ref embedding) = document.embedding {
-            if let Err(e) = self.vector_search_service.add_vector(&document.id, embedding.as_vec()).await {
+            if let Err(e) = self
+                .vector_search_service
+                .add_vector(&document.id, embedding.dimensions())
+                .await
+            {
                 errors.push(format!("Vector indexing failed: {}", e));
             }
         }
-        
+
         let duration = start_time.elapsed();
         let success = errors.is_empty();
-        
+
         Ok(crate::ports::IndexResult {
             document_id: document.id.clone(),
             success,
             index_time_ms: duration.as_millis() as u64,
             index_size_bytes: document.content.len(),
-            error: if errors.is_empty() { None } else { Some(errors.join("; ")) },
+            error: if errors.is_empty() {
+                None
+            } else {
+                Some(errors.join("; "))
+            },
         })
     }
 
-    async fn index_documents(&self, documents: &[SearchDocument]) -> ApplicationResult<crate::ports::BatchIndexResult> {
+    async fn index_documents(
+        &self,
+        documents: &[SearchDocument],
+    ) -> ApplicationResult<crate::ports::BatchIndexResult> {
         let start_time = std::time::Instant::now();
         let mut results = Vec::new();
         let mut successful = 0;
@@ -165,37 +207,56 @@ impl SearchProvider for SearchServiceAdapter {
 
     async fn remove_document(&self, document_id: &str) -> ApplicationResult<bool> {
         let mut removed = false;
-        
+
         // Remove from text search
-        if self.text_search_service.remove_document(document_id).await.unwrap_or(false) {
+        if self
+            .text_search_service
+            .remove_document(document_id)
+            .await
+            .unwrap_or(false)
+        {
             removed = true;
         }
-        
+
         // Remove from vector search
-        if self.vector_search_service.remove_vector(document_id).await.unwrap_or(false) {
+        if self
+            .vector_search_service
+            .remove_vector(document_id)
+            .await
+            .unwrap_or(false)
+        {
             removed = true;
         }
-        
+
         Ok(removed)
     }
 
-    async fn update_document(&self, document: &SearchDocument) -> ApplicationResult<crate::ports::IndexResult> {
+    async fn update_document(
+        &self,
+        document: &SearchDocument,
+    ) -> ApplicationResult<crate::ports::IndexResult> {
         // For update, remove and re-add
         self.remove_document(&document.id).await?;
         self.index_document(document).await
     }
 
-    async fn vector_search(&self, request: &VectorSearchRequest) -> ApplicationResult<VectorSearchResult> {
+    async fn vector_search(
+        &self,
+        request: &VectorSearchRequest,
+    ) -> ApplicationResult<VectorSearchResult> {
         let start_time = std::time::Instant::now();
-        
-        let matches = self.vector_search_service
+
+        let matches = self
+            .vector_search_service
             .search_similar(
-                request.query_vector.as_vec(),
+                request.query_vector.dimensions(),
                 request.limit,
                 request.min_score,
             )
             .await
-            .map_err(|e| ApplicationError::infrastructure_with_source("Vector search failed", e))?;
+            .map_err(|e| {
+                ApplicationError::infrastructure(format!("Vector search failed: {}", e))
+            })?;
 
         // Convert matches to SearchDocuments
         let mut search_matches = Vec::new();
@@ -209,16 +270,17 @@ impl SearchProvider for SearchServiceAdapter {
             });
         }
 
+        let total_count = search_matches.len();
         Ok(VectorSearchResult {
             results: search_matches,
-            total_found: search_matches.len(),
+            total_found: total_count,
             search_time_ms: start_time.elapsed().as_millis() as u64,
             layer_stats: crate::ports::LayerSearchStats {
                 cache_searched: false,
                 cache_results: 0,
                 cache_time_ms: 0,
                 index_searched: true,
-                index_results: search_matches.len(),
+                index_results: total_count,
                 index_time_ms: start_time.elapsed().as_millis() as u64,
                 storage_searched: false,
                 storage_results: 0,
@@ -227,13 +289,17 @@ impl SearchProvider for SearchServiceAdapter {
         })
     }
 
-    async fn text_search(&self, request: &TextSearchRequest) -> ApplicationResult<TextSearchResult> {
+    async fn text_search(
+        &self,
+        request: &TextSearchRequest,
+    ) -> ApplicationResult<TextSearchResult> {
         let start_time = std::time::Instant::now();
-        
-        let matches = self.text_search_service
+
+        let matches = self
+            .text_search_service
             .search_text(&request.query, request.limit)
             .await
-            .map_err(|e| ApplicationError::infrastructure_with_source("Text search failed", e))?;
+            .map_err(|e| ApplicationError::infrastructure(format!("Text search failed: {}", e)))?;
 
         // Convert matches to SearchDocuments
         let mut search_matches = Vec::new();
@@ -242,26 +308,31 @@ impl SearchProvider for SearchServiceAdapter {
             search_matches.push(crate::ports::TextSearchMatch {
                 document,
                 relevance_score: tm.score,
-                highlights: tm.highlights.into_iter().map(|h| crate::ports::TextHighlight {
-                    field: "content".to_string(),
-                    fragments: vec![h],
-                    start_offset: 0,
-                    end_offset: 0,
-                }).collect(),
+                highlights: tm
+                    .highlights
+                    .into_iter()
+                    .map(|h| crate::ports::TextHighlight {
+                        field: "content".to_string(),
+                        fragments: vec![h],
+                        start_offset: 0,
+                        end_offset: 0,
+                    })
+                    .collect(),
                 explanation: Some("Text match".to_string()),
             });
         }
 
+        let total_count = search_matches.len();
         Ok(TextSearchResult {
             results: search_matches,
-            total_found: search_matches.len(),
+            total_found: total_count,
             search_time_ms: start_time.elapsed().as_millis() as u64,
             layer_stats: crate::ports::LayerSearchStats {
                 cache_searched: false,
                 cache_results: 0,
                 cache_time_ms: 0,
                 index_searched: true,
-                index_results: search_matches.len(),
+                index_results: total_count,
                 index_time_ms: start_time.elapsed().as_millis() as u64,
                 storage_searched: false,
                 storage_results: 0,
@@ -269,7 +340,11 @@ impl SearchProvider for SearchServiceAdapter {
             },
             query_analysis: crate::ports::QueryAnalysis {
                 normalized_query: request.query.to_lowercase(),
-                extracted_terms: request.query.split_whitespace().map(|s| s.to_string()).collect(),
+                extracted_terms: request
+                    .query
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect(),
                 detected_language: Some("en".to_string()),
                 query_type: crate::ports::QueryType::Simple,
                 complexity_score: 0.5,
@@ -277,12 +352,15 @@ impl SearchProvider for SearchServiceAdapter {
         })
     }
 
-    async fn hybrid_search(&self, request: &HybridSearchRequest) -> ApplicationResult<HybridSearchResult> {
+    async fn hybrid_search(
+        &self,
+        request: &HybridSearchRequest,
+    ) -> ApplicationResult<HybridSearchResult> {
         let start_time = std::time::Instant::now();
-        
+
         // Perform both vector and text search
         let mut all_matches = std::collections::HashMap::new();
-        
+
         if let Some(ref query_vector) = request.query_vector {
             let vector_request = VectorSearchRequest {
                 query_vector: query_vector.clone(),
@@ -292,15 +370,18 @@ impl SearchProvider for SearchServiceAdapter {
                 include_vectors: false,
                 search_layers: request.search_layers.clone(),
             };
-            
+
             if let Ok(vector_results) = self.vector_search(&vector_request).await {
                 for result in vector_results.results {
                     let doc_id = result.document.id.clone();
-                    all_matches.insert(doc_id, (result.document, Some(result.similarity_score), None));
+                    all_matches.insert(
+                        doc_id,
+                        (result.document, Some(result.similarity_score), None),
+                    );
                 }
             }
         }
-        
+
         // Text search
         let text_request = TextSearchRequest {
             query: request.query.clone(),
@@ -310,7 +391,7 @@ impl SearchProvider for SearchServiceAdapter {
             search_type: crate::ports::TextSearchType::TfIdf,
             search_layers: request.search_layers.clone(),
         };
-        
+
         if let Ok(text_results) = self.text_search(&text_request).await {
             for result in text_results.results {
                 let doc_id = result.document.id.clone();
@@ -319,27 +400,40 @@ impl SearchProvider for SearchServiceAdapter {
                         *text_score = Some(result.relevance_score);
                     }
                     None => {
-                        all_matches.insert(doc_id, (result.document, None, Some(result.relevance_score)));
+                        all_matches.insert(
+                            doc_id,
+                            (result.document, None, Some(result.relevance_score)),
+                        );
                     }
                 }
             }
         }
-        
+
+        // Store the count before moving all_matches
+        let total_matches_count = all_matches.len();
+
         // Combine scores and create hybrid results
         let mut hybrid_matches: Vec<_> = all_matches
             .into_iter()
             .map(|(_, (document, vector_score, text_score))| {
                 let vector_score = vector_score.unwrap_or(0.0);
                 let text_score = text_score.unwrap_or(0.0);
-                let combined_score = 
-                    (vector_score * request.weights.vector_weight) +
-                    (text_score * request.weights.text_weight);
-                
+                let combined_score = (vector_score * request.weights.vector_weight)
+                    + (text_score * request.weights.text_weight);
+
                 crate::ports::HybridSearchMatch {
                     document,
                     combined_score,
-                    vector_score: if vector_score > 0.0 { Some(vector_score) } else { None },
-                    text_score: if text_score > 0.0 { Some(text_score) } else { None },
+                    vector_score: if vector_score > 0.0 {
+                        Some(vector_score)
+                    } else {
+                        None
+                    },
+                    text_score: if text_score > 0.0 {
+                        Some(text_score)
+                    } else {
+                        None
+                    },
                     metadata_score: 0.5,
                     recency_score: 0.7,
                     highlights: vec![],
@@ -347,21 +441,25 @@ impl SearchProvider for SearchServiceAdapter {
                 }
             })
             .collect();
-        
+
         // Sort by combined score and limit results
-        hybrid_matches.sort_by(|a, b| b.combined_score.partial_cmp(&a.combined_score).unwrap());
+        hybrid_matches.sort_by(|a, b| {
+            b.combined_score
+                .partial_cmp(&a.combined_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         hybrid_matches.truncate(request.limit);
 
         Ok(HybridSearchResult {
             results: hybrid_matches,
-            total_found: all_matches.len(),
+            total_found: total_matches_count,
             search_time_ms: start_time.elapsed().as_millis() as u64,
             layer_stats: crate::ports::LayerSearchStats {
                 cache_searched: false,
                 cache_results: 0,
                 cache_time_ms: 0,
                 index_searched: true,
-                index_results: all_matches.len(),
+                index_results: total_matches_count,
                 index_time_ms: start_time.elapsed().as_millis() as u64,
                 storage_searched: false,
                 storage_results: 0,
@@ -369,7 +467,11 @@ impl SearchProvider for SearchServiceAdapter {
             },
             query_analysis: crate::ports::QueryAnalysis {
                 normalized_query: request.query.to_lowercase(),
-                extracted_terms: request.query.split_whitespace().map(|s| s.to_string()).collect(),
+                extracted_terms: request
+                    .query
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect(),
                 detected_language: Some("en".to_string()),
                 query_type: crate::ports::QueryType::Simple,
                 complexity_score: 0.7,
@@ -390,28 +492,36 @@ impl SearchProvider for SearchServiceAdapter {
         limit: usize,
         threshold: Option<&ScoreThreshold>,
     ) -> ApplicationResult<Vec<SimilaritySearchMatch>> {
-        let min_threshold = threshold.map(|t| t.value()).unwrap_or(self.config.similarity_threshold as f64);
-        
-        let matches = self.vector_search_service
+        let min_threshold = threshold
+            .map(|t| t.value())
+            .unwrap_or(self.config.similarity_threshold);
+
+        let matches = self
+            .vector_search_service
             .search_similar(
-                query_embedding.as_vec(),
+                query_embedding.dimensions(),
                 limit,
                 Some(min_threshold as f32),
             )
             .await
-            .map_err(|e| ApplicationError::infrastructure_with_source("Similarity search failed", e))?;
+            .map_err(|e| {
+                ApplicationError::infrastructure(format!("Similarity search failed: {}", e))
+            })?;
 
         let mut similarity_matches = Vec::new();
         for vm in matches {
-            if vm.score as f64 >= min_threshold {
+            if vm.score >= min_threshold {
                 similarity_matches.push(SimilaritySearchMatch {
                     record_id: vm.id,
                     embedding: vm.vector.unwrap_or_default(),
                     similarity_score: vm.score as f64,
-                    metadata: Some([
-                        ("source".to_string(), "vector_search".to_string()),
-                        ("score".to_string(), vm.score.to_string()),
-                    ].into()),
+                    metadata: Some(
+                        [
+                            ("source".to_string(), "vector_search".to_string()),
+                            ("score".to_string(), vm.score.to_string()),
+                        ]
+                        .into(),
+                    ),
                 });
             }
         }

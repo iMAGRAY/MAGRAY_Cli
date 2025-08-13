@@ -30,7 +30,7 @@ impl TestVector {
             .map(|&v| v.clamp(-10.0, 10.0)) // Clamp to reasonable range
             .collect();
 
-        EmbeddingVector::new(normalized_values).unwrap()
+        EmbeddingVector::new(normalized_values).expect("Test operation should succeed")
     }
 
     fn generate_similar(&self, similarity: f32) -> TestVector {
@@ -231,7 +231,7 @@ proptest! {
             }
 
             // Sort by expected distance (closer should come first)
-            expected_order.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            expected_order.sort_by(|a, b| a.1.partial_cmp(&b.1).expect("Test operation should succeed"));
 
             let search_results = index.search(&base_embedding, k.min(expected_order.len()), config.ef_search).await;
 
@@ -369,7 +369,8 @@ fn fuzz_hnsw_operations_stability() {
                                 && vector.len() <= 1000
                                 && vector.iter().all(|x| x.is_finite())
                             {
-                                let embedding = EmbeddingVector::new(vector).unwrap();
+                                let embedding = EmbeddingVector::new(vector)
+                                    .expect("Test operation should succeed");
                                 let record = Record::new(id, "fuzz test".to_string(), embedding);
                                 let _ = index.insert(record).await; // Don't panic on any input
                             }
@@ -381,7 +382,8 @@ fn fuzz_hnsw_operations_stability() {
                                 && k > 0
                                 && k <= 100
                             {
-                                let embedding = EmbeddingVector::new(query_vector).unwrap();
+                                let embedding = EmbeddingVector::new(query_vector)
+                                    .expect("Test operation should succeed");
                                 let _ = index.search(&embedding, k, 50).await; // Should not panic
                             }
                         }
@@ -428,7 +430,8 @@ fn property_search_performance_scaling() {
                     .map(|_| fastrand::f32() * 2.0 - 1.0)
                     .collect();
 
-                let embedding = EmbeddingVector::new(vector).unwrap();
+                let embedding =
+                    EmbeddingVector::new(vector).expect("Test operation should succeed");
                 let record =
                     Record::new(format!("record_{}", i), format!("content_{}", i), embedding);
                 let _ = index.insert(record).await;
@@ -438,7 +441,8 @@ fn property_search_performance_scaling() {
             let query_vector: Vec<f32> = (0..dimensions)
                 .map(|_| fastrand::f32() * 2.0 - 1.0)
                 .collect();
-            let query_embedding = EmbeddingVector::new(query_vector).unwrap();
+            let query_embedding =
+                EmbeddingVector::new(query_vector).expect("Test operation should succeed");
 
             let start = Instant::now();
             let results = index.search(&query_embedding, 10, 50).await;
@@ -485,7 +489,8 @@ fn property_memory_usage_scaling() {
                     .map(|_| fastrand::f32() * 2.0 - 1.0)
                     .collect();
 
-                let embedding = EmbeddingVector::new(vector).unwrap();
+                let embedding =
+                    EmbeddingVector::new(vector).expect("Test operation should succeed");
                 let record =
                     Record::new(format!("record_{}", i), format!("content_{}", i), embedding);
                 let _ = index.insert(record).await;

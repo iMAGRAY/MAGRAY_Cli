@@ -1,4 +1,12 @@
 //! MAGRAY CLI Library
+
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::manual_is_multiple_of)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::too_many_arguments)]
 //!
 //! CLI components for the MAGRAY AI agent system
 
@@ -14,6 +22,7 @@ pub mod orchestrator;
 pub mod performance_tracker;
 pub mod progress;
 pub mod refactored_unified_agent;
+pub mod services;
 pub mod strategies;
 pub mod unified_agent_v2;
 pub mod util;

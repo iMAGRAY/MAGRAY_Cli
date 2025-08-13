@@ -184,7 +184,7 @@ impl SlaValidator {
         
         let avg_time = times.iter().sum::<f64>() / times.len() as f64;
         let mut sorted_times = times.to_vec();
-        sorted_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted_times.sort_by(|a, b| a.partial_cmp(b).expect("Test operation should succeed"));
         
         let p95 = sorted_times[(times.len() * 95) / 100];
         let p99 = sorted_times[(times.len() * 99) / 100];

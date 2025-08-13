@@ -54,14 +54,14 @@ fn main() -> Result<()> {
             println!("✅ Успешно создан CpuEmbeddingService для qwen3emb!");
         }
         Err(e) => {
-            println!("❌ Ошибка создания сервиса: {:?}", e);
-            println!("📋 Причина: {}", e);
+            println!("❌ Ошибка создания сервиса: {e:?}");
+            println!("📋 Причина: {e}");
 
             // Цепочка ошибок
             let mut current = e.source();
             let mut level = 1;
             while let Some(err) = current {
-                println!("    {}: {}", level, err);
+                println!("    {level}: {err}");
                 current = err.source();
                 level += 1;
             }

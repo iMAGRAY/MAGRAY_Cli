@@ -126,7 +126,7 @@ mod tests {
         let pool = GpuMemoryPool::new(64).await; // 64MB pool
 
         if pool.is_ok() {
-            let pool = pool.unwrap();
+            let pool = pool.expect("Test operation should succeed");
             let stats = pool.get_stats().await;
 
             assert!(
@@ -368,8 +368,14 @@ mod tests {
 
         let (result1, result2) = tokio::join!(handle1, handle2);
 
-        assert!(result1.unwrap().is_ok(), "Processor 1 should succeed");
-        assert!(result2.unwrap().is_ok(), "Processor 2 should succeed");
+        assert!(
+            result1.expect("Test operation should succeed").is_ok(),
+            "Processor 1 should succeed"
+        );
+        assert!(
+            result2.expect("Test operation should succeed").is_ok(),
+            "Processor 2 should succeed"
+        );
     }
 
     #[tokio::test]

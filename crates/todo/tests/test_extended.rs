@@ -86,19 +86,28 @@ async fn test_task_state_transitions() -> Result<()> {
     // Initial state should be Ready
     let retrieved = service.get_cached(&task.id).await?;
     assert!(retrieved.is_some());
-    assert_eq!(retrieved.unwrap().state, TaskState::Ready);
+    assert_eq!(
+        retrieved.expect("Test operation should succeed").state,
+        TaskState::Ready
+    );
 
     // Update to InProgress
     service
         .update_state(&task.id, TaskState::InProgress)
         .await?;
     let retrieved = service.get_cached(&task.id).await?;
-    assert_eq!(retrieved.unwrap().state, TaskState::InProgress);
+    assert_eq!(
+        retrieved.expect("Test operation should succeed").state,
+        TaskState::InProgress
+    );
 
     // Update to Done
     service.update_state(&task.id, TaskState::Done).await?;
     let retrieved = service.get_cached(&task.id).await?;
-    assert_eq!(retrieved.unwrap().state, TaskState::Done);
+    assert_eq!(
+        retrieved.expect("Test operation should succeed").state,
+        TaskState::Done
+    );
 
     Ok(())
 }
@@ -395,7 +404,10 @@ async fn test_todo_store_direct() -> Result<()> {
     let retrieved = store.get(&created.id).await?;
 
     assert!(retrieved.is_some());
-    assert_eq!(retrieved.unwrap().title, "Direct store test");
+    assert_eq!(
+        retrieved.expect("Test operation should succeed").title,
+        "Direct store test"
+    );
 
     Ok(())
 }

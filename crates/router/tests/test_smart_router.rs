@@ -1,4 +1,4 @@
-use llm::{LlmClient, LlmProvider};
+use llm::{LegacyLlmProvider, LlmClient};
 use router::{ActionPlan, PlannedAction, SmartRouter};
 use std::collections::HashMap;
 
@@ -6,7 +6,7 @@ use std::collections::HashMap;
 fn test_smart_router_structure() {
     // Проверяем что SmartRouter корректно инициализируется
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-api-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -25,10 +25,10 @@ fn test_smart_router_structure() {
     };
 
     // Пустой план должен выполняться без ошибок
-    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let runtime = tokio::runtime::Runtime::new().expect("Test operation should succeed");
     let result = runtime.block_on(router.execute_plan(&plan));
     assert!(result.is_ok());
-    assert_eq!(result.unwrap().len(), 0);
+    assert_eq!(result.expect("Test operation should succeed").len(), 0);
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn test_action_plan_confidence_levels() {
 #[test]
 fn test_extract_required_params_edge_cases() {
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test".to_string(),
             model: "test".to_string(),
         },
@@ -156,7 +156,7 @@ fn test_complex_action_plan() {
 #[test]
 fn test_format_results_unicode() {
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test".to_string(),
             model: "test".to_string(),
         },
@@ -184,7 +184,9 @@ fn test_format_results_unicode() {
         metadata: HashMap::new(),
     }];
 
-    let formatted = router.format_results(&plan, &results).unwrap();
+    let formatted = router
+        .format_results(&plan, &results)
+        .expect("Test operation should succeed");
 
     assert!(formatted.contains("🚀"));
     assert!(formatted.contains("✨"));

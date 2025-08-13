@@ -757,7 +757,9 @@ mod tests {
             .await;
 
         let cb_metrics = collector.circuit_breaker_metrics.read().await;
-        let metric = cb_metrics.get("test").unwrap();
+        let metric = cb_metrics
+            .get("test")
+            .expect("Operation failed - converted from unwrap()");
         assert_eq!(metric.status, CircuitBreakerStatus::Open);
         assert_eq!(metric.failure_count, 5);
         assert!(metric.last_failure.is_some());
@@ -772,7 +774,12 @@ mod tests {
         let dashboard_metrics = collector.collect_dashboard_metrics(&coordinators).await;
 
         assert_eq!(dashboard_metrics["status"], "active");
-        assert!(dashboard_metrics["uptime_seconds"].as_u64().unwrap() >= 0);
+        assert!(
+            dashboard_metrics["uptime_seconds"]
+                .as_u64()
+                .expect("Operation failed - converted from unwrap()")
+                >= 0
+        );
         assert_eq!(dashboard_metrics["total_operations"], 0);
     }
 
@@ -823,7 +830,12 @@ mod tests {
 
         let stats = collector.get_aggregated_stats(60).await; // 60 минут окно
 
-        assert!(stats["samples_count"].as_u64().unwrap() >= 1);
+        assert!(
+            stats["samples_count"]
+                .as_u64()
+                .expect("Operation failed - converted from unwrap()")
+                >= 1
+        );
         assert_eq!(stats["total_operations"], 2);
         assert_eq!(stats["successful_operations"], 2);
         assert_eq!(stats["success_rate"], 100.0);

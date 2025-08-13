@@ -455,7 +455,10 @@ mod tests {
                 println!("Device decision: {:?}", decision);
 
                 // Проверяем кэширование
-                let cached = selector.select_device(&config).await.unwrap();
+                let cached = selector
+                    .select_device(&config)
+                    .await
+                    .expect("Operation should succeed");
                 assert_eq!(decision.use_gpu, cached.use_gpu);
             }
             Err(e) => {

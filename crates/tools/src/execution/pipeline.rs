@@ -647,11 +647,21 @@ impl ExecutionPipeline {
         }
 
         let result = match futures.len() {
-            1 => futures.into_iter().next().unwrap().await,
+            1 => {
+                futures
+                    .into_iter()
+                    .next()
+                    .expect("Operation failed - converted from unwrap()")
+                    .await
+            }
             2 => {
                 let mut iter = futures.into_iter();
-                let f1 = iter.next().unwrap();
-                let f2 = iter.next().unwrap();
+                let f1 = iter
+                    .next()
+                    .expect("Operation failed - converted from unwrap()");
+                let f2 = iter
+                    .next()
+                    .expect("Operation failed - converted from unwrap()");
                 select! {
                     result = f1 => result,
                     result = f2 => result,
@@ -659,9 +669,15 @@ impl ExecutionPipeline {
             }
             3 => {
                 let mut iter = futures.into_iter();
-                let f1 = iter.next().unwrap();
-                let f2 = iter.next().unwrap();
-                let f3 = iter.next().unwrap();
+                let f1 = iter
+                    .next()
+                    .expect("Operation failed - converted from unwrap()");
+                let f2 = iter
+                    .next()
+                    .expect("Operation failed - converted from unwrap()");
+                let f3 = iter
+                    .next()
+                    .expect("Operation failed - converted from unwrap()");
                 select! {
                     result = f1 => result,
                     result = f2 => result,

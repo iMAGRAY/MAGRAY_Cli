@@ -609,13 +609,17 @@ mod tests {
         sleep(Duration::from_millis(10)).await;
 
         // Finish operation
-        tracker.finish_operation(&op_id, true).await.unwrap();
+        tracker
+            .finish_operation(&op_id, true)
+            .await
+            .expect("Test requires operation finish to succeed");
 
         // Check metrics
         let component_metrics = tracker.get_component_metrics("test_component").await;
         assert!(component_metrics.is_some());
 
-        let metrics = component_metrics.unwrap();
+        let metrics =
+            component_metrics.expect("Component metrics should be available after operation");
         assert_eq!(metrics.total_operations, 1);
         assert_eq!(metrics.successful_operations, 1);
         assert_eq!(metrics.failed_operations, 0);
@@ -629,13 +633,19 @@ mod tests {
         for i in 0..5 {
             let op_id = tracker.start_operation("component1", "operation").await;
             sleep(Duration::from_millis(5)).await;
-            tracker.finish_operation(&op_id, i < 4).await.unwrap(); // 1 failure
+            tracker
+                .finish_operation(&op_id, i < 4)
+                .await
+                .expect("Async operation should succeed"); // 1 failure
         }
 
         for i in 0..3 {
             let op_id = tracker.start_operation("component2", "operation").await;
             sleep(Duration::from_millis(3)).await;
-            tracker.finish_operation(&op_id, true).await.unwrap();
+            tracker
+                .finish_operation(&op_id, true)
+                .await
+                .expect("Async operation should succeed");
         }
 
         let system_metrics = tracker.get_system_metrics().await;
@@ -647,7 +657,10 @@ mod tests {
         assert_eq!(system_metrics.components.len(), 2);
 
         // Check component-specific metrics
-        let comp1_metrics = system_metrics.components.get("component1").unwrap();
+        let comp1_metrics = system_metrics
+            .components
+            .get("component1")
+            .expect("Operation failed - converted from unwrap()");
         assert_eq!(comp1_metrics.total_operations, 5);
         assert_eq!(comp1_metrics.failed_operations, 1);
     }
@@ -662,7 +675,10 @@ mod tests {
             .start_operation("component", "another_operation")
             .await;
 
-        let active_ops = tracker.get_active_operations().await.unwrap();
+        let active_ops = tracker
+            .get_active_operations()
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(active_ops.len(), 2);
 
         // Check system metrics show active operations
@@ -681,7 +697,10 @@ mod tests {
         // Add more metrics than the limit
         for i in 0..5 {
             let op_id = tracker.start_operation("component", "operation").await;
-            tracker.finish_operation(&op_id, true).await.unwrap();
+            tracker
+                .finish_operation(&op_id, true)
+                .await
+                .expect("Async operation should succeed");
         }
 
         // Check that history is limited

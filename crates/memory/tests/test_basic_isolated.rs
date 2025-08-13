@@ -27,7 +27,7 @@ mod isolated_tests {
     #[test]
     fn test_json_serialization() {
         let data = serde_json::json!({"test": "value"});
-        let serialized = serde_json::to_string(&data).unwrap();
+        let serialized = serde_json::to_string(&data).expect("Test operation should succeed");
         assert!(serialized.contains("test"));
     }
 

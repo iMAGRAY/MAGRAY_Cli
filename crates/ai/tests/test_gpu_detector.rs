@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 #![cfg(feature = "gpu")]
 
 use ai::gpu_detector::GpuDetector;
@@ -192,8 +193,8 @@ fn test_compute_capability_validation() {
         assert_eq!(parts.len(), 2);
 
         // Should be valid numbers
-        let major: u32 = parts[0].parse().unwrap();
-        let minor: u32 = parts[1].parse().unwrap();
+        let major: u32 = parts[0].parse().expect("Test operation should succeed");
+        let minor: u32 = parts[1].parse().expect("Test operation should succeed");
 
         assert!(major >= 3); // Minimum supported
         assert!(major <= 15); // Reasonable maximum
@@ -213,8 +214,8 @@ fn test_driver_version_format() {
             assert_eq!(parts.len(), 2);
 
             // Should be valid numbers
-            let major: u32 = parts[0].parse().unwrap();
-            let minor: u32 = parts[1].parse().unwrap();
+            let major: u32 = parts[0].parse().expect("Test operation should succeed");
+            let minor: u32 = parts[1].parse().expect("Test operation should succeed");
 
             assert!(major >= 400); // Reasonable minimum
             assert!(major <= 999); // Reasonable maximum
@@ -235,8 +236,8 @@ fn test_cuda_version_format() {
             assert_eq!(parts.len(), 2);
 
             // Should be valid numbers
-            let major: u32 = parts[0].parse().unwrap();
-            let minor: u32 = parts[1].parse().unwrap();
+            let major: u32 = parts[0].parse().expect("Test operation should succeed");
+            let minor: u32 = parts[1].parse().expect("Test operation should succeed");
 
             assert!(major >= 10); // CUDA 10+ is reasonable minimum
             assert!(major <= 20); // Reasonable maximum

@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 #[cfg(feature = "gpu")]
 use ai::gpu_config::*;
 

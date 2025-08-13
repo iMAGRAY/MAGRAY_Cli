@@ -88,7 +88,7 @@ async fn test_environment_based_configuration_detection() -> DIResult<()> {
 #[tokio::test]
 async fn test_file_based_configuration_integration() -> DIResult<()> {
     // Создаем временную директорию для конфигурационных файлов
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let base_config_path = temp_dir.path().join("base_config.toml");
     let override_config_path = temp_dir.path().join("override_config.toml");
     
@@ -136,8 +136,8 @@ async fn test_file_based_configuration_integration() -> DIResult<()> {
     "#;
     
     // Записываем файлы
-    fs::write(&base_config_path, base_config_content).unwrap();
-    fs::write(&override_config_path, override_config_content).unwrap();
+    fs::write(&base_config_path, base_config_content).expect("Test operation should succeed");
+    fs::write(&override_config_path, override_config_content).expect("Test operation should succeed");
     
     // Загружаем базовую конфигурацию
     let base_config = UnifiedDIConfiguration::from_file(&base_config_path).await?;
@@ -180,7 +180,7 @@ async fn test_file_based_configuration_integration() -> DIResult<()> {
 
 #[tokio::test]
 async fn test_configuration_hot_reload_integration() -> DIResult<()> {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let config_file_path = temp_dir.path().join("hot_reload_test.toml");
     
     // Создаем начальную конфигурацию
@@ -196,7 +196,7 @@ async fn test_configuration_hot_reload_integration() -> DIResult<()> {
         advanced_caching = false
     "#;
     
-    fs::write(&config_file_path, initial_config_content).unwrap();
+    fs::write(&config_file_path, initial_config_content).expect("Test operation should succeed");
     
     // Загружаем начальную конфигурацию и создаем контейнер
     let initial_config = UnifiedDIConfiguration::from_file(&config_file_path).await?;
@@ -229,7 +229,7 @@ async fn test_configuration_hot_reload_integration() -> DIResult<()> {
         new_timeout = 45
     "#;
     
-    fs::write(&config_file_path, updated_config_content).unwrap();
+    fs::write(&config_file_path, updated_config_content).expect("Test operation should succeed");
     
     // Обнаруживаем изменения
     let config_changed = initial_config.detect_changes(&config_file_path).await?;
@@ -261,7 +261,7 @@ async fn test_configuration_hot_reload_integration() -> DIResult<()> {
 
 #[tokio::test]
 async fn test_multi_environment_configuration_precedence() -> DIResult<()> {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     
     // Создаем конфигурации для разных окружений
     let configs = vec![
@@ -309,25 +309,25 @@ async fn test_multi_environment_configuration_precedence() -> DIResult<()> {
     let mut config_paths = HashMap::new();
     for (filename, content) in configs {
         let path = temp_dir.path().join(filename);
-        fs::write(&path, content).unwrap();
+        fs::write(&path, content).expect("Test operation should succeed");
         config_paths.insert(filename, path);
     }
     
     // Тестируем приоритет загрузки конфигураций
     let base_config = UnifiedDIConfiguration::from_file(
-        config_paths.get("base.toml").unwrap()
+        config_paths.get("base.toml").expect("Test operation should succeed")
     ).await?;
     
     let dev_config = UnifiedDIConfiguration::from_file(
-        config_paths.get("development.toml").unwrap()
+        config_paths.get("development.toml").expect("Test operation should succeed")
     ).await?;
     
     let prod_config = UnifiedDIConfiguration::from_file(
-        config_paths.get("production.toml").unwrap()
+        config_paths.get("production.toml").expect("Test operation should succeed")
     ).await?;
     
     let local_config = UnifiedDIConfiguration::from_file(
-        config_paths.get("local.toml").unwrap()
+        config_paths.get("local.toml").expect("Test operation should succeed")
     ).await?;
     
     // Тестируем сценарий development окружения
@@ -375,7 +375,7 @@ async fn test_multi_environment_configuration_precedence() -> DIResult<()> {
 
 #[tokio::test]
 async fn test_configuration_security_validation_integration() -> DIResult<()> {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let secure_config_path = temp_dir.path().join("secure_config.toml");
     let insecure_config_path = temp_dir.path().join("insecure_config.toml");
     
@@ -419,8 +419,8 @@ async fn test_configuration_security_validation_integration() -> DIResult<()> {
         disable_sandboxing = true
     "#;
     
-    fs::write(&secure_config_path, secure_config_content).unwrap();
-    fs::write(&insecure_config_path, insecure_config_content).unwrap();
+    fs::write(&secure_config_path, secure_config_content).expect("Test operation should succeed");
+    fs::write(&insecure_config_path, insecure_config_content).expect("Test operation should succeed");
     
     // Загружаем и валидируем безопасную конфигурацию
     let secure_config = UnifiedDIConfiguration::from_file(&secure_config_path).await?;
@@ -580,14 +580,14 @@ async fn test_configuration_compatibility_across_versions() -> DIResult<()> {
     // Загружаем конфигурации разных версий
     let legacy_config = UnifiedDIConfiguration::from_legacy_json(legacy_config_v1)?;
     
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     
     let v2_path = temp_dir.path().join("config_v2.toml");
-    fs::write(&v2_path, config_v2).unwrap();
+    fs::write(&v2_path, config_v2).expect("Test operation should succeed");
     let v2_config = UnifiedDIConfiguration::from_file(&v2_path).await?;
     
     let v3_path = temp_dir.path().join("config_v3.toml");
-    fs::write(&v3_path, config_v3).unwrap();
+    fs::write(&v3_path, config_v3).expect("Test operation should succeed");
     let v3_config = UnifiedDIConfiguration::from_file(&v3_path).await?;
     
     // Проверяем что все конфигурации валидны

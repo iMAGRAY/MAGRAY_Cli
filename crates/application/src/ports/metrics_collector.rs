@@ -2,8 +2,8 @@
 //!
 //! Абстракция для сбора и отправки метрик производительности и бизнес-событий.
 
-use async_trait::async_trait;
 use crate::ApplicationResult;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -11,26 +11,46 @@ use std::collections::HashMap;
 #[async_trait]
 pub trait MetricsCollector: Send + Sync {
     /// Record a counter metric
-    async fn increment_counter(&self, name: &str, value: u64, tags: Option<&MetricTags>) -> ApplicationResult<()>;
-    
+    async fn increment_counter(
+        &self,
+        name: &str,
+        value: u64,
+        tags: Option<&MetricTags>,
+    ) -> ApplicationResult<()>;
+
     /// Record a gauge metric
-    async fn record_gauge(&self, name: &str, value: f64, tags: Option<&MetricTags>) -> ApplicationResult<()>;
-    
+    async fn record_gauge(
+        &self,
+        name: &str,
+        value: f64,
+        tags: Option<&MetricTags>,
+    ) -> ApplicationResult<()>;
+
     /// Record a histogram metric
-    async fn record_histogram(&self, name: &str, value: f64, tags: Option<&MetricTags>) -> ApplicationResult<()>;
-    
+    async fn record_histogram(
+        &self,
+        name: &str,
+        value: f64,
+        tags: Option<&MetricTags>,
+    ) -> ApplicationResult<()>;
+
     /// Record timing information
-    async fn record_timing(&self, name: &str, duration_ms: u64, tags: Option<&MetricTags>) -> ApplicationResult<()>;
-    
+    async fn record_timing(
+        &self,
+        name: &str,
+        duration_ms: u64,
+        tags: Option<&MetricTags>,
+    ) -> ApplicationResult<()>;
+
     /// Record custom business event
     async fn record_event(&self, event: &BusinessEvent) -> ApplicationResult<()>;
-    
+
     /// Flush all pending metrics
     async fn flush(&self) -> ApplicationResult<FlushResult>;
-    
+
     /// Get metrics collector health
     async fn health_check(&self) -> ApplicationResult<MetricsHealth>;
-    
+
     /// Get collector statistics
     async fn get_statistics(&self) -> ApplicationResult<CollectorStatistics>;
 }
@@ -142,18 +162,31 @@ pub struct CollectorStatistics {
 /// Convenience methods for common metrics patterns
 pub trait MetricsCollectorExt: MetricsCollector {
     /// Record operation timing with automatic tags
-    fn time_operation<F, T>(&self, operation_name: &str, f: F) -> impl std::future::Future<Output = ApplicationResult<T>>
+    fn time_operation<F, R>(
+        &self,
+        operation_name: &str,
+        f: F,
+    ) -> impl std::future::Future<Output = ApplicationResult<R>>
     where
-        F: std::future::Future<Output = ApplicationResult<T>>;
-        
+        F: std::future::Future<Output = ApplicationResult<R>>;
+
     /// Record memory operation metrics
-    fn record_memory_operation(&self, operation: MemoryOperation) -> impl std::future::Future<Output = ApplicationResult<()>>;
-    
+    fn record_memory_operation(
+        &self,
+        operation: MemoryOperation,
+    ) -> impl std::future::Future<Output = ApplicationResult<()>>;
+
     /// Record search metrics
-    fn record_search_metrics(&self, metrics: SearchMetrics) -> impl std::future::Future<Output = ApplicationResult<()>>;
-    
+    fn record_search_metrics(
+        &self,
+        metrics: SearchMetrics,
+    ) -> impl std::future::Future<Output = ApplicationResult<()>>;
+
     /// Record promotion metrics
-    fn record_promotion_metrics(&self, metrics: PromotionMetrics) -> impl std::future::Future<Output = ApplicationResult<()>>;
+    fn record_promotion_metrics(
+        &self,
+        metrics: PromotionMetrics,
+    ) -> impl std::future::Future<Output = ApplicationResult<()>>;
 }
 
 /// Memory operation metrics
@@ -205,74 +238,115 @@ pub struct PromotionMetrics {
 
 /// Default implementation of extended metrics methods
 impl<T: MetricsCollector + ?Sized> MetricsCollectorExt for T {
-    async fn time_operation<F, Fut>(&self, operation_name: &str, f: F) -> ApplicationResult<Fut::Output>
+    fn time_operation<F, R>(
+        &self,
+        operation_name: &str,
+        f: F,
+    ) -> impl std::future::Future<Output = ApplicationResult<R>>
     where
-        F: FnOnce() -> Fut,
-        Fut: std::future::Future,
+        F: std::future::Future<Output = ApplicationResult<R>>,
     {
-        let start_time = std::time::Instant::now();
-        let result = f().await;
-        let duration = start_time.elapsed();
-        
-        let _ = self.record_timing(
-            operation_name, 
-            duration.as_millis() as u64, 
-            None
-        ).await;
-        
-        Ok(result)
+        async move {
+            let start_time = std::time::Instant::now();
+            let result = f.await;
+            let duration = start_time.elapsed();
+
+            let _ = self
+                .record_timing(operation_name, duration.as_millis() as u64, None)
+                .await;
+
+            result
+        }
     }
-    
+
     async fn record_memory_operation(&self, operation: MemoryOperation) -> ApplicationResult<()> {
         let mut tags = MetricTags::new();
-        tags.insert("operation".to_string(), format!("{:?}", operation.operation_type).to_lowercase());
+        tags.insert(
+            "operation".to_string(),
+            format!("{:?}", operation.operation_type).to_lowercase(),
+        );
         tags.insert("layer".to_string(), operation.layer.clone());
         tags.insert("success".to_string(), operation.success.to_string());
-        
+
         // Record counter
-        self.increment_counter("memory_operations_total", 1, Some(&tags)).await?;
-        
+        self.increment_counter("memory_operations_total", 1, Some(&tags))
+            .await?;
+
         // Record timing
-        self.record_timing("memory_operation_duration", operation.processing_time_ms, Some(&tags)).await?;
-        
+        self.record_timing(
+            "memory_operation_duration",
+            operation.processing_time_ms,
+            Some(&tags),
+        )
+        .await?;
+
         // Record processed data size
-        self.record_gauge("memory_bytes_processed", operation.bytes_processed as f64, Some(&tags)).await?;
-        
+        self.record_gauge(
+            "memory_bytes_processed",
+            operation.bytes_processed as f64,
+            Some(&tags),
+        )
+        .await?;
+
         // Record business event
         let event = BusinessEvent {
             event_type: EventType::Memory,
             event_name: "memory_operation".to_string(),
             timestamp: chrono::Utc::now(),
             properties: [
-                ("operation_type".to_string(), format!("{:?}", operation.operation_type)),
+                (
+                    "operation_type".to_string(),
+                    format!("{:?}", operation.operation_type),
+                ),
                 ("layer".to_string(), operation.layer),
                 ("success".to_string(), operation.success.to_string()),
-            ].into_iter().collect(),
+            ]
+            .into_iter()
+            .collect(),
             metrics: EventMetrics {
-                counters: [("record_count".to_string(), operation.record_count as u64)].into_iter().collect(),
-                gauges: [("bytes_processed".to_string(), operation.bytes_processed as f64)].into_iter().collect(),
-                timings: [("processing_time_ms".to_string(), operation.processing_time_ms)].into_iter().collect(),
+                counters: [("record_count".to_string(), operation.record_count as u64)]
+                    .into_iter()
+                    .collect(),
+                gauges: [(
+                    "bytes_processed".to_string(),
+                    operation.bytes_processed as f64,
+                )]
+                .into_iter()
+                .collect(),
+                timings: [(
+                    "processing_time_ms".to_string(),
+                    operation.processing_time_ms,
+                )]
+                .into_iter()
+                .collect(),
             },
             context: EventContext::default(),
         };
-        
+
         self.record_event(&event).await
     }
-    
+
     async fn record_search_metrics(&self, metrics: SearchMetrics) -> ApplicationResult<()> {
         let mut tags = MetricTags::new();
         tags.insert("cache_hit".to_string(), metrics.cache_hit.to_string());
         tags.insert("reranked".to_string(), metrics.reranked.to_string());
-        
+
         // Record search counter
-        self.increment_counter("search_operations_total", 1, Some(&tags)).await?;
-        
+        self.increment_counter("search_operations_total", 1, Some(&tags))
+            .await?;
+
         // Record search timing
-        self.record_timing("search_duration", metrics.search_time_ms, Some(&tags)).await?;
-        
+        self.record_timing("search_duration", metrics.search_time_ms, Some(&tags))
+            .await?;
+
         // Record results count
-        self.record_gauge("search_results_count", metrics.results_count as f64, Some(&tags)).await?;
-        
+        self.record_gauge(
+            "search_results_count",
+            metrics.results_count as f64,
+            Some(&tags),
+        )
+        .await?;
+
         // Record business event
         let event = BusinessEvent {
             event_type: EventType::Search,
@@ -281,56 +355,96 @@ impl<T: MetricsCollector + ?Sized> MetricsCollectorExt for T {
             properties: [
                 ("cache_hit".to_string(), metrics.cache_hit.to_string()),
                 ("reranked".to_string(), metrics.reranked.to_string()),
-                ("layers_searched".to_string(), metrics.layers_searched.join(",")),
-            ].into_iter().collect(),
+                (
+                    "layers_searched".to_string(),
+                    metrics.layers_searched.join(","),
+                ),
+            ]
+            .into_iter()
+            .collect(),
             metrics: EventMetrics {
-                counters: [("results_count".to_string(), metrics.results_count as u64)].into_iter().collect(),
-                gauges: metrics.user_satisfaction
-                    .map(|s| [("user_satisfaction".to_string(), s as f64)].into_iter().collect())
+                counters: [("results_count".to_string(), metrics.results_count as u64)]
+                    .into_iter()
+                    .collect(),
+                gauges: metrics
+                    .user_satisfaction
+                    .map(|s| {
+                        [("user_satisfaction".to_string(), s as f64)]
+                            .into_iter()
+                            .collect()
+                    })
                     .unwrap_or_default(),
-                timings: [("search_time_ms".to_string(), metrics.search_time_ms)].into_iter().collect(),
+                timings: [("search_time_ms".to_string(), metrics.search_time_ms)]
+                    .into_iter()
+                    .collect(),
             },
             context: EventContext::default(),
         };
-        
+
         self.record_event(&event).await
     }
-    
+
     async fn record_promotion_metrics(&self, metrics: PromotionMetrics) -> ApplicationResult<()> {
         let mut tags = MetricTags::new();
         tags.insert("algorithm".to_string(), metrics.algorithm.clone());
-        
+
         // Record promotion counter
-        self.increment_counter("promotion_operations_total", 1, Some(&tags)).await?;
-        
+        self.increment_counter("promotion_operations_total", 1, Some(&tags))
+            .await?;
+
         // Record timing
-        self.record_timing("promotion_analysis_duration", metrics.analysis_time_ms, Some(&tags)).await?;
-        
+        self.record_timing(
+            "promotion_analysis_duration",
+            metrics.analysis_time_ms,
+            Some(&tags),
+        )
+        .await?;
+
         // Record ML accuracy
-        self.record_gauge("promotion_ml_accuracy", metrics.ml_accuracy as f64, Some(&tags)).await?;
-        
+        self.record_gauge(
+            "promotion_ml_accuracy",
+            metrics.ml_accuracy as f64,
+            Some(&tags),
+        )
+        .await?;
+
         // Record business event
         let event = BusinessEvent {
             event_type: EventType::Promotion,
             event_name: "promotion_operation".to_string(),
             timestamp: chrono::Utc::now(),
-            properties: [
-                ("algorithm".to_string(), metrics.algorithm),
-            ].into_iter().collect(),
+            properties: [("algorithm".to_string(), metrics.algorithm)]
+                .into_iter()
+                .collect(),
             metrics: EventMetrics {
                 counters: [
-                    ("candidates_analyzed".to_string(), metrics.candidates_analyzed as u64),
-                    ("records_promoted".to_string(), metrics.records_promoted as u64),
-                ].into_iter().collect(),
+                    (
+                        "candidates_analyzed".to_string(),
+                        metrics.candidates_analyzed as u64,
+                    ),
+                    (
+                        "records_promoted".to_string(),
+                        metrics.records_promoted as u64,
+                    ),
+                ]
+                .into_iter()
+                .collect(),
                 gauges: [
                     ("ml_accuracy".to_string(), metrics.ml_accuracy as f64),
-                    ("performance_improvement".to_string(), metrics.performance_improvement as f64),
-                ].into_iter().collect(),
-                timings: [("analysis_time_ms".to_string(), metrics.analysis_time_ms)].into_iter().collect(),
+                    (
+                        "performance_improvement".to_string(),
+                        metrics.performance_improvement as f64,
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+                timings: [("analysis_time_ms".to_string(), metrics.analysis_time_ms)]
+                    .into_iter()
+                    .collect(),
             },
             context: EventContext::default(),
         };
-        
+
         self.record_event(&event).await
     }
 }
@@ -347,25 +461,25 @@ impl BusinessEvent {
             context: EventContext::default(),
         }
     }
-    
+
     /// Add property to event
     pub fn with_property(mut self, key: &str, value: &str) -> Self {
         self.properties.insert(key.to_string(), value.to_string());
         self
     }
-    
+
     /// Add counter metric
     pub fn with_counter(mut self, key: &str, value: u64) -> Self {
         self.metrics.counters.insert(key.to_string(), value);
         self
     }
-    
+
     /// Add gauge metric
     pub fn with_gauge(mut self, key: &str, value: f64) -> Self {
         self.metrics.gauges.insert(key.to_string(), value);
         self
     }
-    
+
     /// Add timing metric
     pub fn with_timing(mut self, key: &str, value_ms: u64) -> Self {
         self.metrics.timings.insert(key.to_string(), value_ms);
@@ -395,5 +509,142 @@ impl Default for EventContext {
             environment: "development".to_string(),
             additional_context: HashMap::new(),
         }
+    }
+}
+
+/// Mock implementation for testing
+#[cfg(feature = "test-utils")]
+#[derive(Debug, Default)]
+pub struct MockMetricsCollector {
+    pub counters: std::sync::Arc<std::sync::Mutex<HashMap<String, u64>>>,
+    pub gauges: std::sync::Arc<std::sync::Mutex<HashMap<String, f64>>>,
+    pub timings: std::sync::Arc<std::sync::Mutex<HashMap<String, u64>>>,
+    pub events: std::sync::Arc<std::sync::Mutex<Vec<BusinessEvent>>>,
+}
+
+#[cfg(feature = "test-utils")]
+impl MockMetricsCollector {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn get_counter(&self, name: &str) -> Option<u64> {
+        self.counters
+            .lock()
+            .expect("Operation should succeed")
+            .get(name)
+            .copied()
+    }
+
+    pub fn get_gauge(&self, name: &str) -> Option<f64> {
+        self.gauges
+            .lock()
+            .expect("Operation should succeed")
+            .get(name)
+            .copied()
+    }
+
+    pub fn get_timing(&self, name: &str) -> Option<u64> {
+        self.timings
+            .lock()
+            .expect("Operation should succeed")
+            .get(name)
+            .copied()
+    }
+
+    pub fn get_events(&self) -> Vec<BusinessEvent> {
+        self.events
+            .lock()
+            .expect("Operation should succeed")
+            .clone()
+    }
+}
+
+#[cfg(feature = "test-utils")]
+#[async_trait]
+impl MetricsCollector for MockMetricsCollector {
+    async fn increment_counter(
+        &self,
+        name: &str,
+        value: u64,
+        _tags: Option<&MetricTags>,
+    ) -> ApplicationResult<()> {
+        let mut counters = self.counters.lock().expect("Operation should succeed");
+        *counters.entry(name.to_string()).or_insert(0) += value;
+        Ok(())
+    }
+
+    async fn record_gauge(
+        &self,
+        name: &str,
+        value: f64,
+        _tags: Option<&MetricTags>,
+    ) -> ApplicationResult<()> {
+        let mut gauges = self.gauges.lock().expect("Operation should succeed");
+        gauges.insert(name.to_string(), value);
+        Ok(())
+    }
+
+    async fn record_histogram(
+        &self,
+        name: &str,
+        value: f64,
+        _tags: Option<&MetricTags>,
+    ) -> ApplicationResult<()> {
+        // For testing, just store as gauge
+        self.record_gauge(name, value, _tags).await
+    }
+
+    async fn record_timing(
+        &self,
+        name: &str,
+        duration_ms: u64,
+        _tags: Option<&MetricTags>,
+    ) -> ApplicationResult<()> {
+        let mut timings = self.timings.lock().expect("Operation should succeed");
+        timings.insert(name.to_string(), duration_ms);
+        Ok(())
+    }
+
+    async fn record_event(&self, event: &BusinessEvent) -> ApplicationResult<()> {
+        let mut events = self.events.lock().expect("Operation should succeed");
+        events.push(event.clone());
+        Ok(())
+    }
+
+    async fn flush(&self) -> ApplicationResult<FlushResult> {
+        Ok(FlushResult {
+            metrics_sent: 0,
+            events_sent: 0,
+            bytes_sent: 0,
+            duration_ms: 0,
+            errors: vec![],
+        })
+    }
+
+    async fn health_check(&self) -> ApplicationResult<MetricsHealth> {
+        Ok(MetricsHealth {
+            is_healthy: true,
+            buffer_size: 0,
+            buffer_capacity: 1000,
+            buffer_utilization: 0.0,
+            last_flush_time: Some(chrono::Utc::now()),
+            last_error: None,
+            connection_status: ConnectionStatus::Connected,
+        })
+    }
+
+    async fn get_statistics(&self) -> ApplicationResult<CollectorStatistics> {
+        Ok(CollectorStatistics {
+            total_metrics: 0,
+            total_events: 0,
+            metrics_per_second: 0.0,
+            events_per_second: 0.0,
+            success_rate: 1.0,
+            average_flush_time_ms: 0,
+            error_count: 0,
+            uptime_seconds: 0,
+            memory_usage_bytes: 0,
+        })
     }
 }

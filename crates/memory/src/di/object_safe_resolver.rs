@@ -346,8 +346,10 @@ mod tests {
             name: "test".to_string(),
         });
 
-        resolver.register(service_a.clone()).unwrap();
-        resolver.register(service_b.clone()).unwrap();
+        resolver.register(service_a.clone())
+            .expect("Service A registration should succeed in test");
+        resolver.register(service_b.clone())
+            .expect("Service B registration should succeed in test");
 
         // Test registration check
         assert!(resolver.is_registered_by_type_id(TypeId::of::<TestServiceA>()));
@@ -369,14 +371,17 @@ mod tests {
 
         // Register service
         let service = Arc::new(TestServiceA { value: 123 });
-        service_locator.register(service.clone()).unwrap();
+        service_locator.register(service.clone())
+            .expect("Service registration should succeed in test");
 
         // Test type-safe resolution
-        let resolved = resolver.resolve::<TestServiceA>().unwrap();
+        let resolved = resolver.resolve::<TestServiceA>()
+            .expect("Service resolution should succeed");
         assert_eq!(resolved.value, 123);
 
         // Test try_resolve
-        let try_resolved = resolver.try_resolve::<TestServiceA>().unwrap();
+        let try_resolved = resolver.try_resolve::<TestServiceA>()
+            .expect("Optional service resolution should succeed");
         assert_eq!(try_resolved.value, 123);
 
         // Test is_registered
@@ -391,7 +396,7 @@ mod tests {
 
         // Register service A
         let service_a = Arc::new(TestServiceA { value: 42 });
-        service_locator.register(service_a).unwrap();
+        service_locator.register(service_a).expect("Operation failed - converted from unwrap()");
 
         // Try to resolve as different type - should fail gracefully
         let result = resolver.try_resolve::<TestServiceB>();

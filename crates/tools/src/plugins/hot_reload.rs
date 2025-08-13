@@ -376,9 +376,9 @@ mod tests {
     async fn test_file_watcher_creation() {
         let (watcher, _receiver) = FileWatcher::new();
 
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation failed - converted from unwrap()");
         let temp_file = temp_dir.path().join("test.txt");
-        std::fs::write(&temp_file, "test content").unwrap();
+        std::fs::write(&temp_file, "test content").expect("Operation failed - converted from unwrap()");
 
         assert!(watcher
             .watch_path(temp_file.clone(), "test_plugin".to_string())
@@ -391,9 +391,9 @@ mod tests {
     async fn test_plugin_registration() {
         let manager = HotReloadManager::new();
 
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation failed - converted from unwrap()");
         let plugin_path = temp_dir.path().join("plugin.wasm");
-        std::fs::write(&plugin_path, "fake wasm content").unwrap();
+        std::fs::write(&plugin_path, "fake wasm content").expect("Operation failed - converted from unwrap()");
 
         let result = manager
             .register_plugin(

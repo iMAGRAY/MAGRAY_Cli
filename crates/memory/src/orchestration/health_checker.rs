@@ -866,7 +866,7 @@ mod tests {
         let result = HealthChecker::check_coordinator_health("test", &coordinator, &config).await;
 
         assert!(result.is_ok());
-        let status = result.unwrap();
+        let status = result.expect("Operation failed - converted from unwrap()");
         assert_eq!(status.level, HealthLevel::Excellent);
         assert!(status.score >= 95.0);
     }
@@ -880,7 +880,7 @@ mod tests {
         let result = HealthChecker::check_coordinator_health("test", &coordinator, &config).await;
 
         assert!(result.is_ok());
-        let status = result.unwrap();
+        let status = result.expect("Operation failed - converted from unwrap()");
         assert_eq!(status.level, HealthLevel::Critical);
         assert_eq!(status.score, 0.0);
     }

@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use ai::{ModelInfo, ModelRegistry, ModelType, MODEL_REGISTRY};
 use tempfile::TempDir;
 
@@ -12,14 +13,14 @@ fn test_model_registry_singleton() {
 
 #[test]
 fn test_model_registry_get_model_info() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
     // qwen3emb должна быть в реестре по умолчанию
     let model = registry.get_model_info("qwen3emb");
     assert!(model.is_some());
 
-    let model_info = model.unwrap();
+    let model_info = model.expect("Test operation should succeed");
     assert_eq!(model_info.name, "qwen3emb");
     assert_eq!(model_info.model_type, ModelType::Embedding);
     assert_eq!(model_info.embedding_dim, 1024);
@@ -28,7 +29,7 @@ fn test_model_registry_get_model_info() {
 
 #[test]
 fn test_model_registry_default_models() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
     // Проверяем наличие моделей по умолчанию (только Qwen3)
@@ -38,16 +39,26 @@ fn test_model_registry_default_models() {
 
 #[test]
 fn test_model_registry_get_default_model() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
     let default_embedding = registry.get_default_model(ModelType::Embedding);
     assert!(default_embedding.is_some());
-    assert_eq!(default_embedding.unwrap().name, "qwen3emb");
+    assert_eq!(
+        default_embedding
+            .expect("Test operation should succeed")
+            .name,
+        "qwen3emb"
+    );
 
     let default_reranker = registry.get_default_model(ModelType::Reranker);
     assert!(default_reranker.is_some());
-    assert_eq!(default_reranker.unwrap().name, "qwen3_reranker");
+    assert_eq!(
+        default_reranker
+            .expect("Test operation should succeed")
+            .name,
+        "qwen3_reranker"
+    );
 }
 
 #[test]
@@ -71,7 +82,7 @@ fn test_model_info() {
 
 #[test]
 fn test_model_registry_register_model() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let mut registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
     let custom_model = ModelInfo {
@@ -87,7 +98,10 @@ fn test_model_registry_register_model() {
 
     let retrieved = registry.get_model_info("custom-embedding");
     assert!(retrieved.is_some());
-    assert_eq!(retrieved.unwrap().name, "custom-embedding");
+    assert_eq!(
+        retrieved.expect("Test operation should succeed").name,
+        "custom-embedding"
+    );
 }
 
 #[test]
@@ -99,7 +113,7 @@ fn test_model_type_equality() {
 
 #[test]
 fn test_model_path() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
     let model_path = registry.get_model_path("qwen3emb");
@@ -108,7 +122,7 @@ fn test_model_path() {
 
 #[test]
 fn test_model_availability() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
     // Модель не должна быть доступна без файлов
@@ -116,9 +130,9 @@ fn test_model_availability() {
 
     // Создаём файлы модели
     let model_dir = temp_dir.path().join("qwen3emb");
-    std::fs::create_dir_all(&model_dir).unwrap();
-    std::fs::write(model_dir.join("model.onnx"), b"dummy").unwrap();
-    std::fs::write(model_dir.join("tokenizer.json"), b"{}").unwrap();
+    std::fs::create_dir_all(&model_dir).expect("Test operation should succeed");
+    std::fs::write(model_dir.join("model.onnx"), b"dummy").expect("Test operation should succeed");
+    std::fs::write(model_dir.join("tokenizer.json"), b"{}").expect("Test operation should succeed");
 
     // Теперь модель должна быть доступна
     assert!(registry.is_model_available("qwen3emb"));
@@ -126,7 +140,7 @@ fn test_model_availability() {
 
 #[test]
 fn test_get_available_models() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
     // Без файлов моделей список должен быть пустым
@@ -135,9 +149,9 @@ fn test_get_available_models() {
 
     // Создаём файлы для одной модели
     let model_dir = temp_dir.path().join("qwen3emb");
-    std::fs::create_dir_all(&model_dir).unwrap();
-    std::fs::write(model_dir.join("model.onnx"), b"dummy").unwrap();
-    std::fs::write(model_dir.join("tokenizer.json"), b"{}").unwrap();
+    std::fs::create_dir_all(&model_dir).expect("Test operation should succeed");
+    std::fs::write(model_dir.join("model.onnx"), b"dummy").expect("Test operation should succeed");
+    std::fs::write(model_dir.join("tokenizer.json"), b"{}").expect("Test operation should succeed");
 
     // Теперь должна быть одна доступная модель
     let available = registry.get_available_models(Some(ModelType::Embedding));
@@ -147,7 +161,7 @@ fn test_get_available_models() {
 
 #[test]
 fn test_get_recommendations() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
     // Без установленных моделей должны быть рекомендации

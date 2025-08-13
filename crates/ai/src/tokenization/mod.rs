@@ -589,9 +589,12 @@ mod tests {
         let tokenizer_path = PathBuf::from("../memory/models/bge-m3/tokenizer.json");
 
         if tokenizer_path.exists() {
-            let tokenizer = OptimizedTokenizer::new(tokenizer_path, 512).unwrap();
+            let tokenizer =
+                OptimizedTokenizer::new(tokenizer_path, 512).expect("Operation should succeed");
 
-            let result = tokenizer.encode("Hello world, this is a test").unwrap();
+            let result = tokenizer
+                .encode("Hello world, this is a test")
+                .expect("Operation should succeed");
 
             assert!(!result.input_ids.is_empty());
             assert_eq!(result.input_ids.len(), result.attention_mask.len());
@@ -607,7 +610,8 @@ mod tests {
         let tokenizer_path = PathBuf::from("../memory/models/bge-m3/tokenizer.json");
 
         if tokenizer_path.exists() {
-            let tokenizer = OptimizedTokenizer::new(tokenizer_path, 512).unwrap();
+            let tokenizer =
+                OptimizedTokenizer::new(tokenizer_path, 512).expect("Operation should succeed");
 
             let texts = [
                 "First test text",
@@ -616,14 +620,18 @@ mod tests {
             ];
             let text_refs: Vec<&str> = texts.to_vec();
 
-            let mut batch = tokenizer.encode_batch(&text_refs).unwrap();
+            let mut batch = tokenizer
+                .encode_batch(&text_refs)
+                .expect("Operation should succeed");
 
             assert_eq!(batch.input_ids.len(), 3);
             assert_eq!(batch.attention_masks.len(), 3);
             assert_eq!(batch.token_type_ids.len(), 3);
 
             // Test padding
-            tokenizer.pad_batch(&mut batch, Some(20)).unwrap();
+            tokenizer
+                .pad_batch(&mut batch, Some(20))
+                .expect("Operation should succeed");
 
             for ids in &batch.input_ids {
                 assert_eq!(ids.len(), 20);

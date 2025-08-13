@@ -314,8 +314,8 @@ mod tests {
 
     #[test]
     fn test_cache_key_generation() {
-        let temp_dir = TempDir::new().unwrap();
-        let cache = TensorRTCache::new(temp_dir.path()).unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
+        let cache = TensorRTCache::new(temp_dir.path()).expect("Operation should succeed");
 
         let gpu_info = crate::gpu_detector::GpuDevice {
             index: 0,

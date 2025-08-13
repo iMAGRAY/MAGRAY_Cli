@@ -2,7 +2,6 @@ use crate::progress::ProgressBuilder;
 use anyhow::{anyhow, Result};
 use clap::{Args, Subcommand};
 use colored::*;
-use common::policy::PolicyEngine;
 use common::{events, topics};
 use memory::api::{MemoryContext, MemoryServiceTrait, UnifiedMemoryAPI};
 use memory::types::Layer;
@@ -138,14 +137,14 @@ impl MemoryCommand {
 
 async fn handle_memory_subcommand(cmd: MemorySubcommand) -> Result<()> {
     let _config = memory::default_config()?;
-    let container = memory::di::UnifiedContainer::new("memory_command".to_string());
+    let container = memory::di::UnifiedContainer::new();
     let api = UnifiedMemoryAPI::new(Arc::new(container) as Arc<dyn MemoryServiceTrait>);
 
     let mut home = crate::util::magray_home();
     home.push("policy.json");
-    let effective =
+    let _effective =
         common::policy::load_effective_policy(if home.exists() { Some(&home) } else { None });
-    let policy = PolicyEngine::from_document(effective);
+    let policy = common::policy::get_policy_engine_with_eventbus();
 
     match cmd {
         MemorySubcommand::Stats { detailed } => {
@@ -632,7 +631,7 @@ async fn create_backup(api: &UnifiedMemoryAPI, name: Option<String>) -> Result<(
             println!("{}: {} records", "Included".cyan(), count);
         }
         Ok(Err(e)) => {
-            spinner.finish_error(&format!("Backup failed: {}", e));
+            spinner.finish_error(&format!("Backup failed: {e}"));
             anyhow::bail!(e);
         }
         Err(_) => {

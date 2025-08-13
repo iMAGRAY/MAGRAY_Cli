@@ -275,7 +275,11 @@ mod tests {
         let mut handles = vec![];
 
         for i in 0..10 {
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("Test operation should succeed");
 
             let handle = tokio::spawn(async move {
                 // Симулируем memory операцию

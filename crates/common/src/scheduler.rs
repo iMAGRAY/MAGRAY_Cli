@@ -93,7 +93,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(75)).await;
         sched.shutdown().await;
         let n = counter.load(Ordering::Relaxed);
-        assert!(n >= 2, "expected at least 2 ticks, got {}", n);
+        assert!(n >= 2, "expected at least 2 ticks, got {n}");
     }
 
     #[tokio::test]
@@ -134,9 +134,7 @@ mod tests {
         let n2 = c2.load(Ordering::Relaxed);
         assert!(
             n1 > 0 && n2 > 0,
-            "jobs must tick independently: n1={}, n2={}",
-            n1,
-            n2
+            "jobs must tick independently: n1={n1}, n2={n2}"
         );
     }
 }

@@ -152,7 +152,6 @@ impl SimdLevel {
     /// Detect cache sizes using various methods
     #[cfg(target_arch = "x86_64")]
     fn detect_cache_sizes() {
-
         // Modern Intel/AMD defaults
         CACHE_LINE_SIZE.store(64, Ordering::Relaxed); // 64 bytes typical
         L1_CACHE_SIZE.store(32 * 1024, Ordering::Relaxed); // 32KB typical

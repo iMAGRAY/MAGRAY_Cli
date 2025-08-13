@@ -1,10 +1,10 @@
 //! Memory DTOs for Store/Retrieve operations
 
+use super::{PaginationMeta, PaginationParams};
+use domain::LayerType;
+use domain::MemoryRecord;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-use domain::entities::memory_record::MemoryRecord;
-use domain::value_objects::layer_type::LayerType;
-use super::{PaginationParams, PaginationMeta};
 
 /// Store memory request DTO
 #[derive(Debug, Serialize, Deserialize, Clone, Validate)]
@@ -12,19 +12,25 @@ pub struct StoreMemoryRequest {
     /// Text content to store
     #[validate(length(min = 1, max = 100000))]
     pub content: String,
-    
+
     /// Optional metadata
     pub metadata: Option<serde_json::Value>,
-    
+
     /// Project context
-    pub project: Option<String>,
-    
+    pub project: String,
+
+    /// Content type/category  
+    pub kind: Option<String>,
+
+    /// Session context
+    pub session: Option<String>,
+
     /// Explicit layer preference
     pub target_layer: Option<LayerType>,
-    
+
     /// Priority hint
     pub priority: Option<u8>,
-    
+
     /// Tags for categorization
     pub tags: Vec<String>,
 }
@@ -44,7 +50,7 @@ pub struct StoreMemoryResponse {
 pub struct BatchStoreMemoryRequest {
     #[validate(length(min = 1, max = 100))]
     pub records: Vec<StoreMemoryRequest>,
-    
+
     /// Batch processing options
     pub options: BatchOptions,
 }
@@ -90,10 +96,10 @@ pub struct BatchStoreResult {
 pub struct RetrieveMemoryRequest {
     #[validate(length(min = 1))]
     pub record_id: String,
-    
+
     /// Include embedding vector in response
     pub include_embedding: bool,
-    
+
     /// Include access statistics
     pub include_stats: bool,
 }
@@ -133,19 +139,19 @@ pub struct ListMemoryRequest {
     /// Pagination parameters
     #[validate]
     pub pagination: PaginationParams,
-    
+
     /// Filter by project
     pub project: Option<String>,
-    
+
     /// Filter by layer
     pub layer: Option<LayerType>,
-    
+
     /// Filter by tags
     pub tags: Vec<String>,
-    
+
     /// Date range filter
     pub date_range: Option<DateRange>,
-    
+
     /// Sort options
     pub sort: SortOptions,
 }

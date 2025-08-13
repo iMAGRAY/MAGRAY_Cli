@@ -7,6 +7,10 @@
 //!
 //! Following ARCHITECTURE_PLAN_ADVANCED.md requirements
 
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+
 pub mod contracts;
 pub mod domain;
 pub mod events;

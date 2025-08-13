@@ -32,7 +32,7 @@ impl DIContainerBuilder {
         T: Send + Sync + 'static,
         F: Fn() -> Result<T> + Send + Sync + 'static,
     {
-        self.container.register_singleton(factory).unwrap();
+        self.container.register_singleton(factory).expect("Failed to register singleton service in DIContainerBuilder");
         self
     }
 
@@ -42,7 +42,7 @@ impl DIContainerBuilder {
         T: Send + Sync + 'static,
         F: Fn() -> Result<T> + Send + Sync + 'static,
     {
-        self.container.register_transient(factory).unwrap();
+        self.container.register_transient(factory).expect("Failed to register transient service in DIContainerBuilder");
         self
     }
 
@@ -149,8 +149,8 @@ mod tests {
             .build();
 
         // После повторной регистрации должен остаться последний (transient)
-        let service1 = container.resolve::<TestService>().unwrap();
-        let service2 = container.resolve::<TestService>().unwrap();
+        let service1 = container.resolve::<TestService>().expect("Failed to resolve TestService (first) in basic_builder test");
+        let service2 = container.resolve::<TestService>().expect("Failed to resolve TestService (second) in basic_builder test");
 
         assert_eq!(service1.value, 100);
         assert_eq!(service2.value, 100);
@@ -163,8 +163,8 @@ mod tests {
             .register(|| Ok(TestService::new(42)), Lifetime::Singleton)
             .build();
 
-        let service1 = container.resolve::<TestService>().unwrap();
-        let service2 = container.resolve::<TestService>().unwrap();
+        let service1 = container.resolve::<TestService>().expect("Failed to resolve TestService (first) in lifetime test");
+        let service2 = container.resolve::<TestService>().expect("Failed to resolve TestService (second) in lifetime test");
 
         assert_eq!(service1.value, 42);
         assert!(Arc::ptr_eq(&service1, &service2)); // singleton
@@ -178,7 +178,7 @@ mod tests {
             .register_instance(instance)
             .build();
 
-        let service = container.resolve::<TestService>().unwrap();
+        let service = container.resolve::<TestService>().expect("Failed to resolve TestService in register_instance test");
         assert_eq!(service.value, 99);
     }
 
@@ -188,7 +188,7 @@ mod tests {
             .add_singleton::<TestService>()
             .build();
 
-        let service = container.resolve::<TestService>().unwrap();
+        let service = container.resolve::<TestService>().expect("Failed to resolve TestService in convenience_methods test");
         assert_eq!(service.value, 42); // default value
     }
 
@@ -198,7 +198,7 @@ mod tests {
 
         let container = DIContainerBuilder::new().register_arc(arc_instance).build();
 
-        let service = container.resolve::<TestService>().unwrap();
+        let service = container.resolve::<TestService>().expect("Failed to resolve TestService in arc_registration test");
         assert_eq!(service.value, 77);
     }
 
@@ -217,9 +217,9 @@ mod tests {
                     Ok(DependentService::new(dependency))
                 }
             })
-            .unwrap();
+            .expect("Failed to register DependentService with dependency");
 
-        let dependent = container.resolve::<DependentService>().unwrap();
+        let dependent = container.resolve::<DependentService>().expect("Failed to resolve DependentService in dependency_injection test");
         assert_eq!(dependent.value, 84); // 42 * 2
     }
 
@@ -232,7 +232,7 @@ mod tests {
             .build();
 
         // Последняя регистрация побеждает
-        let service = container.resolve::<TestService>().unwrap();
+        let service = container.resolve::<TestService>().expect("Failed to resolve TestService in builder_chaining test");
         assert_eq!(service.value, 300);
     }
 
@@ -253,7 +253,7 @@ mod tests {
             .add_singleton::<TestService>()
             .build();
 
-        let service = container.resolve::<TestService>().unwrap();
+        let service = container.resolve::<TestService>().expect("Failed to resolve TestService in default_builder test");
         assert_eq!(service.value, 42);
     }
 }

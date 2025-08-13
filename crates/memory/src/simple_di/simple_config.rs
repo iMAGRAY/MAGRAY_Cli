@@ -187,11 +187,11 @@ mod tests {
         let config = SimpleConfig::development();
 
         // Test serialization
-        let json = serde_json::to_string(&config).unwrap();
+        let json = serde_json::to_string(&config).expect("Operation failed - converted from unwrap()");
         assert!(!json.is_empty());
 
         // Test deserialization
-        let deserialized: SimpleConfig = serde_json::from_str(&json).unwrap();
+        let deserialized: SimpleConfig = serde_json::from_str(&json).expect("Operation failed - converted from unwrap()");
         assert_eq!(config.max_services, deserialized.max_services);
         assert_eq!(config.debug_logging, deserialized.debug_logging);
     }

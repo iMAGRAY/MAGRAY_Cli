@@ -258,7 +258,11 @@ impl IntelligentToolSelector {
         }
 
         // Sort by confidence
-        scored_tools.sort_by(|a, b| b.confidence_score.partial_cmp(&a.confidence_score).unwrap());
+        scored_tools.sort_by(|a, b| {
+            b.confidence_score
+                .partial_cmp(&a.confidence_score)
+                .expect("Operation failed - converted from unwrap()")
+        });
 
         // Limit results
         scored_tools.truncate(self.config.max_suggestions);
@@ -299,7 +303,11 @@ impl IntelligentToolSelector {
                 }
             }
         }
-        results.sort_by(|a, b| b.confidence_score.partial_cmp(&a.confidence_score).unwrap());
+        results.sort_by(|a, b| {
+            b.confidence_score
+                .partial_cmp(&a.confidence_score)
+                .expect("Operation failed - converted from unwrap()")
+        });
         results.truncate(self.config.max_suggestions);
 
         let selection_time = start_time.elapsed();
@@ -432,13 +440,19 @@ impl IntelligentToolSelector {
         // Permissions-aware filtering using ToolSpec.permissions
         let net_allowed: Vec<String> = sb.net.allowlist.clone();
         let fs_sandbox_on = sb.fs.enabled;
-        let fs_roots: Vec<String> = sb.fs.roots.clone();
+        let fs_roots: Vec<String> = sb
+            .fs
+            .fs_read_roots
+            .iter()
+            .chain(sb.fs.fs_write_roots.iter())
+            .cloned()
+            .collect();
 
         let tools_map = self.available_tools.lock().await;
         let domain_matches = |allow: &str, needed: &str| -> bool {
             let a = allow.to_lowercase();
             let n = needed.to_lowercase();
-            n == a || n.ends_with(&format!(".{}", a))
+            n == a || n.ends_with(&format!(".{a}"))
         };
         let roots_cover = |reqs: &Vec<String>| -> bool {
             if reqs.is_empty() {

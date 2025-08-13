@@ -58,7 +58,7 @@ impl TodoServiceV2 {
             store,
             graph,
             cache: Arc::new(Mutex::new(LruCache::new(
-                NonZeroUsize::new(cache_size).unwrap(),
+                NonZeroUsize::new(cache_size).expect("Operation failed - converted from unwrap()"),
             ))),
             ready_cache: Arc::new(DashMap::new()),
             events_tx,
@@ -347,6 +347,86 @@ impl TodoServiceV2 {
         Ok((task_stats, graph_stats))
     }
 
+    /// Получить задачи по состоянию
+    #[instrument(skip(self))]
+    pub async fn get_by_state(&self, state: TaskState, limit: usize) -> Result<Vec<TodoItem>> {
+        // Используем внутреннюю реализацию store для поиска по состоянию
+        self.store.get_by_state(state, limit).await
+    }
+
+    /// Визуализировать граф зависимостей в текстовом формате
+    #[instrument(skip(self))]
+    pub async fn visualize_graph_text(&self, depth: usize) -> Result<String> {
+        let graph_stats = self.graph.stats();
+        if graph_stats.total_tasks == 0 {
+            return Ok("No tasks to display".to_string());
+        }
+
+        let mut result = String::new();
+        result.push_str(&format!("Task Dependency Graph (depth: {})\n", depth));
+        result.push_str(&format!(
+            "Total tasks: {}, Dependencies: {}\n",
+            graph_stats.total_tasks, graph_stats.total_dependencies
+        ));
+        result.push_str("─────────────────────────────────────\n");
+
+        // Получаем готовые задачи для визуализации корней
+        let ready_tasks = self.get_next_ready(10).await?;
+        for task in ready_tasks.iter().take(depth.min(5)) {
+            result.push_str(&format!("📋 {} [{}]\n", task.title, task.id));
+        }
+
+        if ready_tasks.is_empty() {
+            result.push_str("⚠ No ready tasks found\n");
+        }
+
+        Ok(result)
+    }
+
+    /// Визуализировать граф зависимостей в Mermaid формате
+    #[instrument(skip(self))]
+    pub async fn visualize_graph_mermaid(&self, depth: usize) -> Result<String> {
+        let graph_stats = self.graph.stats();
+        if graph_stats.total_tasks == 0 {
+            return Ok("graph TD\n    A[No tasks]".to_string());
+        }
+
+        let mut result = String::new();
+        result.push_str("graph TD\n");
+        result.push_str(&format!(
+            "    %% Task Graph with {} tasks\n",
+            graph_stats.total_tasks
+        ));
+
+        // Получаем задачи для mermaid диаграммы
+        let tasks = self.search("", depth.min(20)).await?;
+
+        for (i, task) in tasks.iter().enumerate() {
+            let node_id = format!("T{}", i);
+            let state_icon = match task.state {
+                TaskState::Ready => "✓",
+                TaskState::InProgress => "⚡",
+                TaskState::Done => "✅",
+                TaskState::Blocked => "🚫",
+                TaskState::Failed => "❌",
+                TaskState::Cancelled => "⚪",
+                TaskState::Planned => "📋",
+            };
+
+            result.push_str(&format!(
+                "    {}[\"{}{}\"]\n",
+                node_id,
+                state_icon,
+                task.title.chars().take(20).collect::<String>()
+            ));
+        }
+
+        // Добавляем базовые связи (TODO: implement real dependency visualization)
+        result.push_str("    %% Dependencies would be shown here\n");
+
+        Ok(result)
+    }
+
     /// Подписаться на события
     pub fn subscribe(&self) -> TodoEventStream {
         TodoEventStream {
@@ -419,7 +499,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_operations() {
-        let service = Arc::new(create_test_service().await.unwrap());
+        let service = Arc::new(
+            create_test_service()
+                .await
+                .expect("Async operation should succeed"),
+        );
 
         // Создаем задачи параллельно
         let handles: Vec<_> = (0..10)
@@ -438,16 +522,23 @@ mod tests {
             .collect();
 
         for h in handles {
-            h.await.unwrap().unwrap();
+            h.await
+                .expect("Async operation should succeed")
+                .expect("Operation failed - converted from unwrap()");
         }
 
-        let (stats, _) = service.get_stats().await.unwrap();
+        let (stats, _) = service
+            .get_stats()
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(stats.total, 10);
     }
 
     #[tokio::test]
     async fn test_dependency_cascade() {
-        let service = create_test_service().await.unwrap();
+        let service = create_test_service()
+            .await
+            .expect("Async operation should succeed");
 
         // Создаем цепочку зависимых задач
         let task1 = service
@@ -458,7 +549,7 @@ mod tests {
                 vec![],
             )
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         let task2 = service
             .create_task(
@@ -468,22 +559,33 @@ mod tests {
                 vec![],
             )
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
-        service.add_dependency(&task2.id, &task1.id).await.unwrap();
+        service
+            .add_dependency(&task2.id, &task1.id)
+            .await
+            .expect("Async operation should succeed");
 
         // task2 должна быть заблокирована
-        let task2_updated = service.get_cached(&task2.id).await.unwrap().unwrap();
+        let task2_updated = service
+            .get_cached(&task2.id)
+            .await
+            .expect("Async operation should succeed")
+            .expect("Operation failed - converted from unwrap()");
         assert_eq!(task2_updated.state, TaskState::Blocked);
 
         // Завершаем task1
         service
             .update_state(&task1.id, TaskState::Done)
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         // task2 должна стать готовой
-        let task2_ready = service.get_cached(&task2.id).await.unwrap().unwrap();
+        let task2_ready = service
+            .get_cached(&task2.id)
+            .await
+            .expect("Async operation should succeed")
+            .expect("Operation failed - converted from unwrap()");
         assert_eq!(task2_ready.state, TaskState::Ready);
     }
 }

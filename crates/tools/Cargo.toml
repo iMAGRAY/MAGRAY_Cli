@@ -15,11 +15,12 @@ cpu = [
     "git-ops",
     "web-ops", 
     "plugins",
-    "security"
+    "security",
+    "wasm-runtime"
 ]
 
-# GPU build - same as CPU 
-gpu = ["cpu"]
+# GPU build - same as CPU plus advanced WASM features
+gpu = ["cpu", "wasm-runtime-advanced"]
 
 # Individual tool categories
 file-ops = []
@@ -28,13 +29,18 @@ git-ops = []
 web-ops = ["reqwest", "futures-util", "base64"]
 plugins = ["llm/cpu"]
 security = []
+# WASM runtime features for real wasmtime integration
+wasm-runtime = ["wasmtime", "wasmtime-wasi"]
+wasm-runtime-advanced = ["wasm-runtime"]
 
 # Tests feature to include extended/slow suites
 extended-tests = []
 legacy-tests = []
+disabled-tests = []
 
 [dependencies]
 llm = { path = "../llm" }
+ai = { path = "../ai" } # P1.3.2: Real AI embeddings integration
 tokio = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
@@ -53,3 +59,16 @@ num_cpus = "1.15"
 common = { path = "../common" }
 futures-util = { version = "0.3", optional = true, default-features = false, features = ["std"] }
 base64 = { version = "0.22", optional = true }
+# CRITICAL P0.2.3: Add crypto dependencies for MCP signature verification
+sha2 = "0.10"
+# CRITICAL P0.2.6: Add chrono for audit timestamps and core for EventBus integration
+chrono = { workspace = true }
+magray-core = { path = "../core", package = "core" }
+
+# P1.2.1.a: Wasmtime dependencies for real WASM runtime
+wasmtime = { version = "26.0", optional = true, default-features = false, features = ["cranelift", "runtime"] }
+wasmtime-wasi = { version = "26.0", optional = true }
+
+[dev-dependencies]
+tempfile = "3.10.1"
+serial_test = "3.0"

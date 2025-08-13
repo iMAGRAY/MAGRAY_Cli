@@ -314,11 +314,14 @@ mod tests {
             ..Default::default()
         };
 
-        tx.insert(record.clone()).unwrap();
+        tx.insert(record.clone())
+            .expect("Failed to insert record in transaction basic test");
         assert_eq!(tx.operations.len(), 1);
         assert_eq!(tx.rollback_actions.len(), 1);
 
-        let ops = tx.take_operations().unwrap();
+        let ops = tx
+            .take_operations()
+            .expect("Failed to take operations from transaction");
         assert_eq!(ops.len(), 1);
         assert_eq!(tx.status, TransactionStatus::Committed);
     }
@@ -328,7 +331,9 @@ mod tests {
         let manager = TransactionManager::new();
 
         // Begin transaction
-        let tx_id = manager.begin().unwrap();
+        let tx_id = manager
+            .begin()
+            .expect("Failed to begin transaction in manager test");
         assert_eq!(manager.active_count(), 1);
 
         // Execute operation
@@ -343,10 +348,12 @@ mod tests {
                 };
                 tx.insert(record).map_err(|e| anyhow::anyhow!(e))
             })
-            .unwrap();
+            .expect("Failed to execute transaction operation");
 
         // Commit
-        let ops = manager.prepare_commit(tx_id).unwrap();
+        let ops = manager
+            .prepare_commit(tx_id)
+            .expect("Failed to commit transaction");
         assert_eq!(ops.len(), 1);
         assert_eq!(manager.active_count(), 0);
     }
@@ -357,7 +364,8 @@ mod tests {
 
         // Test auto-rollback
         {
-            let _guard = TransactionGuard::new(&manager).unwrap();
+            let _guard = TransactionGuard::new(&manager)
+                .expect("Failed to create transaction guard in rollback test");
             assert_eq!(manager.active_count(), 1);
             // Guard dropped without commit
         }
@@ -365,8 +373,9 @@ mod tests {
 
         // Test commit
         {
-            let guard = TransactionGuard::new(&manager).unwrap();
-            let _ops = guard.commit().unwrap();
+            let guard = TransactionGuard::new(&manager)
+                .expect("Failed to create transaction guard in commit test");
+            let _ops = guard.commit().expect("Failed to commit transaction guard");
         }
         assert_eq!(manager.active_count(), 0);
     }

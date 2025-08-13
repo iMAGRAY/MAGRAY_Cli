@@ -343,7 +343,7 @@ async fn test_concurrent_embedding_generation() -> Result<()> {
     for (i, result) in results.into_iter().enumerate() {
         assert!(result.is_ok(), "Task {} должна завершиться без panic", i);
         let embedding = result
-            .unwrap()
+            .expect("Test operation should succeed")
             .expect("Embedding generation должно быть успешным");
         assert_eq!(
             embedding.len(),
@@ -518,7 +518,7 @@ proptest::proptest! {
                 let embedding = service.generate_fallback_embedding(text);
                 prop_assert_eq!(embedding.len(), dimension, "Все embeddings должны иметь одинаковую размерность");
 
-                let async_embedding = service.get_or_create_embedding(text).await.unwrap();
+                let async_embedding = service.get_or_create_embedding(text).await.expect("Test operation should succeed");
                 prop_assert_eq!(async_embedding.len(), dimension, "Async embeddings должны иметь ту же размерность");
             }
             Ok(())
@@ -767,7 +767,7 @@ async fn stress_test_cache_service() -> Result<()> {
             i
         );
         assert!(
-            result.unwrap().is_ok(),
+            result.expect("Test operation should succeed").is_ok(),
             "Stress test operation {} должна быть успешной",
             i
         );

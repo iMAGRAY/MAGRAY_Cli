@@ -4,8 +4,8 @@
 //! Независимы от infrastructure concerns.
 
 mod embedding_vector;
-mod memory_record;
-mod record_id;
+pub mod memory_record;
+pub mod record_id;
 mod search_query;
 
 pub use embedding_vector::EmbeddingVector;

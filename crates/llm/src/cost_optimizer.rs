@@ -1,4 +1,4 @@
-use crate::{ComplexityLevel, LlmProvider, Priority, ProviderType, TaskComplexity};
+use crate::{ComplexityLevel, LegacyLlmProvider, Priority, ProviderType, TaskComplexity};
 use std::collections::HashMap;
 use tracing::{debug, info};
 
@@ -138,9 +138,9 @@ impl CostOptimizer {
     /// Select optimal provider based on task complexity and cost
     pub fn select_optimal_provider(
         &self,
-        available_providers: &[LlmProvider],
+        available_providers: &[LegacyLlmProvider],
         task: &TaskComplexity,
-    ) -> Option<LlmProvider> {
+    ) -> Option<LegacyLlmProvider> {
         if available_providers.is_empty() {
             return None;
         }
@@ -151,7 +151,7 @@ impl CostOptimizer {
         );
 
         // Filter providers based on complexity requirements
-        let suitable_providers: Vec<&LlmProvider> = available_providers
+        let suitable_providers: Vec<&LegacyLlmProvider> = available_providers
             .iter()
             .filter(|provider| self.is_suitable_for_complexity(provider, &task.complexity))
             .collect();
@@ -198,7 +198,7 @@ impl CostOptimizer {
     /// Check if provider is suitable for given complexity
     fn is_suitable_for_complexity(
         &self,
-        provider: &LlmProvider,
+        provider: &LegacyLlmProvider,
         complexity: &ComplexityLevel,
     ) -> bool {
         match complexity {
@@ -206,11 +206,11 @@ impl CostOptimizer {
             ComplexityLevel::Medium => {
                 // Medium tasks need decent models
                 match provider {
-                    LlmProvider::OpenAI { model, .. } => !model.contains("gpt-3.5-turbo"),
-                    LlmProvider::Anthropic { model, .. } => {
+                    LegacyLlmProvider::OpenAI { model, .. } => !model.contains("gpt-3.5-turbo"),
+                    LegacyLlmProvider::Anthropic { model, .. } => {
                         !model.contains("haiku") // Haiku might struggle with medium complexity
                     }
-                    LlmProvider::Groq { model, .. } => {
+                    LegacyLlmProvider::Groq { model, .. } => {
                         model.contains("70b") || model.contains("mixtral")
                     }
                     _ => true, // Local models assumed to be capable
@@ -219,11 +219,11 @@ impl CostOptimizer {
             ComplexityLevel::Complex | ComplexityLevel::Expert => {
                 // Complex tasks need premium models
                 match provider {
-                    LlmProvider::OpenAI { model, .. } => model.contains("gpt-4"),
-                    LlmProvider::Anthropic { model, .. } => {
+                    LegacyLlmProvider::OpenAI { model, .. } => model.contains("gpt-4"),
+                    LegacyLlmProvider::Anthropic { model, .. } => {
                         model.contains("sonnet") || model.contains("opus")
                     }
-                    LlmProvider::Groq { model, .. } => {
+                    LegacyLlmProvider::Groq { model, .. } => {
                         model.contains("70b") || model.contains("mixtral")
                     }
                     _ => true, // Assume local models are high-quality
@@ -233,12 +233,12 @@ impl CostOptimizer {
     }
 
     /// Check if provider is considered premium (high quality)
-    fn is_premium_provider(&self, provider: &LlmProvider) -> bool {
+    fn is_premium_provider(&self, provider: &LegacyLlmProvider) -> bool {
         match provider {
-            LlmProvider::OpenAI { model, .. } => {
+            LegacyLlmProvider::OpenAI { model, .. } => {
                 model.contains("gpt-4o") || model.contains("gpt-4-turbo")
             }
-            LlmProvider::Anthropic { model, .. } => {
+            LegacyLlmProvider::Anthropic { model, .. } => {
                 model.contains("sonnet") || model.contains("opus")
             }
             _ => false,
@@ -248,18 +248,18 @@ impl CostOptimizer {
     /// Estimate cost for a provider
     fn estimate_provider_cost(
         &self,
-        provider: &LlmProvider,
+        provider: &LegacyLlmProvider,
         input_tokens: u32,
         output_tokens: u32,
     ) -> f32 {
         let (provider_type, model) = match provider {
-            LlmProvider::OpenAI { model, .. } => (ProviderType::OpenAI, model.as_str()),
-            LlmProvider::Anthropic { model, .. } => (ProviderType::Anthropic, model.as_str()),
-            LlmProvider::Local { model, .. } => (ProviderType::Local, model.as_str()),
-            LlmProvider::Ollama { model, .. } => (ProviderType::Ollama, model.as_str()),
-            LlmProvider::LMStudio { model, .. } => (ProviderType::LMStudio, model.as_str()),
-            LlmProvider::Azure { model, .. } => (ProviderType::Azure, model.as_str()),
-            LlmProvider::Groq { model, .. } => (ProviderType::Groq, model.as_str()),
+            LegacyLlmProvider::OpenAI { model, .. } => (ProviderType::OpenAI, model.as_str()),
+            LegacyLlmProvider::Anthropic { model, .. } => (ProviderType::Anthropic, model.as_str()),
+            LegacyLlmProvider::Local { model, .. } => (ProviderType::Local, model.as_str()),
+            LegacyLlmProvider::Ollama { model, .. } => (ProviderType::Ollama, model.as_str()),
+            LegacyLlmProvider::LMStudio { model, .. } => (ProviderType::LMStudio, model.as_str()),
+            LegacyLlmProvider::Azure { model, .. } => (ProviderType::Azure, model.as_str()),
+            LegacyLlmProvider::Groq { model, .. } => (ProviderType::Groq, model.as_str()),
         };
 
         self.cost_table
@@ -332,7 +332,7 @@ mod tests {
                 .cost_table
                 .estimate_cost(&ProviderType::OpenAI, "gpt-4o-mini", 1000, 500);
         assert!(cost > 0.0);
-        println!("GPT-4o-mini cost for 1K input + 500 output: ${:.4}", cost);
+        println!("GPT-4o-mini cost for 1K input + 500 output: ${cost:.4}");
 
         let free_cost =
             optimizer
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn test_complexity_filtering() {
         let optimizer = CostOptimizer::default();
-        let provider = LlmProvider::OpenAI {
+        let provider = LegacyLlmProvider::OpenAI {
             api_key: "test".to_string(),
             model: "gpt-3.5-turbo".to_string(),
         };

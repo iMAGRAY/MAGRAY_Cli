@@ -283,7 +283,7 @@ mod tests {
             "llama-3.2-3b".to_string(),
             "local".to_string(),
         )
-        .unwrap();
+        .expect("Operation failed - converted from unwrap()");
 
         assert_eq!(provider.id().provider_type, "local");
         assert_eq!(provider.id().model, "llama-3.2-3b");

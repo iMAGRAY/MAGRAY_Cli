@@ -6,12 +6,14 @@ use tokio::time::Instant;
 
 pub mod anthropic_provider;
 pub mod azure_provider;
+pub mod google_provider;
 pub mod groq_provider;
 pub mod local_provider;
 pub mod openai_provider;
 
 pub use anthropic_provider::AnthropicProvider;
 pub use azure_provider::AzureProvider;
+pub use google_provider::GoogleProvider;
 pub use groq_provider::GroqProvider;
 pub use local_provider::LocalProvider;
 pub use openai_provider::OpenAIProvider;
@@ -248,6 +250,7 @@ pub trait LlmProvider: Send + Sync {
 pub enum ProviderWrapper {
     OpenAI(OpenAIProvider),
     Anthropic(AnthropicProvider),
+    Google(GoogleProvider),
     Local(LocalProvider),
     Azure(AzureProvider),
     Groq(GroqProvider),
@@ -259,6 +262,7 @@ impl LlmProvider for ProviderWrapper {
         match self {
             ProviderWrapper::OpenAI(p) => p.id(),
             ProviderWrapper::Anthropic(p) => p.id(),
+            ProviderWrapper::Google(p) => p.id(),
             ProviderWrapper::Local(p) => p.id(),
             ProviderWrapper::Azure(p) => p.id(),
             ProviderWrapper::Groq(p) => p.id(),
@@ -269,6 +273,7 @@ impl LlmProvider for ProviderWrapper {
         match self {
             ProviderWrapper::OpenAI(p) => p.capabilities(),
             ProviderWrapper::Anthropic(p) => p.capabilities(),
+            ProviderWrapper::Google(p) => p.capabilities(),
             ProviderWrapper::Local(p) => p.capabilities(),
             ProviderWrapper::Azure(p) => p.capabilities(),
             ProviderWrapper::Groq(p) => p.capabilities(),
@@ -279,6 +284,7 @@ impl LlmProvider for ProviderWrapper {
         match self {
             ProviderWrapper::OpenAI(p) => p.health_check().await,
             ProviderWrapper::Anthropic(p) => p.health_check().await,
+            ProviderWrapper::Google(p) => p.health_check().await,
             ProviderWrapper::Local(p) => p.health_check().await,
             ProviderWrapper::Azure(p) => p.health_check().await,
             ProviderWrapper::Groq(p) => p.health_check().await,
@@ -289,6 +295,7 @@ impl LlmProvider for ProviderWrapper {
         match self {
             ProviderWrapper::OpenAI(p) => p.complete(request).await,
             ProviderWrapper::Anthropic(p) => p.complete(request).await,
+            ProviderWrapper::Google(p) => p.complete(request).await,
             ProviderWrapper::Local(p) => p.complete(request).await,
             ProviderWrapper::Azure(p) => p.complete(request).await,
             ProviderWrapper::Groq(p) => p.complete(request).await,
@@ -302,6 +309,7 @@ impl LlmProvider for ProviderWrapper {
         match self {
             ProviderWrapper::OpenAI(p) => p.complete_stream(request).await,
             ProviderWrapper::Anthropic(p) => p.complete_stream(request).await,
+            ProviderWrapper::Google(p) => p.complete_stream(request).await,
             ProviderWrapper::Local(p) => p.complete_stream(request).await,
             ProviderWrapper::Azure(p) => p.complete_stream(request).await,
             ProviderWrapper::Groq(p) => p.complete_stream(request).await,
@@ -330,6 +338,13 @@ impl ProviderFactory {
                     config.model.clone(),
                 )?;
                 Ok(ProviderWrapper::Anthropic(provider))
+            }
+            "google" => {
+                let provider = GoogleProvider::new(
+                    config.api_key.clone().unwrap_or_default(),
+                    config.model.clone(),
+                )?;
+                Ok(ProviderWrapper::Google(provider))
             }
             "azure" => {
                 let provider = AzureProvider::new(

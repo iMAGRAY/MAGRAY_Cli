@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Baseline профилирование HNSW производительности
 //!
 //! Этот benchmark специально создан для профилирования performance HNSW индекса
@@ -105,7 +106,10 @@ impl SimpleHnsw {
             })
             .collect();
 
-        results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        results.sort_by(|a, b| {
+            a.1.partial_cmp(&b.1)
+                .expect("Test operation should succeed")
+        });
         results.truncate(k);
         results
     }

@@ -274,7 +274,8 @@ mod tests {
 
     #[test]
     fn test_search_query_creation() {
-        let query = SearchQuery::new("test query".to_string()).unwrap();
+        let query = SearchQuery::new("test query".to_string())
+            .expect("Search query creation should succeed");
         assert_eq!(query.query_text(), "test query");
         assert_eq!(query.max_results(), 10);
         assert!(!query.has_filters());
@@ -292,12 +293,12 @@ mod tests {
     #[test]
     fn test_builder_pattern() {
         let query = SearchQuery::new("test".to_string())
-            .unwrap()
+            .expect("Search query creation should succeed")
             .with_layers(vec![LayerType::Assets])
             .with_max_results(5)
-            .unwrap()
+            .expect("Max results setting should succeed")
             .with_project("my_project".to_string())
-            .unwrap();
+            .expect("Project setting should succeed");
 
         assert_eq!(query.target_layers(), &[LayerType::Assets]);
         assert_eq!(query.max_results(), 5);
@@ -307,7 +308,8 @@ mod tests {
 
     #[test]
     fn test_max_results_validation() {
-        let query = SearchQuery::new("test".to_string()).unwrap();
+        let query =
+            SearchQuery::new("test".to_string()).expect("Search query operation should succeed");
 
         // Zero results should fail
         let result = query.clone().with_max_results(0);
@@ -321,27 +323,28 @@ mod tests {
     #[test]
     fn test_query_priority() {
         let interact_query = SearchQuery::new("test".to_string())
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_layers(vec![LayerType::Interact]);
         assert_eq!(interact_query.priority(), QueryPriority::High);
 
         let assets_query = SearchQuery::new("test".to_string())
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_layers(vec![LayerType::Assets]);
         assert_eq!(assets_query.priority(), QueryPriority::Low);
     }
 
     #[test]
     fn test_complexity_score() {
-        let simple_query = SearchQuery::new("test".to_string()).unwrap();
+        let simple_query =
+            SearchQuery::new("test".to_string()).expect("Search query operation should succeed");
         let complex_query = SearchQuery::new("test".to_string())
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_max_results(100)
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_project("project".to_string())
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_tags(vec!["tag1".to_string(), "tag2".to_string()])
-            .unwrap();
+            .expect("Search query operation should succeed");
 
         assert!(complex_query.complexity_score() > simple_query.complexity_score());
     }
@@ -349,13 +352,13 @@ mod tests {
     #[test]
     fn test_filters_and_simplicity_and_threshold() {
         let q = SearchQuery::new("hello".to_string())
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_project("proj".to_string())
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_tags(vec!["a".into(), "b".into()])
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_kind("note".to_string())
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_score_threshold(ScoreThreshold::high())
             .with_layers(vec![
                 LayerType::Interact,
@@ -368,12 +371,12 @@ mod tests {
 
         // invalid tag
         let bad = SearchQuery::new("hello".to_string())
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_tags(vec!["".into()]);
         assert!(bad.is_err());
         // invalid kind
         let badk = SearchQuery::new("hello".to_string())
-            .unwrap()
+            .expect("Search query operation should succeed")
             .with_kind("".into());
         assert!(badk.is_err());
     }
@@ -381,17 +384,20 @@ mod tests {
     #[test]
     fn test_vector_presence_and_serde_roundtrip() {
         // needs_vector_computation toggles after with_vector
-        let q0 = SearchQuery::new("xyz".to_string()).unwrap();
+        let q0 =
+            SearchQuery::new("xyz".to_string()).expect("Search query operation should succeed");
         assert!(q0.needs_vector_computation());
 
         // make normalized vector 2D
-        let v = EmbeddingVector::new(vec![1.0, 0.0], 2).unwrap();
+        let v =
+            EmbeddingVector::new(vec![1.0, 0.0], 2).expect("Search query operation should succeed");
         let q1 = q0.with_vector(v);
         assert!(!q1.needs_vector_computation());
 
         // serde roundtrip
-        let j = serde_json::to_string(&q1).unwrap();
-        let q2: SearchQuery = serde_json::from_str(&j).unwrap();
+        let j = serde_json::to_string(&q1).expect("Search query operation should succeed");
+        let q2: SearchQuery =
+            serde_json::from_str(&j).expect("Search query operation should succeed");
         assert_eq!(q2.query_text(), "xyz");
         assert_eq!(q2.max_results(), 10);
         assert!(q2.target_layers().contains(&LayerType::Interact));

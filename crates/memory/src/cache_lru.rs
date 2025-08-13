@@ -1,4 +1,4 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "persistence")]
@@ -95,7 +95,6 @@ impl CacheConfig {
         100
     } // Default batch size
 }
-
 
 pub struct EmbeddingCacheLRU {
     #[cfg(feature = "persistence")]
@@ -665,7 +664,7 @@ impl EmbeddingCacheLRU {
                     if let Ok(cached) = bincode::deserialize::<CachedEmbedding>(&value) {
                         if _now >= cached.created_at && (_now - cached.created_at) > _ttl {
                             // push into temp vec by collecting via extend below
-                            let mut k = key.to_vec();
+                            let k = key.to_vec();
                             // accumulate using a small scope vec to avoid mut warning
                             let mut tmp = Vec::new();
                             tmp.push(k.clone());

@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 #[test]
 fn test_text_preprocessing_basic() {
     let text = "  Hello, World!  \n\t";
@@ -164,6 +165,6 @@ fn test_embedding_quality_factors() {
     ];
 
     for (name, value) in factors {
-        assert!(value > 0, "Factor {} should be positive", name);
+        assert!(value > 0, "Factor {name} should be positive");
     }
 }

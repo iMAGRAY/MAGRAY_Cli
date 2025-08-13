@@ -316,7 +316,9 @@ fn bench_comprehensive_performance_validation(c: &mut Criterion) {
     let mut group = c.benchmark_group("comprehensive_validation");
 
     group.bench_function("ultra_optimized_performance_test", |bench| {
-        bench.iter(|| black_box(test_ultra_optimized_performance().unwrap()))
+        bench.iter(|| {
+            black_box(test_ultra_optimized_performance().expect("Test operation should succeed"))
+        })
     });
 
     group.finish();

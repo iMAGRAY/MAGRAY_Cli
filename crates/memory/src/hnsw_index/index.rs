@@ -95,15 +95,13 @@ mod simd_distance {
             // AVX-512 для cutting-edge performance
             queries
                 .iter()
-                .map(|query| unsafe {
-                    crate::simd_ultra_optimized::cosine_distance_avx512_ultra(query, target)
-                })
+                .map(|query| crate::simd_ultra_optimized::cosine_distance_auto_ultra(query, target))
                 .collect()
         } else if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
             // AVX2 + FMA для proven 4-5x speedup
             queries
                 .iter()
-                .map(|query| unsafe {
+                .map(|query| {
                     crate::simd_ultra_optimized::cosine_distance_ultra_optimized(query, target)
                 })
                 .collect()
@@ -528,7 +526,7 @@ impl VectorIndex {
 
         // ИСПРАВЛЕНО: Оптимальные параметры для O(log n) поиска
         let ef_search = self.compute_optimal_ef_search_fixed(k);
-        
+
         let results = {
             let hnsw_guard = self.hnsw.read();
             match hnsw_guard.as_ref() {
@@ -536,19 +534,19 @@ impl VectorIndex {
                     // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильный вызов HNSW search
                     let query_vec = query.to_vec();
                     let found = hnsw.search(&query_vec, ef_search, k);
-                    
+
                     // Конвертируем результаты сразу для избежания дополнительных копирований
                     let mut string_results = Vec::with_capacity(found.len().min(k));
                     let point_to_id = self.point_to_id.read();
-                    
+
                     for neighbor in found.into_iter().take(k) {
                         if let Some(string_id) = point_to_id.get(&neighbor.d_id) {
                             string_results.push((string_id.clone(), neighbor.distance));
                         }
                     }
-                    
+
                     Ok(string_results)
-                },
+                }
                 None => {
                     self.stats.record_error();
                     Err(anyhow!("HNSW не инициализирован для поиска"))
@@ -561,15 +559,20 @@ impl VectorIndex {
         self.stats.record_search(duration, estimated_distance_calcs);
 
         // Performance monitoring
-        if duration.as_millis() > 50 { // Увеличиваем порог для реалистичности
+        if duration.as_millis() > 50 {
+            // Увеличиваем порог для реалистичности
             warn!(
                 "⚠️ Поиск занял {}ms > 50ms для {} результатов (размер индекса: {})",
-                duration.as_millis(), k, self.len()
+                duration.as_millis(),
+                k,
+                self.len()
             );
         } else {
             debug!(
                 "✅ HNSW поиск завершен за {:?}, найдено {} результатов из индекса размера {}",
-                duration, results.len(), self.len()
+                duration,
+                results.len(),
+                self.len()
             );
         }
 
@@ -579,11 +582,11 @@ impl VectorIndex {
     /// ИСПРАВЛЕНО: Правильное вычисление ef_search для HNSW алгоритма
     fn compute_optimal_ef_search_fixed(&self, k: usize) -> usize {
         let index_size = self.len();
-        
+
         // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильные параметры HNSW
         // ef_search должен быть >= k для корректной работы алгоритма
         let base_ef = k.max(16);
-        
+
         if index_size < 100 {
             // Очень малые индексы - используем линейный поиск
             base_ef
@@ -591,13 +594,13 @@ impl VectorIndex {
             // Средние индексы - умеренный ef_search для баланса скорости и качества
             (base_ef * 2).min(200)
         } else {
-            // Большие индексы - оптимизированный ef_search 
+            // Большие индексы - оптимизированный ef_search
             // ИСПРАВЛЕНО: учитываем реальную формулу HNSW
             let optimal_ef = (base_ef as f64 * (index_size as f64).log2() / 10.0) as usize;
             optimal_ef.max(base_ef).min(self.config.ef_search)
         }
     }
-    
+
     /// Вычисление оптимального ef_search для минимизации latency (legacy)
     fn compute_optimal_ef_search(&self, k: usize) -> usize {
         // Перенаправляем на исправленную версию
@@ -975,5 +978,29 @@ impl VectorIndex {
         let parallel_bonus = 0.8 + 0.2 * stats.parallel_efficiency;
 
         (error_penalty * speed_bonus * parallel_bonus).min(1.0f64)
+    }
+
+    /// Поиск для множественных запросов одновременно
+    /// Используется в benchmarks и возможно в будущих API
+    pub fn search_many(&self, queries: &[Vec<f32>], k: usize) -> Result<Vec<Vec<(String, f32)>>> {
+        if queries.is_empty() {
+            return Ok(vec![]);
+        }
+
+        #[cfg(feature = "hnsw-index")]
+        {
+            // Параллельная обработка запросов
+            use rayon::prelude::*;
+            queries
+                .par_iter()
+                .map(|query| self.search(query, k))
+                .collect()
+        }
+
+        #[cfg(not(feature = "hnsw-index"))]
+        {
+            // Последовательная обработка без rayon
+            queries.iter().map(|query| self.search(query, k)).collect()
+        }
     }
 }

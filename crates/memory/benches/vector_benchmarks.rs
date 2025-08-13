@@ -119,14 +119,17 @@ fn bench_hnsw_insert(c: &mut Criterion) {
             b.iter_with_setup(
                 || generate_random_vectors(size, config.dimension),
                 |vectors| {
-                    let rt = Runtime::new().unwrap();
+                    let rt = Runtime::new().expect("Test operation should succeed");
                     rt.block_on(async {
                         let store = VectorStore::with_config("/tmp", config.clone())
                             .await
-                            .unwrap();
+                            .expect("Test operation should succeed");
                         let recs = create_test_records(vectors, Layer::Interact);
                         let refs: Vec<&Record> = recs.iter().collect();
-                        store.insert_batch(&refs).await.unwrap();
+                        store
+                            .insert_batch(&refs)
+                            .await
+                            .expect("Test operation should succeed");
                     });
                 },
             );
@@ -150,17 +153,25 @@ fn bench_hnsw_search(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("search", size), &size, |b, &size| {
             b.iter_custom(|iters| {
                 let start = Instant::now();
-                let rt = Runtime::new().unwrap();
+                let rt = Runtime::new().expect("Test operation should succeed");
                 rt.block_on(async {
                     let store = VectorStore::with_config("/tmp", config.clone())
                         .await
-                        .unwrap();
+                        .expect("Test operation should succeed");
                     let vectors = generate_random_vectors(size, config.dimension);
                     let records = create_test_records(vectors, Layer::Interact);
                     let refs: Vec<&Record> = records.iter().collect();
-                    store.insert_batch(&refs).await.unwrap();
+                    store
+                        .insert_batch(&refs)
+                        .await
+                        .expect("Test operation should succeed");
                     let query = vec![0.0f32; config.dimension];
-                    black_box(store.search(&query, Layer::Interact, 10).await.unwrap());
+                    black_box(
+                        store
+                            .search(&query, Layer::Interact, 10)
+                            .await
+                            .expect("Test operation should succeed"),
+                    );
                 });
                 start.elapsed()
             });
@@ -177,19 +188,27 @@ fn bench_hnsw_search(c: &mut Criterion) {
 ))]
 fn bench_hybrid_end_to_end(c: &mut Criterion) {
     let config = HnswRsConfig::default();
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
 
     c.bench_function("hybrid_end_to_end", |b| {
         b.to_async(&rt).iter(|| async {
             let store = VectorStore::with_config("/tmp", config.clone())
                 .await
-                .unwrap();
+                .expect("Test operation should succeed");
             let vectors = generate_random_vectors(1000, config.dimension);
             let records = create_test_records(vectors, Layer::Interact);
             let refs: Vec<&Record> = records.iter().collect();
-            store.insert_batch(&refs).await.unwrap();
+            store
+                .insert_batch(&refs)
+                .await
+                .expect("Test operation should succeed");
             let query = vec![0.0f32; config.dimension];
-            black_box(store.search(&query, Layer::Interact, 10).await.unwrap());
+            black_box(
+                store
+                    .search(&query, Layer::Interact, 10)
+                    .await
+                    .expect("Test operation should succeed"),
+            );
         })
     });
 }

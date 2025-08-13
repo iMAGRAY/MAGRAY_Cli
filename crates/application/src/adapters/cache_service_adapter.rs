@@ -2,10 +2,10 @@
 //!
 //! Адаптер для интеграции с cache services из memory crate
 
-use std::sync::Arc;
-use async_trait::async_trait;
-use crate::{ApplicationResult, ApplicationError};
 use crate::ports::CacheProvider;
+use crate::{ApplicationError, ApplicationResult};
+use async_trait::async_trait;
+use std::sync::Arc;
 
 /// Simple cache service adapter that wraps memory crate cache
 pub struct CacheServiceAdapter {
@@ -14,12 +14,16 @@ pub struct CacheServiceAdapter {
 
 #[async_trait]
 pub trait CacheServiceTrait: Send + Sync {
-    async fn get<T>(&self, key: &str) -> Result<Option<T>, Box<dyn std::error::Error + Send + Sync>>
-    where
-        T: serde::de::DeserializeOwned + Send;
-    async fn set<T>(&self, key: &str, value: &T, ttl: Option<u64>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
-    where
-        T: serde::Serialize + Send + Sync;
+    async fn get_bytes(
+        &self,
+        key: &str,
+    ) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn set_bytes(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<u64>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn delete(&self, key: &str) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
 }
 
@@ -31,66 +35,92 @@ impl CacheServiceAdapter {
 
 #[async_trait]
 impl CacheProvider for CacheServiceAdapter {
-    async fn get<T>(&self, key: &str) -> ApplicationResult<Option<T>>
-    where
-        T: serde::de::DeserializeOwned + Send,
-    {
-        self.cache_service.get(key).await
-            .map_err(|e| ApplicationError::infrastructure_with_source("Cache get failed", e))
+    async fn get_raw(&self, key: &str) -> ApplicationResult<Option<serde_json::Value>> {
+        match self.cache_service.get_bytes(key).await {
+            Ok(Some(bytes)) => {
+                let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| {
+                    ApplicationError::infrastructure(format!("Cache deserialization failed: {}", e))
+                })?;
+                Ok(Some(value))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(ApplicationError::infrastructure(format!(
+                "Cache get failed: {}",
+                e
+            ))),
+        }
     }
 
-    async fn set<T>(&self, key: &str, value: &T, ttl_seconds: Option<u64>) -> ApplicationResult<()>
-    where
-        T: serde::Serialize + Send + Sync,
-    {
-        self.cache_service.set(key, value, ttl_seconds).await
-            .map_err(|e| ApplicationError::infrastructure_with_source("Cache set failed", e))
+    async fn set_raw(
+        &self,
+        key: &str,
+        value: serde_json::Value,
+        ttl_seconds: Option<u64>,
+    ) -> ApplicationResult<()> {
+        let bytes = serde_json::to_vec(&value).map_err(|e| {
+            ApplicationError::infrastructure(format!("Cache serialization failed: {}", e))
+        })?;
+        self.cache_service
+            .set_bytes(key, bytes, ttl_seconds)
+            .await
+            .map_err(|e| ApplicationError::infrastructure(format!("Cache set failed: {}", e)))
     }
 
     async fn delete(&self, key: &str) -> ApplicationResult<bool> {
-        self.cache_service.delete(key).await
-            .map_err(|e| ApplicationError::infrastructure_with_source("Cache delete failed", e))
+        self.cache_service
+            .delete(key)
+            .await
+            .map_err(|e| ApplicationError::Infrastructure {
+                message: format!("Cache delete failed: {}", e),
+                source: None,
+            })
     }
 
     // ... implement remaining methods with delegation
     async fn exists(&self, key: &str) -> ApplicationResult<bool> {
-        let result: Option<serde_json::Value> = self.get(key).await?;
+        let result = self.get_raw(key).await?;
         Ok(result.is_some())
     }
 
-    async fn get_many<T>(&self, keys: &[String]) -> ApplicationResult<Vec<Option<T>>>
-    where
-        T: serde::de::DeserializeOwned + Send,
-    {
+    async fn get_many_raw(
+        &self,
+        keys: &[String],
+    ) -> ApplicationResult<Vec<Option<serde_json::Value>>> {
         let mut results = Vec::new();
         for key in keys {
-            results.push(self.get(key).await?);
+            results.push(self.get_raw(key).await?);
         }
         Ok(results)
     }
 
-    async fn set_many<T>(&self, items: &[(String, T)], ttl_seconds: Option<u64>) -> ApplicationResult<()>
-    where
-        T: serde::Serialize + Send + Sync,
-    {
+    async fn set_many_raw(
+        &self,
+        items: &[(String, serde_json::Value)],
+        ttl_seconds: Option<u64>,
+    ) -> ApplicationResult<()> {
         for (key, value) in items {
-            self.set(key, value, ttl_seconds).await?;
+            self.set_raw(key, value.clone(), ttl_seconds).await?;
         }
         Ok(())
     }
 
     async fn increment(&self, key: &str, delta: i64) -> ApplicationResult<i64> {
-        let current: Option<i64> = self.get(key).await?;
-        let new_value = current.unwrap_or(0) + delta;
-        self.set(key, &new_value, None).await?;
+        let current = if let Some(value) = self.get_raw(key).await? {
+            serde_json::from_value(value).unwrap_or(0i64)
+        } else {
+            0i64
+        };
+        let new_value = current + delta;
+        let new_value_json = serde_json::to_value(new_value)?;
+        self.set_raw(key, new_value_json, None).await?;
         Ok(new_value)
     }
 
     async fn expire(&self, key: &str, ttl_seconds: u64) -> ApplicationResult<bool> {
-        let value: Option<serde_json::Value> = self.get(key).await?;
+        let value = self.get_raw(key).await?;
         match value {
             Some(v) => {
-                self.set(key, &v, Some(ttl_seconds)).await?;
+                self.set_raw(key, v, Some(ttl_seconds)).await?;
                 Ok(true)
             }
             None => Ok(false),
@@ -136,13 +166,25 @@ impl CacheProvider for CacheServiceAdapter {
         Ok(()) // Not implemented
     }
 
-    async fn get_search_results(&self, query_hash: &str) -> ApplicationResult<Option<crate::dtos::SearchMemoryResponse>> {
+    async fn get_search_results(
+        &self,
+        query_hash: &str,
+    ) -> ApplicationResult<Option<crate::dtos::SearchMemoryResponse>> {
         let cache_key = format!("search_results:{}", query_hash);
-        self.get(&cache_key).await
+        if let Some(value) = self.get_raw(&cache_key).await? {
+            Ok(serde_json::from_value(value).ok())
+        } else {
+            Ok(None)
+        }
     }
 
-    async fn cache_search_results(&self, query_hash: &str, response: &crate::dtos::SearchMemoryResponse) -> ApplicationResult<()> {
+    async fn cache_search_results(
+        &self,
+        query_hash: &str,
+        response: &crate::dtos::SearchMemoryResponse,
+    ) -> ApplicationResult<()> {
         let cache_key = format!("search_results:{}", query_hash);
-        self.set(&cache_key, response, Some(300)).await
+        let response_json = serde_json::to_value(response)?;
+        self.set_raw(&cache_key, response_json, Some(300)).await
     }
 }

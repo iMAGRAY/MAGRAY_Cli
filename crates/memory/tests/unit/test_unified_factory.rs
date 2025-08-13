@@ -231,7 +231,7 @@ async fn test_factory_concurrent_container_building() -> DIResult<()> {
     let results = timeout(Duration::from_secs(30), async {
         let mut results = Vec::new();
         for task in tasks {
-            results.push(task.await.unwrap()?);
+            results.push(task.await.expect("Test operation should succeed")?);
         }
         DIResult::Ok(results)
     }).await.map_err(|_| DIError::TimeoutError {

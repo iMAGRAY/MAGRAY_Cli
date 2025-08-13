@@ -1,0 +1,68 @@
+# Base Configuration Template
+# This serves as the foundation configuration that profiles inherit from
+# Profile-specific settings override these base settings
+
+# Active profile (can be overridden by MAGRAY_ENV environment variable)
+profile = "dev"
+
+[ai]
+default_provider = "openai"
+max_tokens = 4096
+temperature = 0.7
+
+[ai.retry_config]
+max_retries = 3
+initial_delay_ms = 100
+max_delay_ms = 10000
+exponential_base = 2.0
+
+[memory]
+backend = "sqlite"
+cache_size_mb = 256
+flush_interval_sec = 60
+
+[memory.hnsw]
+m = 16
+ef_construction = 200
+ef_search = 50
+max_elements = 1000000
+
+[memory.embedding]
+model = "qwen3-0.6b"
+dimension = 384
+use_gpu = false
+batch_size = 32
+
+[memory.persistence]
+enabled = true
+path = "./data/memory.db"
+auto_save_interval_sec = 300
+
+[mcp]
+enabled = true
+timeout_sec = 30
+auto_discovery = false
+
+[plugins]
+enabled = true
+plugin_dir = "./plugins"
+sandbox_enabled = true
+
+[logging]
+level = "info"
+file_enabled = true
+file_path = "./logs/magray.log"
+structured = false
+max_size_mb = 100
+
+[paths]
+data_dir = "./data"
+cache_dir = "./cache"
+models_dir = "./models"
+logs_dir = "./logs"
+
+[performance]
+worker_threads = 4
+max_concurrent_requests = 10
+enable_gpu = false
+memory_limit_mb = 1024

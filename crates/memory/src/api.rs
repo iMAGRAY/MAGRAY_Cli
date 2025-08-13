@@ -218,7 +218,7 @@ mod simple_engine {
                 .collect();
 
             scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-            let beam = top_k.max(16).min(scored.len());
+            let beam = top_k.clamp(16, scored.len());
             scored.truncate(beam);
 
             // Optional second-stage reranking
@@ -957,29 +957,28 @@ mod tests {
                 MemoryContext::new("note").with_layer(Layer::Insights),
             )
             .await
-            .expect("remember ok");
+            .expect("Test requires remember operation to succeed");
 
         let upsert = tokio::time::timeout(std::time::Duration::from_secs(2), rx_upsert.recv())
             .await
-            .expect("upsert timeout")
-            .expect("upsert recv");
+            .expect("Test requires upsert timeout to not occur")
+            .expect("Test requires upsert recv to succeed");
         assert_eq!(upsert.topic.0, common::topics::TOPIC_MEMORY_UPSERT.0);
 
         // Trigger search
-        let _ = api
-            .recall(
-                "note",
-                SearchOptions::default()
-                    .in_layers(vec![Layer::Insights])
-                    .limit(1),
-            )
-            .await
-            .expect("recall ok");
+        api.recall(
+            "note",
+            SearchOptions::default()
+                .in_layers(vec![Layer::Insights])
+                .limit(1),
+        )
+        .await
+        .expect("Test requires recall operation to succeed");
 
         let search = tokio::time::timeout(std::time::Duration::from_secs(2), rx_search.recv())
             .await
-            .expect("search timeout")
-            .expect("search recv");
+            .expect("Test requires search timeout to not occur")
+            .expect("Test requires search recv to succeed");
         assert_eq!(search.topic.0, common::topics::TOPIC_MEMORY_SEARCH.0);
     }
 }

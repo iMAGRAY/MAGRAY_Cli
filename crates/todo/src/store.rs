@@ -130,10 +130,22 @@ impl TodoStore {
         let task = stmt
             .query_row(params![id.to_string()], |row| {
                 Ok(TodoItem {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).map_err(|e| {
+                        rusqlite::Error::InvalidColumnType(
+                            0,
+                            "uuid".to_string(),
+                            rusqlite::types::Type::Text,
+                        )
+                    })?,
                     title: row.get(1)?,
                     description: row.get(2)?,
-                    state: row.get::<_, String>(3)?.parse().unwrap(),
+                    state: row.get::<_, String>(3)?.parse().map_err(|_| {
+                        rusqlite::Error::InvalidColumnType(
+                            3,
+                            "state".to_string(),
+                            rusqlite::types::Type::Text,
+                        )
+                    })?,
                     priority: match row.get::<_, i32>(4)? {
                         1 => Priority::Low,
                         2 => Priority::Medium,
@@ -142,29 +154,41 @@ impl TodoStore {
                         _ => Priority::Medium,
                     },
                     created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                        .unwrap()
+                        .map_err(|_| {
+                            rusqlite::Error::InvalidColumnType(
+                                5,
+                                "created_at".to_string(),
+                                rusqlite::types::Type::Text,
+                            )
+                        })?
                         .with_timezone(&Utc),
                     updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
-                        .unwrap()
+                        .map_err(|_| {
+                            rusqlite::Error::InvalidColumnType(
+                                6,
+                                "updated_at".to_string(),
+                                rusqlite::types::Type::Text,
+                            )
+                        })?
                         .with_timezone(&Utc),
-                    started_at: row.get::<_, Option<String>>(7)?.map(|s| {
+                    started_at: row.get::<_, Option<String>>(7)?.and_then(|s| {
                         DateTime::parse_from_rfc3339(&s)
-                            .unwrap()
-                            .with_timezone(&Utc)
+                            .ok()
+                            .map(|dt| dt.with_timezone(&Utc))
                     }),
-                    completed_at: row.get::<_, Option<String>>(8)?.map(|s| {
+                    completed_at: row.get::<_, Option<String>>(8)?.and_then(|s| {
                         DateTime::parse_from_rfc3339(&s)
-                            .unwrap()
-                            .with_timezone(&Utc)
+                            .ok()
+                            .map(|dt| dt.with_timezone(&Utc))
                     }),
-                    due_date: row.get::<_, Option<String>>(9)?.map(|s| {
+                    due_date: row.get::<_, Option<String>>(9)?.and_then(|s| {
                         DateTime::parse_from_rfc3339(&s)
-                            .unwrap()
-                            .with_timezone(&Utc)
+                            .ok()
+                            .map(|dt| dt.with_timezone(&Utc))
                     }),
                     parent_id: row
                         .get::<_, Option<String>>(10)?
-                        .map(|s| Uuid::parse_str(&s).unwrap()),
+                        .and_then(|s| Uuid::parse_str(&s).ok()),
                     auto_generated: row.get(11)?,
                     confidence: row.get(12)?,
                     reasoning: row.get(13)?,
@@ -181,7 +205,14 @@ impl TodoStore {
 
             task.depends_on = dep_stmt
                 .query_map(params![id.to_string()], |row| {
-                    Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+                    let uuid_str = row.get::<_, String>(0)?;
+                    Uuid::parse_str(&uuid_str).map_err(|_| {
+                        rusqlite::Error::InvalidColumnType(
+                            0,
+                            "depends_on".to_string(),
+                            rusqlite::types::Type::Text,
+                        )
+                    })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
 
@@ -208,7 +239,14 @@ impl TodoStore {
 
         let ids: Vec<Uuid> = stmt
             .query_map(params![state.to_string()], |row| {
-                Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+                let uuid_str = row.get::<_, String>(0)?;
+                Uuid::parse_str(&uuid_str).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        0,
+                        "id".to_string(),
+                        rusqlite::types::Type::Text,
+                    )
+                })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -277,7 +315,14 @@ impl TodoStore {
 
         let ids: Vec<Uuid> = stmt
             .query_map(params![], |row| {
-                Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+                let uuid_str = row.get::<_, String>(0)?;
+                Uuid::parse_str(&uuid_str).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        0,
+                        "id".to_string(),
+                        rusqlite::types::Type::Text,
+                    )
+                })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -303,7 +348,14 @@ impl TodoStore {
 
         let ids: Vec<Uuid> = stmt
             .query_map(params![parent_id.to_string()], |row| {
-                Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+                let uuid_str = row.get::<_, String>(0)?;
+                Uuid::parse_str(&uuid_str).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        0,
+                        "id".to_string(),
+                        rusqlite::types::Type::Text,
+                    )
+                })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -353,7 +405,14 @@ impl TodoStore {
 
         let ids: Vec<Uuid> = stmt
             .query_map(params![task_id.to_string()], |row| {
-                Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+                let uuid_str = row.get::<_, String>(0)?;
+                Uuid::parse_str(&uuid_str).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        0,
+                        "task_id".to_string(),
+                        rusqlite::types::Type::Text,
+                    )
+                })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 

@@ -14,8 +14,12 @@ fn hnsw_add_and_search_orders_by_distance() {
     let a = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     let b = vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
-    index.add("A".into(), a.clone()).unwrap();
-    index.add("B".into(), b.clone()).unwrap();
+    index
+        .add("A".into(), a.clone())
+        .expect("Test operation should succeed");
+    index
+        .add("B".into(), b.clone())
+        .expect("Test operation should succeed");
 
     // query near A
     let q = vec![0.9, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
@@ -30,8 +34,10 @@ fn hnsw_capacity_validation() {
     let mut cfg = HnswConfig::small_dataset();
     cfg.dimension = 4;
     cfg.max_elements = 1;
-    let index = VectorIndex::new(cfg).unwrap();
-    index.add("one".into(), vec![1.0, 0.0, 0.0, 0.0]).unwrap();
+    let index = VectorIndex::new(cfg).expect("Test operation should succeed");
+    index
+        .add("one".into(), vec![1.0, 0.0, 0.0, 0.0])
+        .expect("Test operation should succeed");
     let err = index
         .add("two".into(), vec![0.0, 1.0, 0.0, 0.0])
         .unwrap_err();
@@ -44,12 +50,14 @@ fn hnsw_parallel_search_basic() {
     cfg.dimension = 4;
     cfg.max_elements = 100;
     cfg.use_parallel = true;
-    let index = VectorIndex::new(cfg).unwrap();
+    let index = VectorIndex::new(cfg).expect("Test operation should succeed");
 
     for i in 0..10 {
         let mut v = vec![0.0, 0.0, 0.0, 0.0];
         v[i % 4] = 1.0;
-        index.add(format!("id{}", i), v).unwrap();
+        index
+            .add(format!("id{}", i), v)
+            .expect("Test operation should succeed");
     }
 
     let queries = vec![
@@ -57,7 +65,9 @@ fn hnsw_parallel_search_basic() {
         vec![0.0, 1.0, 0.0, 0.0],
         vec![0.0, 0.0, 1.0, 0.0],
     ];
-    let out = index.parallel_search(&queries, 1).unwrap();
+    let out = index
+        .parallel_search(&queries, 1)
+        .expect("Test operation should succeed");
     assert_eq!(out.len(), 3);
     for (i, r) in out.iter().enumerate() {
         assert_eq!(r.len(), 1);

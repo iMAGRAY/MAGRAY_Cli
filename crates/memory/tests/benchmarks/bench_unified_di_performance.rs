@@ -77,15 +77,15 @@ impl HeavyBenchmarkService {
 
 // Benchmark container creation with different configurations
 fn bench_container_creation(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("failed to create Tokio runtime");
     
     let mut group = c.benchmark_group("container_creation");
     
     let configs = vec![
-        ("minimal", UnifiedDIConfiguration::minimal_config().unwrap()),
-        ("test", UnifiedDIConfiguration::test_config().unwrap()),
-        ("development", UnifiedDIConfiguration::development_config().unwrap()),
-        ("production", UnifiedDIConfiguration::production_config().unwrap()),
+        ("minimal", UnifiedDIConfiguration::minimal_config().expect("failed to create minimal config")),
+        ("test", UnifiedDIConfiguration::test_config().expect("failed to create test config")),
+        ("development", UnifiedDIConfiguration::development_config().expect("failed to create development config")),
+        ("production", UnifiedDIConfiguration::production_config().expect("failed to create production config")),
     ];
     
     for (config_name, config) in configs {
@@ -94,8 +94,8 @@ fn bench_container_creation(c: &mut Criterion) {
             &config,
             |b, config| {
                 b.to_async(&rt).iter(|| async {
-                    let container = black_box(UnifiedDIContainer::new(config.clone()).await.unwrap());
-                    container.shutdown().await.unwrap();
+                    let container = black_box(UnifiedDIContainer::new(config.clone()).await.expect("failed to create container"));
+                    container.shutdown().await.expect("failed to shutdown container");
                 });
             },
         );
@@ -106,7 +106,7 @@ fn bench_container_creation(c: &mut Criterion) {
 
 // Benchmark factory-based container creation
 fn bench_factory_container_building(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("failed to create Tokio runtime");
     
     let mut group = c.benchmark_group("factory_container_building");
     
@@ -123,17 +123,17 @@ fn bench_factory_container_building(c: &mut Criterion) {
             &preset,
             |b, preset| {
                 b.to_async(&rt).iter(|| async {
-                    let factory = UnifiedServiceFactory::with_preset(*preset).unwrap();
+                    let factory = UnifiedServiceFactory::with_preset(*preset).expect("failed to create factory");
                     let config = match preset {
-                        FactoryPreset::Minimal => UnifiedDIConfiguration::minimal_config().unwrap(),
-                        FactoryPreset::Test => UnifiedDIConfiguration::test_config().unwrap(),
-                        FactoryPreset::Development => UnifiedDIConfiguration::development_config().unwrap(),
-                        FactoryPreset::Production => UnifiedDIConfiguration::production_config().unwrap(),
-                        _ => UnifiedDIConfiguration::test_config().unwrap(),
+                        FactoryPreset::Minimal => UnifiedDIConfiguration::minimal_config().expect("failed to create minimal config"),
+                        FactoryPreset::Test => UnifiedDIConfiguration::test_config().expect("failed to create test config"),
+                        FactoryPreset::Development => UnifiedDIConfiguration::development_config().expect("failed to create development config"),
+                        FactoryPreset::Production => UnifiedDIConfiguration::production_config().expect("failed to create production config"),
+                        _ => UnifiedDIConfiguration::test_config().expect("failed to create test config"),
                     };
                     
-                    let container = black_box(factory.build_container(&config).await.unwrap());
-                    container.shutdown().await.unwrap();
+                    let container = black_box(factory.build_container(&config).await.expect("failed to build container"));
+                    container.shutdown().await.expect("failed to shutdown container");
                 });
             },
         );
@@ -144,25 +144,25 @@ fn bench_factory_container_building(c: &mut Criterion) {
 
 // Benchmark service resolution performance
 fn bench_service_resolution(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("failed to create Tokio runtime");
     
     let mut group = c.benchmark_group("service_resolution");
     
     // Setup container with pre-registered services
     let container = rt.block_on(async {
-        let config = UnifiedDIConfiguration::test_config().unwrap();
-        let mut container = UnifiedDIContainer::new(config).await.unwrap();
+        let config = UnifiedDIConfiguration::test_config().expect("failed to create test config");
+        let mut container = UnifiedDIContainer::new(config).await.expect("failed to create container");
         
         // Register various services
         container.register_singleton::<BenchmarkService, _>(
             "SingletonService",
             || Ok(Arc::new(BenchmarkService::new("singleton".to_string(), 1)))
-        ).unwrap();
+        ).expect("service registration failed");
         
         container.register_transient::<BenchmarkService, _>(
             "TransientService", 
             || Ok(Arc::new(BenchmarkService::new("transient".to_string(), 1)))
-        ).unwrap();
+        ).expect("service registration failed");
         
         Arc::new(container)
     });
@@ -171,7 +171,7 @@ fn bench_service_resolution(c: &mut Criterion) {
     group.bench_function("resolve_singleton", |b| {
         b.to_async(&rt).iter(|| async {
             let service = black_box(
-                container.resolve_named::<BenchmarkService>("SingletonService").await.unwrap()
+                container.resolve_named::<BenchmarkService>("SingletonService").await.expect("failed to resolve singleton service")
             );
             black_box(service.get_id());
         });
@@ -181,7 +181,7 @@ fn bench_service_resolution(c: &mut Criterion) {
     group.bench_function("resolve_transient", |b| {
         b.to_async(&rt).iter(|| async {
             let service = black_box(
-                container.resolve_named::<BenchmarkService>("TransientService").await.unwrap()
+                container.resolve_named::<BenchmarkService>("TransientService").await.expect("failed to resolve transient service")
             );
             black_box(service.get_id());
         });
@@ -192,18 +192,18 @@ fn bench_service_resolution(c: &mut Criterion) {
 
 // Benchmark concurrent service resolution
 fn bench_concurrent_resolution(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("failed to create Tokio runtime");
     
     let mut group = c.benchmark_group("concurrent_resolution");
     
     let container = rt.block_on(async {
-        let config = UnifiedDIConfiguration::test_config().unwrap();
-        let mut container = UnifiedDIContainer::new(config).await.unwrap();
+        let config = UnifiedDIConfiguration::test_config().expect("failed to create test config");
+        let mut container = UnifiedDIContainer::new(config).await.expect("failed to create container");
         
         container.register_singleton::<BenchmarkService, _>(
             "ConcurrentService",
             || Ok(Arc::new(BenchmarkService::new("concurrent".to_string(), 4)))
-        ).unwrap();
+        ).expect("service registration failed");
         
         Arc::new(container)
     });
@@ -221,7 +221,7 @@ fn bench_concurrent_resolution(c: &mut Criterion) {
                                 let service = container
                                     .resolve_named::<BenchmarkService>("ConcurrentService")
                                     .await
-                                    .unwrap();
+                                    .expect("failed to resolve concurrent service");
                                 black_box(service.process_data())
                             })
                         })
@@ -239,7 +239,7 @@ fn bench_concurrent_resolution(c: &mut Criterion) {
 
 // Benchmark large-scale container with many services
 fn bench_large_scale_container(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("failed to create Tokio runtime");
     
     let mut group = c.benchmark_group("large_scale_container");
     
@@ -249,8 +249,8 @@ fn bench_large_scale_container(c: &mut Criterion) {
             service_count,
             |b, &service_count| {
                 b.to_async(&rt).iter(|| async {
-                    let config = UnifiedDIConfiguration::production_config().unwrap();
-                    let mut container = UnifiedDIContainer::new(config).await.unwrap();
+                    let config = UnifiedDIConfiguration::production_config().expect("failed to create production config");
+                    let mut container = UnifiedDIContainer::new(config).await.expect("failed to create container");
                     
                     // Register many services
                     for i in 0..service_count {
@@ -258,7 +258,7 @@ fn bench_large_scale_container(c: &mut Criterion) {
                         container.register_singleton::<BenchmarkService, _>(
                             &service_name,
                             move || Ok(Arc::new(BenchmarkService::new(format!("service_{}", i), 1)))
-                        ).unwrap();
+                        ).expect("service registration failed");
                     }
                     
                     // Resolve all services
@@ -267,11 +267,11 @@ fn bench_large_scale_container(c: &mut Criterion) {
                         let service = container
                             .resolve_named::<BenchmarkService>(&service_name)
                             .await
-                            .unwrap();
+                            .expect("failed to resolve service");
                         black_box(service.get_id());
                     }
                     
-                    container.shutdown().await.unwrap();
+                    container.shutdown().await.expect("failed to shutdown container");
                 });
             },
         );
@@ -282,13 +282,13 @@ fn bench_large_scale_container(c: &mut Criterion) {
 
 // Benchmark dependency injection performance
 fn bench_dependency_injection(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("failed to create Tokio runtime");
     
     let mut group = c.benchmark_group("dependency_injection");
     
     let container = rt.block_on(async {
-        let config = UnifiedDIConfiguration::test_config().unwrap();
-        let mut container = UnifiedDIContainer::new(config).await.unwrap();
+        let config = UnifiedDIConfiguration::test_config().expect("failed to create test config");
+        let mut container = UnifiedDIContainer::new(config).await.expect("failed to create container");
         
         // Register dependencies
         for i in 0..5 {
@@ -296,7 +296,7 @@ fn bench_dependency_injection(c: &mut Criterion) {
             container.register_singleton::<BenchmarkService, _>(
                 &dep_name,
                 move || Ok(Arc::new(BenchmarkService::new(format!("dep_{}", i), 2)))
-            ).unwrap();
+            ).expect("service registration failed");
         }
         
         // Register service with dependencies
@@ -304,7 +304,7 @@ fn bench_dependency_injection(c: &mut Criterion) {
         container.register_singleton::<HeavyBenchmarkService, _>(
             "HeavyService",
             move || {
-                let rt = Runtime::new().unwrap();
+                let rt = Runtime::new().expect("failed to create Tokio runtime");
                 rt.block_on(async {
                     let mut deps = Vec::new();
                     for i in 0..5 {
@@ -312,13 +312,13 @@ fn bench_dependency_injection(c: &mut Criterion) {
                         let dep = container_ref
                             .resolve_named::<BenchmarkService>(&dep_name)
                             .await
-                            .unwrap();
+                            .expect("failed to resolve service");
                         deps.push(dep);
                     }
                     Ok(Arc::new(HeavyBenchmarkService::new(deps)))
                 })
             }
-        ).unwrap();
+        ).expect("service registration failed");
         
         Arc::new(container)
     });
@@ -326,7 +326,7 @@ fn bench_dependency_injection(c: &mut Criterion) {
     group.bench_function("resolve_with_dependencies", |b| {
         b.to_async(&rt).iter(|| async {
             let service = black_box(
-                container.resolve_named::<HeavyBenchmarkService>("HeavyService").await.unwrap()
+                container.resolve_named::<HeavyBenchmarkService>("HeavyService").await.expect("failed to resolve heavy service")
             );
             black_box(service.get_result());
         });
@@ -337,14 +337,14 @@ fn bench_dependency_injection(c: &mut Criterion) {
 
 // Benchmark memory allocation and cleanup
 fn bench_memory_management(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("failed to create Tokio runtime");
     
     let mut group = c.benchmark_group("memory_management");
     
     group.bench_function("container_lifecycle", |b| {
         b.to_async(&rt).iter(|| async {
-            let config = UnifiedDIConfiguration::test_config().unwrap();
-            let mut container = UnifiedDIContainer::new(config).await.unwrap();
+            let config = UnifiedDIConfiguration::test_config().expect("failed to create test config");
+            let mut container = UnifiedDIContainer::new(config).await.expect("failed to create container");
             
             // Register memory-intensive services
             for i in 0..10 {
@@ -352,7 +352,7 @@ fn bench_memory_management(c: &mut Criterion) {
                 container.register_singleton::<BenchmarkService, _>(
                     &service_name,
                     move || Ok(Arc::new(BenchmarkService::new(format!("memory_{}", i), 100))) // 100KB each
-                ).unwrap();
+                ).expect("service registration failed");
             }
             
             // Use services
@@ -361,12 +361,12 @@ fn bench_memory_management(c: &mut Criterion) {
                 let service = container
                     .resolve_named::<BenchmarkService>(&service_name)
                     .await
-                    .unwrap();
+                    .expect("failed to resolve service");
                 black_box(service.process_data());
             }
             
             // Cleanup
-            container.shutdown().await.unwrap();
+            container.shutdown().await.expect("failed to shutdown container");
         });
     });
     
@@ -375,13 +375,13 @@ fn bench_memory_management(c: &mut Criterion) {
 
 // Benchmark configuration validation performance
 fn bench_configuration_validation(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("failed to create Tokio runtime");
     
     let mut group = c.benchmark_group("configuration_validation");
     
     let configs = vec![
-        ("simple", UnifiedDIConfiguration::test_config().unwrap()),
-        ("complex", UnifiedDIConfiguration::production_config().unwrap()),
+        ("simple", UnifiedDIConfiguration::test_config().expect("failed to create test config")),
+        ("complex", UnifiedDIConfiguration::production_config().expect("failed to create production config")),
     ];
     
     for (config_name, config) in configs {
@@ -390,7 +390,7 @@ fn bench_configuration_validation(c: &mut Criterion) {
             &config,
             |b, config| {
                 b.iter(|| {
-                    let validation_result = black_box(config.validate().unwrap());
+                    let validation_result = black_box(config.validate().expect("config validation failed"));
                     black_box(validation_result.is_valid);
                 });
             },

@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use ai::{RerankingConfig, RerankingService};
 
 #[test]
@@ -36,12 +37,14 @@ fn test_reranker_mock() {
         gpu_config: None,
     };
 
-    let reranker = RerankingService::new(&config).unwrap();
+    let reranker = RerankingService::new(&config).expect("Test operation should succeed");
 
     let query = "machine learning";
     let documents = vec!["AI is great".to_string(), "Pizza is tasty".to_string()];
 
-    let results = reranker.rerank(query, &documents).unwrap();
+    let results = reranker
+        .rerank(query, &documents)
+        .expect("Test operation should succeed");
     assert_eq!(results.len(), 2);
     assert!(results[0].score >= 0.0 && results[0].score <= 1.0);
 }

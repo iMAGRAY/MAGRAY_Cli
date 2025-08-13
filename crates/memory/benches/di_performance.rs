@@ -68,7 +68,7 @@ impl DependentService {
 
 /// Создать тестовую конфигурацию
 fn create_test_config() -> MemoryServiceConfig {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let base_path = temp_dir.path().to_path_buf();
 
     MemoryServiceConfig {
@@ -101,7 +101,7 @@ fn bench_service_registration(c: &mut Criterion) {
                                 move |_| Ok(LightweightService::new(i_copy)),
                                 Lifetime::Singleton,
                             )
-                            .unwrap();
+                            .expect("Test operation should succeed");
                     }
 
                     black_box(container)
@@ -122,7 +122,7 @@ fn bench_service_registration(c: &mut Criterion) {
                         let i_copy = i;
                         container
                             .register(move |_| Ok(HeavyService::new(i_copy)), Lifetime::Singleton)
-                            .unwrap();
+                            .expect("Test operation should succeed");
                     }
 
                     black_box(container)
@@ -149,7 +149,7 @@ fn bench_service_resolution(c: &mut Criterion) {
                 move |_| Ok(LightweightService::new(i_copy)),
                 Lifetime::Singleton,
             )
-            .unwrap();
+            .expect("Test operation should succeed");
     }
 
     // Регистрируем heavy services
@@ -160,14 +160,15 @@ fn bench_service_resolution(c: &mut Criterion) {
                 move |_| Ok(HeavyService::new(i_copy + 1000)),
                 Lifetime::Transient, // Transient чтобы тестировать factory execution
             )
-            .unwrap();
+            .expect("Test operation should succeed");
     }
 
     // Benchmark singleton resolution (должен быть очень быстрый)
     group.bench_function("singleton_resolution", |b| {
         b.iter(|| {
             for i in 0..10 {
-                let service: Arc<LightweightService> = container.resolve().unwrap();
+                let service: Arc<LightweightService> =
+                    container.resolve().expect("Test operation should succeed");
                 black_box(service);
             }
         });
@@ -176,7 +177,8 @@ fn bench_service_resolution(c: &mut Criterion) {
     // Benchmark transient resolution (включает factory execution)
     group.bench_function("transient_resolution", |b| {
         b.iter(|| {
-            let service: Arc<HeavyService> = container.resolve().unwrap();
+            let service: Arc<HeavyService> =
+                container.resolve().expect("Test operation should succeed");
             black_box(service);
         });
     });
@@ -193,11 +195,11 @@ fn bench_dependency_chains(c: &mut Criterion) {
     // Регистрируем базовые сервисы
     container
         .register(|_| Ok(LightweightService::new(1)), Lifetime::Singleton)
-        .unwrap();
+        .expect("Test operation should succeed");
 
     container
         .register(|_| Ok(HeavyService::new(2)), Lifetime::Singleton)
-        .unwrap();
+        .expect("Test operation should succeed");
 
     // Регистрируем зависимый сервис
     container
@@ -209,11 +211,12 @@ fn bench_dependency_chains(c: &mut Criterion) {
             },
             Lifetime::Singleton,
         )
-        .unwrap();
+        .expect("Test operation should succeed");
 
     group.bench_function("dependency_chain_resolution", |b| {
         b.iter(|| {
-            let service: Arc<DependentService> = container.resolve().unwrap();
+            let service: Arc<DependentService> =
+                container.resolve().expect("Test operation should succeed");
             black_box(service);
         });
     });
@@ -221,11 +224,12 @@ fn bench_dependency_chains(c: &mut Criterion) {
     // Benchmark повторного разрешения (должен использовать кэш)
     group.bench_function("cached_dependency_resolution", |b| {
         // Первый resolve для создания кэша
-        let _: Arc<DependentService> = container.resolve().unwrap();
+        let _: Arc<DependentService> = container.resolve().expect("Test operation should succeed");
 
         b.iter(|| {
             for _ in 0..10 {
-                let service: Arc<DependentService> = container.resolve().unwrap();
+                let service: Arc<DependentService> =
+                    container.resolve().expect("Test operation should succeed");
                 black_box(service);
             }
         });
@@ -236,7 +240,7 @@ fn bench_dependency_chains(c: &mut Criterion) {
 
 /// Benchmark: Memory DI configuration (real-world scenario)
 fn bench_memory_di_configuration(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
     let mut group = c.benchmark_group("memory_di_config");
 
     group.bench_function("minimal_configuration", |b| {
@@ -245,7 +249,7 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
             let container =
                 memory::service_di_facade::UnifiedMemoryConfigurator::configure_minimal(config)
                     .await
-                    .unwrap();
+                    .expect("Test operation should succeed");
             black_box(container)
         });
     });
@@ -256,7 +260,7 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
             let container =
                 memory::service_di_facade::UnifiedMemoryConfigurator::configure_cpu_only(config)
                     .await
-                    .unwrap();
+                    .expect("Test operation should succeed");
             black_box(container)
         });
     });
@@ -267,7 +271,7 @@ fn bench_memory_di_configuration(c: &mut Criterion) {
             let container =
                 memory::service_di_facade::UnifiedMemoryConfigurator::configure_full(config)
                     .await
-                    .unwrap();
+                    .expect("Test operation should succeed");
             black_box(container)
         });
     });
@@ -289,7 +293,7 @@ fn bench_container_overhead(c: &mut Criterion) {
                 move |_| Ok(LightweightService::new(i_copy)),
                 Lifetime::Singleton,
             )
-            .unwrap();
+            .expect("Test operation should succeed");
     }
 
     group.bench_function("stats_calculation", |b| {
@@ -327,11 +331,11 @@ fn bench_concurrent_access(c: &mut Criterion) {
     // Регистрируем сервисы
     container
         .register(|_| Ok(LightweightService::new(42)), Lifetime::Singleton)
-        .unwrap();
+        .expect("Test operation should succeed");
 
     container
         .register(|_| Ok(HeavyService::new(84)), Lifetime::Transient)
-        .unwrap();
+        .expect("Test operation should succeed");
 
     group.bench_function("concurrent_singleton_resolution", |b| {
         b.iter(|| {
@@ -339,14 +343,16 @@ fn bench_concurrent_access(c: &mut Criterion) {
                 .map(|_| {
                     let container_clone = Arc::clone(&container);
                     std::thread::spawn(move || {
-                        let service: Arc<LightweightService> = container_clone.resolve().unwrap();
+                        let service: Arc<LightweightService> = container_clone
+                            .resolve()
+                            .expect("Test operation should succeed");
                         black_box(service);
                     })
                 })
                 .collect();
 
             for handle in handles {
-                handle.join().unwrap();
+                handle.join().expect("Test operation should succeed");
             }
         });
     });
@@ -357,14 +363,16 @@ fn bench_concurrent_access(c: &mut Criterion) {
                 .map(|_| {
                     let container_clone = Arc::clone(&container);
                     std::thread::spawn(move || {
-                        let service: Arc<HeavyService> = container_clone.resolve().unwrap();
+                        let service: Arc<HeavyService> = container_clone
+                            .resolve()
+                            .expect("Test operation should succeed");
                         black_box(service);
                     })
                 })
                 .collect();
 
             for handle in handles {
-                handle.join().unwrap();
+                handle.join().expect("Test operation should succeed");
             }
         });
     });
@@ -380,17 +388,17 @@ fn bench_builder_pattern(c: &mut Criterion) {
         b.iter(|| {
             let container = DIContainerBuilder::new()
                 .register_singleton(|_| Ok(LightweightService::new(1)))
-                .unwrap()
+                .expect("Test operation should succeed")
                 .register_singleton(|_| Ok(HeavyService::new(2)))
-                .unwrap()
+                .expect("Test operation should succeed")
                 .register_transient(|container| {
                     let lightweight = container.resolve::<LightweightService>()?;
                     let heavy = container.resolve::<HeavyService>()?;
                     Ok(DependentService::new(lightweight, heavy))
                 })
-                .unwrap()
+                .expect("Test operation should succeed")
                 .build()
-                .unwrap();
+                .expect("Test operation should succeed");
 
             black_box(container);
         });

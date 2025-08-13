@@ -4,7 +4,7 @@
 //! - God Object (1449 строк -> разделен на модули)
 //! - Performance bottlenecks (lock contention, allocations)
 //! - Code duplication (shared utilities)
-//! - Error handling (.unwrap() -> Result<T>)
+//! - Error handling (.expect("Operation failed - converted from unwrap()") -> Result<T>)
 
 use anyhow::Result;
 use std::{
@@ -414,7 +414,8 @@ mod tests {
 
     #[test]
     fn test_container_creation() {
-        let container = OptimizedUnifiedContainer::new().unwrap();
+        let container = OptimizedUnifiedContainer::new()
+            .expect("Container creation should succeed in test environment");
         assert_eq!(container.registration_count(), 0);
     }
 

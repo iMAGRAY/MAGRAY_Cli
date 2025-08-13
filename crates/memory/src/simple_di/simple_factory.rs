@@ -191,7 +191,7 @@ mod tests {
     fn test_simple_factory() {
         let factory = SimpleServiceFactory::create_simple(|| Ok(TestService::new(123)));
 
-        let service = factory().unwrap();
+        let service = factory().expect("Simple factory operation should succeed");
         assert_eq!(service.value, 123);
     }
 
@@ -200,14 +200,14 @@ mod tests {
         let container = DIContainer::new();
         container
             .register_singleton(|| Ok(TestService::new(10)))
-            .unwrap();
+            .expect("Simple factory operation should succeed");
 
         let factory = SimpleServiceFactory::create_with_dependency(
             container.clone(),
             |dep: Arc<TestService>| Ok(DependentService::new(dep, 5)),
         );
 
-        let service = factory().unwrap();
+        let service = factory().expect("Simple factory operation should succeed");
         assert_eq!(service.get_value(), 50); // 10 * 5
     }
 
@@ -218,25 +218,25 @@ mod tests {
         // Регистрируем два сервиса как зависимости
         container
             .register_singleton(|| Ok(TestService::new(3)))
-            .unwrap();
+            .expect("Simple factory operation should succeed");
 
         container
             .register_singleton(|| Ok(7_i32)) // Простое число как вторая зависимость
-            .unwrap();
+            .expect("Simple factory operation should succeed");
 
         let factory = SimpleServiceFactory::create_with_two_dependencies(
             container.clone(),
             |dep1: Arc<TestService>, dep2: Arc<i32>| Ok(DependentService::new(dep1, *dep2)),
         );
 
-        let service = factory().unwrap();
+        let service = factory().expect("Simple factory operation should succeed");
         assert_eq!(service.get_value(), 21); // 3 * 7
     }
 
     #[test]
     fn test_simple_factory_macro() {
         let factory = simple_factory!(TestService, TestService::new(99));
-        let service = factory().unwrap();
+        let service = factory().expect("Simple factory operation should succeed");
         assert_eq!(service.value, 99);
     }
 
@@ -245,13 +245,13 @@ mod tests {
         let container = DIContainer::new();
         container
             .register_singleton(|| Ok(TestService::new(15)))
-            .unwrap();
+            .expect("Simple factory operation should succeed");
 
         let factory = simple_factory!(DependentService, TestService, container, |dep| {
             DependentService::new(dep, 3)
         });
 
-        let service = factory().unwrap();
+        let service = factory().expect("Simple factory operation should succeed");
         assert_eq!(service.get_value(), 45); // 15 * 3
     }
 
@@ -259,24 +259,24 @@ mod tests {
     fn test_common_factories() {
         // Default factory
         let default_factory = CommonFactories::default_factory::<TestService>();
-        let service = default_factory().unwrap();
+        let service = default_factory().expect("Simple factory operation should succeed");
         assert_eq!(service.value, 42);
 
         // Clone factory
         let prototype = TestService::new(88);
         let clone_factory = CommonFactories::clone_factory(prototype);
-        let service = clone_factory().unwrap();
+        let service = clone_factory().expect("Simple factory operation should succeed");
         assert_eq!(service.value, 88);
 
         // Arc factory
         let arc_instance = Arc::new(TestService::new(77));
         let arc_factory = CommonFactories::arc_factory(arc_instance);
-        let service = arc_factory().unwrap();
+        let service = arc_factory().expect("Simple factory operation should succeed");
         assert_eq!(service.value, 77);
 
         // Lazy factory
         let lazy_factory = CommonFactories::lazy_factory(|| Ok(TestService::new(66)));
-        let service = lazy_factory().unwrap();
+        let service = lazy_factory().expect("Simple factory operation should succeed");
         assert_eq!(service.value, 66);
     }
 
@@ -300,7 +300,7 @@ mod tests {
         // Регистрируем базовый сервис
         container
             .register_singleton(|| Ok(TestService::new(5)))
-            .unwrap();
+            .expect("Simple factory operation should succeed");
 
         // Создаем несколько уровней зависимостей
         let factory1 = SimpleServiceFactory::create_with_dependency(
@@ -308,7 +308,7 @@ mod tests {
             |dep: Arc<TestService>| Ok(DependentService::new(dep, 2)),
         );
 
-        container.register_singleton(factory1).unwrap();
+        container.register_singleton(factory1).expect("Simple factory operation should succeed");
 
         // Еще один сервис, который зависит от DependentService
         let factory2 = SimpleServiceFactory::create_with_dependency(
@@ -316,9 +316,9 @@ mod tests {
             |dep: Arc<DependentService>| Ok(format!("Result: {}", dep.get_value())),
         );
 
-        container.register_singleton(factory2).unwrap();
+        container.register_singleton(factory2).expect("Simple factory operation should succeed");
 
-        let final_result = container.resolve::<String>().unwrap();
+        let final_result = container.resolve::<String>().expect("Simple factory operation should succeed");
         assert_eq!(*final_result, "Result: 10"); // 5 * 2
     }
 }

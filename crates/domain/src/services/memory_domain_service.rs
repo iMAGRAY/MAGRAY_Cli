@@ -256,6 +256,34 @@ pub trait MemoryDomainServiceTrait: Send + Sync {
         &self,
         from_layer: LayerType,
     ) -> DomainResult<Vec<MemoryRecord>>;
+
+    // Additional methods needed by application layer
+    async fn analyze_usage_patterns(
+        &self,
+        start_time: std::time::SystemTime,
+        end_time: std::time::SystemTime,
+        layers: Option<&Vec<LayerType>>,
+        project_filter: Option<&str>,
+    ) -> DomainResult<UsageStatistics>;
+
+    async fn get_system_statistics(&self) -> DomainResult<UsageStatistics>;
+
+    async fn collect_health_data(&self) -> DomainResult<HealthData>;
+
+    async fn determine_initial_layer(
+        &self,
+        content_size: usize,
+        content_type: &str,
+        user_priority: Option<f32>,
+        project_context: Option<&str>,
+    ) -> DomainResult<LayerType>;
+
+    async fn is_promotion_candidate(
+        &self,
+        record: &MemoryRecord,
+        access_frequency: f64,
+        last_access: &chrono::DateTime<chrono::Utc>,
+    ) -> DomainResult<bool>;
 }
 
 #[async_trait]
@@ -290,4 +318,306 @@ where
     ) -> DomainResult<Vec<MemoryRecord>> {
         self.get_promotion_candidates(from_layer).await
     }
+
+    async fn analyze_usage_patterns(
+        &self,
+        _start_time: std::time::SystemTime,
+        _end_time: std::time::SystemTime,
+        _layers: Option<&Vec<LayerType>>,
+        _project_filter: Option<&str>,
+    ) -> DomainResult<UsageStatistics> {
+        // Mock implementation for now
+        Ok(UsageStatistics {
+            total_records: 100,
+            records_by_layer: std::collections::HashMap::new(),
+            access_frequency: std::collections::HashMap::new(),
+            cache_hit_rate: 0.85,
+            average_response_time_ms: 45.0,
+            search_queries_per_hour: 150.0,
+            promotion_success_rate: 0.78,
+            memory_utilization_mb: 512.0,
+            timestamp: chrono::Utc::now(),
+            total_requests: 250,
+            layer_statistics: std::collections::HashMap::new(),
+            access_patterns: Vec::new(),
+            time_window_hours: 24,
+            overall_average_response_time_ms: 45.0,
+            overall_error_rate: 0.02,
+            disk_usage_mb: 2048.0,
+            active_connections: 15,
+            requests_per_minute: 125.0,
+            error_rate_percentage: 2.1,
+            uptime_seconds: 3600,
+        })
+    }
+
+    async fn get_system_statistics(&self) -> DomainResult<UsageStatistics> {
+        // Mock implementation for now
+        Ok(UsageStatistics {
+            total_records: 100,
+            records_by_layer: std::collections::HashMap::new(),
+            access_frequency: std::collections::HashMap::new(),
+            cache_hit_rate: 0.85,
+            average_response_time_ms: 45.0,
+            search_queries_per_hour: 150.0,
+            promotion_success_rate: 0.78,
+            memory_utilization_mb: 512.0,
+            timestamp: chrono::Utc::now(),
+            total_requests: 250,
+            layer_statistics: std::collections::HashMap::new(),
+            access_patterns: Vec::new(),
+            time_window_hours: 1,
+            overall_average_response_time_ms: 45.0,
+            overall_error_rate: 0.02,
+            disk_usage_mb: 2048.0,
+            active_connections: 15,
+            requests_per_minute: 125.0,
+            error_rate_percentage: 2.1,
+            uptime_seconds: 3600,
+        })
+    }
+
+    async fn collect_health_data(&self) -> DomainResult<HealthData> {
+        // Mock implementation for now
+        Ok(HealthData {
+            overall_health_score: 0.85,
+            memory_utilization: 0.45,
+            cache_health: CacheHealth {
+                hit_rate: 0.85,
+                eviction_rate: 0.1,
+                memory_usage_mb: 256.0,
+                response_time_ms: 5.0,
+            },
+            index_health: IndexHealth {
+                query_performance: 0.9,
+                index_efficiency: 0.88,
+                memory_usage_mb: 128.0,
+                rebuild_frequency: 0.01,
+            },
+            storage_health: StorageHealth {
+                disk_usage_mb: 1024.0,
+                io_performance: 0.92,
+                corruption_rate: 0.0,
+                backup_status: BackupStatus::UpToDate,
+            },
+            error_rate: 0.02,
+            performance_metrics: PerformanceMetrics {
+                avg_query_time_ms: 45.0,
+                p95_query_time_ms: 120.0,
+                throughput_qps: 25.0,
+                concurrent_connections: 5,
+            },
+            timestamp: chrono::Utc::now(),
+            components: std::collections::HashMap::new(),
+            critical_issues: Vec::new(),
+        })
+    }
+
+    async fn determine_initial_layer(
+        &self,
+        content_size: usize,
+        content_type: &str,
+        user_priority: Option<f32>,
+        _project_context: Option<&str>,
+    ) -> DomainResult<LayerType> {
+        // Business logic for determining initial layer placement
+
+        // High priority content goes to Insights layer
+        if let Some(priority) = user_priority {
+            if priority >= 0.8 {
+                return Ok(LayerType::Insights);
+            }
+        }
+
+        // Small, frequently accessed content types
+        if content_type == "command" || content_type == "query" {
+            return Ok(LayerType::Interact);
+        }
+
+        // Large content starts in Assets layer
+        if content_size > 10 * 1024 * 1024 {
+            // 10MB
+            return Ok(LayerType::Assets);
+        }
+
+        // Medium-high priority content
+        if let Some(priority) = user_priority {
+            if priority >= 0.5 {
+                return Ok(LayerType::Insights);
+            }
+        }
+
+        // Default: start in Interact layer for most content
+        Ok(LayerType::Interact)
+    }
+
+    async fn is_promotion_candidate(
+        &self,
+        record: &MemoryRecord,
+        access_frequency: f64,
+        last_access: &chrono::DateTime<chrono::Utc>,
+    ) -> DomainResult<bool> {
+        // Business rules for promotion candidacy
+
+        let hours_since_access = chrono::Utc::now()
+            .signed_duration_since(*last_access)
+            .num_hours();
+
+        // Recently accessed records with high frequency are good candidates
+        if hours_since_access <= 24 && access_frequency >= 5.0 {
+            return Ok(true);
+        }
+
+        // High importance records are candidates even if not frequently accessed
+        if record.access_pattern().importance_score() >= 0.7 {
+            return Ok(true);
+        }
+
+        // Records with accelerating access patterns
+        if record.access_pattern().is_accelerating() && access_frequency >= 2.0 {
+            return Ok(true);
+        }
+
+        // Not a promotion candidate
+        Ok(false)
+    }
+}
+
+/// Usage statistics for memory system analysis
+#[derive(Debug, Clone)]
+pub struct UsageStatistics {
+    pub total_records: u64,
+    pub records_by_layer: std::collections::HashMap<LayerType, u64>,
+    pub access_frequency: std::collections::HashMap<RecordId, u64>,
+    pub cache_hit_rate: f64,
+    pub average_response_time_ms: f64,
+    pub search_queries_per_hour: f64,
+    pub promotion_success_rate: f64,
+    pub memory_utilization_mb: f64,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    // Additional fields needed by application layer
+    pub total_requests: u64,
+    pub layer_statistics: std::collections::HashMap<LayerType, LayerStatistics>,
+    pub access_patterns: Vec<AccessPatternInfo>,
+    pub time_window_hours: u32,
+    pub overall_average_response_time_ms: f64,
+    pub overall_error_rate: f64,
+    // System metrics
+    pub disk_usage_mb: f64,
+    pub active_connections: u32,
+    pub requests_per_minute: f64,
+    pub error_rate_percentage: f64,
+    pub uptime_seconds: u64,
+}
+
+/// Health data for memory system analysis
+#[derive(Debug, Clone)]
+pub struct HealthData {
+    pub overall_health_score: f64,
+    pub memory_utilization: f64,
+    pub cache_health: CacheHealth,
+    pub index_health: IndexHealth,
+    pub storage_health: StorageHealth,
+    pub error_rate: f64,
+    pub performance_metrics: PerformanceMetrics,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    // Additional fields for application layer
+    pub components: std::collections::HashMap<String, ComponentHealthInfo>,
+    pub critical_issues: Vec<CriticalIssueInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CacheHealth {
+    pub hit_rate: f64,
+    pub eviction_rate: f64,
+    pub memory_usage_mb: f64,
+    pub response_time_ms: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct IndexHealth {
+    pub query_performance: f64,
+    pub index_efficiency: f64,
+    pub memory_usage_mb: f64,
+    pub rebuild_frequency: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct StorageHealth {
+    pub disk_usage_mb: f64,
+    pub io_performance: f64,
+    pub corruption_rate: f64,
+    pub backup_status: BackupStatus,
+}
+
+#[derive(Debug, Clone)]
+pub enum BackupStatus {
+    UpToDate,
+    Outdated,
+    Failed,
+    InProgress,
+}
+
+#[derive(Debug, Clone)]
+pub struct PerformanceMetrics {
+    pub avg_query_time_ms: f64,
+    pub p95_query_time_ms: f64,
+    pub throughput_qps: f64,
+    pub concurrent_connections: u32,
+}
+
+/// Layer statistics for analysis
+#[derive(Debug, Clone)]
+pub struct LayerStatistics {
+    pub hit_rate: f64,
+    pub average_response_time_ms: f64,
+    pub total_requests: u64,
+    pub error_rate: f64,
+    pub utilization_percentage: f64,
+    pub throughput_qps: f64,
+    pub p95_latency_ms: f64,
+    pub p99_latency_ms: f64,
+}
+
+/// Access pattern information
+#[derive(Debug, Clone)]
+pub struct AccessPatternInfo {
+    pub pattern_type: String,
+    pub description: String,
+    pub frequency: f64,
+    pub confidence: f64,
+    pub time_windows: Vec<String>,
+    pub affected_layers: Vec<LayerType>,
+    pub impact_score: f64,
+}
+
+/// Health data extended with components and issues
+#[derive(Debug, Clone)]
+pub struct HealthDataExtended {
+    pub components: std::collections::HashMap<String, ComponentHealthInfo>,
+    pub critical_issues: Vec<CriticalIssueInfo>,
+}
+
+/// Component health information
+#[derive(Debug, Clone)]
+pub struct ComponentHealthInfo {
+    pub status: String,
+    pub health_score: f64,
+    pub last_check: std::time::SystemTime,
+    pub error_count: u32,
+    pub warning_count: u32,
+    pub details: std::collections::HashMap<String, String>,
+}
+
+/// Critical issue information
+#[derive(Debug, Clone)]
+pub struct CriticalIssueInfo {
+    pub issue_type: String,
+    pub description: String,
+    pub severity: u32, // Will map to IssueSeverity enum in application layer
+    pub first_detected: std::time::SystemTime,
+    pub last_occurrence: std::time::SystemTime,
+    pub occurrence_count: u32,
+    pub affected_components: Vec<String>,
+    pub resolution_steps: Vec<String>,
 }

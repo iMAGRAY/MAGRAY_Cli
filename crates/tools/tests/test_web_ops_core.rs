@@ -9,7 +9,7 @@ use tools::{Tool, ToolInput};
 
 #[tokio::test]
 async fn web_fetch_file_scheme_reads_content() -> Result<()> {
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("Test operation should succeed");
     let file_path = tmp.path().join("sample.txt");
     fs::write(&file_path, b"hello world")?;
     let url = format!("file://{}", file_path.display());
@@ -27,7 +27,7 @@ async fn web_fetch_file_scheme_reads_content() -> Result<()> {
     assert!(out
         .formatted_output
         .as_ref()
-        .unwrap()
+        .expect("Test operation should succeed")
         .contains("hello world"));
     assert_eq!(out.metadata.get("source").map(|s| s.as_str()), Some("file"));
     Ok(())
@@ -47,7 +47,11 @@ async fn web_fetch_data_url_decodes() -> Result<()> {
     };
     let out = fetch.execute(input).await?;
     assert!(out.success);
-    assert!(out.formatted_output.as_ref().unwrap().contains("hello"));
+    assert!(out
+        .formatted_output
+        .as_ref()
+        .expect("Test operation should succeed")
+        .contains("hello"));
     assert_eq!(out.metadata.get("source").map(|s| s.as_str()), Some("data"));
     Ok(())
 }
@@ -85,7 +89,7 @@ async fn web_search_dry_run_reports_provider() -> Result<()> {
     assert!(out2
         .metadata
         .get("provider")
-        .unwrap()
+        .expect("Test operation should succeed")
         .contains("DuckDuckGo"));
     Ok(())
 }

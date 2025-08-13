@@ -224,27 +224,36 @@ mod tests {
 
     #[test]
     fn test_model_registry() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
         let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
         // Проверяем модели по умолчанию
         let default_embedding = registry.get_default_model(ModelType::Embedding);
         assert!(default_embedding.is_some());
-        assert_eq!(default_embedding.unwrap().name, "qwen3emb");
+        assert_eq!(
+            default_embedding.expect("Operation should succeed").name,
+            "qwen3emb"
+        );
 
         let default_reranker = registry.get_default_model(ModelType::Reranker);
         assert!(default_reranker.is_some());
-        assert_eq!(default_reranker.unwrap().name, "qwen3_reranker");
+        assert_eq!(
+            default_reranker.expect("Operation should succeed").name,
+            "qwen3_reranker"
+        );
 
         // Проверяем получение информации о модели
         let qwen3_info = registry.get_model_info("qwen3emb");
         assert!(qwen3_info.is_some());
-        assert_eq!(qwen3_info.unwrap().embedding_dim, 1024);
+        assert_eq!(
+            qwen3_info.expect("Operation should succeed").embedding_dim,
+            1024
+        );
     }
 
     #[test]
     fn test_model_availability() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
         let registry = ModelRegistry::new(temp_dir.path().to_path_buf());
 
         // Модель не должна быть доступна без файлов
@@ -252,9 +261,9 @@ mod tests {
 
         // Создаём файлы модели
         let model_dir = temp_dir.path().join("qwen3emb");
-        std::fs::create_dir_all(&model_dir).unwrap();
-        std::fs::write(model_dir.join("model.onnx"), b"dummy").unwrap();
-        std::fs::write(model_dir.join("tokenizer.json"), b"{}").unwrap();
+        std::fs::create_dir_all(&model_dir).expect("Operation should succeed");
+        std::fs::write(model_dir.join("model.onnx"), b"dummy").expect("Operation should succeed");
+        std::fs::write(model_dir.join("tokenizer.json"), b"{}").expect("Operation should succeed");
 
         // Теперь модель должна быть доступна
         assert!(registry.is_model_available("qwen3emb"));

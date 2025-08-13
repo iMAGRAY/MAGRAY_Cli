@@ -467,7 +467,7 @@ mod tests {
         let result = UnifiedMemoryConfigurator::configure_cpu_only(&config).await;
         assert!(result.is_ok());
 
-        let container = result.unwrap();
+        let container = result.expect("Operation failed - converted from unwrap()");
         assert!(container.registration_count() > 0);
     }
 
@@ -476,12 +476,12 @@ mod tests {
         let config = MemoryServiceConfig::minimal_for_tests();
         let container = UnifiedMemoryConfigurator::configure_minimal(&config)
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         let validation_result = UnifiedMemoryConfigurator::validate_configuration(&container).await;
         assert!(validation_result.is_ok());
 
-        let report = validation_result.unwrap();
+        let report = validation_result.expect("Operation failed - converted from unwrap()");
         assert!(report.contains("Validation Report"));
         assert!(report.contains("компонентов"));
     }

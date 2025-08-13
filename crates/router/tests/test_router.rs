@@ -1,11 +1,11 @@
-use llm::{LlmClient, LlmProvider};
+use llm::{LegacyLlmProvider, LlmClient};
 use router::{ActionPlan, PlannedAction, SmartRouter};
 use std::collections::HashMap;
 
 // Helper функция для создания тестового LLM клиента
 fn create_test_llm_client() -> LlmClient {
     LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -89,13 +89,14 @@ fn test_action_plan_serialization() {
     };
 
     // Сериализация в JSON
-    let json = serde_json::to_string(&plan).unwrap();
+    let json = serde_json::to_string(&plan).expect("Test operation should succeed");
     assert!(json.contains("Test serialization"));
     assert!(json.contains("0.95"));
     assert!(json.contains("test_tool"));
 
     // Десериализация обратно
-    let deserialized: ActionPlan = serde_json::from_str(&json).unwrap();
+    let deserialized: ActionPlan =
+        serde_json::from_str(&json).expect("Test operation should succeed");
     assert_eq!(deserialized.reasoning, plan.reasoning);
     assert_eq!(deserialized.confidence, plan.confidence);
     assert_eq!(deserialized.steps.len(), plan.steps.len());
@@ -170,7 +171,9 @@ fn test_format_results_empty() {
     };
 
     let results = vec![];
-    let formatted = router.format_results(&plan, &results).unwrap();
+    let formatted = router
+        .format_results(&plan, &results)
+        .expect("Test operation should succeed");
 
     assert!(formatted.contains("Empty plan"));
     assert!(formatted.contains("0 действий"));
@@ -201,7 +204,9 @@ fn test_format_results_with_data() {
         metadata: HashMap::new(),
     }];
 
-    let formatted = router.format_results(&plan, &results).unwrap();
+    let formatted = router
+        .format_results(&plan, &results)
+        .expect("Test operation should succeed");
 
     assert!(formatted.contains("Execute test plan"));
     assert!(formatted.contains("First test action"));

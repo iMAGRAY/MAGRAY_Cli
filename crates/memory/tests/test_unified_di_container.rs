@@ -5,7 +5,7 @@
 //! Этот файл содержит полный набор тестов для валидации
 //! унифицированного DI контейнера, включая:
 //! - SOLID principles compliance
-//! - Error handling без .unwrap() calls  
+//! - Error handling без .expect("Test operation should succeed") calls  
 //! - Performance metrics
 //! - Backward compatibility
 //! - Thread safety

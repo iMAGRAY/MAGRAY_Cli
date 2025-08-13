@@ -25,5 +25,11 @@ num_cpus = "1.16"
 rand = "0.8"
 dirs = "5"
 
+# CRITICAL SECURITY: whoami for emergency policy disable logging
+whoami = "1.5"
+
+# CRITICAL P0.2.6: EventBus integration for production audit logging
+magray-core = { path = "../core", package = "core" }
+
 [dev-dependencies]
 tempfile = { workspace = true }

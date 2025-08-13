@@ -3,8 +3,8 @@
 //! Определяет все ошибки Application Layer с четкой категоризацией
 //! и mapping на Domain Layer errors.
 
-use thiserror::Error;
 use domain::errors::DomainError;
+use thiserror::Error;
 
 /// Основные ошибки Application Layer
 #[derive(Debug, Error)]
@@ -19,7 +19,10 @@ pub enum ApplicationError {
 
     /// Infrastructure errors (port implementations)
     #[error("Infrastructure error: {message}")]
-    Infrastructure { message: String, source: Option<Box<dyn std::error::Error + Send + Sync>> },
+    Infrastructure {
+        message: String,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
 
     /// Resource not found
     #[error("Resource not found: {resource_type} with ID '{id}'")]
@@ -53,14 +56,16 @@ pub enum ApplicationError {
 impl ApplicationError {
     /// Create validation error
     pub fn validation<S: Into<String>>(message: S) -> Self {
-        Self::Validation { message: message.into() }
+        Self::Validation {
+            message: message.into(),
+        }
     }
 
     /// Create infrastructure error with source
     pub fn infrastructure<S: Into<String>>(message: S) -> Self {
-        Self::Infrastructure { 
-            message: message.into(), 
-            source: None 
+        Self::Infrastructure {
+            message: message.into(),
+            source: None,
         }
     }
 
@@ -69,33 +74,44 @@ impl ApplicationError {
     where
         E: std::error::Error + Send + Sync + 'static,
     {
-        Self::Infrastructure { 
-            message: message.into(), 
-            source: Some(Box::new(source))
+        Self::Infrastructure {
+            message: message.into(),
+            source: Some(Box::new(source)),
         }
     }
 
     /// Create not found error
     pub fn not_found<R: Into<String>, I: Into<String>>(resource_type: R, id: I) -> Self {
-        Self::NotFound { 
-            resource_type: resource_type.into(), 
-            id: id.into() 
+        Self::NotFound {
+            resource_type: resource_type.into(),
+            id: id.into(),
         }
     }
 
     /// Create conflict error
     pub fn conflict<S: Into<String>>(message: S) -> Self {
-        Self::Conflict { message: message.into() }
+        Self::Conflict {
+            message: message.into(),
+        }
     }
 
     /// Create access denied error
     pub fn access_denied<S: Into<String>>(message: S) -> Self {
-        Self::AccessDenied { message: message.into() }
+        Self::AccessDenied {
+            message: message.into(),
+        }
+    }
+
+    /// Create business logic error (alias for validation)
+    pub fn business_logic<S: Into<String>>(message: S) -> Self {
+        Self::validation(message)
     }
 
     /// Create timeout error
     pub fn timeout<S: Into<String>>(operation: S) -> Self {
-        Self::Timeout { operation: operation.into() }
+        Self::Timeout {
+            operation: operation.into(),
+        }
     }
 
     /// Check if error is retryable
@@ -124,5 +140,12 @@ impl ApplicationError {
             Self::Timeout { .. } => "timeout",
             Self::Configuration { .. } => "configuration",
         }
+    }
+}
+
+/// Convert serde_json errors to ApplicationError
+impl From<serde_json::Error> for ApplicationError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::infrastructure_with_source("JSON serialization/deserialization error", error)
     }
 }

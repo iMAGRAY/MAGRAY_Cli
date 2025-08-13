@@ -549,7 +549,7 @@ async fn test_graceful_degradation() -> Result<()> {
         ).await;
         
         let operation_duration = operation_start.elapsed();
-        let success = result.is_ok() && result.unwrap().is_ok();
+        let success = result.is_ok() && result.expect("Test operation should succeed").is_ok();
         let latency = operation_duration.as_micros() as f64 / 1000.0;
         
         degraded_operations.push((success, latency));

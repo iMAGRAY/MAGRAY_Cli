@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use llm::{LlmClient, LlmProvider};
+use llm::{LegacyLlmProvider, LlmClient};
 use router::{ActionPlan, PlannedAction, SmartRouter};
 use std::collections::HashMap;
 use tools::{Tool, ToolInput, ToolOutput, ToolRegistry, ToolSpec};
@@ -55,7 +55,7 @@ impl Tool for MockTool {
 #[allow(dead_code)]
 async fn create_test_router_with_tools() -> (SmartRouter, ToolRegistry) {
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -89,7 +89,7 @@ async fn create_test_router_with_tools() -> (SmartRouter, ToolRegistry) {
 #[tokio::test]
 async fn test_execute_plan_success() {
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -119,7 +119,7 @@ async fn test_execute_plan_success() {
 #[tokio::test]
 async fn test_execute_plan_empty() {
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -138,7 +138,7 @@ async fn test_execute_plan_empty() {
 
     let result = router.execute_plan(&plan).await;
     assert!(result.is_ok());
-    assert_eq!(result.unwrap().len(), 0);
+    assert_eq!(result.expect("Test operation should succeed").len(), 0);
 }
 
 #[tokio::test]
@@ -146,7 +146,7 @@ async fn test_analyze_and_plan_conversion() {
     // Этот тест проверяет что analyze_and_plan корректно конвертирует
     // результат из ActionPlannerAgent в наш ActionPlan
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -167,7 +167,7 @@ async fn test_analyze_and_plan_conversion() {
 #[tokio::test]
 async fn test_process_single_tool_request_no_tools() {
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -187,7 +187,7 @@ async fn test_process_single_tool_request_no_tools() {
 #[tokio::test]
 async fn test_process_smart_request_simple() {
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -207,7 +207,7 @@ async fn test_process_smart_request_simple() {
 #[test]
 fn test_extract_required_params_complex_schema() {
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -236,7 +236,7 @@ fn test_extract_required_params_complex_schema() {
 #[test]
 fn test_format_results_mixed_success() {
     let llm_client = LlmClient::new(
-        LlmProvider::OpenAI {
+        LegacyLlmProvider::OpenAI {
             api_key: "test-key".to_string(),
             model: "gpt-4o-mini".to_string(),
         },
@@ -280,7 +280,9 @@ fn test_format_results_mixed_success() {
         },
     ];
 
-    let formatted = router.format_results(&plan, &results).unwrap();
+    let formatted = router
+        .format_results(&plan, &results)
+        .expect("Test operation should succeed");
 
     assert!(formatted.contains("Mixed results test"));
     assert!(formatted.contains("[✓]")); // Success marker

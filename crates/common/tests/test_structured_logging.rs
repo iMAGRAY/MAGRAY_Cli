@@ -113,7 +113,7 @@ fn test_structured_log_entry_serialization() {
         performance: None,
     };
 
-    let json = serde_json::to_string(&entry).unwrap();
+    let json = serde_json::to_string(&entry).expect("Test operation should succeed");
     assert!(json.contains("ERROR"));
     assert!(json.contains("Error occurred"));
     assert!(json.contains("2024-01-01T00:00:00Z"));
@@ -141,7 +141,13 @@ fn test_structured_log_entry_with_context() {
     };
 
     assert!(entry.context.is_some());
-    assert_eq!(entry.context.unwrap().app_version, "2.0.0");
+    assert_eq!(
+        entry
+            .context
+            .expect("Test operation should succeed")
+            .app_version,
+        "2.0.0"
+    );
 }
 
 #[test]
@@ -156,7 +162,7 @@ fn test_performance_metrics_partial() {
     };
 
     // Serialize and check that None fields are omitted
-    let json = serde_json::to_value(&metrics).unwrap();
+    let json = serde_json::to_value(&metrics).expect("Test operation should succeed");
     assert!(json.get("duration_ms").is_some());
     assert!(json.get("cpu_usage_percent").is_some());
     assert!(json.get("cache_hits").is_some());

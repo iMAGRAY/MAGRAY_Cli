@@ -438,7 +438,7 @@ mod tests {
         let stats = monitor.get_stats();
         assert!(stats.patterns.is_some());
         
-        let patterns = stats.patterns.unwrap();
+        let patterns = stats.patterns.expect("Operation failed - converted from unwrap()");
         assert!(!patterns.recurring_errors.is_empty());
     }
 }

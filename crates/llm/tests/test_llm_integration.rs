@@ -58,7 +58,10 @@ async fn test_end_to_end_chat_workflow() {
 
     // Step 1: Analyze intent
     let intent_analyzer = IntentAnalyzerAgent::new(client.clone());
-    let intent_result = intent_analyzer.analyze_intent(user_query).await.unwrap();
+    let intent_result = intent_analyzer
+        .analyze_intent(user_query)
+        .await
+        .expect("Test operation should succeed");
     assert_eq!(intent_result.action_type, "tool");
 
     // Step 2: Select appropriate tool
@@ -67,7 +70,7 @@ async fn test_end_to_end_chat_workflow() {
     let tool_result = tool_selector
         .select_tool(user_query, &available_tools)
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert_eq!(tool_result.tool_name, "file");
 
     // Step 3: Extract parameters
@@ -76,7 +79,7 @@ async fn test_end_to_end_chat_workflow() {
     let param_result = param_extractor
         .extract_parameters(user_query, &tool_result.tool_name, &required_params)
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert!(param_result.parameters.contains_key("file_path"));
     assert_eq!(param_result.parameters["file_path"], "data.json");
 
@@ -111,7 +114,7 @@ async fn test_multi_step_planning_workflow() {
     let plan = planner
         .create_plan(complex_query, &available_tools)
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
 
     assert_eq!(plan.steps.len(), 3);
     assert!(plan.confidence > 0.8);
@@ -164,14 +167,14 @@ async fn test_conversational_vs_task_routing() {
     let chat_result = analyzer
         .analyze_intent("How's the weather today?")
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert_eq!(chat_result.action_type, "chat");
 
     // Test task-oriented query
     let task_result = analyzer
         .analyze_intent("delete old log files")
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert_eq!(task_result.action_type, "tool");
 
     chat_mock.assert_async().await;
@@ -221,7 +224,12 @@ async fn test_error_recovery_workflow() {
         .select_tool("test query", &available_tools)
         .await;
     assert!(second_result.is_ok());
-    assert_eq!(second_result.unwrap().tool_name, "file");
+    assert_eq!(
+        second_result
+            .expect("Test operation should succeed")
+            .tool_name,
+        "file"
+    );
 
     error_mock.assert_async().await;
     success_mock.assert_async().await;
@@ -300,7 +308,10 @@ async fn test_provider_switching_workflow() {
 
     // Test OpenAI provider
     let request = CompletionRequest::new("Test query");
-    let response = openai_client.complete(request).await.unwrap();
+    let response = openai_client
+        .complete(request)
+        .await
+        .expect("Test operation should succeed");
     assert_eq!(response, "OpenAI response");
 
     openai_mock.assert_async().await;
@@ -342,7 +353,7 @@ async fn test_agent_context_preservation() {
         let result = tool_selector
             .select_tool(query, &available_tools)
             .await
-            .unwrap();
+            .expect("Test operation should succeed");
         results.push(result);
     }
 
@@ -395,7 +406,7 @@ async fn test_parameter_extraction_edge_cases() {
     let incomplete_result = param_extractor
         .extract_parameters("list files", "file", &required_params)
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert!(!incomplete_result.missing_params.is_empty());
     assert!(incomplete_result.confidence < 0.8);
 
@@ -411,7 +422,7 @@ async fn test_parameter_extraction_edge_cases() {
         "copy all files from /path/to/source to /path/to/dest recursively, preserve permissions, exclude temporary and log files",
         "file",
         &complex_required_params
-    ).await.unwrap();
+    ).await.expect("Test operation should succeed");
     assert!(complex_result.parameters.len() >= 4);
     assert!(complex_result.missing_params.is_empty());
     assert!(complex_result.confidence > 0.9);
@@ -449,7 +460,10 @@ async fn test_chat_conversation_memory() {
         ChatMessage::user("Let's start with reading a config file."),
     ];
 
-    let response = client.chat(&conversation).await.unwrap();
+    let response = client
+        .chat(&conversation)
+        .await
+        .expect("Test operation should succeed");
     assert!(response.contains("file operations"));
 
     mock.assert_async().await;
@@ -480,8 +494,14 @@ async fn test_load_balancing_between_models() {
 
     let request = CompletionRequest::new("Test load balancing");
 
-    let response1 = client1.complete(request.clone()).await.unwrap();
-    let response2 = client2.complete(request).await.unwrap();
+    let response1 = client1
+        .complete(request.clone())
+        .await
+        .expect("Test operation should succeed");
+    let response2 = client2
+        .complete(request)
+        .await
+        .expect("Test operation should succeed");
 
     assert_eq!(response1, "Response from server 1");
     assert_eq!(response2, "Response from server 2");

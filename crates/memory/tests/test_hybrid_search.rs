@@ -17,11 +17,11 @@ use std::sync::Arc;
 #[tokio::test]
 async fn hybrid_prefers_keyword_when_query_matches() {
     // Prepare store
-    let temp = tempfile::TempDir::new().unwrap();
+    let temp = tempfile::TempDir::new().expect("Test operation should succeed");
     let store = Arc::new(
         VectorStore::with_config(&temp.path(), memory::HnswRsConfig::default())
             .await
-            .unwrap(),
+            .expect("Test operation should succeed"),
     );
 
     // Insert records
@@ -53,18 +53,27 @@ async fn hybrid_prefers_keyword_when_query_matches() {
         access_count: 0,
         last_access: chrono::Utc::now(),
     };
-    store.insert(&rec1).await.unwrap();
-    store.insert(&rec2).await.unwrap();
+    store
+        .insert(&rec1)
+        .await
+        .expect("Test operation should succeed");
+    store
+        .insert(&rec2)
+        .await
+        .expect("Test operation should succeed");
 
     let container = memory::di::UnifiedContainer::new();
     // Resolve embedding coordinator dependency indirectly via SearchCoordinator::new_production requires real EmbeddingCoordinator
     // We need a dummy EmbeddingCoordinator; UnifiedContainer resolves it in orchestrated profile
     let embedding = container
         .resolve::<memory::orchestration::EmbeddingCoordinator>()
-        .unwrap();
+        .expect("Test operation should succeed");
 
     let coord = SearchCoordinator::new_production(store.clone(), embedding, 8, 128);
-    coord.initialize().await.unwrap();
+    coord
+        .initialize()
+        .await
+        .expect("Test operation should succeed");
 
     let opts = SearchOptions {
         top_k: 2,
@@ -78,7 +87,7 @@ async fn hybrid_prefers_keyword_when_query_matches() {
         opts,
     )
     .await
-    .unwrap();
+    .expect("Test operation should succeed");
     let texts: Vec<String> = out.iter().map(|r| r.text.clone()).collect();
     assert!(
         texts

@@ -2,6 +2,7 @@ use super::{
     LatencyClass, LlmProvider, LlmRequest, LlmResponse, ProviderCapabilities, ProviderHealth,
     ProviderId, TokenUsage,
 };
+use crate::retry::{RetryConfig, RetryableError};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -15,8 +16,74 @@ pub struct AzureProvider {
     api_key: String,
     model: String,
     client: Client,
-    #[allow(dead_code)] // Будет использоваться для конфигурации HTTP timeout
     timeout: Duration,
+    retry_config: RetryConfig,
+}
+
+/// Azure OpenAI-specific error type (similar to OpenAI)
+#[derive(Debug)]
+struct AzureError {
+    error_type: String,
+    message: String,
+    status_code: Option<u16>,
+    is_retryable: bool,
+}
+
+impl AzureError {
+    fn from_status_code(status_code: u16, message: String) -> Self {
+        let (error_type, is_retryable) = match status_code {
+            // Rate limiting - always retryable
+            429 => ("rate_limit".to_string(), true),
+            // Server errors - retryable
+            500..=599 => ("server_error".to_string(), true),
+            // Timeout - retryable
+            408 => ("timeout".to_string(), true),
+            // Client errors - generally not retryable
+            400 => ("bad_request".to_string(), false),
+            401 => ("unauthorized".to_string(), false),
+            403 => ("forbidden".to_string(), false),
+            404 => ("not_found".to_string(), false),
+            _ => ("unknown".to_string(), false),
+        };
+
+        Self {
+            error_type,
+            message,
+            status_code: Some(status_code),
+            is_retryable,
+        }
+    }
+
+    fn from_reqwest_error(error: reqwest::Error) -> Self {
+        let is_retryable = error.is_timeout() || error.is_connect();
+        Self {
+            error_type: if error.is_timeout() {
+                "timeout"
+            } else if error.is_connect() {
+                "network"
+            } else {
+                "request"
+            }
+            .to_string(),
+            message: error.to_string(),
+            status_code: error.status().map(|s| s.as_u16()),
+            is_retryable,
+        }
+    }
+}
+
+impl RetryableError for AzureError {
+    fn is_retryable(&self) -> bool {
+        self.is_retryable
+    }
+
+    fn error_type(&self) -> String {
+        self.error_type.clone()
+    }
+
+    fn error_message(&self) -> String {
+        self.message.clone()
+    }
 }
 
 impl AzureProvider {
@@ -36,6 +103,7 @@ impl AzureProvider {
             model,
             client,
             timeout: Duration::from_secs(60),
+            retry_config: RetryConfig::default(),
         })
     }
 

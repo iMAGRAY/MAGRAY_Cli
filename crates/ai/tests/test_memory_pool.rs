@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use ai::{get_input_buffer, get_pool_stats, return_input_buffer, MemoryPool, PoolStats};
 use common::service_traits::StatisticsProvider;
 use std::sync::Arc;
@@ -129,7 +130,7 @@ fn test_memory_pool_thread_local() {
     }
 
     for handle in handles {
-        handle.join().unwrap();
+        handle.join().expect("Test operation should succeed");
     }
 
     let stats = pool.get_stats();

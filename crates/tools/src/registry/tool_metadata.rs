@@ -79,11 +79,11 @@ impl std::fmt::Display for SemanticVersion {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
 
         if let Some(ref pre) = self.pre_release {
-            write!(f, "-{}", pre)?;
+            write!(f, "-{pre}")?;
         }
 
         if let Some(ref build) = self.build {
-            write!(f, "+{}", build)?;
+            write!(f, "+{build}")?;
         }
 
         Ok(())
@@ -91,7 +91,7 @@ impl std::fmt::Display for SemanticVersion {
 }
 
 /// Tool categories for organization and filtering
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ToolCategory {
     FileSystem,
     Git,

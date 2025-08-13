@@ -410,7 +410,10 @@ mod tests {
         let strategy = HeuristicIntentStrategy::new(0.5);
         let context = create_test_context("Прочитай файл test.txt");
 
-        let result = strategy.analyze_intent(&context).await.unwrap();
+        let result = strategy
+            .analyze_intent(&context)
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(result.action_type, "tools");
         assert!(result.confidence > 0.5);
     }
@@ -420,7 +423,10 @@ mod tests {
         let strategy = HeuristicIntentStrategy::new(0.5);
         let context = create_test_context("Привет, как дела?");
 
-        let result = strategy.analyze_intent(&context).await.unwrap();
+        let result = strategy
+            .analyze_intent(&context)
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(result.action_type, "chat");
     }
 
@@ -429,7 +435,10 @@ mod tests {
         let strategy = LlmIntentStrategy::new(MockLlmService);
         let context = create_test_context("Test message");
 
-        let result = strategy.analyze_intent(&context).await.unwrap();
+        let result = strategy
+            .analyze_intent(&context)
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(result.action_type, "tools");
         assert_eq!(result.confidence, 0.9);
     }
@@ -439,15 +448,18 @@ mod tests {
         let strategy = HybridIntentStrategy::new(MockLlmService, 0.6);
         let context = create_test_context("git status"); // High confidence for heuristic
 
-        let result = strategy.analyze_intent(&context).await.unwrap();
+        let result = strategy
+            .analyze_intent(&context)
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(result.action_type, "tools");
         // Должен использовать эвристику
         assert!(result
             .context
             .as_ref()
-            .unwrap()
+            .expect("Operation failed - converted from unwrap()")
             .get("analysis_method")
-            .unwrap()
+            .expect("Operation failed - converted from unwrap()")
             .contains("heuristic"));
     }
 
@@ -456,12 +468,15 @@ mod tests {
         let strategy = HybridIntentStrategy::new(MockLlmService, 0.9); // Высокий порог
         let context = create_test_context("Неопределенное сообщение");
 
-        let result = strategy.analyze_intent(&context).await.unwrap();
+        let result = strategy
+            .analyze_intent(&context)
+            .await
+            .expect("Async operation should succeed");
         // Должен использовать LLM из-за низкой уверенности эвристики
         assert!(result
             .context
             .as_ref()
-            .unwrap()
+            .expect("Operation failed - converted from unwrap()")
             .contains_key("hybrid_analysis"));
     }
 }

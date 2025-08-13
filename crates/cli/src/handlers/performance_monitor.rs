@@ -409,14 +409,19 @@ mod tests {
     #[tokio::test]
     async fn test_operation_tracking() {
         let monitor = PerformanceMonitor::new();
-        monitor.initialize().await.unwrap();
+        monitor
+            .initialize()
+            .await
+            .expect("Async operation should succeed");
 
         // Запускаем операцию
         let op_id = monitor.start_operation("test_operation");
         assert!(!op_id.is_empty());
 
         // Проверяем что операция активна
-        let active = monitor.get_active_operations().unwrap();
+        let active = monitor
+            .get_active_operations()
+            .expect("Operation failed - converted from unwrap()");
         assert_eq!(active.len(), 1);
         assert!(active[0].contains("test_operation"));
 
@@ -424,14 +429,19 @@ mod tests {
         monitor.finish_operation(&op_id, true);
 
         // Проверяем что операция больше не активна
-        let active = monitor.get_active_operations().unwrap();
+        let active = monitor
+            .get_active_operations()
+            .expect("Operation failed - converted from unwrap()");
         assert_eq!(active.len(), 0);
     }
 
     #[tokio::test]
     async fn test_metrics_aggregation() {
         let monitor = PerformanceMonitor::new();
-        monitor.initialize().await.unwrap();
+        monitor
+            .initialize()
+            .await
+            .expect("Async operation should succeed");
 
         // Выполняем несколько операций
         for i in 0..5 {
@@ -440,7 +450,10 @@ mod tests {
             monitor.finish_operation(&op_id, i % 2 == 0); // 60% успешных
         }
 
-        let metrics = monitor.get_metrics(60).await.unwrap();
+        let metrics = monitor
+            .get_metrics(60)
+            .await
+            .expect("Async operation should succeed");
 
         // Проверяем агрегированные метрики
         assert_eq!(metrics.get("test_op_total_count"), Some(&5.0));
@@ -451,7 +464,10 @@ mod tests {
     #[tokio::test]
     async fn test_success_rates() {
         let monitor = PerformanceMonitor::new();
-        monitor.initialize().await.unwrap();
+        monitor
+            .initialize()
+            .await
+            .expect("Async operation should succeed");
 
         // Успешные операции
         for _ in 0..8 {
@@ -465,20 +481,28 @@ mod tests {
             monitor.finish_operation(&op_id, false);
         }
 
-        let success_rates = monitor.get_success_rates().unwrap();
+        let success_rates = monitor
+            .get_success_rates()
+            .expect("Operation failed - converted from unwrap()");
         assert_eq!(success_rates.get("successful_op"), Some(&80.0));
     }
 
     #[tokio::test]
     async fn test_detailed_metrics_report() {
         let monitor = PerformanceMonitor::new();
-        monitor.initialize().await.unwrap();
+        monitor
+            .initialize()
+            .await
+            .expect("Async operation should succeed");
 
         // Выполняем операцию
         let op_id = monitor.start_operation("detailed_test");
         monitor.finish_operation(&op_id, true);
 
-        let report = monitor.get_detailed_metrics(60).await.unwrap();
+        let report = monitor
+            .get_detailed_metrics(60)
+            .await
+            .expect("Async operation should succeed");
         assert!(report.contains("detailed_test"));
         assert!(report.contains("Общее количество: 1"));
         assert!(report.contains("Успешных: 1"));

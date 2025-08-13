@@ -116,7 +116,7 @@ where
         };
 
         if let Ok(json) = serde_json::to_string(&entry) {
-            let _ = writeln!(io::stdout(), "{}", json);
+            let _ = writeln!(io::stdout(), "{json}");
         }
     }
 }
@@ -131,11 +131,11 @@ struct JsonVisitor {
 impl Visit for JsonVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         if field.name() == "message" {
-            self.message = Some(format!("{:?}", value));
+            self.message = Some(format!("{value:?}"));
         } else {
             self.fields.insert(
                 field.name().to_string(),
-                Value::String(format!("{:?}", value)),
+                Value::String(format!("{value:?}")),
             );
         }
     }
@@ -460,7 +460,8 @@ mod tests {
             }),
         };
 
-        let json = serde_json::to_string_pretty(&entry).unwrap();
+        let json = serde_json::to_string_pretty(&entry)
+            .expect("Operation failed - converted from unwrap()");
         assert!(json.contains("timestamp"));
         assert!(json.contains("INFO"));
         assert!(json.contains("Test message"));

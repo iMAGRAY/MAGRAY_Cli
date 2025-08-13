@@ -1,75 +1,59 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)",
-      "Edit(*)",
-      "MultiEdit(*)",
-      "Write(*)",
-      "NotebookEdit(*)",
-      "Read(*)",
-      "Glob(*)",
-      "Grep(*)",
-      "LS(*)",
-      "WebFetch(*)",
-      "WebSearch(*)",
-      "TodoWrite(*)",
-      "ExitPlanMode(*)",
-      "Task(*)",
-      "mcp__devtools__mcp_psql_manager(*)",
-      "mcp__devtools__mcp_api_client(*)",
-      "mcp__devtools__mcp_ssh_manager(*)",
-      "mcp__devtools__mcp_project_sync(*)",
-      "mcp__context7__resolve-library-id(*)",
-      "mcp__context7__get-library-docs(*)",
-      "Bash(powershell:*)",
-      "mcp__archlens__export_ai_compact",
-      "mcp__archlens__analyze_project",
-      "mcp__archlens__generate_diagram",
-      "Bash(find:*)",
-      "Bash(printf \"%04d\\n\" $RANDOM)",
-      "Bash(rm:*)",
-      "Bash(cargo build:*)",
-      "Bash(true)",
-      "Bash(cargo check:*)",
-      "Bash(dir)",
-      "Bash(Remove-Item -Path \"C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\test_hook_trigger.rs\" -Force)",
-      "Bash(xcopy:*)",
-      "Bash(powershell:*)",
-      "Bash(copy:*)",
-      "Bash(cargo check:*)",
-      "mcp__archlens__export_ai_compact",
-      "Bash(where cargo)",
-      "mcp__archlens__analyze_project",
-      "Bash(cargo test:*)",
-      "Bash(cargo clippy:*)",
-      "Bash(py --version)",
-      "Bash(py:*)",
-      "Bash(git lfs:*)",
-      "Bash(git clone:*)"
+      "Bash(mkdir:*)"
     ],
-    "deny": []
+    "deny": [],
+    "ask": []
   },
   "hooks": {
-    "PostToolUse": [
+    "UserPromptSubmit": [
       {
-        "matcher": "Edit|MultiEdit|Write|NotebookEdit",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -Command \"if (Test-Path 'C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py') { py 'C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\scripts\\architecture_daemon.py' }\""
+            "command": "powershell -NoProfile -File .claude/hooks/universal-monitor.ps1"
+          },
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/build-status.ps1"
+          },
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/agent-hint.ps1"
+          },
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/arch-reminder.ps1"
+          },
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/session-tracker.ps1"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/universal-monitor.ps1"
           }
         ]
       },
       {
-        "matcher": "Edit|MultiEdit|Write",
+        "matcher": "(Edit|Write|MultiEdit|NotebookEdit)",
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -Command \"Write-Host '[HOOK] Running cargo fmt...' -ForegroundColor Cyan; cargo fmt --all; if ($LASTEXITCODE -eq 0) { Write-Host '[OK] Format completed' -ForegroundColor Green } else { Write-Host '[ERROR] Format failed' -ForegroundColor Red }\""
+            "command": "powershell -NoProfile -File .claude/hooks/auto-format.ps1"
           },
           {
             "type": "command",
-            "command": "powershell -Command \"Write-Host '[HOOK] Running cargo clippy...' -ForegroundColor Magenta; $result = cargo clippy --workspace --bins --lib -- --cap-lints warn 2>&1; if ($LASTEXITCODE -eq 0) { Write-Host '[OK] Clippy passed' -ForegroundColor Green } else { Write-Host '[WARN] Clippy issues found' -ForegroundColor Yellow; $result | Select-Object -First 10 }\""
+            "command": "powershell -NoProfile -File .claude/hooks/file-tracker.ps1"
           }
         ]
       },
@@ -78,11 +62,80 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -Command \"$hookStart = Get-Date; $completedCount = (Get-Content '.claude\\todos.json' -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue | Where-Object { $_.status -eq 'completed' } | Measure-Object).Count; if ($completedCount -gt 0) { Write-Host (\\\"[TASK-COMPLETE] Running final validation for {0} completed task(s)...\\\" -f $completedCount) -ForegroundColor Blue; try { $checkJob = Start-Job -ScriptBlock { cargo check --workspace --quiet 2>&1 }; $check_result = Wait-Job $checkJob -Timeout 60 | Receive-Job; Remove-Job $checkJob -Force; if ($LASTEXITCODE -eq 0) { Write-Host '[VALIDATION] ✅ Project builds successfully' -ForegroundColor Green } else { Write-Host '[VALIDATION] ❌ Build errors found:' -ForegroundColor Red; $check_result | Select-Object -First 15 } } catch { Write-Host '[VALIDATION] ⏱️ Check timed out (60s limit)' -ForegroundColor Yellow } finally { $duration = (Get-Date - $hookStart).TotalSeconds; Write-Host (\\\"[TASK-COMPLETE] Validation finished in {0:F1}s\\\" -f $duration) -ForegroundColor Gray } }\""
+            "command": "powershell -NoProfile -File .claude/hooks/todo-stats.ps1"
+          },
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/todo-logger.ps1"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/bash-monitor.ps1"
+          }
+        ]
+      },
+      {
+        "matcher": "(Read|Glob|Grep|LS)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/file-access-monitor.ps1"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/agent-tracker.ps1"
+          }
+        ]
+      },
+      {
+        "matcher": "(WebFetch|WebSearch)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/web-tracker.ps1"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/pre-tool-monitor.ps1"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/session-summary.ps1"
+          },
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/daily-logger.ps1"
+          },
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File .claude/hooks/cleanup.ps1"
           }
         ]
       }
     ]
-  },
-  "mcpServers": {}
+  }
 }

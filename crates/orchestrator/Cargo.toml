@@ -1,0 +1,74 @@
+[package]
+name = "orchestrator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+name = "orchestrator"
+path = "src/lib.rs"
+
+[dependencies]
+# Core async runtime
+tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true }
+
+# Error handling and utilities
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# UUID and time
+uuid = { workspace = true, features = ["v4", "serde"] }
+chrono = { workspace = true, features = ["serde"] }
+
+# Logging and tracing
+tracing = { workspace = true }
+log = { workspace = true }
+
+# Random number generation for jitter
+rand = "0.8"
+
+# Concurrency primitives
+dashmap = "6.1"
+parking_lot = "0.12"
+
+# Resource monitoring
+sysinfo = "0.31"
+
+# Cancellation and utilities
+tokio-util = "0.7"
+
+# Internal dependencies
+common = { path = "../common" }
+llm = { path = "../llm" }
+magray-core = { path = "../core", package = "core" }
+
+# Example dependencies are in dev-dependencies
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+rstest = { workspace = true }
+mockall = { workspace = true }
+tempfile = { workspace = true }
+proptest = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[features]
+default = ["cpu"]
+cpu = []
+gpu = ["cpu"]
+minimal = []
+
+# Development features
+dev-tools = []
+
+[[example]]
+name = "simple_agent"
+path = "examples/simple_agent.rs"
+required-features = []

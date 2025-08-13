@@ -78,7 +78,7 @@ async fn test_llm_client_from_env() {
     std::env::set_var("OPENAI_API_KEY", "test-key");
     std::env::set_var("OPENAI_MODEL", "gpt-4");
 
-    let _client = LlmClient::from_env().unwrap();
+    let _client = LlmClient::from_env().expect("Test operation should succeed");
     // Проверяем что клиент создан (детали приватные)
 
     // Очистка
@@ -159,7 +159,10 @@ async fn test_openai_completion_mock() {
     let client = LlmClient::new(provider, 1000, 0.7);
 
     let request = CompletionRequest::new("Hello");
-    let response = client.complete(request).await.unwrap();
+    let response = client
+        .complete(request)
+        .await
+        .expect("Test operation should succeed");
 
     assert_eq!(response, "Test response");
     mock.assert_async().await;
@@ -189,7 +192,10 @@ async fn test_anthropic_completion_mock() {
     let client = LlmClient::new(provider, 1000, 0.7);
 
     let request = CompletionRequest::new("Hello");
-    let response = client.complete(request).await.unwrap();
+    let response = client
+        .complete(request)
+        .await
+        .expect("Test operation should succeed");
 
     assert_eq!(response, "Test response");
     mock.assert_async().await;
@@ -215,7 +221,10 @@ async fn test_local_completion_mock() {
     let client = LlmClient::new(provider, 1000, 0.7);
 
     let request = CompletionRequest::new("Hello");
-    let response = client.complete(request).await.unwrap();
+    let response = client
+        .complete(request)
+        .await
+        .expect("Test operation should succeed");
 
     assert_eq!(response, "Test response");
     mock.assert_async().await;
@@ -251,7 +260,10 @@ async fn test_chat_with_history() {
         ChatMessage::user("How are you?"),
     ];
 
-    let response = client.chat(&messages).await.unwrap();
+    let response = client
+        .chat(&messages)
+        .await
+        .expect("Test operation should succeed");
     assert_eq!(response, "Test response");
 
     mock.assert_async().await;
@@ -272,11 +284,12 @@ fn test_provider_debug_impl() {
 #[test]
 fn test_message_serialization() {
     let msg = ChatMessage::user("Test");
-    let json = serde_json::to_string(&msg).unwrap();
+    let json = serde_json::to_string(&msg).expect("Test operation should succeed");
     assert!(json.contains("user"));
     assert!(json.contains("Test"));
 
-    let deserialized: ChatMessage = serde_json::from_str(&json).unwrap();
+    let deserialized: ChatMessage =
+        serde_json::from_str(&json).expect("Test operation should succeed");
     assert_eq!(deserialized.role, "user");
     assert_eq!(deserialized.content, "Test");
 }

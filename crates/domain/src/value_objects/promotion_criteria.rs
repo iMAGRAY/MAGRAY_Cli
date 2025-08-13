@@ -40,8 +40,7 @@ impl PromotionCriteria {
     ) -> DomainResult<Self> {
         if !(0.0..=1.0).contains(&min_importance_score) {
             return Err(DomainError::InvalidPromotionCriteria(format!(
-                "Importance score must be between 0.0 and 1.0, got {}",
-                min_importance_score
+                "Importance score must be between 0.0 and 1.0, got {min_importance_score}"
             )));
         }
 
@@ -100,8 +99,7 @@ impl PromotionCriteria {
                 require_acceleration: true,
             }),
             _ => Err(DomainError::InvalidPromotionCriteria(format!(
-                "Invalid promotion path: {:?} → {:?}",
-                from, to
+                "Invalid promotion path: {from:?} → {to:?}"
             ))),
         }
     }
@@ -124,8 +122,7 @@ impl PromotionCriteria {
                 require_acceleration: false,
             }),
             _ => Err(DomainError::InvalidPromotionCriteria(format!(
-                "Invalid promotion path: {:?} → {:?}",
-                from, to
+                "Invalid promotion path: {from:?} → {to:?}"
             ))),
         }
     }
@@ -175,9 +172,9 @@ fn format_duration(duration: Duration) -> String {
     let days = duration.num_days();
 
     if days > 0 {
-        format!("{}d", days)
+        format!("{days}d")
     } else if hours > 0 {
-        format!("{}h", hours)
+        format!("{hours}h")
     } else {
         format!("{}m", duration.num_minutes())
     }
@@ -190,7 +187,8 @@ mod tests {
     #[test]
     fn test_criteria_creation() {
         let criteria =
-            PromotionCriteria::new(5, Duration::hours(2), Duration::hours(1), 0.5, false).unwrap();
+            PromotionCriteria::new(5, Duration::hours(2), Duration::hours(1), 0.5, false)
+                .expect("Operation failed - converted from unwrap()");
 
         assert_eq!(criteria.min_access_count(), 5);
         assert_eq!(criteria.min_importance_score(), 0.5);
@@ -231,11 +229,11 @@ mod tests {
 
     #[test]
     fn test_strict_vs_lenient() {
-        let strict =
-            PromotionCriteria::strict_for_layers(LayerType::Interact, LayerType::Insights).unwrap();
+        let strict = PromotionCriteria::strict_for_layers(LayerType::Interact, LayerType::Insights)
+            .expect("Operation failed - converted from unwrap()");
         let lenient =
             PromotionCriteria::lenient_for_layers(LayerType::Interact, LayerType::Insights)
-                .unwrap();
+                .expect("Operation failed - converted from unwrap()");
 
         assert!(strict.min_access_count() > lenient.min_access_count());
         assert!(strict.min_importance_score() > lenient.min_importance_score());

@@ -7,9 +7,9 @@ use tempfile::TempDir;
 
 #[test]
 fn cli_memory_backup_creates_file() {
-    let temp = TempDir::new().unwrap();
+    let temp = TempDir::new().expect("Test operation should succeed");
     let backups_dir = temp.path().join("backups");
-    fs::create_dir_all(&backups_dir).unwrap();
+    fs::create_dir_all(&backups_dir).expect("Test operation should succeed");
 
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
     cmd.current_dir(&temp)
@@ -25,10 +25,13 @@ fn cli_memory_backup_creates_file() {
     let assert = cmd.assert();
     assert.success();
 
-    let entries = fs::read_dir(&backups_dir).unwrap();
+    let entries = fs::read_dir(&backups_dir).expect("Test operation should succeed");
     let mut any = false;
     for e in entries.flatten() {
-        if e.file_type().unwrap().is_file() {
+        if e.file_type()
+            .expect("Test operation should succeed")
+            .is_file()
+        {
             any = true;
             break;
         }
@@ -54,7 +57,7 @@ async fn api_backup_and_restore_roundtrip() {
         memory::api::MemoryContext::new("test").with_layer(Layer::Insights),
     );
 
-    let dir = TempDir::new().unwrap();
+    let dir = TempDir::new().expect("Test operation should succeed");
     let path = dir.path().join("back.json");
     let count = api.backup_to_path(&path).await.expect("backup ok");
     assert!(count >= 0);

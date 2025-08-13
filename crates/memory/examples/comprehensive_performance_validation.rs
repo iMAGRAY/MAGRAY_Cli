@@ -194,7 +194,10 @@ fn benchmark_hnsw_performance(
     let total_time = total_start.elapsed().as_secs_f64();
     let qps = queries.len() as f64 / total_time;
 
-    query_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    query_times.sort_by(|a, b| {
+        a.partial_cmp(b)
+            .expect("Operation failed - converted from unwrap()")
+    });
     let avg_query = query_times.iter().sum::<f64>() / query_times.len() as f64;
     let p95_query = query_times[(query_times.len() as f64 * 0.95) as usize];
 

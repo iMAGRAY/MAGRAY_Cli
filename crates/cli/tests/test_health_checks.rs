@@ -7,5 +7,8 @@ use std::process::Command;
 fn health_runs() {
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
     cmd.args(["health"]).env("MAGRAY_CMD_TIMEOUT", "60");
-    assert!(cmd.status().unwrap().success());
+    assert!(cmd
+        .status()
+        .expect("Test operation should succeed")
+        .success());
 }

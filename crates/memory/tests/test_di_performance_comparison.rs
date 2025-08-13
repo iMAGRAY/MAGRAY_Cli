@@ -340,14 +340,16 @@ fn test_concurrent_performance() -> Result<()> {
             let container = Arc::clone(&original_container);
             std::thread::spawn(move || {
                 for _ in 0..resolutions_per_thread {
-                    let _service = container.resolve::<SimpleTestService>().unwrap();
+                    let _service = container
+                        .resolve::<SimpleTestService>()
+                        .expect("Test operation should succeed");
                 }
             })
         })
         .collect();
 
     for handle in handles {
-        handle.join().unwrap();
+        handle.join().expect("Test operation should succeed");
     }
     let original_concurrent_time = start.elapsed();
 
@@ -358,14 +360,16 @@ fn test_concurrent_performance() -> Result<()> {
             let container = Arc::clone(&optimized_container);
             std::thread::spawn(move || {
                 for _ in 0..resolutions_per_thread {
-                    let _service = container.resolve::<SimpleTestService>().unwrap();
+                    let _service = container
+                        .resolve::<SimpleTestService>()
+                        .expect("Test operation should succeed");
                 }
             })
         })
         .collect();
 
     for handle in handles {
-        handle.join().unwrap();
+        handle.join().expect("Test operation should succeed");
     }
     let optimized_concurrent_time = start.elapsed();
 

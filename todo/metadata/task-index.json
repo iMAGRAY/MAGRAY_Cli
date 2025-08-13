@@ -1,0 +1,362 @@
+{
+  "project_info": {
+    "name": "MAGRAY CLI",
+    "total_tasks": 302,
+    "last_updated": "2025-08-15T10:30:00Z",
+    "index_version": "1.0",
+    "audit_status": "CORRECTED_AFTER_VALIDATION"
+  },
+  "critical_blockers": {
+    "BLOCKER_1": {
+      "id": "BLOCKER_1",
+      "name": "CLI Integration",
+      "phase": "CRITICAL",
+      "priority": "URGENT",
+      "estimated_hours": 3,
+      "status": "NOT_STARTED",
+      "dependencies": [],
+      "blocks": ["P1_CORE_USAGE", "ORCHESTRATOR_FUNCTIONALITY"],
+      "tasks": [
+        {
+          "id": "BLOCKER_1_1",
+          "name": "Replace UnifiedAgentV2 with AgentOrchestrator",
+          "duration_minutes": 120,
+          "status": "NOT_STARTED"
+        },
+        {
+          "id": "BLOCKER_1_2", 
+          "name": "Update CLI commands for orchestrator integration",
+          "duration_minutes": 60,
+          "status": "NOT_STARTED"
+        }
+      ]
+    },
+    "BLOCKER_2": {
+      "id": "BLOCKER_2",
+      "name": "Qwen3 Embeddings",
+      "phase": "CRITICAL",
+      "priority": "URGENT", 
+      "estimated_hours": 6,
+      "status": "NOT_STARTED",
+      "dependencies": [],
+      "blocks": ["MEMORY_SYSTEM", "SEARCH_FUNCTIONALITY"],
+      "tasks": [
+        {
+          "id": "BLOCKER_2_1",
+          "name": "Implement Qwen3EmbeddingProvider",
+          "duration_minutes": 180,
+          "status": "NOT_STARTED"
+        },
+        {
+          "id": "BLOCKER_2_2",
+          "name": "Integrate embeddings in memory system", 
+          "duration_minutes": 120,
+          "status": "NOT_STARTED"
+        },
+        {
+          "id": "BLOCKER_2_3",
+          "name": "Optimization and testing",
+          "duration_minutes": 60,
+          "status": "NOT_STARTED"
+        }
+      ]
+    },
+    "BLOCKER_3": {
+      "id": "BLOCKER_3", 
+      "name": "Tool Context Builder",
+      "phase": "CRITICAL",
+      "priority": "HIGH",
+      "estimated_hours": 8,
+      "status": "NOT_STARTED",
+      "dependencies": ["BLOCKER_2"],
+      "blocks": ["TOOL_SELECTION", "AI_RERANKING"],
+      "tasks": [
+        {
+          "id": "BLOCKER_3_1",
+          "name": "Create ToolContextBuilder",
+          "duration_minutes": 180,
+          "status": "NOT_STARTED"
+        },
+        {
+          "id": "BLOCKER_3_2", 
+          "name": "Implement Qwen3 reranking for tools",
+          "duration_minutes": 180,
+          "status": "NOT_STARTED"
+        },
+        {
+          "id": "BLOCKER_3_3",
+          "name": "Integrate in orchestrator workflow",
+          "duration_minutes": 120,
+          "status": "NOT_STARTED"
+        }
+      ]
+    },
+    "BLOCKER_4": {
+      "id": "BLOCKER_4",
+      "name": "Basic TUI Framework", 
+      "phase": "CRITICAL",
+      "priority": "MEDIUM",
+      "estimated_hours": 12,
+      "status": "NOT_STARTED",
+      "dependencies": ["BLOCKER_1"],
+      "blocks": ["UX_WORKFLOW", "INTERACTIVE_INTERFACE"],
+      "tasks": [
+        {
+          "id": "BLOCKER_4_1",
+          "name": "Create basic TUI framework",
+          "duration_minutes": 240,
+          "status": "NOT_STARTED"
+        },
+        {
+          "id": "BLOCKER_4_2",
+          "name": "Implement plan viewer",
+          "duration_minutes": 240, 
+          "status": "NOT_STARTED"
+        },
+        {
+          "id": "BLOCKER_4_3",
+          "name": "Add basic diff display",
+          "duration_minutes": 240,
+          "status": "NOT_STARTED"
+        }
+      ]
+    }
+  },
+  "phases": {
+    "P0_Security": {
+      "total_tasks": 31,
+      "completed_tasks": 26,
+      "remaining_tasks": 5,
+      "blocks": [
+        {
+          "block_id": "P0_1", 
+          "name": "Policy Engine Security",
+          "tasks": 8,
+          "status": "MOSTLY_COMPLETE",
+          "remaining": ["P0.1.4.a", "P0.1.4.b", "P0.1.5.a", "P0.1.5.b", "P0.1.6.a", "P0.1.6.b", "P0.1.7.a", "P0.1.7.b"]
+        },
+        {
+          "block_id": "P0_2",
+          "name": "MCP Security Bypass", 
+          "tasks": 6,
+          "status": "COMPLETE"
+        }
+      ],
+      "critical_gaps": [
+        "Web domain whitelist missing",
+        "Shell execution security absent",
+        "Filesystem root validation missing"
+      ]
+    },
+    "P1_Core": {
+      "total_tasks": 42,
+      "completed_tasks": 23,
+      "remaining_tasks": 19,
+      "blocks": [
+        {
+          "block_id": "P1_1",
+          "name": "Multi-Agent Orchestration",
+          "tasks": 16,
+          "status": "PARTIALLY_COMPLETE",
+          "major_achievement": "11,796 lines orchestrator code created but not integrated"
+        },
+        {
+          "block_id": "P1_2", 
+          "name": "Tools Platform 2.0",
+          "tasks": 14,
+          "status": "PARTIALLY_COMPLETE"
+        },
+        {
+          "block_id": "P1_3",
+          "name": "Tool Context Builder & Reranking",
+          "tasks": 10,
+          "status": "NOT_STARTED"
+        }
+      ]
+    },
+    "P1_Plus_UX": {
+      "total_tasks": 22,
+      "completed_tasks": 1,
+      "remaining_tasks": 21,
+      "blocks": [
+        {
+          "block_id": "P1_Plus_1",
+          "name": "Interactive TUI",
+          "tasks": 12,
+          "status": "NOT_STARTED",
+          "notes": "Some TUI components exist in src/ but not integrated"
+        },
+        {
+          "block_id": "P1_Plus_2",
+          "name": "Recipe/Flow System",
+          "tasks": 10,
+          "status": "NOT_STARTED"
+        }
+      ]
+    },
+    "P2_Enhancement": {
+      "total_tasks": 24,
+      "completed_tasks": 2,
+      "remaining_tasks": 22,
+      "blocks": [
+        {
+          "block_id": "P2_1",
+          "name": "Memory Enhancement", 
+          "tasks": 8,
+          "status": "PARTIALLY_COMPLETE"
+        },
+        {
+          "block_id": "P2_2",
+          "name": "LLM Optimization",
+          "tasks": 6,
+          "status": "NOT_STARTED"
+        },
+        {
+          "block_id": "P2_3",
+          "name": "Production Polish",
+          "tasks": 10,
+          "status": "NOT_STARTED"
+        }
+      ]
+    }
+  },
+  "task_categories": {
+    "by_status": {
+      "completed": 58,
+      "in_progress": 89,
+      "not_started": 155
+    },
+    "by_priority": {
+      "critical_blockers": 4,
+      "urgent": 5,
+      "high": 45,
+      "medium": 128,
+      "low": 120
+    },
+    "by_duration": {
+      "5_minutes": 67,
+      "8_minutes": 149,
+      "10_minutes": 86
+    },
+    "by_type": {
+      "creation": 89,
+      "integration": 76,
+      "testing": 45,
+      "optimization": 34,
+      "documentation": 28,
+      "debugging": 30
+    }
+  },
+  "architectural_components": {
+    "Multi_Agent_Orchestration": {
+      "status": "90% complete",
+      "tasks_completed": 2,
+      "tasks_total": 16,
+      "critical_issue": "Not integrated with CLI"
+    },
+    "Security_And_Policy": {
+      "status": "85% complete",
+      "tasks_completed": 26,
+      "tasks_total": 31,
+      "critical_gaps": 5
+    },
+    "Tools_Platform_2_0": {
+      "status": "70% complete", 
+      "tasks_completed": 1,
+      "tasks_total": 14
+    },
+    "Memory_System": {
+      "status": "30% complete",
+      "tasks_completed": 2,
+      "tasks_total": 8,
+      "blocker": "Qwen3 embeddings empty"
+    },
+    "UX_Excellence": {
+      "status": "0% complete",
+      "tasks_completed": 0,
+      "tasks_total": 22,
+      "notes": "TUI components exist but not integrated"
+    },
+    "Code_Quality": {
+      "status": "95% complete",
+      "exceptional_achievements": [
+        "Unwrap elimination: 1999→0 calls",
+        "Strict clippy compliance achieved"
+      ]
+    }
+  },
+  "file_impact": {
+    "files_to_create": [
+      "crates/orchestrator/ (entire crate)",
+      "crates/ui/src/tui/ (TUI framework)",
+      "crates/recipes/ (recipe system)",
+      "crates/ai/src/embeddings_qwen3.rs (currently empty)",
+      "crates/tools/src/context/builder.rs"
+    ],
+    "files_to_modify": [
+      "crates/cli/src/main.rs (CLI integration)",
+      "crates/tools/src/web_ops.rs (domain validation)",
+      "crates/tools/src/shell_ops.rs (security integration)",
+      "crates/common/src/sandbox_config.rs (filesystem roots)",
+      "crates/tools/src/file_ops.rs (path validation)"
+    ],
+    "critical_empty_files": [
+      "crates/ai/src/embeddings_qwen3.rs (1 byte only)"
+    ]
+  },
+  "time_estimates": {
+    "critical_blockers_hours": 29,
+    "remaining_work_hours": 18,
+    "total_remaining_hours": 47,
+    "mvp_timeline_hours": 30,
+    "full_architecture_hours": 47
+  },
+  "quality_gates": {
+    "current_status": {
+      "compilation": "PASS",
+      "basic_clippy": "PASS", 
+      "strict_clippy": "1_ERROR_REMAINING",
+      "typescript": "PASS",
+      "eslint": "PASS",
+      "test_compilation": "MINOR_ISSUES"
+    },
+    "production_requirements": {
+      "security_compliance": "NEEDS_5_GAPS_FILLED",
+      "functionality_complete": "NEEDS_4_BLOCKERS_RESOLVED",
+      "quality_standards": "MOSTLY_MET",
+      "performance_validated": "NOT_TESTED",
+      "documentation_complete": "PARTIAL"
+    }
+  },
+  "risk_assessment": {
+    "high_risk_tasks": [
+      "CLI orchestrator integration complexity",
+      "Qwen3 model loading and performance", 
+      "TUI framework architecture decisions"
+    ],
+    "medium_risk_tasks": [
+      "Tool context builder accuracy",
+      "Memory system performance",
+      "Cross-platform compatibility"
+    ],
+    "low_risk_tasks": [
+      "Security policy implementation",
+      "Code quality improvements", 
+      "Enhancement features"
+    ]
+  },
+  "success_criteria": {
+    "mvp_requirements": [
+      "CLI commands use multi-agent workflow",
+      "Memory indexing works with Qwen3",
+      "Tools ranked by relevance", 
+      "Basic TUI displays Plan→Preview→Execute"
+    ],
+    "production_requirements": [
+      "All security gaps closed",
+      "Full TUI workflow functional",
+      "Performance meets requirements",
+      "Comprehensive error handling"
+    ]
+  }
+}

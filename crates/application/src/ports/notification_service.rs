@@ -2,28 +2,38 @@
 //!
 //! Абстракция для отправки уведомлений о состоянии системы, ошибках и событиях.
 
-use async_trait::async_trait;
 use crate::ApplicationResult;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 /// Trait для notification services
 #[async_trait]
 pub trait NotificationService: Send + Sync {
     /// Send single notification
-    async fn send_notification(&self, notification: &Notification) -> ApplicationResult<NotificationResult>;
-    
+    async fn send_notification(
+        &self,
+        notification: &Notification,
+    ) -> ApplicationResult<NotificationResult>;
+
     /// Send batch notifications
-    async fn send_batch_notifications(&self, notifications: &[Notification]) -> ApplicationResult<BatchNotificationResult>;
-    
+    async fn send_batch_notifications(
+        &self,
+        notifications: &[Notification],
+    ) -> ApplicationResult<BatchNotificationResult>;
+
     /// Subscribe to notification events
-    async fn subscribe(&self, subscription: &NotificationSubscription) -> ApplicationResult<SubscriptionId>;
-    
+    async fn subscribe(
+        &self,
+        subscription: &NotificationSubscription,
+    ) -> ApplicationResult<SubscriptionId>;
+
     /// Unsubscribe from notifications
     async fn unsubscribe(&self, subscription_id: &SubscriptionId) -> ApplicationResult<()>;
-    
+
     /// Get notification delivery status
-    async fn get_delivery_status(&self, notification_id: &str) -> ApplicationResult<DeliveryStatus>;
-    
+    async fn get_delivery_status(&self, notification_id: &str)
+        -> ApplicationResult<DeliveryStatus>;
+
     /// Health check for notification service
     async fn health_check(&self) -> ApplicationResult<NotificationServiceHealth>;
 }
@@ -84,13 +94,9 @@ pub enum NotificationTarget {
         channel_name: Option<String>,
     },
     /// Teams webhook
-    Teams {
-        webhook_url: String,
-    },
+    Teams { webhook_url: String },
     /// SMS notification
-    Sms {
-        phone_number: String,
-    },
+    Sms { phone_number: String },
     /// Push notification
     Push {
         device_token: String,
@@ -103,10 +109,7 @@ pub enum NotificationTarget {
         headers: std::collections::HashMap<String, String>,
     },
     /// Log file
-    Log {
-        level: log::Level,
-        target: String,
-    },
+    Log { level: String, target: String },
     /// Custom target
     Custom {
         target_type: String,
@@ -307,6 +310,9 @@ pub struct TargetHealth {
     pub last_failure: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+/// Alias for backward compatibility
+pub type NotificationHealth = NotificationServiceHealth;
+
 impl Notification {
     /// Create a simple info notification
     pub fn info(title: &str, message: &str) -> Self {
@@ -327,7 +333,7 @@ impl Notification {
             delivery_options: DeliveryOptions::default(),
         }
     }
-    
+
     /// Create an error notification
     pub fn error(title: &str, message: &str) -> Self {
         Self {
@@ -335,7 +341,7 @@ impl Notification {
             ..Self::info(title, message)
         }
     }
-    
+
     /// Create a critical notification
     pub fn critical(title: &str, message: &str) -> Self {
         Self {
@@ -347,13 +353,13 @@ impl Notification {
             ..Self::info(title, message)
         }
     }
-    
+
     /// Add target to notification
     pub fn with_target(mut self, target: NotificationTarget) -> Self {
         self.targets.push(target);
         self
     }
-    
+
     /// Add email target
     pub fn with_email(mut self, email: &str) -> Self {
         self.targets.push(NotificationTarget::Email {
@@ -362,7 +368,7 @@ impl Notification {
         });
         self
     }
-    
+
     /// Add Slack target
     pub fn with_slack(mut self, channel: &str) -> Self {
         self.targets.push(NotificationTarget::Slack {

@@ -820,9 +820,9 @@ mod tests {
 
         let registry = CoordinatorRegistryBuilder::new()
             .with_coordinator(coord1, metadata1)
-            .unwrap()
+            .expect("Operation failed - converted from unwrap()")
             .with_coordinator(coord2, metadata2)
-            .unwrap()
+            .expect("Operation failed - converted from unwrap()")
             .build();
 
         assert_eq!(registry.coordinator_count(), 2);

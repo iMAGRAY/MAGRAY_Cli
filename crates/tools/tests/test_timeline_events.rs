@@ -12,7 +12,7 @@ use tools::{Tool, ToolInput};
 #[tokio::test]
 async fn timeline_fs_diff_sequence() -> Result<()> {
     // Prepare a temporary git repo
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("Test operation should succeed");
     let repo_dir = tmp.path();
 
     // git init
@@ -20,19 +20,19 @@ async fn timeline_fs_diff_sequence() -> Result<()> {
         .arg("init")
         .current_dir(repo_dir)
         .status()
-        .unwrap();
+        .expect("Test operation should succeed");
     assert!(status.success(), "git init failed");
     assert!(Command::new("git")
         .args(["config", "user.email", "test@example.com"])
         .current_dir(repo_dir)
         .status()
-        .unwrap()
+        .expect("Test operation should succeed")
         .success());
     assert!(Command::new("git")
         .args(["config", "user.name", "Test User"])
         .current_dir(repo_dir)
         .status()
-        .unwrap()
+        .expect("Test operation should succeed")
         .success());
 
     // subscribe to fs.diff before actions

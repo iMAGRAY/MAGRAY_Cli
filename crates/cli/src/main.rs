@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use common::init_structured_logging;
 use common::{events, topics};
 use console::{style, Term};
@@ -10,10 +10,12 @@ use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use tracing::{info, warn};
 
 mod commands;
 mod health_checks;
 mod progress;
+mod services;
 mod util;
 
 #[cfg(test)]
@@ -23,7 +25,8 @@ use cli::agent_traits::AgentResponse;
 use cli::agent_traits::{RequestContext, RequestProcessorTrait};
 use cli::unified_agent_v2::UnifiedAgentV2;
 use commands::{
-    GpuCommand, MemoryCommand, ModelsCommand, SmartCommand, TasksCommand, ToolsCommand,
+    GpuCommand, MemoryCommand, ModelsCommand, OrchestratorCommand, SmartCommand, TasksCommand,
+    ToolsCommand,
 };
 
 // Иконки для CLI интерфейса
@@ -95,6 +98,8 @@ enum Commands {
     Tools(ToolsCommand),
     /// [☑] Управление задачами
     Tasks(TasksCommand),
+    /// [🤖] Multi-Agent Orchestration System
+    Orchestrator(OrchestratorCommand),
     /// [🏥] Проверка здоровья системы
     Health,
     /// [📊] Показать состояние системы
@@ -116,6 +121,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Early .env loading for OPENAI_API_KEY and other configuration
+    dotenv::dotenv().ok();
+
     // Start events metrics aggregator (non-blocking)
     events::start_tool_metrics_aggregator().await;
     // Настройка структурированного логирования
@@ -175,6 +183,7 @@ async fn main() -> Result<()> {
             Some(Commands::Memory(_)) => "memory",
             Some(Commands::Models(_)) => "models",
             Some(Commands::Tasks(_)) => "tasks",
+            Some(Commands::Orchestrator(_)) => "orchestrator",
             Some(Commands::Health) => "health",
             Some(Commands::Status) => "status",
             Some(Commands::LlmStatus) => "llm_status",
@@ -191,27 +200,34 @@ async fn main() -> Result<()> {
         match cli.command {
             Some(Commands::Chat { message }) => handle_chat(message).await?,
             Some(Commands::Read { path }) => {
-                let agent = create_unified_agent_v2().await?;
+                let orchestrator_service = create_orchestrator_service().await?;
                 let message = format!("прочитай файл {path}");
-                let response = process_agent_message(&agent, &message).await?;
+                let response =
+                    process_orchestrator_message(&orchestrator_service, &message).await?;
                 display_response(response).await;
+                let _ = orchestrator_service.shutdown().await;
             }
             Some(Commands::Write { path, content }) => {
-                let agent = create_unified_agent_v2().await?;
+                let orchestrator_service = create_orchestrator_service().await?;
                 let message = format!("создай файл {path} с содержимым: {content}");
-                let response = process_agent_message(&agent, &message).await?;
+                let response =
+                    process_orchestrator_message(&orchestrator_service, &message).await?;
                 display_response(response).await;
+                let _ = orchestrator_service.shutdown().await;
             }
             Some(Commands::List { path }) => {
-                let agent = create_unified_agent_v2().await?;
+                let orchestrator_service = create_orchestrator_service().await?;
                 let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
-                let response = process_agent_message(&agent, &message).await?;
+                let response =
+                    process_orchestrator_message(&orchestrator_service, &message).await?;
                 display_response(response).await;
+                let _ = orchestrator_service.shutdown().await;
             }
             Some(Commands::Tool { action }) => {
-                let agent = create_unified_agent_v2().await?;
-                let response = process_agent_message(&agent, &action).await?;
+                let orchestrator_service = create_orchestrator_service().await?;
+                let response = process_orchestrator_message(&orchestrator_service, &action).await?;
                 display_response(response).await;
+                let _ = orchestrator_service.shutdown().await;
             }
             Some(Commands::Smart(cmd)) => {
                 cmd.execute().await?;
@@ -236,6 +252,11 @@ async fn main() -> Result<()> {
                 timeout(Duration::from_secs(180), cmd.execute())
                     .await
                     .map_err(|_| anyhow::anyhow!("Tasks command timeout"))??;
+            }
+            Some(Commands::Orchestrator(cmd)) => {
+                timeout(Duration::from_secs(300), cmd.execute())
+                    .await
+                    .map_err(|_| anyhow::anyhow!("Orchestrator command timeout"))??;
             }
             Some(Commands::Health) => {
                 // Инициализируем сервисы для health check
@@ -301,8 +322,8 @@ async fn main() -> Result<()> {
                     .map_err(|_| anyhow::anyhow!("Tools command timeout"))??;
             }
             None => {
-                // По умолчанию показываем помощь
-                println!("{}", Cli::command().render_long_help());
+                // Интерактивный режим
+                run_interactive_mode().await?;
             }
         }
         // Publish job completion progress
@@ -324,7 +345,7 @@ async fn main() -> Result<()> {
             }
         }
         Err(_) => {
-            eprintln!("[✗] Команда превысила общий таймаут {}с", top_timeout_secs);
+            eprintln!("[✗] Команда превысила общий таймаут {top_timeout_secs}с");
             tokio::spawn(events::publish(
                 topics::TOPIC_ERROR,
                 json!({"error": "global_timeout", "timeout_secs": top_timeout_secs}),
@@ -334,6 +355,214 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn run_interactive_mode() -> Result<()> {
+    use std::io::{self, Write};
+    use tokio::time::{timeout, Duration as TokioDuration};
+
+    // Показываем приветствие для интерактивного режима
+    println!();
+    println!(
+        "{} {}",
+        style("[★]").green().bold(),
+        style("Добро пожаловать в интерактивный режим MAGRAY!")
+            .bright()
+            .bold()
+    );
+    println!(
+        "{} {}",
+        style("[►]").cyan(),
+        style("Введите команду или 'help' для списка команд").dim()
+    );
+    println!(
+        "{} {}",
+        style("[►]").cyan(),
+        style("'exit' или 'quit' для выхода").dim()
+    );
+    println!();
+
+    loop {
+        // Красивый промпт
+        print!("{} ", style("magray>").bright().green().bold());
+        io::stdout().flush()?;
+
+        // Читаем ввод в отдельном треде чтобы избежать зависания
+        let input_future = tokio::task::spawn_blocking(|| {
+            let mut input = String::new();
+            match io::stdin().read_line(&mut input) {
+                Ok(_) => Ok(input),
+                Err(e) => Err(e),
+            }
+        });
+
+        let input = match timeout(TokioDuration::from_secs(300), input_future).await {
+            Ok(Ok(Ok(input))) => input.trim().to_string(),
+            Ok(Ok(Err(e))) => {
+                println!("{} Input error: {}", style("[✗]").red().bold(), e);
+                continue;
+            }
+            Ok(Err(_)) => {
+                println!("{} Input thread panicked", style("[✗]").red().bold());
+                continue;
+            }
+            Err(_) => {
+                println!(
+                    "{} Input timeout after 5 minutes - exiting",
+                    style("[⚠]").yellow().bold()
+                );
+                break;
+            }
+        };
+
+        if input.is_empty() {
+            continue;
+        }
+
+        if input == "exit" || input == "quit" {
+            show_goodbye_animation().await?;
+            break;
+        }
+
+        if input == "clear" {
+            // Очистка экрана
+            let term = console::Term::stdout();
+            term.clear_screen()?;
+            continue;
+        }
+
+        // Парсим команду
+        if let Err(e) = process_interactive_command(&input).await {
+            println!("{} Error: {}", style("[✗]").red().bold(), e);
+        }
+
+        println!();
+    }
+
+    Ok(())
+}
+
+async fn process_interactive_command(input: &str) -> Result<()> {
+    let args: Vec<&str> = input.split_whitespace().collect();
+    if args.is_empty() {
+        return Ok(());
+    }
+
+    match args[0] {
+        "help" => {
+            show_interactive_help();
+        }
+        "chat" => {
+            let message = if args.len() > 1 {
+                Some(args[1..].join(" "))
+            } else {
+                None
+            };
+            handle_chat(message).await?;
+        }
+        "read" => {
+            if args.len() < 2 {
+                println!("{} Usage: read <path>", style("[!]").yellow().bold());
+                return Ok(());
+            }
+            let orchestrator_service = create_orchestrator_service().await?;
+            let message = format!("прочитай файл {}", args[1]);
+            let response = process_orchestrator_message(&orchestrator_service, &message).await?;
+            display_response(response).await;
+            let _ = orchestrator_service.shutdown().await;
+        }
+        "write" => {
+            if args.len() < 3 {
+                println!(
+                    "{} Usage: write <path> <content>",
+                    style("[!]").yellow().bold()
+                );
+                return Ok(());
+            }
+            let orchestrator_service = create_orchestrator_service().await?;
+            let content = args[2..].join(" ");
+            let message = format!("создай файл {} с содержимым: {}", args[1], content);
+            let response = process_orchestrator_message(&orchestrator_service, &message).await?;
+            display_response(response).await;
+            let _ = orchestrator_service.shutdown().await;
+        }
+        "list" => {
+            let path = if args.len() > 1 { args[1] } else { "." };
+            let orchestrator_service = create_orchestrator_service().await?;
+            let message = format!("покажи содержимое папки {path}");
+            let response = process_orchestrator_message(&orchestrator_service, &message).await?;
+            display_response(response).await;
+            let _ = orchestrator_service.shutdown().await;
+        }
+        "tool" => {
+            if args.len() < 2 {
+                println!("{} Usage: tool <action>", style("[!]").yellow().bold());
+                return Ok(());
+            }
+            let action = args[1..].join(" ");
+            let orchestrator_service = create_orchestrator_service().await?;
+            let response = process_orchestrator_message(&orchestrator_service, &action).await?;
+            display_response(response).await;
+            let _ = orchestrator_service.shutdown().await;
+        }
+        "status" => {
+            show_system_status().await?;
+        }
+        "health" => {
+            // Инициализируем сервисы для health check
+            let llm_client = LlmClient::from_env().ok().map(Arc::new);
+            let memory_service: Option<Arc<memory::di::UnifiedContainer>> = None;
+            health_checks::run_health_checks(llm_client, memory_service).await?;
+        }
+        unknown => {
+            println!(
+                "{} Unknown command: '{}'. Type 'help' for available commands.",
+                style("[!]").yellow().bold(),
+                unknown
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn show_interactive_help() {
+    println!(
+        "{}",
+        style("=== MAGRAY Interactive Commands ===").bold().cyan()
+    );
+    println!();
+    println!(
+        "{} {} - Chat with AI",
+        style("chat").green().bold(),
+        style("[message]").dim()
+    );
+    println!(
+        "{} {} - Read file",
+        style("read").green().bold(),
+        style("<path>").dim()
+    );
+    println!(
+        "{} {} - Write file",
+        style("write").green().bold(),
+        style("<path> <content>").dim()
+    );
+    println!(
+        "{} {} - List directory",
+        style("list").green().bold(),
+        style("[path]").dim()
+    );
+    println!(
+        "{} {} - Execute tool action",
+        style("tool").green().bold(),
+        style("<action>").dim()
+    );
+    println!("{} - Show system status", style("status").green().bold());
+    println!("{} - Run health checks", style("health").green().bold());
+    println!("{} - Clear screen", style("clear").green().bold());
+    println!("{} - Show this help", style("help").green().bold());
+    println!("{} - Exit interactive mode", style("exit").green().bold());
+    println!();
 }
 
 async fn show_welcome_animation() -> Result<()> {
@@ -346,7 +575,7 @@ async fn show_welcome_animation() -> Result<()> {
             .tick_chars("[|][/][-][\\]")
             .template("{spinner:.cyan} {msg}")
             .unwrap_or_else(|e| {
-                eprintln!("Warning: Failed to create spinner template: {}", e);
+                eprintln!("Warning: Failed to create spinner template: {e}");
                 ProgressStyle::default_spinner()
             }),
     );
@@ -458,7 +687,7 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
             .tick_chars("[●][◐][◑][◒][◓][●]")
             .template("{spinner} {msg}")
             .unwrap_or_else(|e| {
-                eprintln!("Warning: Failed to create LLM spinner template: {}", e);
+                eprintln!("Warning: Failed to create LLM spinner template: {e}");
                 ProgressStyle::default_spinner()
             }),
     );
@@ -498,14 +727,14 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
         }
     };
 
-    // Создаем новый Clean Architecture агент с timeout защитой
-    let agent_future = create_unified_agent_v2();
-    let agent = match timeout(TokioDuration::from_secs(30), agent_future).await {
-        Ok(Ok(agent)) => agent,
+    // Создаем новый AgentOrchestrator-based сервис с timeout защитой
+    let service_future = create_orchestrator_service();
+    let service = match timeout(TokioDuration::from_secs(30), service_future).await {
+        Ok(Ok(service)) => service,
         Ok(Err(e)) => return Err(e),
         Err(_) => {
             return Err(anyhow::anyhow!(
-                "Agent initialization timeout after 30 seconds"
+                "OrchestrationService initialization timeout after 30 seconds"
             ))
         }
     };
@@ -515,15 +744,19 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
 
     if let Some(msg) = final_message {
         // Одиночное сообщение (из аргументов или stdin)
-        process_single_message(&agent, &msg).await?;
+        process_single_message_orchestrator(&service, &msg).await?;
     } else {
         // Интерактивный чат
-        run_interactive_chat(&agent).await?;
+        run_interactive_chat_orchestrator(&service).await?;
     }
+
+    // Graceful shutdown
+    let _ = service.shutdown().await;
 
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn process_single_message(agent: &UnifiedAgentV2, message: &str) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
 
@@ -545,6 +778,31 @@ async fn process_single_message(agent: &UnifiedAgentV2, message: &str) -> Result
     Ok(())
 }
 
+async fn process_single_message_orchestrator(
+    service: &services::OrchestrationService,
+    message: &str,
+) -> Result<()> {
+    use tokio::time::{timeout, Duration as TokioDuration};
+
+    // Защита от зависания с таймаутом 60 секунд
+    let process_future = process_orchestrator_message(service, message);
+    let response = match timeout(TokioDuration::from_secs(60), process_future).await {
+        Ok(Ok(response)) => response,
+        Ok(Err(e)) => return Err(e),
+        Err(_) => {
+            println!(
+                "{} Message processing timeout after 60 seconds",
+                style("[⚠]").yellow().bold()
+            );
+            return Err(anyhow::anyhow!("Message processing timeout"));
+        }
+    };
+
+    display_response(response).await;
+    Ok(())
+}
+
+#[allow(dead_code)]
 async fn run_interactive_chat(agent: &UnifiedAgentV2) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
 
@@ -638,6 +896,99 @@ async fn run_interactive_chat(agent: &UnifiedAgentV2) -> Result<()> {
     Ok(())
 }
 
+async fn run_interactive_chat_orchestrator(service: &services::OrchestrationService) -> Result<()> {
+    use tokio::time::{timeout, Duration as TokioDuration};
+
+    println!(
+        "{} {}",
+        style("[★]").green().bold(),
+        style("Добро пожаловать в интерактивный режим с AgentOrchestrator!")
+            .bright()
+            .bold()
+    );
+    println!(
+        "{} {}",
+        style("[►]").cyan(),
+        style("Напишите ваше сообщение или").dim()
+    );
+    println!(
+        "{} {} {}",
+        style("   ").dim(),
+        style("'exit'").yellow().bold(),
+        style("для выхода").dim()
+    );
+    println!();
+
+    loop {
+        // Красивый промпт
+        print!(
+            "{} {} ",
+            style(USER_ICON).bright().green(),
+            style("Вы:").bright().bold()
+        );
+        io::stdout().flush()?;
+
+        // Читаем ввод в отдельном треде чтобы избежать зависания
+        let input_future = tokio::task::spawn_blocking(|| {
+            let mut input = String::new();
+            match io::stdin().read_line(&mut input) {
+                Ok(_) => Ok(input),
+                Err(e) => Err(e),
+            }
+        });
+
+        let input = match timeout(TokioDuration::from_secs(300), input_future).await {
+            Ok(Ok(Ok(input))) => input.trim().to_string(),
+            Ok(Ok(Err(e))) => {
+                println!("{} Input error: {}", style("[✗]").red().bold(), e);
+                continue;
+            }
+            Ok(Err(_)) => {
+                println!("{} Input thread panicked", style("[✗]").red().bold());
+                continue;
+            }
+            Err(_) => {
+                println!(
+                    "{} Input timeout after 5 minutes - exiting",
+                    style("[⚠]").yellow().bold()
+                );
+                break;
+            }
+        };
+
+        if input.is_empty() {
+            continue;
+        }
+
+        if input == "exit" || input == "quit" {
+            show_goodbye_animation().await?;
+            break;
+        }
+
+        // Обрабатываем сообщение с timeout защитой
+        let process_future = process_orchestrator_message(service, &input);
+        let response = match timeout(TokioDuration::from_secs(60), process_future).await {
+            Ok(Ok(response)) => response,
+            Ok(Err(e)) => {
+                println!("{} Processing error: {}", style("[✗]").red().bold(), e);
+                continue;
+            }
+            Err(_) => {
+                println!(
+                    "{} Message processing timeout after 60 seconds",
+                    style("[⚠]").yellow().bold()
+                );
+                continue;
+            }
+        };
+
+        display_response(response).await;
+        println!();
+    }
+
+    Ok(())
+}
+
 async fn display_response(response: AgentResponse) {
     match response {
         AgentResponse::Chat(text) => {
@@ -649,10 +1000,10 @@ async fn display_response(response: AgentResponse) {
         AgentResponse::Admin(admin_response) => {
             use cli::agent_traits::AdminResponse;
             match admin_response {
-                AdminResponse::SystemStats(stats) => println!("{}", stats),
-                AdminResponse::HealthStatus(status) => println!("{}", status),
-                AdminResponse::PerformanceMetrics(metrics) => println!("{}", metrics),
-                AdminResponse::OperationResult(result) => println!("{}", result),
+                AdminResponse::SystemStats(stats) => println!("{stats}"),
+                AdminResponse::HealthStatus(status) => println!("{status}"),
+                AdminResponse::PerformanceMetrics(metrics) => println!("{metrics}"),
+                AdminResponse::OperationResult(result) => println!("{result}"),
             }
         }
         AgentResponse::Error(error_msg) => {
@@ -673,21 +1024,41 @@ async fn display_chat_response(text: &str) {
     for char in text.chars() {
         print!("{}", style(char).bright());
         if let Err(e) = io::stdout().flush() {
-            eprintln!("Warning: Failed to flush stdout: {}", e);
+            eprintln!("Warning: Failed to flush stdout: {e}");
         }
         sleep(Duration::from_millis(20)).await;
     }
     println!();
 }
 
-/// Создание и инициализация UnifiedAgentV2
+/// Создание и инициализация UnifiedAgentV2 (legacy fallback)
 async fn create_unified_agent_v2() -> Result<UnifiedAgentV2> {
     let mut agent = UnifiedAgentV2::new().await?;
     agent.initialize().await?;
     Ok(agent)
 }
 
-/// Обработка сообщения через UnifiedAgentV2 API
+/// Создание и инициализация нового AgentOrchestrator-based сервиса
+async fn create_orchestrator_service() -> Result<services::OrchestrationService> {
+    // Try to create with real orchestrator first
+    match services::OrchestrationService::with_orchestrator().await {
+        Ok(service) => {
+            info!("OrchestrationService with AgentOrchestrator created successfully");
+            Ok(service)
+        }
+        Err(e) => {
+            warn!(
+                "Failed to create orchestrator service: {}, falling back to basic service",
+                e
+            );
+            // Fall back to basic orchestration service (with fallback agent)
+            Ok(services::OrchestrationService::new())
+        }
+    }
+}
+
+/// Обработка сообщения через UnifiedAgentV2 API (legacy)
+#[allow(dead_code)]
 async fn process_agent_message(agent: &UnifiedAgentV2, message: &str) -> Result<AgentResponse> {
     let context = RequestContext {
         message: message.to_string(),
@@ -701,6 +1072,15 @@ async fn process_agent_message(agent: &UnifiedAgentV2, message: &str) -> Result<
     Ok(result.response)
 }
 
+/// Обработка сообщения через OrchestrationService
+async fn process_orchestrator_message(
+    service: &services::OrchestrationService,
+    message: &str,
+) -> Result<AgentResponse> {
+    let response = service.process_user_request(message).await?;
+    Ok(AgentResponse::Chat(response))
+}
+
 async fn show_goodbye_animation() -> Result<()> {
     let spinner = indicatif::ProgressBar::new_spinner();
     spinner.set_style(
@@ -708,7 +1088,7 @@ async fn show_goodbye_animation() -> Result<()> {
             .tick_chars("[◄][◁][◀][■]")
             .template("{spinner} {msg}")
             .unwrap_or_else(|e| {
-                eprintln!("Warning: Failed to create goodbye spinner template: {}", e);
+                eprintln!("Warning: Failed to create goodbye spinner template: {e}");
                 ProgressStyle::default_spinner()
             }),
     );
@@ -846,7 +1226,7 @@ async fn show_system_status() -> Result<()> {
     } else {
         "default"
     };
-    println!("🔒 Policy: {} (rules: {})", src, rules_count);
+    println!("🔒 Policy: {src} (rules: {rules_count})");
     // Risk aggregation
     let mut low = 0usize;
     let mut med = 0usize;
@@ -874,7 +1254,7 @@ async fn show_system_status() -> Result<()> {
             common::policy::RiskLevel::Low => low += 1,
         }
     }
-    println!("  risks: low={} medium={} high={}", low, med, high);
+    println!("  risks: low={low} medium={med} high={high}");
     // Brief audit: list up to 5 rules
     let preview_len = effective.rules.len().min(5);
     if preview_len > 0 {
@@ -887,7 +1267,7 @@ async fn show_system_status() -> Result<()> {
                     if m.is_empty() {
                         String::new()
                     } else {
-                        format!(" when={:?}", m)
+                        format!(" when={m:?}")
                     }
                 })
                 .unwrap_or_default();
@@ -932,7 +1312,7 @@ async fn show_llm_status() -> Result<()> {
             spinner.finish_success(Some("Multi-provider система доступна!"));
 
             if let Some(status_report) = client.get_status_report().await {
-                println!("\n{}", status_report);
+                println!("\n{status_report}");
             } else {
                 println!("\n🔧 Multi-provider система инициализирована, но статус недоступен");
             }
@@ -957,8 +1337,8 @@ async fn show_llm_status() -> Result<()> {
                 }
                 Err(single_err) => {
                     println!("\n{} Ошибка конфигурации LLM", "❌".red().bold());
-                    println!("Multi-provider ошибка: {}", e);
-                    println!("Single-provider ошибка: {}", single_err);
+                    println!("Multi-provider ошибка: {e}");
+                    println!("Single-provider ошибка: {single_err}");
                     println!();
                     println!("🔧 Настройте хотя бы один провайдер:");
                     println!("  LLM_PROVIDER=openai");
@@ -987,7 +1367,7 @@ async fn show_performance_metrics() -> Result<()> {
             agent
         }
         Err(e) => {
-            spinner.finish_error(&format!("Failed to initialize agent: {}", e));
+            spinner.finish_error(&format!("Failed to initialize agent: {e}"));
             println!("{} Error: {}", "✗".red(), e);
             return Ok(());
         }
@@ -1005,7 +1385,7 @@ async fn show_performance_metrics() -> Result<()> {
     // В минимальной сборке детальные DI-метрики недоступны
     let mock_metrics = memory::DIPerformanceMetrics::default();
 
-    if mock_metrics.total_resolutions > 0 {
+    if mock_metrics.resolution_time_avg_ms > 0.0 {
         println!();
         println!("{}", style("=== Detailed Analysis ===").bold().yellow());
         println!("ℹ️ Detailed DI metrics are not available in minimal build.");

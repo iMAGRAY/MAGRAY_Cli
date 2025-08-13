@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "todo_tasks": [
+    {
+      "id": "security-review-P0",
+      "title": "Review Security Implementation P0.1.4-7",
+      "status": "in_progress",
+      "assignee": "orchestrator",
+      "files": [
+        "/mnt/c/Users/1/Documents/GitHub/MAGRAY_Cli/crates/tools/src/web_ops.rs",
+        "/mnt/c/Users/1/Documents/GitHub/MAGRAY_Cli/crates/tools/src/shell_ops.rs",
+        "/mnt/c/Users/1/Documents/GitHub/MAGRAY_Cli/crates/common/src/sandbox_config.rs",
+        "/mnt/c/Users/1/Documents/GitHub/MAGRAY_Cli/crates/tools/src/file_ops.rs"
+      ],
+      "deps": [],
+      "lease_expires_at": "2025-08-13T10:30:00Z"
+    }
+  ],
+  "active_agents": ["orchestrator"],
+  "file_locks": [
+    {
+      "path": "/mnt/c/Users/1/Documents/GitHub/MAGRAY_Cli/crates/tools/src/web_ops.rs",
+      "owner": "orchestrator",
+      "reason": "security review",
+      "lease_expires_at": "2025-08-13T10:30:00Z"
+    },
+    {
+      "path": "/mnt/c/Users/1/Documents/GitHub/MAGRAY_Cli/crates/tools/src/shell_ops.rs",
+      "owner": "orchestrator", 
+      "reason": "security review",
+      "lease_expires_at": "2025-08-13T10:30:00Z"
+    },
+    {
+      "path": "/mnt/c/Users/1/Documents/GitHub/MAGRAY_Cli/crates/common/src/sandbox_config.rs",
+      "owner": "orchestrator",
+      "reason": "security review", 
+      "lease_expires_at": "2025-08-13T10:30:00Z"
+    },
+    {
+      "path": "/mnt/c/Users/1/Documents/GitHub/MAGRAY_Cli/crates/tools/src/file_ops.rs",
+      "owner": "orchestrator",
+      "reason": "security review",
+      "lease_expires_at": "2025-08-13T10:30:00Z"
+    }
+  ],
+  "events": [
+    {
+      "ts": "2025-08-13T10:00:00Z",
+      "type": "task_started",
+      "payload": {
+        "task_id": "security-review-P0",
+        "agent": "orchestrator",
+        "description": "Starting security review of P0.1.4-7 tasks from Todo.md"
+      }
+    }
+  ]
+}

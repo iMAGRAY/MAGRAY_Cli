@@ -147,7 +147,13 @@ mod search_options_tests {
         assert_eq!(options.top_k, 5);
         assert_eq!(options.score_threshold, 0.7);
         assert_eq!(options.tags.len(), 1);
-        assert_eq!(options.project.as_ref().unwrap(), "my_project");
+        assert_eq!(
+            options
+                .project
+                .as_ref()
+                .expect("Test operation should succeed"),
+            "my_project"
+        );
     }
 }
 
@@ -245,7 +251,10 @@ mod cache_config_tests {
 
         assert_eq!(config.max_size_bytes, 50000);
         assert_eq!(config.max_entries, 1000);
-        assert_eq!(config.ttl_seconds.unwrap(), 7200);
+        assert_eq!(
+            config.ttl_seconds.expect("Test operation should succeed"),
+            7200
+        );
         assert_eq!(config.eviction_batch_size, 10);
     }
 
@@ -260,7 +269,7 @@ mod cache_config_tests {
 
         assert!(config.max_size_bytes > 0);
         assert!(config.max_entries > 0);
-        assert!(config.ttl_seconds.unwrap() > 0);
+        assert!(config.ttl_seconds.expect("Test operation should succeed") > 0);
         assert!(config.eviction_batch_size > 0);
     }
 
@@ -523,8 +532,9 @@ mod serialization_tests {
     #[test]
     fn test_layer_json_roundtrip() {
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-            let json = serde_json::to_string(&layer).unwrap();
-            let restored: Layer = serde_json::from_str(&json).unwrap();
+            let json = serde_json::to_string(&layer).expect("Test operation should succeed");
+            let restored: Layer =
+                serde_json::from_str(&json).expect("Test operation should succeed");
             assert_eq!(layer, restored);
         }
     }
@@ -532,8 +542,8 @@ mod serialization_tests {
     #[test]
     fn test_record_json_roundtrip() {
         let original = Record::default();
-        let json = serde_json::to_string(&original).unwrap();
-        let restored: Record = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&original).expect("Test operation should succeed");
+        let restored: Record = serde_json::from_str(&json).expect("Test operation should succeed");
 
         assert_eq!(original.text, restored.text);
         assert_eq!(original.layer, restored.layer);
@@ -544,8 +554,9 @@ mod serialization_tests {
     #[test]
     fn test_search_options_json_roundtrip() {
         let original = SearchOptions::default();
-        let json = serde_json::to_string(&original).unwrap();
-        let restored: SearchOptions = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&original).expect("Test operation should succeed");
+        let restored: SearchOptions =
+            serde_json::from_str(&json).expect("Test operation should succeed");
 
         assert_eq!(original.layers, restored.layers);
         assert_eq!(original.top_k, restored.top_k);

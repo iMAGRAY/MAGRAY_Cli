@@ -67,6 +67,11 @@ impl AccessPattern {
         self.access_count
     }
 
+    /// Get last access timestamp
+    pub fn last_accessed(&self) -> DateTime<Utc> {
+        self.last_access
+    }
+
     /// Get first access timestamp
     pub fn first_access(&self) -> DateTime<Utc> {
         self.first_access
@@ -137,14 +142,26 @@ impl AccessPattern {
         }
 
         let recent_interval = if recent_half.len() > 1 {
-            (*recent_half.last().unwrap() - *recent_half.first().unwrap()).num_minutes() as f64
+            (*recent_half
+                .last()
+                .expect("Operation failed - converted from unwrap()")
+                - *recent_half
+                    .first()
+                    .expect("Operation failed - converted from unwrap()"))
+            .num_minutes() as f64
                 / (recent_half.len() - 1) as f64
         } else {
             0.0
         };
 
         let older_interval = if older_half.len() > 1 {
-            (*older_half.last().unwrap() - *older_half.first().unwrap()).num_minutes() as f64
+            (*older_half
+                .last()
+                .expect("Operation failed - converted from unwrap()")
+                - *older_half
+                    .first()
+                    .expect("Operation failed - converted from unwrap()"))
+            .num_minutes() as f64
                 / (older_half.len() - 1) as f64
         } else {
             f64::INFINITY

@@ -4,10 +4,12 @@ use super::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use futures_util::StreamExt;
+use rand::Rng;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct OpenAIProvider {
@@ -16,6 +18,73 @@ pub struct OpenAIProvider {
     endpoint: String,
     client: Client,
     timeout: Duration,
+    retry_config: RetryConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct RetryConfig {
+    pub max_retries: u32,
+    pub initial_delay: Duration,
+    pub max_delay: Duration,
+    pub backoff_multiplier: f64,
+    pub jitter: bool,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 3,
+            initial_delay: Duration::from_millis(100),
+            max_delay: Duration::from_secs(60),
+            backoff_multiplier: 2.0,
+            jitter: true,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct OpenAIError {
+    error_type: String,
+    message: String,
+    status_code: Option<u16>,
+    is_retryable: bool,
+}
+
+impl OpenAIError {
+    fn from_status_code(status_code: u16, message: String) -> Self {
+        let (error_type, is_retryable) = match status_code {
+            429 => ("rate_limit".to_string(), true),
+            500..=599 => ("server_error".to_string(), true),
+            408 => ("timeout".to_string(), true),
+            400 => ("bad_request".to_string(), false),
+            401 => ("unauthorized".to_string(), false),
+            403 => ("forbidden".to_string(), false),
+            404 => ("not_found".to_string(), false),
+            _ => ("unknown".to_string(), false),
+        };
+
+        Self {
+            error_type,
+            message,
+            status_code: Some(status_code),
+            is_retryable,
+        }
+    }
+
+    fn from_reqwest_error(error: reqwest::Error) -> Self {
+        let is_retryable = error.is_timeout() || error.is_connect();
+        Self {
+            error_type: if error.is_timeout() {
+                "timeout"
+            } else {
+                "network"
+            }
+            .to_string(),
+            message: error.to_string(),
+            status_code: error.status().map(|s| s.as_u16()),
+            is_retryable,
+        }
+    }
 }
 
 impl OpenAIProvider {
@@ -35,6 +104,7 @@ impl OpenAIProvider {
             endpoint: endpoint.unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
             client,
             timeout: Duration::from_secs(60),
+            retry_config: RetryConfig::default(),
         })
     }
 
@@ -45,6 +115,95 @@ impl OpenAIProvider {
             .build()
             .expect("Failed to rebuild HTTP client with timeout");
         self
+    }
+
+    pub fn with_retry_config(mut self, retry_config: RetryConfig) -> Self {
+        self.retry_config = retry_config;
+        self
+    }
+
+    async fn execute_with_retry<F, T>(&self, operation: F) -> Result<T>
+    where
+        F: Fn() -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<T, OpenAIError>> + Send + 'static>,
+            > + Send
+            + Sync,
+    {
+        let mut last_error = None;
+
+        for attempt in 0..=self.retry_config.max_retries {
+            match operation().await {
+                Ok(result) => return Ok(result),
+                Err(error) => {
+                    if attempt == self.retry_config.max_retries || !error.is_retryable {
+                        last_error = Some(error);
+                        break;
+                    }
+
+                    let delay = self.calculate_backoff_delay(attempt);
+                    warn!(
+                        "OpenAI request failed (attempt {}/{}): {} - retrying in {:?}",
+                        attempt + 1,
+                        self.retry_config.max_retries + 1,
+                        error.message,
+                        delay
+                    );
+
+                    tokio::time::sleep(delay).await;
+                    last_error = Some(error);
+                }
+            }
+        }
+
+        if let Some(error) = last_error {
+            Err(anyhow!(
+                "OpenAI request failed after {} attempts: {}",
+                self.retry_config.max_retries + 1,
+                error.message
+            ))
+        } else {
+            Err(anyhow!("Unexpected error in retry logic"))
+        }
+    }
+
+    fn calculate_backoff_delay(&self, attempt: u32) -> Duration {
+        let base_delay = self.retry_config.initial_delay.as_millis() as f64;
+        let exponential_delay =
+            base_delay * self.retry_config.backoff_multiplier.powi(attempt as i32);
+
+        let mut delay = Duration::from_millis(
+            exponential_delay.min(self.retry_config.max_delay.as_millis() as f64) as u64,
+        );
+
+        if self.retry_config.jitter {
+            let jitter_range = delay.as_millis() as f64 * 0.1;
+            let jitter = rand::thread_rng().gen_range(-jitter_range..jitter_range);
+            let jittered_delay = (delay.as_millis() as f64 + jitter).max(0.0) as u64;
+            delay = Duration::from_millis(jittered_delay);
+        }
+
+        delay
+    }
+
+    /// Parse SSE event and extract content
+    fn parse_sse_event(event: &str) -> Option<String> {
+        for line in event.lines() {
+            if let Some(data) = line.strip_prefix("data: ") {
+                if data == "[DONE]" {
+                    return Some("[DONE]".to_string());
+                }
+
+                // Try to parse JSON data
+                if let Ok(chunk) = serde_json::from_str::<OpenAIStreamChunk>(data) {
+                    if let Some(choice) = chunk.choices.first() {
+                        if let Some(content) = &choice.delta.content {
+                            return Some(content.clone());
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Get model-specific capabilities
@@ -184,7 +343,6 @@ impl LlmProvider for OpenAIProvider {
             });
         }
 
-        // Add main prompt
         messages.push(OpenAIMessage {
             role: "user".to_string(),
             content: request.prompt.clone(),
@@ -204,30 +362,57 @@ impl LlmProvider for OpenAIProvider {
             self.model
         );
 
-        let response = self
-            .client
-            .post(format!("{}/chat/completions", self.endpoint))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&openai_request)
-            .send()
+        let client = self.client.clone();
+        let endpoint = self.endpoint.clone();
+        let api_key = self.api_key.clone();
+
+        let result = self
+            .execute_with_retry(|| {
+                let client = client.clone();
+                let endpoint = endpoint.clone();
+                let api_key = api_key.clone();
+                let openai_request = openai_request.clone();
+
+                Box::pin(async move {
+                    let response = client
+                        .post(format!("{endpoint}/chat/completions"))
+                        .header("Authorization", format!("Bearer {api_key}"))
+                        .header("Content-Type", "application/json")
+                        .json(&openai_request)
+                        .send()
+                        .await
+                        .map_err(OpenAIError::from_reqwest_error)?;
+
+                    if !response.status().is_success() {
+                        let status = response.status().as_u16();
+                        let error_text = response
+                            .text()
+                            .await
+                            .unwrap_or_else(|_| "Failed to read error response".to_string());
+                        return Err(OpenAIError::from_status_code(status, error_text));
+                    }
+
+                    let openai_response: OpenAIResponse =
+                        response.json().await.map_err(|e| OpenAIError {
+                            error_type: "parse_error".to_string(),
+                            message: format!("Failed to parse response: {e}"),
+                            status_code: None,
+                            is_retryable: false,
+                        })?;
+
+                    Ok(openai_response)
+                })
+            })
             .await?;
 
-        if !response.status().is_success() {
-            let error_text = response.text().await?;
-            error!("OpenAI API error: {}", error_text);
-            return Err(anyhow!("OpenAI API error: {}", error_text));
-        }
-
-        let openai_response: OpenAIResponse = response.json().await?;
         let elapsed = start_time.elapsed();
 
-        let choice = openai_response
+        let choice = result
             .choices
             .first()
             .ok_or_else(|| anyhow!("Empty response from OpenAI"))?;
 
-        let usage = if let Some(usage) = openai_response.usage {
+        let usage = if let Some(usage) = result.usage {
             TokenUsage::new(usage.prompt_tokens, usage.completion_tokens)
         } else {
             let prompt_tokens = request.prompt.len() as u32 / 4;
@@ -261,7 +446,7 @@ impl LlmProvider for OpenAIProvider {
         // Validate request first
         self.validate_request(&request)?;
 
-        // Build messages array (similar to complete())
+        // Build messages array
         let mut messages = Vec::new();
 
         if let Some(system_prompt) = &request.system_prompt {
@@ -288,43 +473,100 @@ impl LlmProvider for OpenAIProvider {
         let client = self.client.clone();
         let endpoint = self.endpoint.clone();
         let api_key = self.api_key.clone();
+        let retry_config = self.retry_config.clone();
 
         tokio::spawn(async move {
             info!("🚀 Starting streaming request to OpenAI");
 
-            match client
-                .post(format!("{}/chat/completions", endpoint))
-                .header("Authorization", format!("Bearer {}", api_key))
-                .header("Content-Type", "application/json")
-                .json(&openai_request)
-                .send()
-                .await
-            {
-                Ok(response) => {
-                    if !response.status().is_success() {
-                        error!("OpenAI streaming request failed: {}", response.status());
-                        return;
-                    }
+            // Streaming requests get simplified retry (no exponential backoff due to nature of streaming)
+            let mut retries = 0;
 
-                    // In a real implementation, you would parse the SSE stream
-                    // For now, we'll simulate streaming by chunking the response
-                    match response.text().await {
-                        Ok(text) => {
-                            let words: Vec<&str> = text.split_whitespace().collect();
-                            for word in words {
-                                if tx.send(format!("{} ", word)).await.is_err() {
-                                    break;
-                                }
-                                tokio::time::sleep(Duration::from_millis(50)).await;
+            loop {
+                match client
+                    .post(format!("{endpoint}/chat/completions"))
+                    .header("Authorization", format!("Bearer {api_key}"))
+                    .header("Content-Type", "application/json")
+                    .json(&openai_request)
+                    .send()
+                    .await
+                {
+                    Ok(response) => {
+                        if !response.status().is_success() {
+                            let status = response.status();
+                            let error_text = response.text().await.unwrap_or_default();
+
+                            let openai_error =
+                                OpenAIError::from_status_code(status.as_u16(), error_text);
+
+                            if openai_error.is_retryable && retries < retry_config.max_retries {
+                                retries += 1;
+                                warn!("OpenAI streaming request failed (attempt {}/{}): {} - retrying", 
+                                     retries, retry_config.max_retries + 1, openai_error.message);
+                                tokio::time::sleep(retry_config.initial_delay).await;
+                                continue;
+                            } else {
+                                error!("OpenAI streaming request failed: {}", openai_error.message);
+                                return;
                             }
                         }
-                        Err(e) => {
-                            error!("Failed to read streaming response: {}", e);
+
+                        // Process successful response
+                        let mut stream = response.bytes_stream();
+                        let mut buffer = String::new();
+
+                        while let Some(chunk_result) = stream.next().await {
+                            match chunk_result {
+                                Ok(chunk) => {
+                                    if let Ok(text) = std::str::from_utf8(&chunk) {
+                                        buffer.push_str(text);
+
+                                        // Process complete SSE events
+                                        while let Some(event_end) = buffer.find("\n\n") {
+                                            let event = buffer[..event_end].to_string();
+                                            buffer = buffer[event_end + 2..].to_string();
+
+                                            if let Some(content) =
+                                                OpenAIProvider::parse_sse_event(&event)
+                                            {
+                                                if content == "[DONE]" {
+                                                    info!("✅ Streaming completed");
+                                                    return;
+                                                }
+
+                                                if tx.send(content).await.is_err() {
+                                                    debug!("Stream receiver closed");
+                                                    return;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Error reading stream chunk: {}", e);
+                                    break;
+                                }
+                            }
+                        }
+                        break; // Success, exit retry loop
+                    }
+                    Err(e) => {
+                        let openai_error = OpenAIError::from_reqwest_error(e);
+
+                        if openai_error.is_retryable && retries < retry_config.max_retries {
+                            retries += 1;
+                            warn!(
+                                "OpenAI streaming connection failed (attempt {}/{}): {} - retrying",
+                                retries,
+                                retry_config.max_retries + 1,
+                                openai_error.message
+                            );
+                            tokio::time::sleep(retry_config.initial_delay).await;
+                            continue;
+                        } else {
+                            error!("Failed to send streaming request: {}", openai_error.message);
+                            break;
                         }
                     }
-                }
-                Err(e) => {
-                    error!("Failed to send streaming request: {}", e);
                 }
             }
 
@@ -336,7 +578,7 @@ impl LlmProvider for OpenAIProvider {
 }
 
 // OpenAI-specific request/response types
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct OpenAIRequest {
     model: String,
     messages: Vec<OpenAIMessage>,
@@ -348,7 +590,7 @@ struct OpenAIRequest {
     stream: Option<bool>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct OpenAIMessage {
     role: String,
     content: String,
@@ -377,16 +619,35 @@ struct OpenAIUsage {
     completion_tokens: u32,
 }
 
+// Types for streaming responses
+#[derive(Debug, Deserialize)]
+struct OpenAIStreamChunk {
+    choices: Vec<OpenAIStreamChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAIStreamChoice {
+    delta: OpenAIDelta,
+    finish_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAIDelta {
+    content: Option<String>,
+    role: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mockito::Server;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_openai_provider_creation() {
         let provider =
             OpenAIProvider::new("test-api-key".to_string(), "gpt-4o-mini".to_string(), None)
-                .unwrap();
+                .expect("Operation failed - converted from unwrap()");
 
         assert_eq!(provider.id().provider_type, "openai");
         assert_eq!(provider.id().model, "gpt-4o-mini");
@@ -398,10 +659,81 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_retry_config_creation() {
+        let custom_retry_config = RetryConfig {
+            max_retries: 5,
+            initial_delay: Duration::from_millis(200),
+            max_delay: Duration::from_secs(30),
+            backoff_multiplier: 1.5,
+            jitter: false,
+        };
+
+        let provider =
+            OpenAIProvider::new("test-api-key".to_string(), "gpt-4o-mini".to_string(), None)
+                .expect("Operation failed - converted from unwrap()")
+                .with_retry_config(custom_retry_config.clone());
+
+        assert_eq!(provider.retry_config.max_retries, 5);
+        assert_eq!(
+            provider.retry_config.initial_delay,
+            Duration::from_millis(200)
+        );
+        assert!(!provider.retry_config.jitter);
+    }
+
+    #[tokio::test]
+    async fn test_backoff_delay_calculation() {
+        let retry_config = RetryConfig {
+            max_retries: 3,
+            initial_delay: Duration::from_millis(100),
+            max_delay: Duration::from_secs(10),
+            backoff_multiplier: 2.0,
+            jitter: false,
+        };
+
+        let provider =
+            OpenAIProvider::new("test-api-key".to_string(), "gpt-4o-mini".to_string(), None)
+                .expect("Operation failed - converted from unwrap()")
+                .with_retry_config(retry_config);
+
+        let delay_0 = provider.calculate_backoff_delay(0);
+        let delay_1 = provider.calculate_backoff_delay(1);
+        let delay_2 = provider.calculate_backoff_delay(2);
+
+        assert_eq!(delay_0, Duration::from_millis(100));
+        assert_eq!(delay_1, Duration::from_millis(200));
+        assert_eq!(delay_2, Duration::from_millis(400));
+    }
+
+    #[tokio::test]
+    async fn test_openai_error_classification() {
+        // Test rate limit error (retryable)
+        let rate_limit_error =
+            OpenAIError::from_status_code(429, "Rate limit exceeded".to_string());
+        assert!(rate_limit_error.is_retryable);
+        assert_eq!(rate_limit_error.error_type, "rate_limit");
+
+        // Test server error (retryable)
+        let server_error = OpenAIError::from_status_code(500, "Internal server error".to_string());
+        assert!(server_error.is_retryable);
+        assert_eq!(server_error.error_type, "server_error");
+
+        // Test auth error (not retryable)
+        let auth_error = OpenAIError::from_status_code(401, "Unauthorized".to_string());
+        assert!(!auth_error.is_retryable);
+        assert_eq!(auth_error.error_type, "unauthorized");
+
+        // Test bad request (not retryable)
+        let bad_request = OpenAIError::from_status_code(400, "Bad request".to_string());
+        assert!(!bad_request.is_retryable);
+        assert_eq!(bad_request.error_type, "bad_request");
+    }
+
+    #[tokio::test]
     async fn test_openai_provider_validation() {
         let provider =
             OpenAIProvider::new("test-api-key".to_string(), "gpt-4o-mini".to_string(), None)
-                .unwrap();
+                .expect("Operation failed - converted from unwrap()");
 
         let valid_request = LlmRequest::new("Hello").with_parameters(Some(1000), Some(0.7));
         assert!(provider.validate_request(&valid_request).is_ok());
@@ -441,10 +773,13 @@ mod tests {
             "gpt-4o-mini".to_string(),
             Some(server.url()),
         )
-        .unwrap();
+        .expect("Operation failed - converted from unwrap()");
 
         let request = LlmRequest::new("Hello");
-        let response = provider.complete(request).await.unwrap();
+        let response = provider
+            .complete(request)
+            .await
+            .expect("Async operation should succeed");
 
         assert_eq!(response.content, "Hello! How can I help you today?");
         assert_eq!(response.usage.prompt_tokens, 10);
@@ -452,5 +787,110 @@ mod tests {
         assert_eq!(response.finish_reason, "stop");
 
         mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_retry_on_server_error() {
+        let mut server = Server::new_async().await;
+
+        // First two requests fail with 500, third succeeds
+        let error_mock = server
+            .mock("POST", "/chat/completions")
+            .with_status(500)
+            .with_header("content-type", "text/plain")
+            .with_body("Internal Server Error")
+            .expect(2)
+            .create_async()
+            .await;
+
+        let success_mock = server
+            .mock("POST", "/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "Success after retry!"
+                    },
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 3
+                }
+            }"#,
+            )
+            .create_async()
+            .await;
+
+        let retry_config = RetryConfig {
+            max_retries: 3,
+            initial_delay: Duration::from_millis(10), // Fast for testing
+            max_delay: Duration::from_secs(1),
+            backoff_multiplier: 1.5,
+            jitter: false,
+        };
+
+        let provider = OpenAIProvider::new(
+            "test-api-key".to_string(),
+            "gpt-4o-mini".to_string(),
+            Some(server.url()),
+        )
+        .expect("Operation failed - converted from unwrap()")
+        .with_retry_config(retry_config);
+
+        let request = LlmRequest::new("Test retry");
+        let response = provider
+            .complete(request)
+            .await
+            .expect("Async operation should succeed");
+
+        assert_eq!(response.content, "Success after retry!");
+        assert_eq!(response.usage.prompt_tokens, 5);
+        assert_eq!(response.usage.completion_tokens, 3);
+
+        error_mock.assert_async().await;
+        success_mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_no_retry_on_auth_error() {
+        let mut server = Server::new_async().await;
+
+        // Auth error should not be retried
+        let auth_error_mock = server
+            .mock("POST", "/chat/completions")
+            .with_status(401)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"error": {"message": "Invalid API key"}}"#)
+            .expect(1) // Should only be called once (no retries)
+            .create_async()
+            .await;
+
+        let retry_config = RetryConfig {
+            max_retries: 3,
+            initial_delay: Duration::from_millis(10),
+            max_delay: Duration::from_secs(1),
+            backoff_multiplier: 2.0,
+            jitter: false,
+        };
+
+        let provider = OpenAIProvider::new(
+            "invalid-api-key".to_string(),
+            "gpt-4o-mini".to_string(),
+            Some(server.url()),
+        )
+        .expect("Operation failed - converted from unwrap()")
+        .with_retry_config(retry_config);
+
+        let request = LlmRequest::new("Test no retry");
+        let result = provider.complete(request).await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid API key"));
+
+        auth_error_mock.assert_async().await;
     }
 }

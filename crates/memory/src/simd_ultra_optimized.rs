@@ -25,7 +25,7 @@ impl AlignedVector {
     pub fn as_aligned_slice(&self) -> &[f32] {
         self.as_slice()
     }
-    
+
     /// Проверка совместимости с AVX2
     pub fn is_avx2_aligned(&self) -> bool {
         self.is_avx2_compatible()
@@ -56,41 +56,41 @@ pub fn horizontal_sum_branchless(values: &[f32]) -> f32 {
 unsafe fn cosine_distance_avx2_impl(a: &[f32], b: &[f32]) -> f32 {
     // SAFETY: Эта функция вызывается только при проверенной поддержке AVX2
     // и корректных размерах векторов (кратных 8)
-    
+
     debug_assert_eq!(a.len(), b.len());
     debug_assert!(a.len() % 8 == 0);
     debug_assert!(!a.is_empty());
-    
+
     let len = a.len();
     let chunks = len / 8;
-    
+
     let mut dot_acc = _mm256_setzero_ps();
     let mut norm_a_acc = _mm256_setzero_ps();
     let mut norm_b_acc = _mm256_setzero_ps();
-    
+
     for i in 0..chunks {
         let idx = i * 8;
-        
+
         // SAFETY: bounds проверены выше через debug_assert
         // idx < chunks * 8 = len, поэтому idx + 7 < len
         let va = _mm256_loadu_ps(a.as_ptr().add(idx));
         let vb = _mm256_loadu_ps(b.as_ptr().add(idx));
-        
+
         dot_acc = _mm256_fmadd_ps(va, vb, dot_acc);
         norm_a_acc = _mm256_fmadd_ps(va, va, norm_a_acc);
         norm_b_acc = _mm256_fmadd_ps(vb, vb, norm_b_acc);
     }
-    
+
     // Horizontal sum через безопасные операции
     let dot_sum = horizontal_sum_avx2(dot_acc);
     let norm_a_sum = horizontal_sum_avx2(norm_a_acc);
     let norm_b_sum = horizontal_sum_avx2(norm_b_acc);
-    
+
     let norm_product = norm_a_sum * norm_b_sum;
     if norm_product < f32::EPSILON {
         return 0.0;
     }
-    
+
     let similarity = dot_sum / norm_product.sqrt();
     1.0 - similarity.clamp(-1.0, 1.0)
 }
@@ -123,7 +123,7 @@ pub fn cosine_distance_auto_ultra(a: &[f32], b: &[f32]) -> f32 {
             cosine_distance_auto_safe(a, b)
         }
     }
-    
+
     #[cfg(not(target_arch = "x86_64"))]
     {
         cosine_distance_auto_safe(a, b)
@@ -139,7 +139,7 @@ pub fn cosine_distance_scalar_optimized(a: &[f32], b: &[f32]) -> f32 {
 #[cfg(target_arch = "x86_64")]
 pub fn batch_cosine_distance_ultra(queries: &[AlignedVector], target: &AlignedVector) -> Vec<f32> {
     let target_slice = target.as_aligned_slice();
-    
+
     let use_simd = is_x86_feature_detected!("avx2")
         && is_x86_feature_detected!("fma")
         && target_slice.len() >= 8
@@ -148,7 +148,7 @@ pub fn batch_cosine_distance_ultra(queries: &[AlignedVector], target: &AlignedVe
             let slice = q.as_aligned_slice();
             slice.len() == target_slice.len() && slice.len() % 8 == 0
         });
-    
+
     if use_simd {
         queries
             .iter()
@@ -179,14 +179,14 @@ pub fn benchmark_horizontal_sum_variants(iterations: usize, vector_size: usize) 
     let data: Vec<f32> = (0..vector_size)
         .map(|i| i as f32 / vector_size as f32)
         .collect();
-    
+
     let start = Instant::now();
     for _ in 0..iterations {
         let _sum = data.iter().sum::<f32>();
         std::hint::black_box(_sum);
     }
     let simple_time = start.elapsed().as_nanos() as f64 / iterations as f64;
-    
+
     // Возвращаем одинаковые времена, так как используем безопасную реализацию
     (simple_time, simple_time, simple_time)
 }
@@ -195,16 +195,16 @@ pub fn benchmark_horizontal_sum_variants(iterations: usize, vector_size: usize) 
 pub fn test_ultra_optimized_performance() -> anyhow::Result<()> {
     println!("🚀 Тест производительности безопасных SIMD операций");
     println!("============================================");
-    
+
     let vector_size = 1024;
     let test_iterations = 10000;
-    
+
     // Генерация тестовых данных
     let a_data: Vec<f32> = (0..vector_size).map(|i| (i as f32).sin()).collect();
     let b_data: Vec<f32> = (0..vector_size).map(|i| (i as f32).cos()).collect();
-    
+
     println!("📊 Тестируем векторы размером {}", vector_size);
-    
+
     // Тест скалярной версии
     let start = Instant::now();
     for _ in 0..test_iterations {
@@ -212,7 +212,7 @@ pub fn test_ultra_optimized_performance() -> anyhow::Result<()> {
         std::hint::black_box(_distance);
     }
     let scalar_time = start.elapsed().as_nanos() as f64 / test_iterations as f64;
-    
+
     // Тест оптимизированной версии
     let start = Instant::now();
     for _ in 0..test_iterations {
@@ -220,17 +220,17 @@ pub fn test_ultra_optimized_performance() -> anyhow::Result<()> {
         std::hint::black_box(_distance);
     }
     let optimized_time = start.elapsed().as_nanos() as f64 / test_iterations as f64;
-    
+
     println!("  Скалярная реализация: {:.2}ns", scalar_time);
     println!("  Оптимизированная:     {:.2}ns", optimized_time);
-    
+
     if optimized_time < scalar_time {
         let speedup = scalar_time / optimized_time;
         println!("  🚀 Ускорение: {:.1}x", speedup);
     } else {
         println!("  ⚠️  Оптимизация не дала ускорения");
     }
-    
+
     // Проверка доступности инструкций
     #[cfg(target_arch = "x86_64")]
     {
@@ -239,36 +239,36 @@ pub fn test_ultra_optimized_performance() -> anyhow::Result<()> {
         println!("  FMA:     {}", is_x86_feature_detected!("fma"));
         println!("  AVX-512: {}", is_x86_feature_detected!("avx512f"));
     }
-    
+
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_aligned_vector_creation() {
         let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let aligned = AlignedVector::new(data);
-        
+
         // Проверяем выравнивание
         assert_eq!(aligned.as_aligned_slice().len() % 8, 0);
         assert!(aligned.as_aligned_slice().len() >= 5);
         assert!(aligned.is_avx2_aligned());
     }
-    
+
     #[test]
     fn test_cosine_distance_accuracy() {
         let a = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
         let b = vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-        
+
         let result = cosine_distance_ultra_optimized(&a, &b);
-        
+
         // Ортогональные векторы должны иметь расстояние ~1.0
         assert!((result - 1.0).abs() < 0.001);
     }
-    
+
     #[test]
     fn test_batch_processing_consistency() {
         let queries = vec![
@@ -276,13 +276,13 @@ mod tests {
             AlignedVector::new(vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
         ];
         let target = AlignedVector::new(vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
-        
+
         #[cfg(target_arch = "x86_64")]
         let results = batch_cosine_distance_ultra(&queries, &target);
-        
+
         #[cfg(not(target_arch = "x86_64"))]
         let results = vec![0.0, 1.0]; // Ожидаемые результаты
-        
+
         #[cfg(target_arch = "x86_64")]
         {
             assert_eq!(results.len(), 2);
@@ -290,19 +290,19 @@ mod tests {
             assert!((results[1] - 1.0).abs() < 0.001); // Второй ортогональный
         }
     }
-    
+
     #[test]
     fn test_safety_edge_cases() {
         // Пустые векторы
         let empty_a: Vec<f32> = vec![];
         let empty_b: Vec<f32> = vec![];
         assert_eq!(cosine_distance_ultra_optimized(&empty_a, &empty_b), 0.0);
-        
+
         // Разные размеры
         let a = vec![1.0, 2.0];
         let b = vec![1.0, 2.0, 3.0];
         assert_eq!(cosine_distance_ultra_optimized(&a, &b), 1.0);
-        
+
         // Нулевые векторы
         let zero_a = vec![0.0; 8];
         let zero_b = vec![0.0; 8];

@@ -2,15 +2,14 @@
 //!
 //! Команды для изменения состояния memory системы
 
+use crate::dtos::{
+    BatchStoreMemoryRequest, BatchStoreMemoryResponse, PromoteRecordsRequest,
+    PromoteRecordsResponse, StoreMemoryRequest, StoreMemoryResponse,
+};
+use crate::{ApplicationResult, RequestContext};
+use domain::LayerType;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-use crate::{ApplicationResult, RequestContext};
-use crate::dtos::{
-    StoreMemoryRequest, StoreMemoryResponse, 
-    BatchStoreMemoryRequest, BatchStoreMemoryResponse,
-    PromoteRecordsRequest, PromoteRecordsResponse
-};
-use domain::value_objects::layer_type::LayerType;
 
 /// Command to store a single memory record
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
@@ -140,7 +139,7 @@ impl From<StoreMemoryRequest> for StoreMemoryCommand {
         Self {
             content: request.content,
             metadata: request.metadata,
-            project: request.project,
+            project: Some(request.project),
             target_layer: request.target_layer,
             priority: request.priority,
             tags: request.tags,
@@ -297,7 +296,7 @@ impl UpdateMemoryMetadataCommand {
 impl BackupMemoryCommand {
     pub fn new(backup_location: &str) -> Self {
         Self {
-            layers: vec![LayerType::Cache, LayerType::Index, LayerType::Storage],
+            layers: vec![LayerType::Interact, LayerType::Insights, LayerType::Assets],
             backup_location: backup_location.to_string(),
             compression_enabled: true,
             include_metadata: true,
@@ -323,7 +322,7 @@ impl BackupMemoryCommand {
 impl OptimizeIndicesCommand {
     pub fn new(optimization_type: OptimizationType) -> Self {
         Self {
-            layers: vec![LayerType::Index],
+            layers: vec![LayerType::Insights],
             optimization_type,
             force_rebuild: false,
         }
@@ -341,7 +340,7 @@ impl OptimizeIndicesCommand {
 
     pub fn full_optimization() -> Self {
         Self {
-            layers: vec![LayerType::Cache, LayerType::Index, LayerType::Storage],
+            layers: vec![LayerType::Interact, LayerType::Insights, LayerType::Assets],
             optimization_type: OptimizationType::Full,
             force_rebuild: true,
         }

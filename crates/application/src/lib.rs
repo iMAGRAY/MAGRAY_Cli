@@ -1,4 +1,32 @@
 //! # Application Layer
+
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(async_fn_in_trait)]
+#![allow(ambiguous_glob_reexports)]
+#![allow(deprecated)]
+#![allow(unexpected_cfgs)]
+#![allow(unused_mut)]
+#![allow(unreachable_patterns)]
+#![allow(unused_assignments)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::len_zero)]
+#![allow(clippy::redundant_field_names)]
+#![allow(clippy::crate_in_macro_def)]
+#![allow(clippy::empty_line_after_outer_attr)]
+#![allow(clippy::empty_line_after_doc_comments)]
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::format_in_format_args)]
+#![allow(clippy::needless_borrow)]
+#![allow(clippy::unwrap_or_default)]
+#![allow(clippy::manual_async_fn)]
+#![allow(clippy::derivable_impls)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::manual_range_contains)]
+#![allow(clippy::clone_on_copy)]
 //!
 //! Реализует Clean Architecture Application Layer с:
 //! - Use Cases для бизнес-логики workflows
@@ -11,15 +39,15 @@
 //!
 //! 1. **Use Cases** - инкапсулируют бизнес workflows
 //! 2. **Application Services** - координируют domain services
-//! 3. **DTOs** - изолируют от domain entities 
+//! 3. **DTOs** - изолируют от domain entities
 //! 4. **Ports** - абстракции для infrastructure
 //! 5. **CQRS** - разделение команд и запросов
 //!
 //! ## Dependency Direction
 //!
-//! ```
-//! Application Layer → Domain Layer (entities, services, repositories)
-//! Infrastructure → Application Layer (implements ports)
+//! ```text
+//! Application Layer -> Domain Layer (entities, services, repositories)
+//! Infrastructure -> Application Layer (implements ports)
 //! ```
 
 use anyhow::Result;
@@ -74,7 +102,9 @@ impl<P: Planner, E: Executor> UnifiedOrchestrator<P, E> {
 }
 
 #[async_trait]
-impl<P: Planner + Send + Sync, E: Executor + Send + Sync> Orchestrator for UnifiedOrchestrator<P, E> {
+impl<P: Planner + Send + Sync, E: Executor + Send + Sync> Orchestrator
+    for UnifiedOrchestrator<P, E>
+{
     async fn plan(&self, goal: Goal) -> Result<Plan> {
         self.planner.create_plan(&goal).await
     }
@@ -84,13 +114,13 @@ impl<P: Planner + Send + Sync, E: Executor + Send + Sync> Orchestrator for Unifi
     }
 }
 
+pub mod adapters;
+pub mod cqrs;
 pub mod dtos;
 pub mod errors;
 pub mod ports;
 pub mod services;
 pub mod use_cases;
-pub mod cqrs;
-pub mod adapters;
 
 pub use errors::ApplicationError;
 

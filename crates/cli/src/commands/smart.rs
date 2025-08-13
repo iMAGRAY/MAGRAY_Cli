@@ -121,7 +121,7 @@ fn save_text_artifact(task_id: &uuid::Uuid, text: &str) -> Result<PathBuf> {
     dir.push("artifacts");
     fs::create_dir_all(&dir)?;
     let mut path = dir;
-    path.push(format!("{}.txt", task_id));
+    path.push(format!("{task_id}.txt"));
     // Ограничим размер до ~64KB
     let truncated = if text.len() > 64 * 1024 {
         &text[..64 * 1024]
@@ -194,7 +194,7 @@ async fn run_smart(task: String) -> Result<()> {
         println!("  • {}: {:?}", r.step_id.bold(), r.status);
         if let Some(out) = r.output {
             if !out.trim().is_empty() {
-                println!("{}", out);
+                println!("{out}");
             }
         }
     }

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 /// Создает тестовую конфигурацию VectorStore с временными директориями
 async fn create_test_vector_store() -> (TempDir, VectorStore) {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
     let db_path = temp_dir.path().join("test_vector_db");
 
     // Конфигурация HNSW для тестов - маленькие значения для быстроты
@@ -21,7 +21,9 @@ async fn create_test_vector_store() -> (TempDir, VectorStore) {
         use_parallel: false, // Отключаем параллельность для детерминизма тестов
     };
 
-    let store = VectorStore::with_config(db_path, config).await.unwrap();
+    let store = VectorStore::with_config(db_path, config)
+        .await
+        .expect("Failed to create VectorStore with config");
     (temp_dir, store)
 }
 
@@ -79,7 +81,10 @@ async fn test_insert_single_record() {
     let (_temp_dir, store) = create_test_vector_store().await;
 
     // Инициализируем слой
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Создаем и вставляем запись
     let record = create_test_record_with_embedding("Test content", Layer::Interact, 42);
@@ -89,35 +94,59 @@ async fn test_insert_single_record() {
     assert!(result.is_ok(), "Insert should succeed");
 
     // Проверяем что запись действительно вставлена
-    let retrieved = store.get_by_id(&record_id, Layer::Interact).await.unwrap();
+    let retrieved = store
+        .get_by_id(&record_id, Layer::Interact)
+        .await
+        .expect("Failed to retrieve record by id");
     assert!(retrieved.is_some(), "Should find inserted record");
-    assert_eq!(retrieved.unwrap().text, "Test content");
+    assert_eq!(retrieved.expect("Record should exist").text, "Test content");
 }
 
 #[tokio::test]
 async fn test_get_by_id() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Вставляем записи в разные слои
     let record1 = create_test_record_with_embedding("Content 1", Layer::Interact, 1);
     let record2 = create_test_record_with_embedding("Content 2", Layer::Insights, 2);
 
-    store.init_layer(Layer::Insights).await.unwrap();
-    store.insert(&record1).await.unwrap();
-    store.insert(&record2).await.unwrap();
+    store
+        .init_layer(Layer::Insights)
+        .await
+        .expect("Failed to initialize Insights layer");
+    store
+        .insert(&record1)
+        .await
+        .expect("Failed to insert record1 into store");
+    store
+        .insert(&record2)
+        .await
+        .expect("Failed to insert record2 into store");
 
     // Проверяем получение по ID из правильного слоя
-    let found1 = store.get_by_id(&record1.id, Layer::Interact).await.unwrap();
+    let found1 = store
+        .get_by_id(&record1.id, Layer::Interact)
+        .await
+        .expect("Failed to retrieve record1");
     assert!(found1.is_some(), "Should find record in Interact layer");
-    assert_eq!(found1.unwrap().text, "Content 1");
+    assert_eq!(found1.expect("Record1 should exist").text, "Content 1");
 
-    let found2 = store.get_by_id(&record2.id, Layer::Insights).await.unwrap();
+    let found2 = store
+        .get_by_id(&record2.id, Layer::Insights)
+        .await
+        .expect("Failed to retrieve record2");
     assert!(found2.is_some(), "Should find record in Insights layer");
-    assert_eq!(found2.unwrap().text, "Content 2");
+    assert_eq!(found2.expect("Record2 should exist").text, "Content 2");
 
     // Проверяем что запись не найдена в неправильном слое
-    let not_found = store.get_by_id(&record1.id, Layer::Insights).await.unwrap();
+    let not_found = store
+        .get_by_id(&record1.id, Layer::Insights)
+        .await
+        .expect("Failed to query record in wrong layer");
     assert!(not_found.is_none(), "Should not find record in wrong layer");
 }
 
@@ -126,7 +155,10 @@ async fn test_get_by_id() {
 #[tokio::test]
 async fn test_vector_search_empty() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Создаем поисковый вектор
     let query_embedding = vec![0.5; 1024];
@@ -147,11 +179,17 @@ async fn test_vector_search_empty() {
 #[tokio::test]
 async fn test_vector_search_single() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Вставляем одну запись
     let record = create_test_record_with_embedding("Searchable content", Layer::Interact, 100);
-    store.insert(&record).await.unwrap();
+    store
+        .insert(&record)
+        .await
+        .expect("Failed to insert record into store");
 
     // Поиск с похожим вектором (тот же seed = похожий вектор)
     let mut query_embedding = vec![0.0; 1024];
@@ -162,7 +200,7 @@ async fn test_vector_search_single() {
     let results = store
         .search(&query_embedding, Layer::Interact, 5)
         .await
-        .unwrap();
+        .expect("Failed to execute async operation");
     assert!(!results.is_empty(), "Should find at least one result");
     assert_eq!(results[0].text, "Searchable content");
 }
@@ -170,7 +208,10 @@ async fn test_vector_search_single() {
 #[tokio::test]
 async fn test_vector_search_multiple() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Вставляем несколько записей
     let records = vec![
@@ -181,7 +222,10 @@ async fn test_vector_search_multiple() {
     ];
 
     for record in &records {
-        store.insert(record).await.unwrap();
+        store
+            .insert(record)
+            .await
+            .expect("Failed to insert record in batch");
     }
 
     // Поиск с лимитом
@@ -189,7 +233,7 @@ async fn test_vector_search_multiple() {
     let results = store
         .search(&query_embedding, Layer::Interact, 2)
         .await
-        .unwrap();
+        .expect("Failed to execute async operation");
 
     assert!(results.len() <= 2, "Should respect limit");
     assert!(!results.is_empty(), "Should find at least some results");
@@ -214,7 +258,10 @@ async fn test_vector_search_multiple() {
 #[tokio::test]
 async fn test_batch_insert() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Создаем batch записей
     let records = vec![
@@ -231,16 +278,25 @@ async fn test_batch_insert() {
 
     // Проверяем что все записи вставлены
     for record in &records {
-        let found = store.get_by_id(&record.id, Layer::Interact).await.unwrap();
+        let found = store
+            .get_by_id(&record.id, Layer::Interact)
+            .await
+            .expect("Failed to retrieve record in batch test");
         assert!(found.is_some(), "Batch inserted record should be found");
-        assert_eq!(found.unwrap().text, record.text);
+        assert_eq!(
+            found.expect("Record should be found in batch test").text,
+            record.text
+        );
     }
 }
 
 #[tokio::test]
 async fn test_batch_transaction() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Создаем записи для транзакции
     let records = vec![
@@ -256,7 +312,10 @@ async fn test_batch_transaction() {
 
     // Проверяем что все записи вставлены атомарно
     for record in &records {
-        let found = store.get_by_id(&record.id, Layer::Interact).await.unwrap();
+        let found = store
+            .get_by_id(&record.id, Layer::Interact)
+            .await
+            .expect("Failed to retrieve record in batch test");
         assert!(found.is_some(), "Transaction record should be found");
     }
 }
@@ -266,11 +325,17 @@ async fn test_batch_transaction() {
 #[tokio::test]
 async fn test_update_access_count() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Вставляем запись
     let record = create_test_record_with_embedding("Access test", Layer::Interact, 501);
-    store.insert(&record).await.unwrap();
+    store
+        .insert(&record)
+        .await
+        .expect("Failed to insert record into store");
 
     // Обновляем доступ
     let id_str = record.id.to_string();
@@ -278,50 +343,71 @@ async fn test_update_access_count() {
     assert!(result.is_ok(), "Access update should succeed");
 
     // Получаем обновленную запись
-    let updated = store.get_by_id(&record.id, Layer::Interact).await.unwrap();
+    let updated = store
+        .get_by_id(&record.id, Layer::Interact)
+        .await
+        .expect("Failed to retrieve updated record");
     assert!(updated.is_some(), "Updated record should exist");
 
     // access_count должен увеличиться, но это зависит от реализации
     // Проверяем что запись все еще существует
-    assert_eq!(updated.unwrap().text, "Access test");
+    assert_eq!(
+        updated.expect("Updated record should exist").text,
+        "Access test"
+    );
 }
 
 #[tokio::test]
 async fn test_delete_by_id() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Вставляем запись
     let record = create_test_record_with_embedding("Delete test", Layer::Interact, 601);
-    store.insert(&record).await.unwrap();
+    store
+        .insert(&record)
+        .await
+        .expect("Failed to insert record into store");
 
     // Проверяем что запись существует
-    let found = store.get_by_id(&record.id, Layer::Interact).await.unwrap();
+    let found = store
+        .get_by_id(&record.id, Layer::Interact)
+        .await
+        .expect("Failed to retrieve record for deletion test");
     assert!(found.is_some(), "Record should exist before deletion");
 
     // Удаляем запись
     let deleted = store
         .delete_by_id(&record.id, Layer::Interact)
         .await
-        .unwrap();
+        .expect("Failed to execute async operation");
     assert!(deleted, "Delete should return true for existing record");
 
     // Проверяем что запись удалена
-    let not_found = store.get_by_id(&record.id, Layer::Interact).await.unwrap();
+    let not_found = store
+        .get_by_id(&record.id, Layer::Interact)
+        .await
+        .expect("Delete operation should succeed");
     assert!(not_found.is_none(), "Record should be deleted");
 
     // Повторное удаление должно вернуть false
     let not_deleted = store
         .delete_by_id(&record.id, Layer::Interact)
         .await
-        .unwrap();
+        .expect("Failed to execute async operation");
     assert!(!not_deleted, "Second delete should return false");
 }
 
 #[tokio::test]
 async fn test_delete_expired() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Создаем старую запись (устанавливаем время в прошлом)
     let mut old_record = create_test_record_with_embedding("Old record", Layer::Interact, 701);
@@ -330,15 +416,21 @@ async fn test_delete_expired() {
     // Создаем новую запись
     let new_record = create_test_record_with_embedding("New record", Layer::Interact, 702);
 
-    store.insert(&old_record).await.unwrap();
-    store.insert(&new_record).await.unwrap();
+    store
+        .insert(&old_record)
+        .await
+        .expect("Failed to insert old_record into store");
+    store
+        .insert(&new_record)
+        .await
+        .expect("Failed to insert new_record into store");
 
     // Удаляем записи старше 24 часов
     let cutoff_time = Utc::now() - chrono::Duration::hours(24);
     let deleted_count = store
         .delete_expired(Layer::Interact, cutoff_time)
         .await
-        .unwrap();
+        .expect("Failed to execute async operation");
 
     assert!(
         deleted_count > 0,
@@ -349,14 +441,14 @@ async fn test_delete_expired() {
     let old_not_found = store
         .get_by_id(&old_record.id, Layer::Interact)
         .await
-        .unwrap();
+        .expect("Failed to execute async operation");
     assert!(old_not_found.is_none(), "Old record should be deleted");
 
     // Проверяем что новая запись осталась
     let new_found = store
         .get_by_id(&new_record.id, Layer::Interact)
         .await
-        .unwrap();
+        .expect("Failed to execute async operation");
     assert!(new_found.is_some(), "New record should remain");
 }
 
@@ -365,11 +457,17 @@ async fn test_delete_expired() {
 #[tokio::test]
 async fn test_search_with_invalid_embedding() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Вставляем тестовую запись
     let record = create_test_record_with_embedding("Test record", Layer::Interact, 801);
-    store.insert(&record).await.unwrap();
+    store
+        .insert(&record)
+        .await
+        .expect("Failed to insert record into store");
 
     // Поиск с неправильной размерностью вектора
     let wrong_size_embedding = vec![0.5; 512]; // Неправильный размер
@@ -387,7 +485,10 @@ async fn test_search_with_invalid_embedding() {
 #[tokio::test]
 async fn test_concurrent_operations() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     let store = std::sync::Arc::new(store);
     let mut handles = vec![];
@@ -408,7 +509,7 @@ async fn test_concurrent_operations() {
 
     // Ждем завершения всех операций
     for handle in handles {
-        let result = handle.await.unwrap();
+        let result = handle.await.expect("Concurrent task should complete");
         assert!(result.is_ok(), "Concurrent insert should succeed");
     }
 
@@ -426,7 +527,10 @@ async fn test_concurrent_operations() {
 #[tokio::test]
 async fn test_max_elements_limit() {
     let (_temp_dir, mut store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     // Устанавливаем небольшой лимит для тестов
     let result = store.set_max_elements(100).await;
@@ -441,13 +545,19 @@ async fn test_max_elements_limit() {
 #[tokio::test]
 async fn test_change_tracking() {
     let (_temp_dir, store) = create_test_vector_store().await;
-    store.init_layer(Layer::Interact).await.unwrap();
+    store
+        .init_layer(Layer::Interact)
+        .await
+        .expect("Failed to initialize Interact layer");
 
     let initial_version = store.get_version();
 
     // Вставляем запись
     let record = create_test_record_with_embedding("Change tracking test", Layer::Interact, 1101);
-    store.insert(&record).await.unwrap();
+    store
+        .insert(&record)
+        .await
+        .expect("Failed to insert record into store");
 
     // Версия должна измениться
     let new_version = store.get_version();
@@ -457,7 +567,10 @@ async fn test_change_tracking() {
     );
 
     // Получаем изменения с начальной версии
-    let changes = store.get_changes_since(initial_version).await.unwrap();
+    let changes = store
+        .get_changes_since(initial_version)
+        .await
+        .expect("Failed to get changes since version");
     assert!(
         !changes.is_empty(),
         "Should track changes since initial version"

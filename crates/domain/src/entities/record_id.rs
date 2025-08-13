@@ -19,6 +19,11 @@ impl RecordId {
         Self(Uuid::new_v4())
     }
 
+    /// Generate new unique RecordId (alias for new)
+    pub fn generate() -> Self {
+        Self::new()
+    }
+
     /// Create RecordId from string representation
     /// Used for deserialization and external ID handling
     pub fn from_string(id: &str) -> Result<Self, crate::errors::DomainError> {
@@ -71,7 +76,8 @@ mod tests {
 
         // Should be able to convert to string and back
         let id_str = id1.to_string();
-        let id3 = RecordId::from_string(&id_str).unwrap();
+        let id3 =
+            RecordId::from_string(&id_str).expect("Operation failed - converted from unwrap()");
         assert_eq!(id1, id3);
     }
 

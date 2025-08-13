@@ -1,5 +1,7 @@
 use crate::{Tool, ToolInput, ToolOutput, ToolSpec};
 use anyhow::{anyhow, Result};
+use common::policy::{get_policy_engine_with_eventbus, PolicyAction, SimpleToolPermissions};
+use common::sandbox_config::SandboxConfig;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::io::AsyncReadExt;
@@ -13,8 +15,8 @@ impl ShellExec {
         "ls", "pwd", "echo", "cat", "head", "tail", "find", "grep", "awk", "sed", "sort", "uniq",
         "wc", "du", "df", "ps", "top", "date", "whoami", "id", "uname", "which", "whereis", "file",
         "stat", "chmod", "chown", "mkdir", "rmdir", "touch", "cp", "mv", "ln", "tar", "gzip",
-        "gunzip", "zip", "unzip", "curl", "wget", "ping", "netstat", "ss", "lsof", "tree", "diff",
-        "patch", "git", "cargo", "rustc", "node", "npm", "python", "pip", "go", "javac", "java",
+        "gunzip", "zip", "unzip", "ping", "netstat", "ss", "lsof", "tree", "diff", "patch", "git",
+        "cargo", "rustc", "node", "npm", "python", "pip", "go", "javac", "java",
     ];
 
     /// Опасные символы и паттерны (SECURITY: предотвращает command injection)
@@ -146,17 +148,79 @@ impl Tool for ShellExec {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: "shell_exec".to_string(),
-            description: "Выполняет shell команду (с таймаутом, лимитом вывода и sandbox env)"
+            description: "🔒 SECURITY: Executes shell commands with mandatory policy checks and sandbox restrictions. Requires explicit permission via policy configuration."
                 .to_string(),
-            usage: "shell_exec <команда> [cwd?]".to_string(),
+            usage: "shell_exec <команда> [cwd?] - REQUIRES SHELL POLICY PERMISSION".to_string(),
             examples: vec![
-                "shell_exec \"ls -la\"".to_string(),
-                "выполни команду pwd".to_string(),
+                "shell_exec \"ls -la\" --dry-run  # Preview command safely".to_string(),
+                "выполни команду pwd (requires policy allow)".to_string(),
             ],
             input_schema: r#"{"command": "string", "cwd": "string?", "max_output_kb": "number?"}"#
                 .to_string(),
-            usage_guide: None,
-            permissions: None,
+            usage_guide: Some(crate::UsageGuide {
+                usage_title: "🔒 SECURITY-PROTECTED SHELL EXECUTION".to_string(),
+                usage_summary: "Executes shell commands with mandatory policy checks and sandbox restrictions. Requires explicit permission.".to_string(),
+                preconditions: vec![
+                    "Policy must explicitly allow shell_exec (default: DENIED)".to_string(),
+                    "Sandbox config must set MAGRAY_SHELL_ALLOW=true".to_string(),
+                    "Commands restricted to approved whitelist only".to_string(),
+                ],
+                arguments_brief: {
+                    let mut args = HashMap::new();
+                    args.insert("command".to_string(), "Shell command to execute (whitelist restricted)".to_string());
+                    args.insert("cwd".to_string(), "Working directory (optional, validated)".to_string());
+                    args.insert("max_output_kb".to_string(), "Maximum output size in KB (default: 256)".to_string());
+                    args
+                },
+                good_for: vec![
+                    "Running approved development tools (git, cargo, npm)".to_string(),
+                    "File system operations (ls, find, grep)".to_string(),
+                    "System information commands (ps, df, date)".to_string(),
+                ],
+                not_for: vec![
+                    "System administration commands (sudo, su)".to_string(),
+                    "Network services (nc, netcat, ssh servers)".to_string(),
+                    "Dangerous operations (rm -rf, format, fdisk)".to_string(),
+                    "Shell injection or command chaining".to_string(),
+                ],
+                constraints: vec![
+                    format!("Whitelist: {:?}", Self::ALLOWED_COMMANDS),
+                    "No dangerous patterns: ;, &&, ||, |, >, <, `, $, ()".to_string(),
+                    "No path traversal: .. patterns blocked".to_string(),
+                    "No system directories: /etc/, /root/, C:\\Windows\\".to_string(),
+                ],
+                examples: vec![
+                    "shell_exec \"ls -la\" --dry-run".to_string(),
+                    "shell_exec \"git status\"".to_string(),
+                    "shell_exec \"cargo check\"".to_string(),
+                ],
+                platforms: vec!["Windows".to_string(), "Linux".to_string(), "macOS".to_string()],
+                cost_class: "FREE".to_string(),
+                latency_class: "MEDIUM".to_string(),
+                side_effects: vec![
+                    "Executes shell commands on host system".to_string(),
+                    "May modify files or system state".to_string(),
+                    "All executions logged for security audit".to_string(),
+                ],
+                risk_score: 8, // HIGH RISK: Shell execution
+                capabilities: vec![
+                    "shell_execution".to_string(),
+                    "policy_enforcement".to_string(),
+                    "sandbox_restrictions".to_string(),
+                ],
+                tags: vec![
+                    "shell".to_string(),
+                    "security".to_string(),
+                    "policy".to_string(),
+                    "restricted".to_string(),
+                ],
+            }),
+            permissions: Some(crate::ToolPermissions {
+                fs_read_roots: vec![],
+                fs_write_roots: vec![],
+                net_allowlist: vec![],
+                allow_shell: true, // Mandatory: This tool requires shell access
+            }),
             supports_dry_run: true,
         }
     }
@@ -168,13 +232,119 @@ impl Tool for ShellExec {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'command'"))?
             .to_string();
 
+        // SECURITY P0.1.5: MANDATORY POLICY ENGINE CHECK
+        // Shell execution MUST be explicitly allowed - no bypassing!
+        let policy_engine = get_policy_engine_with_eventbus();
+        let mut args_for_policy = HashMap::new();
+        args_for_policy.insert("command".to_string(), command.clone());
+        if let Some(cwd) = input.args.get("cwd") {
+            args_for_policy.insert("cwd".to_string(), cwd.clone());
+        }
+
+        let policy_decision = policy_engine.evaluate_tool("shell_exec", &args_for_policy);
+
+        match policy_decision.action {
+            PolicyAction::Deny => {
+                return Ok(ToolOutput {
+                    success: false,
+                    result: format!(
+                        "🔒 SECURITY POLICY VIOLATION: Shell execution denied by policy.\n\
+                        Command: '{}'\n\
+                        Reason: {:?}\n\
+                        Risk Level: {:?}\n\
+                        To enable shell execution, update your policy configuration.",
+                        command,
+                        policy_decision
+                            .matched_rule
+                            .as_ref()
+                            .and_then(|r| r.reason.as_ref()),
+                        policy_decision.risk
+                    ),
+                    formatted_output: None,
+                    metadata: {
+                        let mut meta = HashMap::new();
+                        meta.insert("policy_violation".into(), "shell_exec_denied".into());
+                        meta.insert("command".into(), command.clone());
+                        meta.insert("risk_level".into(), format!("{:?}", policy_decision.risk));
+                        if let Some(rule) = policy_decision.matched_rule {
+                            if let Some(reason) = rule.reason {
+                                meta.insert("policy_reason".into(), reason);
+                            }
+                        }
+                        meta
+                    },
+                });
+            }
+            PolicyAction::Ask => {
+                // SECURITY: Require explicit confirmation before executing shell commands
+                if !input.dry_run {
+                    return Ok(ToolOutput {
+                        success: false,
+                        result: format!(
+                            "🔒 SECURITY CONFIRMATION REQUIRED: Shell command requires explicit permission.\n\
+                            Command: '{}'\n\
+                            Risk Level: {:?}\n\
+                            Use --dry-run to preview or update policy to allow shell execution.",
+                            command,
+                            policy_decision.risk
+                        ),
+                        formatted_output: Some(format!("$ {command}\n[REQUIRES PERMISSION]")),
+                        metadata: {
+                            let mut meta = HashMap::new();
+                            meta.insert("policy_action".into(), "ask_permission".into());
+                            meta.insert("command".into(), command.clone());
+                            meta.insert("risk_level".into(), format!("{:?}", policy_decision.risk));
+                            meta.insert("hint".into(), "Use --dry-run to preview command".into());
+                            meta
+                        },
+                    });
+                }
+                // Continue with dry-run execution for preview
+            }
+            PolicyAction::Allow => {
+                // Policy explicitly allows - continue with execution
+            }
+        }
+
+        // SECURITY: Additional sandbox precheck
+        let shell_perms = SimpleToolPermissions {
+            fs_read_roots: vec![],
+            fs_write_roots: vec![],
+            net_allowlist: vec![],
+            allow_shell: true, // This tool requires shell access
+        };
+        let sandbox_config = SandboxConfig::from_env();
+
+        if let Some(precheck_decision) =
+            common::policy::precheck_permissions("shell_exec", &shell_perms, &sandbox_config)
+        {
+            if !precheck_decision.allowed {
+                return Ok(ToolOutput {
+                    success: false,
+                    result: format!(
+                        "🔒 SANDBOX RESTRICTION: Shell execution blocked by sandbox configuration.\n\
+                        Command: '{command}'\n\
+                        Configure MAGRAY_SHELL_ALLOW=true to enable shell execution."
+                    ),
+                    formatted_output: None,
+                    metadata: {
+                        let mut meta = HashMap::new();
+                        meta.insert("sandbox_violation".into(), "shell_not_allowed".into());
+                        meta.insert("command".into(), command.clone());
+                        meta.insert("hint".into(), "Set MAGRAY_SHELL_ALLOW=true".into());
+                        meta
+                    },
+                });
+            }
+        }
+
         // SECURITY: Валидация команды на предмет безопасности
         let validated_parts = match self.validate_command(&command) {
             Ok(parts) => parts,
             Err(e) => {
                 return Ok(ToolOutput {
                     success: false,
-                    result: format!("🔒 SECURITY ERROR: {}", e),
+                    result: format!("🔒 SECURITY ERROR: {e}"),
                     formatted_output: None,
                     metadata: {
                         let mut meta = HashMap::new();
@@ -195,8 +365,8 @@ impl Tool for ShellExec {
             }
             return Ok(ToolOutput {
                 success: true,
-                result: format!("[dry-run] $ {}", command),
-                formatted_output: Some(format!("$ {}\n[dry-run]", command)),
+                result: format!("[dry-run] $ {command}"),
+                formatted_output: Some(format!("$ {command}\n[dry-run]")),
                 metadata: meta,
             });
         }
@@ -216,7 +386,7 @@ impl Tool for ShellExec {
                 Err(e) => {
                     return Ok(ToolOutput {
                         success: false,
-                        result: format!("🔒 SECURITY ERROR (CWD): {}", e),
+                        result: format!("🔒 SECURITY ERROR (CWD): {e}"),
                         formatted_output: None,
                         metadata: {
                             let mut meta = HashMap::new();
@@ -317,7 +487,7 @@ impl Tool for ShellExec {
                     }
                     return Ok(ToolOutput {
                         success: false,
-                        result: format!("Команда превысила таймаут {}ms", ms),
+                        result: format!("Команда превысила таймаут {ms}ms"),
                         formatted_output: None,
                         metadata: meta,
                     });
@@ -369,7 +539,7 @@ impl Tool for ShellExec {
                 } else {
                     Ok(ToolOutput {
                         success: false,
-                        result: format!("Команда завершилась с ошибкой:\n{}", stderr_s),
+                        result: format!("Команда завершилась с ошибкой:\n{stderr_s}"),
                         formatted_output: Some(stdout_s),
                         metadata,
                     })
@@ -377,7 +547,7 @@ impl Tool for ShellExec {
             }
             Err(e) => Ok(ToolOutput {
                 success: false,
-                result: format!("Не удалось выполнить команду: {}", e),
+                result: format!("Не удалось выполнить команду: {e}"),
                 formatted_output: None,
                 metadata: HashMap::new(),
             }),

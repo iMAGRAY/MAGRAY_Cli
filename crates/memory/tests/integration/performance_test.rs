@@ -178,7 +178,7 @@ async fn test_sub_5ms_search_sla_validation() -> Result<()> {
     
     // Вычисляем percentiles
     let mut sorted_times = search_times.clone();
-    sorted_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    sorted_times.sort_by(|a, b| a.partial_cmp(b).expect("Test operation should succeed"));
     
     let p50 = sorted_times[total_searches / 2];
     let p95 = sorted_times[(total_searches * 95) / 100];
@@ -729,7 +729,7 @@ async fn test_production_throughput_benchmarks() -> Result<()> {
         latency_samples.push(latency);
     }
     
-    latency_samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    latency_samples.sort_by(|a, b| a.partial_cmp(b).expect("Test operation should succeed"));
     
     let latency_avg = latency_samples.iter().sum::<f64>() / latency_samples.len() as f64;
     let latency_p50 = latency_samples[latency_samples.len() / 2];

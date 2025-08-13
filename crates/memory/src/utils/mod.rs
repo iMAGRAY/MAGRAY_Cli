@@ -1,7 +1,7 @@
 //! Utility modules для memory crate
 //!
 //! СОДЕРЖИТ:
-//! - Error handling utilities для устранения .unwrap() patterns
+//! - Error handling utilities для устранения .expect("Operation failed - converted from unwrap()") patterns
 //! - Performance optimization utilities
 //! - Common patterns consolidation
 

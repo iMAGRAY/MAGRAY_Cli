@@ -16,7 +16,7 @@ enum TestModelsCommand {
 #[tokio::test]
 async fn test_models_list_command() {
     let args = vec!["test", "models", "list"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -29,7 +29,7 @@ async fn test_models_list_command() {
 #[tokio::test]
 async fn test_models_list_with_type_filter() {
     let args = vec!["test", "models", "list", "--model-type", "embedding"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -40,7 +40,7 @@ async fn test_models_list_with_type_filter() {
 #[tokio::test]
 async fn test_models_list_with_type_filter_reranker() {
     let args = vec!["test", "models", "list", "--model-type", "reranker"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -51,7 +51,7 @@ async fn test_models_list_with_type_filter_reranker() {
 #[tokio::test]
 async fn test_models_list_available_only() {
     let args = vec!["test", "models", "list", "--available-only"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -69,7 +69,7 @@ async fn test_models_list_combined_filters() {
         "embedding",
         "--available-only",
     ];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -80,7 +80,7 @@ async fn test_models_list_combined_filters() {
 #[tokio::test]
 async fn test_models_diagnose() {
     let args = vec!["test", "models", "diagnose"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -91,7 +91,7 @@ async fn test_models_diagnose() {
 #[tokio::test]
 async fn test_models_show() {
     let args = vec!["test", "models", "show", "test-model"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -105,7 +105,7 @@ async fn test_models_show_common_models() {
 
     for model_name in test_models {
         let args = vec!["test", "models", "show", model_name];
-        let cli = TestCli::try_parse_from(args).unwrap();
+        let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
         if let TestModelsCommand::Models(models_cmd) = cli.command {
             let result = models_cmd.execute().await;
@@ -117,7 +117,7 @@ async fn test_models_show_common_models() {
 #[tokio::test]
 async fn test_models_recommendations() {
     let args = vec!["test", "models", "recommendations"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -128,7 +128,7 @@ async fn test_models_recommendations() {
 #[tokio::test]
 async fn test_models_check() {
     let args = vec!["test", "models", "check"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -212,7 +212,7 @@ fn test_invalid_models_commands() {
 #[tokio::test]
 async fn test_models_list_unknown_type_filter() {
     let args = vec!["test", "models", "list", "--model-type", "unknown"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;
@@ -224,7 +224,7 @@ async fn test_models_list_unknown_type_filter() {
 #[tokio::test]
 async fn test_models_show_nonexistent() {
     let args = vec!["test", "models", "show", "nonexistent-model-xyz"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     if let TestModelsCommand::Models(models_cmd) = cli.command {
         let result = models_cmd.execute().await;

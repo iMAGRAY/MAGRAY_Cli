@@ -74,6 +74,16 @@ impl EmbeddingVector {
         &self.dimensions
     }
 
+    /// Get vector as Vec<f32> (infrastructure compatibility)
+    pub fn as_vec(&self) -> &Vec<f32> {
+        &self.dimensions
+    }
+
+    /// Convert to Vec<f32> (infrastructure compatibility)
+    pub fn to_vec(&self) -> Vec<f32> {
+        self.dimensions.clone()
+    }
+
     /// Get expected dimension count
     pub fn expected_dimensions(&self) -> EmbeddingDimensions {
         self.expected_dimensions
@@ -192,7 +202,8 @@ mod tests {
     #[test]
     fn test_embedding_vector_creation() {
         let dimensions = vec![0.6, 0.8]; // Normalized vector
-        let vector = EmbeddingVector::new(dimensions, 2).unwrap();
+        let vector = EmbeddingVector::new(dimensions, 2)
+            .expect("Failed to create normalized embedding vector in creation test");
         assert_eq!(vector.dimensions().len(), 2);
         assert!(vector.is_normalized());
     }
@@ -206,35 +217,47 @@ mod tests {
 
     #[test]
     fn test_cosine_similarity() {
-        let vec1 = EmbeddingVector::new(vec![1.0, 0.0], 2).unwrap();
-        let vec2 = EmbeddingVector::new(vec![0.0, 1.0], 2).unwrap();
-        let vec3 = EmbeddingVector::new(vec![1.0, 0.0], 2).unwrap();
+        let vec1 = EmbeddingVector::new(vec![1.0, 0.0], 2)
+            .expect("Failed to create vec1 in cosine similarity test");
+        let vec2 = EmbeddingVector::new(vec![0.0, 1.0], 2)
+            .expect("Failed to create vec2 in cosine similarity test");
+        let vec3 = EmbeddingVector::new(vec![1.0, 0.0], 2)
+            .expect("Failed to create vec3 in cosine similarity test");
 
         // Orthogonal vectors should have similarity 0
-        let sim1 = vec1.cosine_similarity(&vec2).unwrap();
+        let sim1 = vec1
+            .cosine_similarity(&vec2)
+            .expect("Failed to calculate cosine similarity between orthogonal vectors");
         assert!((sim1 - 0.0).abs() < 1e-6);
 
         // Identical vectors should have similarity 1
-        let sim2 = vec1.cosine_similarity(&vec3).unwrap();
+        let sim2 = vec1
+            .cosine_similarity(&vec3)
+            .expect("Failed to calculate cosine similarity between identical vectors");
         assert!((sim2 - 1.0).abs() < 1e-6);
     }
 
     #[test]
     fn test_normalization() {
-        let mut vector = EmbeddingVector::from_raw(vec![3.0, 4.0], 2).unwrap();
+        let mut vector = EmbeddingVector::from_raw(vec![3.0, 4.0], 2)
+            .expect("Failed to create raw embedding vector in normalization test");
         assert!(!vector.is_normalized());
 
-        vector.normalize().unwrap();
+        vector
+            .normalize()
+            .expect("Failed to normalize vector in normalization test");
         assert!(vector.is_normalized());
         assert!((vector.magnitude() - 1.0).abs() < 1e-6);
     }
 
     #[test]
     fn test_storage_validation() {
-        let valid_vector = EmbeddingVector::new(vec![0.6, 0.8], 2).unwrap();
+        let valid_vector = EmbeddingVector::new(vec![0.6, 0.8], 2)
+            .expect("Failed to create valid vector in storage validation test");
         assert!(valid_vector.is_valid_for_storage());
 
-        let invalid_vector = EmbeddingVector::from_raw(vec![f32::NAN, 0.5], 2).unwrap();
+        let invalid_vector = EmbeddingVector::from_raw(vec![f32::NAN, 0.5], 2)
+            .expect("Failed to create invalid vector in storage validation test");
         assert!(!invalid_vector.is_valid_for_storage());
     }
 }

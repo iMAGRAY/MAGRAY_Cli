@@ -575,11 +575,12 @@ impl EnhancedToolSystem {
 
 impl Default for EnhancedToolSystem {
     fn default() -> Self {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt =
+            tokio::runtime::Runtime::new().expect("Operation failed - converted from unwrap()");
         rt.block_on(async {
             Self::new(EnhancedToolSystemConfig::default())
                 .await
-                .unwrap()
+                .expect("Operation failed - converted from unwrap()")
         })
     }
 }

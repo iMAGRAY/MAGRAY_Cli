@@ -494,7 +494,7 @@ impl SecureToolRegistry {
             user_id: security_context.user_id.clone(),
             session_id: security_context.session_id.clone(),
             details: if success {
-                format!("Successful execution in {:?}", execution_time)
+                format!("Successful execution in {execution_time:?}")
             } else {
                 "Execution failed".to_string()
             },

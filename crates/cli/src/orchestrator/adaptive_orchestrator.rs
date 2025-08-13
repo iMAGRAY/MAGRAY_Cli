@@ -227,7 +227,10 @@ impl LoadBalancer {
         // Select handler with highest score
         handler_scores
             .into_iter()
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .max_by(|a, b| {
+                a.1.partial_cmp(&b.1)
+                    .expect("Operation failed - converted from unwrap()")
+            })
             .map(|(handler, _)| handler)
             .unwrap_or_else(|| available_handlers[0].clone())
     }

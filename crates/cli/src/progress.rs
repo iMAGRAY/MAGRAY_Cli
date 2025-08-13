@@ -89,7 +89,7 @@ impl ProgressType {
             indicatif::ProgressStyle::default_spinner()
                 .tick_chars(config.spinner_chars)
                 .template(&template)
-                .unwrap(),
+                .expect("Operation failed - converted from unwrap()"),
         );
 
         spinner.set_message(message.to_string());

@@ -1,0 +1,49 @@
+# Production Profile Configuration  
+# This profile enforces strict security, minimal logging, and production optimizations
+# for secure and efficient operation in production environments
+
+[security]
+# Default policy mode: strict asking for all operations
+default_policy_mode = "ask"
+
+# Risk tolerance: low for production security
+risk_level = "low"
+
+# Disable permissive mode - strict security
+permissive_mode = false
+
+# Always ask by default for security
+ask_by_default = true
+
+[logging]
+# Log level override for production (minimal)
+level_override = "warn"
+
+# Disable console output (logs go to files only)
+console_enabled = false
+
+# No debug symbols in production
+debug_symbols = false
+
+# Use structured logging only for production parsing
+structured_only = true
+
+[performance]
+# Disable debug allocation tracking for performance
+debug_allocation_tracking = false
+
+# Strict memory limits for production stability
+memory_limit_override_mb = 512
+
+# Enable all production optimizations
+production_optimizations = true
+
+[tools]
+# Minimal tool whitelist for security
+whitelist_mode = "minimal"
+
+# Don't use dry-run by default (production operations are intentional)
+dry_run_default = false
+
+# Require signed tools for security
+require_signed_tools = true

@@ -303,12 +303,12 @@ fn test_dependency_inversion_compliance() {
     // Проверяем что factory зависят от абстракций, а не от конкретных типов
 
     // UnifiedServiceFactory зависит от UnifiedDIContainer (абстракция)
-    let container = create_test_container().unwrap();
+    let container = create_test_container().expect("Test operation should succeed");
     let _factory = UnifiedServiceFactory::new(container);
 
     // Factory принимают конфигурации как параметры (dependency injection)
     let config = UnifiedFactoryConfig::production();
-    let container2 = create_test_container().unwrap();
+    let container2 = create_test_container().expect("Test operation should succeed");
     let _factory2 = UnifiedServiceFactory::with_config(container2, config);
 
     assert!(true, "Dependency Inversion принцип соблюден");
@@ -359,7 +359,7 @@ fn test_liskov_substitution_principle() {
     // Все implementations trait должны быть взаимозаменяемы
 
     // Разные конфигурации должны работать с одним и тем же factory
-    let container = create_test_container().unwrap();
+    let container = create_test_container().expect("Test operation should succeed");
 
     let _factory1 = UnifiedServiceFactory::production(container.clone());
     let _factory2 = UnifiedServiceFactory::development(container.clone());
@@ -429,7 +429,7 @@ async fn test_factory_creation_performance() -> Result<()> {
 /// Memory usage test
 #[test]
 fn test_factory_memory_usage() {
-    let container = create_test_container().unwrap();
+    let container = create_test_container().expect("Test operation should succeed");
 
     // Создаем много factory и проверяем что они не занимают много памяти
     let mut factories = Vec::new();

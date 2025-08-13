@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -24,6 +28,45 @@ pub mod performance_monitor;
 
 // MCP integration
 pub mod mcp;
+
+// Capability system (P1.2.3)
+pub mod capabilities;
+
+// Tool manifest validation (P1.2.2)
+pub mod manifest;
+
+// WASM runtime integration (P1.2.1.b)
+#[cfg(feature = "wasm-runtime")]
+pub mod wasm_runtime;
+
+// WASM sandbox system (P1.2.4.a)
+pub mod sandbox;
+
+// Tool Context Builder system (P1.3.1)
+pub mod context;
+
+// Re-export WASM runtime types for public API
+#[cfg(feature = "wasm-runtime")]
+pub use wasm_runtime::{
+    WasmExecutionResult, WasmInstance, WasmModule, WasmRuntime, WasmRuntimeConfig,
+    WasmRuntimeError, WasmValue,
+};
+
+// Re-export sandbox types for public API
+pub use sandbox::{
+    resource_limits::ResourceLimits,
+    sandbox_violations::{SandboxViolation, ViolationType},
+    wasi_config::WasiSandboxConfig,
+    wasm_sandbox::{SandboxedModule, WasmSandbox},
+    SandboxConfig, SandboxError,
+};
+
+// Re-export context builder types for public API
+pub use context::{
+    ContextBuildingConfig, ExtractedMetadata, QwenToolReranker, RerankingRequest,
+    RerankingResponse, ToolContext, ToolContextBuilder, ToolContextError, ToolMetadataExtractor,
+    ToolRankingResult, ToolReranker, ToolSelectionRequest, ToolSelectionResponse,
+};
 
 // Базовые типы для системы инструментов
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,7 +230,8 @@ impl ToolRegistry {
             .collect()
     }
 
-    /// Зарегистрировать MCP tool, проксирующий удалённый MCP сервер/процесс по stdio
+    /// DEPRECATED: Use register_mcp_tool_secure() instead for explicit security control
+    #[deprecated(note = "Use register_mcp_tool_secure() for explicit sandbox permissions")]
     pub fn register_mcp_tool(
         &mut self,
         name: &str,
@@ -196,7 +240,60 @@ impl ToolRegistry {
         remote_tool: String,
         description: String,
     ) {
-        let tool = mcp::McpTool::new(cmd, args, remote_tool, description);
+        // SECURE BY DEFAULT: No permissions granted
+        let tool = mcp::McpTool::new(
+            cmd,
+            args,
+            remote_tool,
+            description,
+            "unknown://localhost".to_string(),
+        );
+        self.register(name, Box::new(tool));
+    }
+
+    /// Register MCP tool with explicit sandbox permissions - SECURE BY DEFAULT
+    /// This method requires explicit permission grants, preventing security bypasses
+    #[allow(clippy::too_many_arguments)]
+    pub fn register_mcp_tool_secure(
+        &mut self,
+        name: &str,
+        cmd: String,
+        args: Vec<String>,
+        remote_tool: String,
+        description: String,
+        server_url: String,
+        fs_read_roots: Vec<String>,
+        fs_write_roots: Vec<String>,
+        net_allowlist: Vec<String>,
+        allow_shell: bool,
+        supports_dry_run: bool,
+    ) {
+        let tool = mcp::McpTool::new(cmd, args, remote_tool, description, server_url)
+            .with_fs_read_access(fs_read_roots)
+            .with_fs_write_access(fs_write_roots)
+            .with_network_access(net_allowlist)
+            .with_shell_access(allow_shell)
+            .with_dry_run_support(supports_dry_run);
+
+        self.register(name, Box::new(tool));
+    }
+
+    /// Register MCP tool with builder pattern for fine-grained control
+    /// Returns McpTool builder for chaining permission methods
+    pub fn register_mcp_tool_builder(
+        &mut self,
+        _name: &str,
+        cmd: String,
+        args: Vec<String>,
+        remote_tool: String,
+        description: String,
+        server_url: String,
+    ) -> mcp::McpTool {
+        mcp::McpTool::new(cmd, args, remote_tool, description, server_url)
+    }
+
+    /// Register pre-configured MCP tool from builder
+    pub fn register_mcp_tool_from_builder(&mut self, name: &str, tool: mcp::McpTool) {
         self.register(name, Box::new(tool));
     }
 

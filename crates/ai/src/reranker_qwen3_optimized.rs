@@ -260,7 +260,11 @@ impl OptimizedRerankingService {
         let input_names: Vec<String> = session.inputs.iter().map(|i| i.name.clone()).collect();
 
         // Run inference based on what inputs the model expects
-        let outputs = if input_names.contains(&"token_type_ids".to_string()) {
+        // Qwen3 models NEVER support token_type_ids, so explicitly exclude them
+        let supports_token_type_ids = !self.config.model_name.contains("qwen3")
+            && input_names.contains(&"token_type_ids".to_string());
+
+        let outputs = if supports_token_type_ids {
             let token_type_ids_array =
                 Array2::from_shape_vec((batch_size, self.max_length), all_token_type_ids)?;
             let token_type_ids_tensor = Tensor::from_array((

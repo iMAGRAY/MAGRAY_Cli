@@ -1,6 +1,6 @@
 use crate::{
     CircuitBreaker, CircuitBreakerState, CompletionRequest, ComplexityLevel, CostOptimizer,
-    LlmProvider, Priority, ProviderStats, ProviderType, TaskComplexity,
+    LegacyLlmProvider, Priority, ProviderStats, ProviderType, TaskComplexity,
 };
 use anyhow::{anyhow, Result};
 use reqwest::Client;
@@ -13,7 +13,7 @@ use tracing::{debug, error, info, warn};
 
 /// Advanced multi-provider LLM orchestrator with failover, load balancing, and cost optimization
 pub struct MultiProviderLlmOrchestrator {
-    providers: Vec<LlmProvider>,
+    providers: Vec<LegacyLlmProvider>,
     provider_stats: Arc<Mutex<HashMap<String, ProviderStats>>>,
     circuit_breakers: Arc<Mutex<HashMap<String, CircuitBreaker>>>,
     cost_optimizer: Arc<Mutex<CostOptimizer>>,
@@ -115,38 +115,40 @@ struct RequestStrategyFactory;
 impl RequestStrategyFactory {
     fn create_strategy<'a>(
         client: &'a Client,
-        provider: &'a LlmProvider,
+        provider: &'a LegacyLlmProvider,
     ) -> ProviderRequestStrategy<'a> {
         match provider {
-            LlmProvider::OpenAI { api_key, model } => ProviderRequestStrategy::OpenAI {
+            LegacyLlmProvider::OpenAI { api_key, model } => ProviderRequestStrategy::OpenAI {
                 client,
                 api_key,
                 model,
             },
-            LlmProvider::Anthropic { api_key, model } => ProviderRequestStrategy::Anthropic {
+            LegacyLlmProvider::Anthropic { api_key, model } => ProviderRequestStrategy::Anthropic {
                 client,
                 api_key,
                 model,
             },
-            LlmProvider::Local { url, model } => ProviderRequestStrategy::OpenAICompatible {
+            LegacyLlmProvider::Local { url, model } => ProviderRequestStrategy::OpenAICompatible {
                 client,
                 url,
                 model,
                 api_key: None,
             },
-            LlmProvider::Ollama { url, model } => ProviderRequestStrategy::OpenAICompatible {
+            LegacyLlmProvider::Ollama { url, model } => ProviderRequestStrategy::OpenAICompatible {
                 client,
                 url,
                 model,
                 api_key: None,
             },
-            LlmProvider::LMStudio { url, model } => ProviderRequestStrategy::OpenAICompatible {
-                client,
-                url,
-                model,
-                api_key: None,
-            },
-            LlmProvider::Azure {
+            LegacyLlmProvider::LMStudio { url, model } => {
+                ProviderRequestStrategy::OpenAICompatible {
+                    client,
+                    url,
+                    model,
+                    api_key: None,
+                }
+            }
+            LegacyLlmProvider::Azure {
                 endpoint,
                 api_key,
                 model,
@@ -156,18 +158,20 @@ impl RequestStrategyFactory {
                 model,
                 api_key: Some(api_key),
             },
-            LlmProvider::Groq { api_key, model } => ProviderRequestStrategy::OpenAICompatible {
-                client,
-                url: "https://api.groq.com/openai/v1",
-                model,
-                api_key: Some(api_key),
-            },
+            LegacyLlmProvider::Groq { api_key, model } => {
+                ProviderRequestStrategy::OpenAICompatible {
+                    client,
+                    url: "https://api.groq.com/openai/v1",
+                    model,
+                    api_key: Some(api_key),
+                }
+            }
         }
     }
 }
 
 impl MultiProviderLlmOrchestrator {
-    pub fn new(providers: Vec<LlmProvider>, daily_budget: Option<f32>) -> Self {
+    pub fn new(providers: Vec<LegacyLlmProvider>, daily_budget: Option<f32>) -> Self {
         info!(
             "🏗️ Инициализация MultiProviderLlmOrchestrator с {} провайдерами",
             providers.len()
@@ -235,7 +239,7 @@ impl MultiProviderLlmOrchestrator {
     }
 
     /// Get providers that are available (circuit breaker not open)
-    async fn get_available_providers(&self) -> Vec<LlmProvider> {
+    async fn get_available_providers(&self) -> Vec<LegacyLlmProvider> {
         let circuit_breakers = match self.circuit_breakers.lock() {
             Ok(cb) => cb,
             Err(_) => {
@@ -267,7 +271,7 @@ impl MultiProviderLlmOrchestrator {
     /// Execute request with exponential backoff retry
     async fn execute_with_retry(
         &self,
-        provider: &LlmProvider,
+        provider: &LegacyLlmProvider,
         request: &CompletionRequest,
         task_complexity: &TaskComplexity,
     ) -> Result<String> {
@@ -277,7 +281,10 @@ impl MultiProviderLlmOrchestrator {
         for attempt in 0..=self.retry_config.max_retries {
             // Check circuit breaker
             let can_execute = {
-                let mut circuit_breakers = self.circuit_breakers.lock().unwrap();
+                let mut circuit_breakers = self
+                    .circuit_breakers
+                    .lock()
+                    .expect("Lock should not be poisoned");
                 circuit_breakers
                     .get_mut(&provider_id)
                     .map(|cb| cb.can_execute())
@@ -345,7 +352,7 @@ impl MultiProviderLlmOrchestrator {
     /// Execute single request to provider (упрощённый через паттерн Strategy)
     async fn execute_single_request(
         &self,
-        provider: &LlmProvider,
+        provider: &LegacyLlmProvider,
         request: &CompletionRequest,
     ) -> Result<String> {
         let strategy = RequestStrategyFactory::create_strategy(&self.client, provider);
@@ -410,7 +417,10 @@ impl MultiProviderLlmOrchestrator {
     ) {
         // Update provider stats
         {
-            let mut stats = self.provider_stats.lock().unwrap();
+            let mut stats = self
+                .provider_stats
+                .lock()
+                .expect("Lock should not be poisoned");
             if let Some(provider_stats) = stats.get_mut(provider_id) {
                 provider_stats.total_requests += 1;
                 provider_stats.successful_requests += 1;
@@ -423,7 +433,10 @@ impl MultiProviderLlmOrchestrator {
 
         // Update circuit breaker
         {
-            let mut circuit_breakers = self.circuit_breakers.lock().unwrap();
+            let mut circuit_breakers = self
+                .circuit_breakers
+                .lock()
+                .expect("Lock should not be poisoned");
             if let Some(cb) = circuit_breakers.get_mut(provider_id) {
                 cb.record_success();
             }
@@ -431,7 +444,10 @@ impl MultiProviderLlmOrchestrator {
 
         // Record cost
         {
-            let mut optimizer = self.cost_optimizer.lock().unwrap();
+            let mut optimizer = self
+                .cost_optimizer
+                .lock()
+                .expect("Lock should not be poisoned");
             let estimated_cost = optimizer.cost_table.estimate_cost(
                 &self.get_provider_type_by_id(provider_id),
                 &self.get_model_by_provider_id(provider_id),
@@ -443,7 +459,10 @@ impl MultiProviderLlmOrchestrator {
 
         // Update performance monitor
         {
-            let mut monitor = self.performance_monitor.lock().unwrap();
+            let mut monitor = self
+                .performance_monitor
+                .lock()
+                .expect("Lock should not be poisoned");
             monitor.total_requests += 1;
             monitor.total_successful += 1;
             *monitor
@@ -461,7 +480,10 @@ impl MultiProviderLlmOrchestrator {
     async fn record_failure(&self, provider_id: &str, _latency: Duration, error: &str) {
         // Update provider stats
         {
-            let mut stats = self.provider_stats.lock().unwrap();
+            let mut stats = self
+                .provider_stats
+                .lock()
+                .expect("Lock should not be poisoned");
             if let Some(provider_stats) = stats.get_mut(provider_id) {
                 provider_stats.total_requests += 1;
                 provider_stats.failed_requests += 1;
@@ -471,7 +493,10 @@ impl MultiProviderLlmOrchestrator {
 
         // Update circuit breaker
         {
-            let mut circuit_breakers = self.circuit_breakers.lock().unwrap();
+            let mut circuit_breakers = self
+                .circuit_breakers
+                .lock()
+                .expect("Lock should not be poisoned");
             if let Some(cb) = circuit_breakers.get_mut(provider_id) {
                 cb.record_failure();
             }
@@ -479,7 +504,10 @@ impl MultiProviderLlmOrchestrator {
 
         // Update performance monitor
         {
-            let mut monitor = self.performance_monitor.lock().unwrap();
+            let mut monitor = self
+                .performance_monitor
+                .lock()
+                .expect("Lock should not be poisoned");
             monitor.total_requests += 1;
             monitor.total_failed += 1;
         }
@@ -544,7 +572,7 @@ impl MultiProviderLlmOrchestrator {
 
         let response = client
             .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&req)
             .send()
@@ -617,7 +645,7 @@ impl MultiProviderLlmOrchestrator {
 
         let response = client
             .post("https://api.anthropic.com/v1/messages")
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .header("anthropic-version", "2023-06-01")
             .json(&req)
@@ -700,7 +728,7 @@ impl MultiProviderLlmOrchestrator {
             .header("Content-Type", "application/json");
 
         if let Some(key) = api_key {
-            request_builder = request_builder.header("Authorization", format!("Bearer {}", key));
+            request_builder = request_builder.header("Authorization", format!("Bearer {key}"));
         }
 
         let response = request_builder.json(&req).send().await?;
@@ -720,27 +748,27 @@ impl MultiProviderLlmOrchestrator {
     }
 
     // Utility methods
-    fn get_provider_id(provider: &LlmProvider) -> String {
+    fn get_provider_id(provider: &LegacyLlmProvider) -> String {
         match provider {
-            LlmProvider::OpenAI { model, .. } => format!("openai_{}", model),
-            LlmProvider::Anthropic { model, .. } => format!("anthropic_{}", model),
-            LlmProvider::Local { model, .. } => format!("local_{}", model),
-            LlmProvider::Ollama { model, .. } => format!("ollama_{}", model),
-            LlmProvider::LMStudio { model, .. } => format!("lmstudio_{}", model),
-            LlmProvider::Azure { model, .. } => format!("azure_{}", model),
-            LlmProvider::Groq { model, .. } => format!("groq_{}", model),
+            LegacyLlmProvider::OpenAI { model, .. } => format!("openai_{model}"),
+            LegacyLlmProvider::Anthropic { model, .. } => format!("anthropic_{model}"),
+            LegacyLlmProvider::Local { model, .. } => format!("local_{model}"),
+            LegacyLlmProvider::Ollama { model, .. } => format!("ollama_{model}"),
+            LegacyLlmProvider::LMStudio { model, .. } => format!("lmstudio_{model}"),
+            LegacyLlmProvider::Azure { model, .. } => format!("azure_{model}"),
+            LegacyLlmProvider::Groq { model, .. } => format!("groq_{model}"),
         }
     }
 
-    fn get_provider_name(provider: &LlmProvider) -> String {
+    fn get_provider_name(provider: &LegacyLlmProvider) -> String {
         match provider {
-            LlmProvider::OpenAI { model, .. } => format!("OpenAI ({})", model),
-            LlmProvider::Anthropic { model, .. } => format!("Anthropic ({})", model),
-            LlmProvider::Local { model, .. } => format!("Local ({})", model),
-            LlmProvider::Ollama { model, .. } => format!("Ollama ({})", model),
-            LlmProvider::LMStudio { model, .. } => format!("LM Studio ({})", model),
-            LlmProvider::Azure { model, .. } => format!("Azure ({})", model),
-            LlmProvider::Groq { model, .. } => format!("Groq ({})", model),
+            LegacyLlmProvider::OpenAI { model, .. } => format!("OpenAI ({model})"),
+            LegacyLlmProvider::Anthropic { model, .. } => format!("Anthropic ({model})"),
+            LegacyLlmProvider::Local { model, .. } => format!("Local ({model})"),
+            LegacyLlmProvider::Ollama { model, .. } => format!("Ollama ({model})"),
+            LegacyLlmProvider::LMStudio { model, .. } => format!("LM Studio ({model})"),
+            LegacyLlmProvider::Azure { model, .. } => format!("Azure ({model})"),
+            LegacyLlmProvider::Groq { model, .. } => format!("Groq ({model})"),
         }
     }
 
@@ -825,7 +853,7 @@ impl MultiProviderLlmOrchestrator {
                 ));
 
                 if let Some(error) = &stat.last_error {
-                    report.push_str(&format!("    Last error: {}\n", error));
+                    report.push_str(&format!("    Last error: {error}\n"));
                 }
             }
         }

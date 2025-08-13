@@ -1,7 +1,7 @@
 //! Упрощенный DI контейнер для восстановления компиляции проекта
 //!
 //! КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Заменяет сложный UnifiedContainer на простую реализацию
-//! - Убирает циклическую сложность 97+ 
+//! - Убирает циклическую сложность 97+
 //! - Фиксит ошибки компиляции Clone/trait bounds
 //! - Сохраняет только необходимую функциональность
 //!
@@ -20,13 +20,13 @@ use std::sync::{Arc, RwLock};
 pub enum SimpleDIError {
     #[error("Service not found: {service_type}")]
     ServiceNotFound { service_type: String },
-    
+
     #[error("Registration failed: {message}")]
     RegistrationFailed { message: String },
-    
+
     #[error("Container lock error: {message}")]
     LockError { message: String },
-    
+
     // Совместимость со старым DIError
     #[error("Coordinator error: {message}")]
     Coordinator {
@@ -34,26 +34,24 @@ pub enum SimpleDIError {
         coordinator_type: String,
         operation: String,
     },
-    
+
     #[error("Lifecycle error during {operation}: {message}")]
     Lifecycle {
         message: String,
         operation: String,
         coordinator_type: Option<String>,
     },
-    
+
     #[error("Invalid state: {message}")]
-    InvalidState {
-        message: String,
-    },
-    
+    InvalidState { message: String },
+
     // Дополнительные варианты для полной совместимости
     #[error("Factory error: {message}")]
     Factory {
         message: String,
         factory_type: String,
     },
-    
+
     #[error("Dependency validation error: {message}")]
     DependencyValidation {
         message: String,
@@ -65,10 +63,10 @@ pub enum SimpleDIError {
 pub trait DIContainer: Send + Sync {
     /// Получить сервис по типу
     fn resolve<T: 'static + Send + Sync>(&self) -> Result<Arc<T>, SimpleDIError>;
-    
+
     /// Зарегистрировать сервис
     fn register<T: 'static + Send + Sync>(&self, instance: T) -> Result<(), SimpleDIError>;
-    
+
     /// Проверить, зарегистрирован ли сервис
     fn contains<T: 'static + Send + Sync>(&self) -> bool;
 }
@@ -88,21 +86,25 @@ impl SimpleDIContainer {
             name,
         }
     }
-    
+
     /// Создать контейнер по умолчанию
     pub fn default() -> Self {
         Self::new("default".to_string())
     }
-    
+
     /// Получить количество зарегистрированных сервисов
     pub fn service_count(&self) -> usize {
-        self.services.read().unwrap_or_else(|_| {
-            // Восстанавливаем lock в случае poison
-            self.services.clear_poison();
-            self.services.read().unwrap()
-        }).len()
+        match self.services.read() {
+            Ok(guard) => guard.len(),
+            Err(_) => {
+                // В случае poison lock возвращаем 0 - безопасно для статистики
+                // Логируем проблему но не паникуем
+                eprintln!("Warning: DI Container lock is poisoned, returning 0 service count");
+                0
+            }
+        }
     }
-    
+
     /// Получить имя контейнера
     pub fn name(&self) -> &str {
         &self.name
@@ -112,48 +114,52 @@ impl SimpleDIContainer {
 impl DIContainer for SimpleDIContainer {
     fn resolve<T: 'static + Send + Sync>(&self) -> Result<Arc<T>, SimpleDIError> {
         let type_id = TypeId::of::<T>();
-        let services = self.services.read().map_err(|e| {
-            SimpleDIError::LockError { 
-                message: format!("Failed to acquire read lock: {}", e) 
-            }
+        let services = self.services.read().map_err(|e| SimpleDIError::LockError {
+            message: format!("Failed to acquire read lock: {}", e),
         })?;
-        
-        let any_service = services.get(&type_id).ok_or_else(|| {
-            SimpleDIError::ServiceNotFound {
+
+        let any_service = services
+            .get(&type_id)
+            .ok_or_else(|| SimpleDIError::ServiceNotFound {
                 service_type: std::any::type_name::<T>().to_string(),
-            }
-        })?;
-        
-        let service = any_service
-            .clone()
-            .downcast::<T>()
-            .map_err(|_| SimpleDIError::ServiceNotFound {
-                service_type: format!("Failed to downcast {}", std::any::type_name::<T>()),
             })?;
-            
+
+        let service =
+            any_service
+                .clone()
+                .downcast::<T>()
+                .map_err(|_| SimpleDIError::ServiceNotFound {
+                    service_type: format!("Failed to downcast {}", std::any::type_name::<T>()),
+                })?;
+
         Ok(service)
     }
-    
+
     fn register<T: 'static + Send + Sync>(&self, instance: T) -> Result<(), SimpleDIError> {
         let type_id = TypeId::of::<T>();
         let arc_instance = Arc::new(instance);
-        
-        let mut services = self.services.write().map_err(|e| {
-            SimpleDIError::LockError {
+
+        let mut services = self
+            .services
+            .write()
+            .map_err(|e| SimpleDIError::LockError {
                 message: format!("Failed to acquire write lock: {}", e),
-            }
-        })?;
-        
+            })?;
+
         services.insert(type_id, arc_instance);
         Ok(())
     }
-    
+
     fn contains<T: 'static + Send + Sync>(&self) -> bool {
         let type_id = TypeId::of::<T>();
-        self.services
-            .read()
-            .map(|services| services.contains_key(&type_id))
-            .unwrap_or(false)
+        match self.services.read() {
+            Ok(services) => services.contains_key(&type_id),
+            Err(_) => {
+                // В случае poison lock считаем что сервис отсутствует - безопасно
+                eprintln!("Warning: DI Container lock is poisoned, assuming service not found");
+                false
+            }
+        }
     }
 }
 
@@ -230,65 +236,77 @@ impl<T> RwLockExt<T> for RwLock<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[derive(Debug, Clone)]
     struct TestService {
         value: i32,
     }
-    
+
     #[test]
     fn test_register_and_resolve() {
         let container = SimpleDIContainer::new("test".to_string());
-        
+
         let service = TestService { value: 42 };
-        container.register(service).unwrap();
-        
-        let resolved = container.resolve::<TestService>().unwrap();
+        container
+            .register(service)
+            .expect("Service registration should succeed");
+
+        let resolved = container
+            .resolve::<TestService>()
+            .expect("Service resolution should succeed");
         assert_eq!(resolved.value, 42);
     }
-    
+
     #[test]
     fn test_service_not_found() {
         let container = SimpleDIContainer::new("test".to_string());
-        
+
         let result = container.resolve::<TestService>();
         assert!(result.is_err());
-        
+
         match result.unwrap_err() {
-            SimpleDIError::ServiceNotFound { .. } => {},
+            SimpleDIError::ServiceNotFound { .. } => {}
             _ => panic!("Expected ServiceNotFound error"),
         }
     }
-    
+
     #[test]
     fn test_contains() {
         let container = SimpleDIContainer::new("test".to_string());
-        
+
         assert!(!container.contains::<TestService>());
-        
-        container.register(TestService { value: 42 }).unwrap();
-        
+
+        container
+            .register(TestService { value: 42 })
+            .expect("Service registration should succeed");
+
         assert!(container.contains::<TestService>());
     }
-    
+
     #[test]
     fn test_clone() {
         let container = SimpleDIContainer::new("original".to_string());
-        container.register(TestService { value: 42 }).unwrap();
-        
+        container
+            .register(TestService { value: 42 })
+            .expect("Service registration should succeed");
+
         let cloned = container.clone();
         assert_eq!(cloned.name(), "original_clone");
         assert!(cloned.contains::<TestService>());
-        
-        let resolved = cloned.resolve::<TestService>().unwrap();
+
+        let resolved = cloned
+            .resolve::<TestService>()
+            .expect("Service resolution should succeed");
         assert_eq!(resolved.value, 42);
     }
-    
+
     #[test]
     fn test_stats() {
         let container = SimpleDIContainer::new("stats_test".to_string());
-        container.register(TestService { value: 42 }).unwrap();
-        
+        container
+            .register(TestService { value: 42 })
+            .expect("Service registration should succeed");
+
         let stats = container.stats();
         assert_eq!(stats.name, "stats_test");
         assert_eq!(stats.service_count, 1);

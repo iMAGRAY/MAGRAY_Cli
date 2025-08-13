@@ -456,7 +456,7 @@ mod tests {
         let result = formatter
             .format_response(&response, &context)
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
         assert!(result.contains("💬"));
         assert!(result.contains("Hello world"));
     }
@@ -470,7 +470,7 @@ mod tests {
         let result = formatter
             .format_response(&response, &context)
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
         assert!(result.contains("```"));
         assert!(result.contains("ls -la"));
     }
@@ -484,8 +484,9 @@ mod tests {
         let result = formatter
             .format_response(&response, &context)
             .await
-            .unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+            .expect("Operation failed - converted from unwrap()");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&result).expect("Operation failed - converted from unwrap()");
 
         assert_eq!(parsed["response"]["type"], "chat");
         assert_eq!(parsed["response"]["content"], "Hello");
@@ -504,7 +505,7 @@ mod tests {
         let result = formatter
             .format_response(&response, &context)
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         // Должен быть JSON
         assert!(serde_json::from_str::<serde_json::Value>(&result).is_ok());
@@ -520,7 +521,7 @@ mod tests {
         let result = formatter
             .format_response(&response, &context)
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         // Должен быть rich format с markdown
         assert!(result.contains("##"));

@@ -523,7 +523,8 @@ mod tests {
     #[test]
     fn test_resource_manager_creation() {
         let config = ResourceConfig::default();
-        let manager = ResourceManager::new(config).unwrap();
+        let manager =
+            ResourceManager::new(config).expect("Operation failed - converted from unwrap()");
 
         let limits = manager.get_current_limits();
         assert_eq!(limits.max_vectors, 100_000);
@@ -533,7 +534,8 @@ mod tests {
     #[test]
     fn test_scaling_calculation() {
         let config = ResourceConfig::default();
-        let manager = ResourceManager::new(config).unwrap();
+        let manager =
+            ResourceManager::new(config).expect("Operation failed - converted from unwrap()");
 
         let current = CurrentLimits {
             max_vectors: 100_000,

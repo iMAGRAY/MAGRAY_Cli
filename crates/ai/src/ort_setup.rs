@@ -57,7 +57,7 @@ pub fn configure_ort_env() {
 
     for path in candidate_paths() {
         if path.exists() {
-            if let Some(_parent) = path.parent() {
+            if let Some(parent) = path.parent() {
                 #[cfg(any(target_os = "linux", target_os = "macos"))]
                 {
                     let key = if cfg!(target_os = "macos") {

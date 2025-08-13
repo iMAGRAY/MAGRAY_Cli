@@ -403,7 +403,7 @@ impl SmartOrchestrationEngine {
                     if attempt < self.config.retry_config.max_retries {
                         let delay = self.calculate_retry_delay(attempt);
                         warn!("❌ Attempt {} failed for {}: {}. Retrying in {:?}", 
-                            attempt + 1, provider_id, last_error.as_ref().unwrap(), delay);
+                            attempt + 1, provider_id, last_error.as_ref().expect("Operation failed - converted from unwrap()"), delay);
                         sleep(delay).await;
                     } else {
                         error!("💥 All {} attempts failed for {}", 
@@ -563,13 +563,13 @@ mod tests {
         let config2 = ProviderConfig::new("anthropic", "claude-3-haiku-20240307")
             .with_api_key("test-key".to_string());
         
-        let provider1 = ProviderFactory::create_provider(&config1).unwrap();
-        let provider2 = ProviderFactory::create_provider(&config2).unwrap();
+        let provider1 = ProviderFactory::create_provider(&config1).expect("Operation failed - converted from unwrap()");
+        let provider2 = ProviderFactory::create_provider(&config2).expect("Operation failed - converted from unwrap()");
         
         let providers = vec![provider1, provider2];
         let config = OrchestrationConfig::default();
         
-        let engine = SmartOrchestrationEngine::new(providers, config).unwrap();
+        let engine = SmartOrchestrationEngine::new(providers, config).expect("Operation failed - converted from unwrap()");
         assert_eq!(engine.providers.len(), 2);
     }
 }

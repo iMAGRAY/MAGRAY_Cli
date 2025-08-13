@@ -1,25 +1,32 @@
+#![allow(clippy::new_without_default)]
+#![allow(unused_imports)]
+#![allow(clippy::uninlined_format_args)]
 use tempfile::TempDir;
 use todo::{Priority, TaskState, TodoEvent, TodoService};
 use uuid::Uuid;
 
 #[tokio::test]
 async fn test_service_creation() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     // Service должен быть создан успешно
-    let (stats, _graph_stats) = service.get_stats().await.unwrap();
+    let (stats, _graph_stats) = service.get_stats().await.expect("get_stats failed");
     assert_eq!(stats.total, 0);
 }
 
 #[tokio::test]
 async fn test_create_task() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     let task = service
         .create_task(
@@ -29,7 +36,7 @@ async fn test_create_task() {
             vec!["test".to_string(), "rust".to_string()],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     assert_eq!(task.title, "Test task");
     assert_eq!(task.description, "Test description");
@@ -40,10 +47,12 @@ async fn test_create_task() {
 
 #[tokio::test]
 async fn test_create_subtasks() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     // Создаем родительскую задачу
     let parent = service
@@ -54,7 +63,7 @@ async fn test_create_subtasks() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Создаем подзадачи
     let subtasks = vec![
@@ -62,7 +71,10 @@ async fn test_create_subtasks() {
         ("Subtask 2".to_string(), "Description 2".to_string()),
     ];
 
-    let created_subtasks = service.create_subtasks(&parent.id, subtasks).await.unwrap();
+    let created_subtasks = service
+        .create_subtasks(&parent.id, subtasks)
+        .await
+        .expect("Failed to execute async operation");
 
     assert_eq!(created_subtasks.len(), 2);
     assert!(created_subtasks
@@ -72,10 +84,12 @@ async fn test_create_subtasks() {
 
 #[tokio::test]
 async fn test_get_cached() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     let task = service
         .create_task(
@@ -85,25 +99,43 @@ async fn test_get_cached() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Первый доступ - из БД
-    let cached1 = service.get_cached(&task.id).await.unwrap();
+    let cached1 = service
+        .get_cached(&task.id)
+        .await
+        .expect("get_cached failed");
     assert!(cached1.is_some());
-    assert_eq!(cached1.unwrap().title, "Cached task");
+    assert_eq!(
+        cached1
+            .expect("Expected cached task to exist in test")
+            .title,
+        "Cached task"
+    );
 
     // Второй доступ - из кэша
-    let cached2 = service.get_cached(&task.id).await.unwrap();
+    let cached2 = service
+        .get_cached(&task.id)
+        .await
+        .expect("get_cached failed");
     assert!(cached2.is_some());
-    assert_eq!(cached2.unwrap().title, "Cached task");
+    assert_eq!(
+        cached2
+            .expect("Expected cached task to exist in test")
+            .title,
+        "Cached task"
+    );
 }
 
 #[tokio::test]
 async fn test_update_state() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     let task = service
         .create_task(
@@ -113,24 +145,30 @@ async fn test_update_state() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Обновляем состояние
     service
         .update_state(&task.id, TaskState::InProgress)
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
-    let updated = service.get_cached(&task.id).await.unwrap().unwrap();
+    let updated = service
+        .get_cached(&task.id)
+        .await
+        .expect("get_cached failed")
+        .expect("Task should exist after operation");
     assert_eq!(updated.state, TaskState::InProgress);
 }
 
 #[tokio::test]
 async fn test_get_next_ready() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     // Создаем задачи с разными приоритетами
     let _critical = service
@@ -141,7 +179,7 @@ async fn test_get_next_ready() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     let _high = service
         .create_task(
@@ -151,7 +189,7 @@ async fn test_get_next_ready() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     let _medium = service
         .create_task(
@@ -161,10 +199,13 @@ async fn test_get_next_ready() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Получаем готовые задачи
-    let ready = service.get_next_ready(2).await.unwrap();
+    let ready = service
+        .get_next_ready(2)
+        .await
+        .expect("get_next_ready failed");
 
     assert_eq!(ready.len(), 2);
     // Critical должен быть первым
@@ -174,10 +215,12 @@ async fn test_get_next_ready() {
 
 #[tokio::test]
 async fn test_add_dependency() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     // Создаем задачи
     let task1 = service
@@ -188,7 +231,7 @@ async fn test_add_dependency() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     let task2 = service
         .create_task(
@@ -198,21 +241,30 @@ async fn test_add_dependency() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Добавляем зависимость: task2 зависит от task1
-    service.add_dependency(&task2.id, &task1.id).await.unwrap();
+    service
+        .add_dependency(&task2.id, &task1.id)
+        .await
+        .expect("add_dependency failed");
 
-    let updated_task2 = service.get_cached(&task2.id).await.unwrap().unwrap();
+    let updated_task2 = service
+        .get_cached(&task2.id)
+        .await
+        .expect("get_cached failed")
+        .expect("Task should exist after operation");
     assert!(updated_task2.depends_on.contains(&task1.id));
 }
 
 #[tokio::test]
 async fn test_remove_dependency() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     // Создаем задачи
     let task1 = service
@@ -223,7 +275,7 @@ async fn test_remove_dependency() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     let task2 = service
         .create_task(
@@ -233,25 +285,34 @@ async fn test_remove_dependency() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Добавляем и удаляем зависимость
-    service.add_dependency(&task2.id, &task1.id).await.unwrap();
+    service
+        .add_dependency(&task2.id, &task1.id)
+        .await
+        .expect("add_dependency failed");
     service
         .remove_dependency(&task2.id, &task1.id)
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
-    let updated_task2 = service.get_cached(&task2.id).await.unwrap().unwrap();
+    let updated_task2 = service
+        .get_cached(&task2.id)
+        .await
+        .expect("get_cached failed")
+        .expect("Task should exist after operation");
     assert!(!updated_task2.depends_on.contains(&task1.id));
 }
 
 #[tokio::test]
 async fn test_search() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     // Создаем задачи
     service
@@ -262,7 +323,7 @@ async fn test_search() {
             vec!["search".to_string()],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     service
         .create_task(
@@ -272,24 +333,26 @@ async fn test_search() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Поиск по всем задачам
-    let all_results = service.search("", 10).await.unwrap();
+    let all_results = service.search("", 10).await.expect("search failed");
     assert_eq!(all_results.len(), 2);
 
     // Поиск по конкретному термину
-    let search_results = service.search("search", 10).await.unwrap();
+    let search_results = service.search("search", 10).await.expect("search failed");
     assert_eq!(search_results.len(), 1);
     assert_eq!(search_results[0].title, "Search test task");
 }
 
 #[tokio::test]
 async fn test_optimize() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     // Создаем несколько задач
     for i in 1..=5 {
@@ -301,7 +364,7 @@ async fn test_optimize() {
                 vec![],
             )
             .await
-            .unwrap();
+            .expect("Failed to create task in loop");
     }
 
     // Оптимизируем
@@ -311,10 +374,12 @@ async fn test_optimize() {
 
 #[tokio::test]
 async fn test_event_stream() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
     let events = service.subscribe();
 
     // Создаем задачу
@@ -326,7 +391,7 @@ async fn test_event_stream() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Проверяем событие создания
     if let Some(event) = events.next().await {
@@ -344,16 +409,18 @@ async fn test_event_stream() {
 
 #[tokio::test]
 async fn test_task_statistics() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     // Создаем задачи в разных состояниях
     let task1 = service
         .create_task("Task 1".to_string(), "".to_string(), Priority::High, vec![])
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     let task2 = service
         .create_task(
@@ -363,21 +430,21 @@ async fn test_task_statistics() {
             vec![],
         )
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Одну в прогрессе
     service
         .update_state(&task1.id, TaskState::InProgress)
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
     // Одну завершаем
     service
         .update_state(&task2.id, TaskState::Done)
         .await
-        .unwrap();
+        .expect("Failed to create task");
 
-    let (stats, _graph_stats) = service.get_stats().await.unwrap();
+    let (stats, _graph_stats) = service.get_stats().await.expect("get_stats failed");
 
     assert_eq!(stats.total, 2);
     assert_eq!(stats.in_progress, 1);
@@ -386,15 +453,20 @@ async fn test_task_statistics() {
 
 #[tokio::test]
 async fn test_task_not_found() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
-    let service = TodoService::new(&db_path, 4, 100).await.unwrap();
+    let service = TodoService::new(&db_path, 4, 100)
+        .await
+        .expect("failed to create TodoService");
 
     let non_existent_id = Uuid::new_v4();
 
     // Попытка получить несуществующую задачу
-    let result = service.get_cached(&non_existent_id).await.unwrap();
+    let result = service
+        .get_cached(&non_existent_id)
+        .await
+        .expect("get_cached failed");
     assert!(result.is_none());
 
     // Попытка обновить несуществующую задачу должна вернуть ошибку

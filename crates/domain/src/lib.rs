@@ -1,4 +1,8 @@
 //! Domain Layer - MAGRAY CLI Business Logic
+
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
 //!
 //! Содержит ТОЛЬКО чистую business logic без dependencies на:
 //! - Infrastructure (databases, file systems, networks)
@@ -11,6 +15,7 @@
 //! - Repository Abstractions: interfaces для persistence
 //! - Business Rules: чистая business logic без side effects
 
+pub mod config;
 pub mod entities;
 pub mod errors;
 pub mod repositories;
@@ -21,7 +26,10 @@ pub mod value_objects;
 pub use entities::{EmbeddingVector, MemoryRecord, RecordId, SearchQuery};
 pub use errors::{DomainError, DomainResult};
 pub use repositories::{EmbeddingRepository, MemoryRepository, SearchRepository};
-pub use services::{MemoryDomainService, PromotionDomainService, SearchDomainService};
+pub use services::{
+    MemoryDomainService, MemoryDomainServiceTrait, PromotionDomainService,
+    PromotionDomainServiceTrait, SearchDomainService, SearchDomainServiceTrait,
+};
 pub use value_objects::{AccessPattern, LayerType, PromotionCriteria, ScoreThreshold};
 
 /// Domain-specific type aliases

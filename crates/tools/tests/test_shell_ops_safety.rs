@@ -18,7 +18,10 @@ async fn shell_exec_dry_run_preview() -> Result<()> {
     };
     let out = tool.execute(input).await?;
     assert!(out.success);
-    assert!(out.formatted_output.unwrap().contains("[dry-run]"));
+    assert!(out
+        .formatted_output
+        .expect("Test operation should succeed")
+        .contains("[dry-run]"));
     Ok(())
 }
 
@@ -71,7 +74,7 @@ async fn shell_exec_truncates_stdout_when_exceeds_limit() -> Result<()> {
 #[tokio::test]
 async fn shell_exec_respects_cwd() -> Result<()> {
     let tool = ShellExec::new();
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("Test operation should succeed");
     let cwd = tmp.path().to_string_lossy().to_string();
     let mut args = HashMap::new();
     args.insert("command".into(), "pwd".into());

@@ -406,7 +406,7 @@ impl GpuBatchProcessor {
             if detector.available {
                 if let Some(primary_gpu) = detector.devices.first() {
                     // 1 stream на 1GB памяти, максимум 8
-                    let streams = (primary_gpu.total_memory_mb / 1024).min(8).max(1) as usize;
+                    let streams = (primary_gpu.total_memory_mb / 1024).clamp(1, 8) as usize;
                     return Ok(streams);
                 }
             }
@@ -436,7 +436,7 @@ impl GpuBatchProcessor {
                         (primary_gpu.total_memory_mb as f32 * 1024.0 * 1024.0 * SAFETY_MARGIN)
                             as usize;
                     let max_batch_by_memory = available_memory / EMBEDDING_SIZE_BYTES;
-                    let safe_batch = requested_size.min(max_batch_by_memory).max(1);
+                    let safe_batch = requested_size.clamp(1, max_batch_by_memory);
 
                     info!(
                         "🔍 GPU Memory-based batch size: {} (requested: {}, memory limit: {})",
@@ -1071,10 +1071,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_gpu_health_check() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let temp_dir = TempDir::new().expect("Test requires temp directory");
         let cache = Arc::new(
             crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default())
-                .expect("Failed to create cache"),
+                .expect("Test requires cache initialization"),
         ) as Arc<dyn EmbeddingCacheInterface>;
 
         let config = BatchProcessorConfig {
@@ -1104,10 +1104,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_fallback_behavior() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let temp_dir = TempDir::new().expect("Test requires temp directory");
         let cache = Arc::new(
             crate::EmbeddingCache::new(temp_dir.path(), crate::CacheConfig::default())
-                .expect("Failed to create cache"),
+                .expect("Test requires cache initialization"),
         ) as Arc<dyn EmbeddingCacheInterface>;
 
         let config = BatchProcessorConfig {

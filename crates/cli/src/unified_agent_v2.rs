@@ -265,12 +265,16 @@ impl MemoryManagementTrait for MemoryManagementAdapter {
 
 /// Минимальная заглушка для MemoryManagementTrait под feature "minimal"
 #[cfg(feature = "minimal")]
-pub struct MemoryManagementAdapter;
+pub struct MemoryManagementAdapter {
+    _memory_service: memory::di::UnifiedContainer,
+}
 
 #[cfg(feature = "minimal")]
 impl MemoryManagementAdapter {
-    pub fn new(_memory_service: memory::di::DIContainer) -> Self {
-        Self
+    pub fn new(memory_service: memory::di::UnifiedContainer) -> Self {
+        Self {
+            _memory_service: memory_service,
+        }
     }
 }
 
@@ -576,9 +580,12 @@ impl UnifiedAgentV2 {
         let routing_adapter = IntelligentRoutingAdapter::new(smart_router);
 
         // В CPU-профиле используем контейнер DI напрямую, без DIMemoryService конструктира
-        let memory_adapter = MemoryManagementAdapter::new(memory::di::UnifiedContainer::new(
-            "unified_agent".to_string(),
-        ));
+        #[cfg(not(feature = "minimal"))]
+        let memory_adapter = MemoryManagementAdapter::new(memory::di::UnifiedContainer::new());
+
+        // Для minimal feature используем простой DI контейнер
+        #[cfg(feature = "minimal")]
+        let memory_adapter = MemoryManagementAdapter::new(memory::di::UnifiedContainer::default());
 
         let admin_service = BasicAdminService::new(performance_monitor.clone());
 

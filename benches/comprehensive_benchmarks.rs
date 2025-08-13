@@ -26,7 +26,7 @@ fn bench_hnsw_performance(c: &mut Criterion) {
         b.iter(|| {
             let index = VectorIndex::new(1024, 16, 200);
             for (id, vec) in vectors.iter().enumerate() {
-                index.add_vector(id, vec).unwrap();
+                index.add_vector(id, vec).expect("Test operation should succeed");
             }
         });
     });
@@ -34,13 +34,13 @@ fn bench_hnsw_performance(c: &mut Criterion) {
     // Benchmark search
     let index = VectorIndex::new(1024, 16, 200);
     for (id, vec) in vectors.iter().enumerate().take(100) {
-        index.add_vector(id, vec).unwrap();
+        index.add_vector(id, vec).expect("Test operation should succeed");
     }
     
     let query = &vectors[0];
     group.bench_function("search_top10", |b| {
         b.iter(|| {
-            index.search(query, 10).unwrap()
+            index.search(query, 10).expect("Test operation should succeed")
         });
     });
     
@@ -49,12 +49,12 @@ fn bench_hnsw_performance(c: &mut Criterion) {
 
 /// Benchmark suite для embedding operations
 fn bench_embedding_performance(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
     let mut group = c.benchmark_group("embedding_operations");
     
     // Создаем embedding service
     let service = rt.block_on(async {
-        CpuEmbeddingService::new(Default::default()).await.unwrap()
+        CpuEmbeddingService::new(Default::default()).await.expect("Test operation should succeed")
     });
     
     let texts = vec![
@@ -68,7 +68,7 @@ fn bench_embedding_performance(c: &mut Criterion) {
     // Single embedding benchmark
     group.bench_function("single_embedding", |b| {
         b.to_async(&rt).iter(|| async {
-            service.embed(&texts[0]).await.unwrap()
+            service.embed(&texts[0]).await.expect("Test operation should succeed")
         });
     });
     
@@ -77,7 +77,7 @@ fn bench_embedding_performance(c: &mut Criterion) {
     group.bench_function("batch_embedding", |b| {
         b.to_async(&rt).iter(|| async {
             for text in &texts {
-                service.embed(text).await.unwrap();
+                service.embed(text).await.expect("Test operation should succeed");
             }
         });
     });
@@ -87,7 +87,7 @@ fn bench_embedding_performance(c: &mut Criterion) {
 
 /// Benchmark suite для LLM operations
 fn bench_llm_performance(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
     let mut group = c.benchmark_group("llm_operations");
     group.measurement_time(Duration::from_secs(60)); // Longer measurement for network calls
     
@@ -109,7 +109,7 @@ fn bench_llm_performance(c: &mut Criterion) {
 
 /// Benchmark suite для memory operations
 fn bench_memory_performance(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
     let mut group = c.benchmark_group("memory_operations");
     
     // Mock record creation

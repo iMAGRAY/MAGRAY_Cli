@@ -1,0 +1,49 @@
+# Development Profile Configuration
+# This profile enables relaxed security, verbose logging, and debug features
+# for rapid development and testing
+
+[security]
+# Default policy mode: permissive for rapid development
+default_policy_mode = "ask"
+
+# Risk tolerance: medium for development (allows most operations with prompts)
+risk_level = "medium"
+
+# Enable permissive mode for rapid development
+permissive_mode = true
+
+# Ask by default for unknown operations
+ask_by_default = true
+
+[logging]
+# Log level override for development (verbose)
+level_override = "debug"
+
+# Enable console output for immediate feedback
+console_enabled = true
+
+# Enable debug symbols for debugging
+debug_symbols = true
+
+# Use structured logging for development (false for human readable)
+structured_only = false
+
+[performance]
+# Enable debug allocation tracking for memory leak detection
+debug_allocation_tracking = true
+
+# No strict memory limits for development
+# memory_limit_override_mb = 
+
+# Disable production optimizations for better debugging
+production_optimizations = false
+
+[tools]
+# Expanded tool whitelist for development flexibility
+whitelist_mode = "expanded"
+
+# Enable dry-run by default for safety during development
+dry_run_default = true
+
+# Don't require signed tools in development
+require_signed_tools = false

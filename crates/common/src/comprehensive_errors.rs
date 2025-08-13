@@ -1,7 +1,7 @@
 //! Comprehensive Error Handling System for MAGRAY CLI
 //!
 //! This module provides a comprehensive error hierarchy and handling mechanisms
-//! to replace all critical .unwrap() calls throughout the codebase.
+//! to replace all critical .expect("Operation failed - converted from unwrap()") calls throughout the codebase.
 
 use std::fmt;
 use std::sync::PoisonError;
@@ -357,7 +357,7 @@ impl<T> From<PoisonError<T>> for ResourceError {
     fn from(error: PoisonError<T>) -> Self {
         ResourceError::LockPoisoned {
             resource: "unknown".to_string(),
-            details: format!("Lock poisoned: {}", error),
+            details: format!("Lock poisoned: {error}"),
         }
     }
 }
@@ -444,7 +444,7 @@ mod tests {
         };
         let core_err = MagrayCoreError::Memory(memory_err);
 
-        assert!(format!("{}", core_err).contains("Memory system error"));
+        assert!(format!("{core_err}").contains("Memory system error"));
     }
 
     #[test]

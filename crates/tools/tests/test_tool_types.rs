@@ -122,7 +122,7 @@ fn test_tool_registry_get_existing_tool() {
     let file_read = registry.get("file_read");
     assert!(file_read.is_some());
 
-    let spec = file_read.unwrap().spec();
+    let spec = file_read.expect("Test operation should succeed").spec();
     assert_eq!(spec.name, "file_read");
 }
 
@@ -157,7 +157,7 @@ fn test_tool_registry_all_tools_accessible() {
         let tool = registry.get(&spec.name);
         assert!(tool.is_some(), "Tool {} should be accessible", spec.name);
 
-        let retrieved_spec = tool.unwrap().spec();
+        let retrieved_spec = tool.expect("Test operation should succeed").spec();
         assert_eq!(retrieved_spec.name, spec.name);
     }
 }

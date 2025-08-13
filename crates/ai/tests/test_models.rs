@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -245,7 +246,13 @@ fn test_model_path_validation() {
     };
 
     // Check that path has correct extension
-    assert!(model.file_path.extension().unwrap() == "onnx");
+    assert!(
+        model
+            .file_path
+            .extension()
+            .expect("Test operation should succeed")
+            == "onnx"
+    );
 }
 
 #[test]

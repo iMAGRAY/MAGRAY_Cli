@@ -2,11 +2,11 @@
 //!
 //! Адаптер для интеграции с embedding services из AI crate
 
-use std::sync::Arc;
+use crate::ports::{EmbeddingProvider, ProviderHealth};
+use crate::{ApplicationError, ApplicationResult};
 use async_trait::async_trait;
-use crate::{ApplicationResult, ApplicationError};
-use crate::ports::EmbeddingProvider;
-use domain::entities::embedding_vector::EmbeddingVector;
+use domain::EmbeddingVector;
+use std::sync::Arc;
 
 /// Adapter for embedding services from AI crate
 pub struct EmbeddingServiceAdapter {
@@ -31,16 +31,16 @@ pub struct EmbeddingAdapterConfig {
 /// Trait abstraction for CPU embedding service
 #[async_trait]
 pub trait CpuEmbeddingServiceTrait: Send + Sync {
-    async fn embed(&self, text: &str) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn embed(&self, text: &str) -> Result<Vec<f32>, ApplicationError>;
+    async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, ApplicationError>;
     fn dimensions(&self) -> usize;
 }
 
 /// Trait abstraction for GPU embedding service
 #[async_trait]
 pub trait GpuEmbeddingServiceTrait: Send + Sync {
-    async fn embed(&self, text: &str) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn embed(&self, text: &str) -> Result<Vec<f32>, ApplicationError>;
+    async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, ApplicationError>;
     fn dimensions(&self) -> usize;
     async fn is_available(&self) -> bool;
 }
@@ -59,11 +59,7 @@ impl EmbeddingServiceAdapter {
     }
 
     pub fn cpu_only(cpu_service: Arc<dyn CpuEmbeddingServiceTrait>) -> Self {
-        Self::new(
-            cpu_service,
-            None,
-            EmbeddingAdapterConfig::default(),
-        )
+        Self::new(cpu_service, None, EmbeddingAdapterConfig::default())
     }
 
     /// Check if GPU service is available and preferred
@@ -87,10 +83,7 @@ impl EmbeddingServiceAdapter {
                     Err(e) => {
                         tracing::warn!("GPU embedding failed: {}, falling back to CPU", e);
                         if !self.config.fallback_to_cpu {
-                            return Err(ApplicationError::infrastructure_with_source(
-                                "GPU embedding failed and CPU fallback disabled",
-                                e,
-                            ));
+                            return Err(e);
                         }
                     }
                 }
@@ -98,14 +91,14 @@ impl EmbeddingServiceAdapter {
         }
 
         // Use CPU service
-        self.cpu_service
-            .embed(text)
-            .await
-            .map_err(|e| ApplicationError::infrastructure_with_source("CPU embedding failed", e))
+        self.cpu_service.embed(text).await
     }
 
     /// Generate batch embeddings with optimal service selection
-    async fn embed_batch_with_fallback(&self, texts: &[String]) -> ApplicationResult<Vec<Vec<f32>>> {
+    async fn embed_batch_with_fallback(
+        &self,
+        texts: &[String],
+    ) -> ApplicationResult<Vec<Vec<f32>>> {
         if self.should_use_gpu().await {
             if let Some(ref gpu_service) = self.gpu_service {
                 match gpu_service.embed_batch(texts).await {
@@ -113,10 +106,7 @@ impl EmbeddingServiceAdapter {
                     Err(e) => {
                         tracing::warn!("GPU batch embedding failed: {}, falling back to CPU", e);
                         if !self.config.fallback_to_cpu {
-                            return Err(ApplicationError::infrastructure_with_source(
-                                "GPU batch embedding failed and CPU fallback disabled",
-                                e,
-                            ));
+                            return Err(e);
                         }
                     }
                 }
@@ -124,10 +114,7 @@ impl EmbeddingServiceAdapter {
         }
 
         // Use CPU service
-        self.cpu_service
-            .embed_batch(texts)
-            .await
-            .map_err(|e| ApplicationError::infrastructure_with_source("CPU batch embedding failed", e))
+        self.cpu_service.embed_batch(texts).await
     }
 }
 
@@ -144,7 +131,7 @@ impl EmbeddingProvider for EmbeddingServiceAdapter {
 
         // Add timeout and retry logic
         let mut last_error = None;
-        
+
         for attempt in 1..=self.config.max_retries {
             match tokio::time::timeout(
                 std::time::Duration::from_secs(self.config.timeout_seconds),
@@ -153,7 +140,11 @@ impl EmbeddingProvider for EmbeddingServiceAdapter {
             .await
             {
                 Ok(Ok(embedding)) => {
-                    tracing::debug!("Generated embedding with {} dimensions on attempt {}", embedding.len(), attempt);
+                    tracing::debug!(
+                        "Generated embedding with {} dimensions on attempt {}",
+                        embedding.len(),
+                        attempt
+                    );
                     return Ok(embedding);
                 }
                 Ok(Err(e)) => {
@@ -161,7 +152,8 @@ impl EmbeddingProvider for EmbeddingServiceAdapter {
                     last_error = Some(e);
                 }
                 Err(_) => {
-                    let timeout_error = ApplicationError::infrastructure("Embedding generation timeout");
+                    let timeout_error =
+                        ApplicationError::infrastructure("Embedding generation timeout");
                     tracing::warn!("Embedding attempt {} timed out", attempt);
                     last_error = Some(timeout_error);
                 }
@@ -179,30 +171,41 @@ impl EmbeddingProvider for EmbeddingServiceAdapter {
         }))
     }
 
-    async fn generate_embeddings_batch(&self, texts: &[String]) -> ApplicationResult<Vec<Vec<f32>>> {
+    async fn generate_batch_embeddings(
+        &self,
+        texts: &[String],
+    ) -> ApplicationResult<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(vec![]);
         }
 
         if texts.len() > self.config.batch_size {
-            return Err(ApplicationError::validation(
-                format!("Batch size {} exceeds limit {}", texts.len(), self.config.batch_size)
-            ));
+            return Err(ApplicationError::validation(format!(
+                "Batch size {} exceeds limit {}",
+                texts.len(),
+                self.config.batch_size
+            )));
         }
 
         // Validate all texts
         for (i, text) in texts.iter().enumerate() {
             if text.is_empty() {
-                return Err(ApplicationError::validation(format!("Text at index {} is empty", i)));
+                return Err(ApplicationError::validation(format!(
+                    "Text at index {} is empty",
+                    i
+                )));
             }
             if text.len() > 10_000 {
-                return Err(ApplicationError::validation(format!("Text at index {} is too long", i)));
+                return Err(ApplicationError::validation(format!(
+                    "Text at index {} is too long",
+                    i
+                )));
             }
         }
 
         // Process batch with timeout and retry
         let mut last_error = None;
-        
+
         for attempt in 1..=self.config.max_retries {
             match tokio::time::timeout(
                 std::time::Duration::from_secs(self.config.timeout_seconds * 2), // Double timeout for batch
@@ -224,7 +227,8 @@ impl EmbeddingProvider for EmbeddingServiceAdapter {
                     last_error = Some(e);
                 }
                 Err(_) => {
-                    let timeout_error = ApplicationError::infrastructure("Batch embedding generation timeout");
+                    let timeout_error =
+                        ApplicationError::infrastructure("Batch embedding generation timeout");
                     tracing::warn!("Batch embedding attempt {} timed out", attempt);
                     last_error = Some(timeout_error);
                 }
@@ -241,58 +245,58 @@ impl EmbeddingProvider for EmbeddingServiceAdapter {
         }))
     }
 
-    async fn get_embedding_dimensions(&self) -> ApplicationResult<usize> {
-        if self.should_use_gpu().await {
-            if let Some(ref gpu_service) = self.gpu_service {
-                return Ok(gpu_service.dimensions());
-            }
-        }
-        
-        Ok(self.cpu_service.dimensions())
+    fn embedding_dimensions(&self) -> usize {
+        // Синхронная версия - возвращаем размерность CPU модели
+        self.cpu_service.dimensions()
     }
 
-    async fn health_check(&self) -> ApplicationResult<crate::ports::EmbeddingHealth> {
+    async fn health_check(&self) -> ApplicationResult<crate::ports::ProviderHealth> {
         let start_time = std::time::Instant::now();
-        
+
         // Test embedding generation with a simple text
         let test_result = self.generate_embedding("test").await;
         let response_time = start_time.elapsed();
-        
+
         let (is_healthy, last_error) = match test_result {
             Ok(_) => (true, None),
             Err(e) => (false, Some(e.to_string())),
         };
-        
-        let gpu_available = self.should_use_gpu().await;
-        
-        Ok(crate::ports::EmbeddingHealth {
+
+        Ok(crate::ports::ProviderHealth {
             is_healthy,
-            gpu_available,
-            cpu_available: true, // CPU service is always available
             response_time_ms: response_time.as_millis() as u64,
-            model_loaded: true, // Assume models are loaded if we can generate embeddings
+            error_rate: if is_healthy { 0.0 } else { 1.0 },
             last_error,
-            dimensions: self.get_embedding_dimensions().await.unwrap_or(0),
-            throughput_texts_per_second: if is_healthy { 
-                1000.0 / response_time.as_millis() as f64 
-            } else { 
-                0.0 
-            },
+            uptime_seconds: 0, // This would need to be tracked separately
         })
     }
 
-    async fn get_supported_models(&self) -> ApplicationResult<Vec<String>> {
-        // This would depend on the actual services
-        Ok(vec![
-            "cpu-embedding-model".to_string(),
-            "gpu-embedding-model".to_string(),
-        ])
+    fn model_identifier(&self) -> &str {
+        "cpu-gpu-embedding-model"
     }
 
-    async fn preload_model(&self, model_name: &str) -> ApplicationResult<()> {
-        // Model preloading logic would go here
-        tracing::info!("Preloading model: {}", model_name);
-        Ok(())
+    fn supports_batching(&self) -> bool {
+        true
+    }
+
+    fn max_batch_size(&self) -> usize {
+        32
+    }
+
+    async fn get_metrics(
+        &self,
+    ) -> ApplicationResult<crate::ports::embedding_provider::EmbeddingMetrics> {
+        Ok(crate::ports::embedding_provider::EmbeddingMetrics {
+            total_requests: 0,
+            successful_requests: 0,
+            failed_requests: 0,
+            average_response_time_ms: 0.0,
+            p95_response_time_ms: 0.0,
+            p99_response_time_ms: 0.0,
+            tokens_processed: 0,
+            cache_hit_rate: 0.0,
+            model_version: "v1.0".to_string(),
+        })
     }
 }
 

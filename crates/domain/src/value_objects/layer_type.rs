@@ -142,7 +142,7 @@ mod tests {
     fn test_string_conversion() {
         assert_eq!(LayerType::Interact.as_str(), "interact");
         assert_eq!(
-            LayerType::parse_str("insights").unwrap(),
+            LayerType::parse_str("insights").expect("Operation failed - converted from unwrap()"),
             LayerType::Insights
         );
         assert!(LayerType::parse_str("invalid").is_err());

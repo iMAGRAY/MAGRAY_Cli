@@ -484,25 +484,49 @@ mod tests {
             .await;
 
         // Initially closed
-        assert!(manager.can_execute("test").await.unwrap());
+        assert!(manager
+            .can_execute("test")
+            .await
+            .expect("Circuit breaker manager operation should succeed"));
 
         // Record failures to open circuit
-        manager.record_failure("test").await.unwrap();
-        manager.record_failure("test").await.unwrap();
+        manager
+            .record_failure("test")
+            .await
+            .expect("Circuit breaker manager operation should succeed");
+        manager
+            .record_failure("test")
+            .await
+            .expect("Circuit breaker manager operation should succeed");
 
         // Should be open now
-        let stats = manager.get_stats("test").await.unwrap();
+        let stats = manager
+            .get_stats("test")
+            .await
+            .expect("Circuit breaker manager operation should succeed");
         assert_eq!(stats.state, CircuitBreakerState::Open);
-        assert!(!manager.can_execute("test").await.unwrap());
+        assert!(!manager
+            .can_execute("test")
+            .await
+            .expect("Circuit breaker manager operation should succeed"));
 
         sleep(Duration::from_millis(150)).await;
 
         // Should allow one attempt (HalfOpen)
-        assert!(manager.can_execute("test").await.unwrap());
+        assert!(manager
+            .can_execute("test")
+            .await
+            .expect("Circuit breaker manager operation should succeed"));
 
         // Record success to close
-        manager.record_success("test").await.unwrap();
-        let stats = manager.get_stats("test").await.unwrap();
+        manager
+            .record_success("test")
+            .await
+            .expect("Circuit breaker manager operation should succeed");
+        let stats = manager
+            .get_stats("test")
+            .await
+            .expect("Circuit breaker manager operation should succeed");
         assert_eq!(stats.state, CircuitBreakerState::Closed);
     }
 
@@ -523,7 +547,10 @@ mod tests {
         let result = manager
             .execute_with_breaker("operation", async { Ok::<i32, anyhow::Error>(42) })
             .await;
-        assert_eq!(result.unwrap(), 42);
+        assert_eq!(
+            result.expect("Circuit breaker manager operation should succeed"),
+            42
+        );
 
         // Failed operation that should open circuit
         let _result = manager
@@ -533,7 +560,10 @@ mod tests {
             .await;
 
         // Circuit should be open now
-        let stats = manager.get_stats("operation").await.unwrap();
+        let stats = manager
+            .get_stats("operation")
+            .await
+            .expect("Circuit breaker manager operation should succeed");
         assert_eq!(stats.state, CircuitBreakerState::Open);
 
         // Next operation should be blocked
@@ -571,17 +601,32 @@ mod tests {
 
         // Open the circuit
         for _ in 0..5 {
-            manager.record_failure("reset_test").await.unwrap();
+            manager
+                .record_failure("reset_test")
+                .await
+                .expect("Circuit breaker manager operation should succeed");
         }
 
-        let stats = manager.get_stats("reset_test").await.unwrap();
+        let stats = manager
+            .get_stats("reset_test")
+            .await
+            .expect("Circuit breaker manager operation should succeed");
         assert_eq!(stats.state, CircuitBreakerState::Open);
 
         // Reset circuit breaker
-        manager.reset_circuit_breaker("reset_test").await.unwrap();
+        manager
+            .reset_circuit_breaker("reset_test")
+            .await
+            .expect("Circuit breaker manager operation should succeed");
 
-        let stats = manager.get_stats("reset_test").await.unwrap();
+        let stats = manager
+            .get_stats("reset_test")
+            .await
+            .expect("Circuit breaker manager operation should succeed");
         assert_eq!(stats.state, CircuitBreakerState::Closed);
-        assert!(manager.can_execute("reset_test").await.unwrap());
+        assert!(manager
+            .can_execute("reset_test")
+            .await
+            .expect("Circuit breaker manager operation should succeed"));
     }
 }

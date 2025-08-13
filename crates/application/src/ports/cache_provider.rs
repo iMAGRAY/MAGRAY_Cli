@@ -2,65 +2,76 @@
 //!
 //! Абстракция для кэширования данных независимо от конкретной реализации.
 
+use crate::{ApplicationError, ApplicationResult};
 use async_trait::async_trait;
-use crate::ApplicationResult;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Trait для cache providers
 #[async_trait]
 pub trait CacheProvider: Send + Sync {
-    /// Get value from cache
-    async fn get<T>(&self, key: &str) -> ApplicationResult<Option<T>>
-    where
-        T: DeserializeOwned + Send;
-    
-    /// Set value in cache with TTL
-    async fn set<T>(&self, key: &str, value: &T, ttl_seconds: Option<u64>) -> ApplicationResult<()>
-    where
-        T: Serialize + Send + Sync;
-    
+    /// Get raw value from cache as serde_json::Value
+    async fn get_raw(&self, key: &str) -> ApplicationResult<Option<serde_json::Value>>;
+
+    /// Set raw value in cache with TTL
+    async fn set_raw(
+        &self,
+        key: &str,
+        value: serde_json::Value,
+        ttl_seconds: Option<u64>,
+    ) -> ApplicationResult<()>;
+
     /// Delete key from cache
     async fn delete(&self, key: &str) -> ApplicationResult<bool>;
-    
+
     /// Check if key exists in cache
     async fn exists(&self, key: &str) -> ApplicationResult<bool>;
-    
-    /// Get multiple values at once
-    async fn get_many<T>(&self, keys: &[String]) -> ApplicationResult<Vec<Option<T>>>
-    where
-        T: DeserializeOwned + Send;
-    
-    /// Set multiple values at once
-    async fn set_many<T>(&self, items: &[(String, T)], ttl_seconds: Option<u64>) -> ApplicationResult<()>
-    where
-        T: Serialize + Send + Sync;
-    
+
+    /// Get multiple raw values at once
+    async fn get_many_raw(
+        &self,
+        keys: &[String],
+    ) -> ApplicationResult<Vec<Option<serde_json::Value>>>;
+
+    /// Set multiple raw values at once
+    async fn set_many_raw(
+        &self,
+        items: &[(String, serde_json::Value)],
+        ttl_seconds: Option<u64>,
+    ) -> ApplicationResult<()>;
+
     /// Increment numeric value (atomic operation)
     async fn increment(&self, key: &str, delta: i64) -> ApplicationResult<i64>;
-    
+
     /// Expire key after specified seconds
     async fn expire(&self, key: &str, ttl_seconds: u64) -> ApplicationResult<bool>;
-    
+
     /// Get TTL for key
     async fn ttl(&self, key: &str) -> ApplicationResult<Option<u64>>;
-    
+
     /// Clear cache by pattern
     async fn clear_pattern(&self, pattern: &str) -> ApplicationResult<u64>;
-    
+
     /// Get cache statistics
     async fn get_statistics(&self) -> ApplicationResult<CacheStatistics>;
-    
+
     /// Health check for cache
     async fn health_check(&self) -> ApplicationResult<CacheHealth>;
-    
+
     /// Flush all cache data
     async fn flush_all(&self) -> ApplicationResult<()>;
-    
+
     /// Specialized methods for search results caching
-    async fn get_search_results(&self, query_hash: &str) -> ApplicationResult<Option<crate::dtos::SearchMemoryResponse>>;
-    
+    async fn get_search_results(
+        &self,
+        query_hash: &str,
+    ) -> ApplicationResult<Option<crate::dtos::SearchMemoryResponse>>;
+
     /// Cache search results
-    async fn cache_search_results(&self, query_hash: &str, response: &crate::dtos::SearchMemoryResponse) -> ApplicationResult<()>;
+    async fn cache_search_results(
+        &self,
+        query_hash: &str,
+        response: &crate::dtos::SearchMemoryResponse,
+    ) -> ApplicationResult<()>;
 }
 
 /// Cache statistics
@@ -162,6 +173,69 @@ pub enum SerializationType {
     Protobuf,
 }
 
+/// Extension trait for typed cache operations
+pub trait CacheProviderExt: CacheProvider {
+    /// Get typed value from cache (convenience wrapper)
+    async fn get<T>(&self, key: &str) -> ApplicationResult<Option<T>>
+    where
+        T: DeserializeOwned + Send,
+    {
+        if let Some(raw_value) = self.get_raw(key).await? {
+            Ok(Some(serde_json::from_value(raw_value)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Set typed value in cache with TTL (convenience wrapper)
+    async fn set<T>(&self, key: &str, value: &T, ttl_seconds: Option<u64>) -> ApplicationResult<()>
+    where
+        T: Serialize + Send + Sync,
+    {
+        let json_value = serde_json::to_value(value)?;
+        self.set_raw(key, json_value, ttl_seconds).await
+    }
+
+    /// Get multiple typed values at once (convenience wrapper)
+    async fn get_many<T>(&self, keys: &[String]) -> ApplicationResult<Vec<Option<T>>>
+    where
+        T: DeserializeOwned + Send,
+    {
+        let raw_results = self.get_many_raw(keys).await?;
+        let mut results = Vec::new();
+        for raw_value in raw_results {
+            if let Some(value) = raw_value {
+                results.push(Some(serde_json::from_value(value)?));
+            } else {
+                results.push(None);
+            }
+        }
+        Ok(results)
+    }
+
+    /// Set multiple typed values at once (convenience wrapper)
+    async fn set_many<T>(
+        &self,
+        items: &[(String, T)],
+        ttl_seconds: Option<u64>,
+    ) -> ApplicationResult<()>
+    where
+        T: Serialize + Send + Sync,
+    {
+        let json_items: Result<Vec<(String, serde_json::Value)>, ApplicationError> = items
+            .iter()
+            .map(|(key, value)| {
+                let json_value = serde_json::to_value(value)?;
+                Ok::<(String, serde_json::Value), ApplicationError>((key.clone(), json_value))
+            })
+            .collect();
+        self.set_many_raw(&json_items?, ttl_seconds).await
+    }
+}
+
+// Blanket implementation for all CacheProvider types
+impl<T: CacheProvider> CacheProviderExt for T {}
+
 /// Cache key builder for consistent key generation
 pub struct CacheKeyBuilder {
     prefix: String,
@@ -175,12 +249,12 @@ impl CacheKeyBuilder {
             separator: ":".to_string(),
         }
     }
-    
+
     pub fn with_separator(mut self, separator: &str) -> Self {
         self.separator = separator.to_string();
         self
     }
-    
+
     pub fn key(&self, components: &[&str]) -> String {
         let mut key = self.prefix.clone();
         for component in components {
@@ -189,19 +263,19 @@ impl CacheKeyBuilder {
         }
         key
     }
-    
+
     pub fn memory_record_key(&self, record_id: &str) -> String {
         self.key(&["memory", "record", record_id])
     }
-    
+
     pub fn embedding_key(&self, text_hash: &str) -> String {
         self.key(&["embedding", text_hash])
     }
-    
+
     pub fn search_results_key(&self, query_hash: &str) -> String {
         self.key(&["search", "results", query_hash])
     }
-    
+
     pub fn user_session_key(&self, user_id: &str, session_id: &str) -> String {
         self.key(&["user", "session", user_id, session_id])
     }
@@ -238,10 +312,21 @@ pub struct BatchCacheOperation {
 /// Individual cache operation
 #[derive(Debug, Clone)]
 pub enum CacheOperation {
-    Get { key: String },
-    Set { key: String, value: serde_json::Value, ttl_seconds: Option<u64> },
-    Delete { key: String },
-    Increment { key: String, delta: i64 },
+    Get {
+        key: String,
+    },
+    Set {
+        key: String,
+        value: serde_json::Value,
+        ttl_seconds: Option<u64>,
+    },
+    Delete {
+        key: String,
+    },
+    Increment {
+        key: String,
+        delta: i64,
+    },
 }
 
 /// Batch operation options
@@ -283,7 +368,7 @@ impl<T> CacheEntry<T> {
             metadata: CacheEntryMetadata::default(),
         }
     }
-    
+
     pub fn is_expired(&self) -> bool {
         if let Some(expires_at) = self.expires_at {
             chrono::Utc::now() > expires_at
@@ -291,7 +376,7 @@ impl<T> CacheEntry<T> {
             false
         }
     }
-    
+
     pub fn touch(&mut self) {
         self.access_count += 1;
         self.last_accessed = chrono::Utc::now();
@@ -340,7 +425,14 @@ impl Default for BatchOptions {
 /// Mock cache provider for testing
 #[cfg(feature = "test-utils")]
 pub struct MockCacheProvider {
-    data: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (serde_json::Value, Option<chrono::DateTime<chrono::Utc>>)>>>,
+    data: std::sync::Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<
+                String,
+                (serde_json::Value, Option<chrono::DateTime<chrono::Utc>>),
+            >,
+        >,
+    >,
     operations: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
 }
 
@@ -352,30 +444,64 @@ impl MockCacheProvider {
             operations: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
-    
+
+    /// Safe lock for operations mutex
+    fn safe_lock_operations(&self) -> Result<std::sync::MutexGuard<Vec<String>>, ApplicationError> {
+        self.operations
+            .lock()
+            .map_err(|_| ApplicationError::infrastructure("Operations mutex poisoned"))
+    }
+
+    /// Safe lock for data mutex
+    fn safe_lock_data(
+        &self,
+    ) -> Result<
+        std::sync::MutexGuard<
+            std::collections::HashMap<
+                String,
+                (serde_json::Value, Option<chrono::DateTime<chrono::Utc>>),
+            >,
+        >,
+        ApplicationError,
+    > {
+        self.data
+            .lock()
+            .map_err(|_| ApplicationError::infrastructure("Data mutex poisoned"))
+    }
+
     pub fn get_operations(&self) -> Vec<String> {
-        self.operations.lock().unwrap().clone()
+        self.safe_lock_operations()
+            .map(|guard| guard.clone())
+            .unwrap_or_else(|_| {
+                tracing::error!("Failed to acquire operations lock");
+                Vec::new()
+            })
     }
-    
+
     pub fn clear_operations(&self) {
-        self.operations.lock().unwrap().clear();
+        if let Ok(mut guard) = self.safe_lock_operations() {
+            guard.clear();
+        } else {
+            tracing::error!("Failed to acquire operations lock for clear");
+        }
     }
-    
+
     fn record_operation(&self, operation: &str) {
-        self.operations.lock().unwrap().push(operation.to_string());
+        if let Ok(mut guard) = self.safe_lock_operations() {
+            guard.push(operation.to_string());
+        } else {
+            tracing::error!("Failed to record operation: {}", operation);
+        }
     }
 }
 
 #[cfg(feature = "test-utils")]
 #[async_trait]
 impl CacheProvider for MockCacheProvider {
-    async fn get<T>(&self, key: &str) -> ApplicationResult<Option<T>>
-    where
-        T: DeserializeOwned + Send,
-    {
-        self.record_operation(&format!("get:{}", key));
-        
-        let data = self.data.lock().unwrap();
+    async fn get_raw(&self, key: &str) -> ApplicationResult<Option<serde_json::Value>> {
+        self.record_operation(&format!("get_raw:{}", key));
+
+        let data = self.data.lock().expect("Operation should succeed");
         if let Some((value, expires_at)) = data.get(key) {
             // Check expiration
             if let Some(expires) = expires_at {
@@ -383,79 +509,92 @@ impl CacheProvider for MockCacheProvider {
                     return Ok(None);
                 }
             }
-            
-            Ok(Some(serde_json::from_value(value.clone())?))
+
+            Ok(Some(value.clone()))
         } else {
             Ok(None)
         }
     }
-    
-    async fn set<T>(&self, key: &str, value: &T, ttl_seconds: Option<u64>) -> ApplicationResult<()>
-    where
-        T: Serialize + Send + Sync,
-    {
-        self.record_operation(&format!("set:{}:{:?}", key, ttl_seconds));
-        
-        let json_value = serde_json::to_value(value)?;
-        let expires_at = ttl_seconds.map(|ttl| {
-            chrono::Utc::now() + chrono::Duration::seconds(ttl as i64)
-        });
-        
-        self.data.lock().unwrap().insert(key.to_string(), (json_value, expires_at));
+
+    async fn set_raw(
+        &self,
+        key: &str,
+        value: serde_json::Value,
+        ttl_seconds: Option<u64>,
+    ) -> ApplicationResult<()> {
+        self.record_operation(&format!("set_raw:{}:{:?}", key, ttl_seconds));
+
+        let expires_at =
+            ttl_seconds.map(|ttl| chrono::Utc::now() + chrono::Duration::seconds(ttl as i64));
+
+        self.data
+            .lock()
+            .expect("Operation should succeed")
+            .insert(key.to_string(), (value, expires_at));
         Ok(())
     }
-    
+
     async fn delete(&self, key: &str) -> ApplicationResult<bool> {
         self.record_operation(&format!("delete:{}", key));
-        Ok(self.data.lock().unwrap().remove(key).is_some())
+        Ok(self
+            .data
+            .lock()
+            .expect("Operation should succeed")
+            .remove(key)
+            .is_some())
     }
-    
+
     async fn exists(&self, key: &str) -> ApplicationResult<bool> {
         self.record_operation(&format!("exists:{}", key));
-        Ok(self.data.lock().unwrap().contains_key(key))
+        Ok(self
+            .data
+            .lock()
+            .expect("Operation should succeed")
+            .contains_key(key))
     }
-    
-    async fn get_many<T>(&self, keys: &[String]) -> ApplicationResult<Vec<Option<T>>>
-    where
-        T: DeserializeOwned + Send,
-    {
+
+    async fn get_many_raw(
+        &self,
+        keys: &[String],
+    ) -> ApplicationResult<Vec<Option<serde_json::Value>>> {
         let mut results = Vec::new();
         for key in keys {
-            results.push(self.get(key).await?);
+            results.push(self.get_raw(key).await?);
         }
         Ok(results)
     }
-    
-    async fn set_many<T>(&self, items: &[(String, T)], ttl_seconds: Option<u64>) -> ApplicationResult<()>
-    where
-        T: Serialize + Send + Sync,
-    {
+
+    async fn set_many_raw(
+        &self,
+        items: &[(String, serde_json::Value)],
+        ttl_seconds: Option<u64>,
+    ) -> ApplicationResult<()> {
         for (key, value) in items {
-            self.set(key, value, ttl_seconds).await?;
+            self.set_raw(key, value.clone(), ttl_seconds).await?;
         }
         Ok(())
     }
-    
+
     async fn increment(&self, key: &str, delta: i64) -> ApplicationResult<i64> {
         self.record_operation(&format!("increment:{}:{}", key, delta));
-        
-        let mut data = self.data.lock().unwrap();
+
+        let mut data = self.data.lock().expect("Operation should succeed");
         let current_value = if let Some((value, _)) = data.get(key) {
             serde_json::from_value::<i64>(value.clone()).unwrap_or(0)
         } else {
             0
         };
-        
+
         let new_value = current_value + delta;
         data.insert(key.to_string(), (serde_json::json!(new_value), None));
-        
+
         Ok(new_value)
     }
-    
+
     async fn expire(&self, key: &str, ttl_seconds: u64) -> ApplicationResult<bool> {
         self.record_operation(&format!("expire:{}:{}", key, ttl_seconds));
-        
-        let mut data = self.data.lock().unwrap();
+
+        let mut data = self.data.lock().expect("Operation should succeed");
         if let Some((value, _)) = data.get(key).cloned() {
             let expires_at = chrono::Utc::now() + chrono::Duration::seconds(ttl_seconds as i64);
             data.insert(key.to_string(), (value, Some(expires_at)));
@@ -464,11 +603,11 @@ impl CacheProvider for MockCacheProvider {
             Ok(false)
         }
     }
-    
+
     async fn ttl(&self, key: &str) -> ApplicationResult<Option<u64>> {
         self.record_operation(&format!("ttl:{}", key));
-        
-        let data = self.data.lock().unwrap();
+
+        let data = self.data.lock().expect("Operation should succeed");
         if let Some((_, expires_at)) = data.get(key) {
             if let Some(expires) = expires_at {
                 let now = chrono::Utc::now();
@@ -485,27 +624,28 @@ impl CacheProvider for MockCacheProvider {
             Ok(None) // Key doesn't exist
         }
     }
-    
+
     async fn clear_pattern(&self, pattern: &str) -> ApplicationResult<u64> {
         self.record_operation(&format!("clear_pattern:{}", pattern));
-        
-        let mut data = self.data.lock().unwrap();
-        let keys_to_remove: Vec<String> = data.keys()
+
+        let mut data = self.data.lock().expect("Operation should succeed");
+        let keys_to_remove: Vec<String> = data
+            .keys()
             .filter(|key| key.contains(pattern))
             .cloned()
             .collect();
-        
+
         let removed_count = keys_to_remove.len() as u64;
         for key in keys_to_remove {
             data.remove(&key);
         }
-        
+
         Ok(removed_count)
     }
-    
+
     async fn get_statistics(&self) -> ApplicationResult<CacheStatistics> {
         Ok(CacheStatistics {
-            total_keys: self.data.lock().unwrap().len() as u64,
+            total_keys: self.data.lock().expect("Operation should succeed").len() as u64,
             total_memory_bytes: 1024, // Mock value
             hit_count: 100,
             miss_count: 10,
@@ -518,7 +658,7 @@ impl CacheProvider for MockCacheProvider {
             uptime_seconds: 3600,
         })
     }
-    
+
     async fn health_check(&self) -> ApplicationResult<CacheHealth> {
         Ok(CacheHealth {
             is_healthy: true,
@@ -529,23 +669,30 @@ impl CacheProvider for MockCacheProvider {
             cluster_status: None,
         })
     }
-    
+
     async fn flush_all(&self) -> ApplicationResult<()> {
         self.record_operation("flush_all");
-        self.data.lock().unwrap().clear();
+        self.data.lock().expect("Operation should succeed").clear();
         Ok(())
     }
-    
-    async fn get_search_results(&self, query_hash: &str) -> ApplicationResult<Option<crate::dtos::SearchMemoryResponse>> {
+
+    async fn get_search_results(
+        &self,
+        query_hash: &str,
+    ) -> ApplicationResult<Option<crate::dtos::SearchMemoryResponse>> {
         self.record_operation(&format!("get_search_results:{}", query_hash));
-        
+
         let cache_key = format!("search_results:{}", query_hash);
         self.get(&cache_key).await
     }
-    
-    async fn cache_search_results(&self, query_hash: &str, response: &crate::dtos::SearchMemoryResponse) -> ApplicationResult<()> {
+
+    async fn cache_search_results(
+        &self,
+        query_hash: &str,
+        response: &crate::dtos::SearchMemoryResponse,
+    ) -> ApplicationResult<()> {
         self.record_operation(&format!("cache_search_results:{}", query_hash));
-        
+
         let cache_key = format!("search_results:{}", query_hash);
         self.set(&cache_key, response, Some(300)).await // Cache for 5 minutes
     }

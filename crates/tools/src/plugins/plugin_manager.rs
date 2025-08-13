@@ -7,9 +7,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
+use crate::manifest::{ToolManifestValidator, ValidationResult};
 use crate::registry::{SecurityLevel, ToolPermissions};
+// Remove missing capability imports for now
+// use crate::capabilities::{CapabilityChecker, CapabilitySpec};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManifestPermissionsFs {
@@ -192,8 +195,10 @@ impl ToolManifest {
             security_level: SecurityLevel::Safe,
             signed: false,
             signature: None,
+            // capability_spec: None, // P1.2.3 temporarily disabled
             installed_at: None,
             last_updated: None,
+            manifest_path: None,
             installation_path,
             state: PluginState::Uninstalled,
             load_count: 0,
@@ -233,9 +238,16 @@ pub struct PluginMetadata {
     pub signed: bool,
     pub signature: Option<String>,
 
+    // Enhanced capability specification (P1.2.3) - temporarily disabled
+    // #[serde(default)]
+    // pub capability_spec: Option<CapabilitySpec>,
+
     // Installation and lifecycle
     pub installed_at: Option<u64>,
     pub last_updated: Option<u64>,
+
+    // Tool manifest path (P1.2.2.b)
+    pub manifest_path: Option<PathBuf>,
     pub installation_path: Option<PathBuf>,
 
     // Plugin state
@@ -287,11 +299,11 @@ impl std::fmt::Display for PluginVersion {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
 
         if let Some(ref pre) = self.pre_release {
-            write!(f, "-{}", pre)?;
+            write!(f, "-{pre}")?;
         }
 
         if let Some(ref build) = self.build_metadata {
-            write!(f, "+{}", build)?;
+            write!(f, "+{build}")?;
         }
 
         Ok(())
@@ -636,6 +648,7 @@ impl PluginRegistry {
     }
 
     /// Validate plugin metadata
+    /// Enhanced with P1.2.2 manifest validation integration
     fn validate_plugin_metadata(&self, metadata: &PluginMetadata) -> Result<()> {
         if metadata.id.is_empty() {
             return Err(anyhow!("Plugin ID cannot be empty"));
@@ -682,6 +695,40 @@ impl PluginRegistry {
         }
 
         Ok(())
+    }
+
+    /// Validate tool manifest file using P1.2.2 validation system
+    /// Returns validation result with detailed error information
+    pub fn validate_tool_manifest_file<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> crate::manifest::validation::ValidationResult {
+        use crate::manifest::validation::ToolManifestValidator;
+
+        let validator = ToolManifestValidator::new()
+            .with_strict_mode(false)
+            .with_file_existence_check(true);
+
+        validator.validate_file(path)
+    }
+
+    /// Validate tool manifest JSON string using P1.2.2 validation system
+    pub fn validate_tool_manifest_json(
+        &self,
+        json: &str,
+    ) -> crate::manifest::validation::ValidationResult {
+        use crate::manifest::validation::ToolManifestValidator;
+
+        let validator = ToolManifestValidator::new()
+            .with_strict_mode(false)
+            .with_file_existence_check(false); // Cannot check file existence for JSON strings
+
+        validator.validate_json(json)
+    }
+
+    /// Check if a tool manifest passes validation
+    pub fn is_valid_tool_manifest<P: AsRef<Path>>(&self, path: P) -> bool {
+        self.validate_tool_manifest_file(path).is_valid
     }
 
     /// Validate plugin configuration against schema
@@ -755,12 +802,23 @@ impl PluginRegistry {
     }
 
     /// Scan plugin_directory for tool.json manifests and register plugins
+    /// Now includes manifest validation (P1.2.2.b integration)
     pub async fn load_manifests_from_directory(&self) -> Result<usize> {
+        use crate::manifest::validation::{ToolManifestValidator, ValidationResult};
+
         let mut count = 0usize;
+        let mut validation_errors = Vec::new();
         let root = self.plugin_directory.clone();
+
         if !root.exists() {
             return Ok(0);
         }
+
+        // Create validator for tool.json files
+        let validator = ToolManifestValidator::new()
+            .with_strict_mode(false) // Allow warnings but reject critical errors
+            .with_file_existence_check(true); // Check entry point files exist
+
         let mut dirs = vec![root.clone()];
         while let Some(dir) = dirs.pop() {
             let mut rd = tokio::fs::read_dir(&dir).await?;
@@ -775,21 +833,96 @@ impl PluginRegistry {
                     .map(|s| s.eq_ignore_ascii_case("tool.json"))
                     .unwrap_or(false)
                 {
-                    let parent = p.parent().map(|x| x.to_path_buf());
+                    // P1.2.2.b: Validate manifest before loading
+                    // Note: Legacy ToolManifest format (from plugin_manager) is accepted for backwards compatibility
                     let content = tokio::fs::read_to_string(&p).await?;
+                    let is_legacy_format = content.contains("\"plugin_type\":");
+
+                    if !is_legacy_format {
+                        // New format validation
+                        let validation_result = validator.validate_file(&p);
+
+                        if !validation_result.is_valid {
+                            validation_errors.push(format!(
+                                "Invalid manifest {}: {}",
+                                p.display(),
+                                validation_result.error_messages().join(", ")
+                            ));
+                            tracing::error!(
+                                "Rejecting invalid tool manifest {}: {}",
+                                p.display(),
+                                validation_result.report()
+                            );
+                            continue; // Skip invalid manifests
+                        }
+
+                        if validation_result.has_warnings_only() {
+                            tracing::warn!(
+                                "Tool manifest {} has warnings: {}",
+                                p.display(),
+                                validation_result.warnings.join(", ")
+                            );
+                        }
+                    } else {
+                        tracing::info!("Loading legacy tool manifest format: {}", p.display());
+                    }
+
+                    // Load and register validated manifest
+                    let parent = p.parent().map(|x| x.to_path_buf());
                     let manifest: ToolManifest = serde_json::from_str(&content)?;
                     let meta = manifest.into_plugin_metadata(parent)?;
-                    self.register_plugin(meta).await?;
-                    count += 1;
+
+                    match self.register_plugin(meta).await {
+                        Ok(()) => {
+                            count += 1;
+                            tracing::info!("✅ Loaded validated tool manifest: {}", p.display());
+                        }
+                        Err(e) => {
+                            validation_errors.push(format!(
+                                "Failed to register plugin from {}: {}",
+                                p.display(),
+                                e
+                            ));
+                            tracing::error!(
+                                "Failed to register plugin from {}: {}",
+                                p.display(),
+                                e
+                            );
+                        }
+                    }
                 }
             }
         }
+
+        // Report validation summary
+        if !validation_errors.is_empty() {
+            tracing::warn!(
+                "Tool manifest validation completed with {} errors: {}",
+                validation_errors.len(),
+                validation_errors.join("; ")
+            );
+        }
+
+        tracing::info!(
+            "📋 Loaded {} tool manifests from directory with validation",
+            count
+        );
         Ok(count)
     }
 
     async fn load_plugin_metadata_from_file(&self, path: &Path) -> Result<PluginMetadata> {
         let contents = tokio::fs::read_to_string(path).await?;
-        let metadata: PluginMetadata = serde_json::from_str(&contents)?;
+        let mut metadata: PluginMetadata = serde_json::from_str(&contents)?;
+
+        // Try to find tool.json manifest in plugin directory (P1.2.2.b)
+        if let Some(plugin_dir) = path.parent() {
+            let tool_manifest_path = plugin_dir.join("tool.json");
+            if tool_manifest_path.exists() {
+                metadata.manifest_path = Some(tool_manifest_path);
+                debug!("📄 Found tool.json manifest for plugin: {}", metadata.name);
+            }
+        }
+
         Ok(metadata)
     }
 
@@ -797,7 +930,7 @@ impl PluginRegistry {
         &self,
         plugin_id: &str,
     ) -> Result<PluginConfiguration> {
-        let config_path = self.config_directory.join(format!("{}.json", plugin_id));
+        let config_path = self.config_directory.join(format!("{plugin_id}.json"));
         let contents = tokio::fs::read_to_string(config_path).await?;
         let config: PluginConfiguration = serde_json::from_str(&contents)?;
         Ok(config)
@@ -946,6 +1079,38 @@ impl PluginManager {
             .await
             .ok_or_else(|| anyhow!("Plugin configuration not found: {}", plugin_id))?;
 
+        // Validate tool manifest if available (P1.2.2.b integration)
+        if let Some(manifest_path) = &metadata.manifest_path {
+            let validator = ToolManifestValidator::new();
+            let validation_result = validator.validate_file(manifest_path);
+
+            if !validation_result.is_valid {
+                let error_msg = format!(
+                    "Tool manifest validation failed for plugin '{}': {:?}",
+                    plugin_id, validation_result.errors
+                );
+                self.registry
+                    .update_plugin_state(plugin_id, PluginState::Error(error_msg.clone()))
+                    .await?;
+                return Err(anyhow!(error_msg));
+            }
+
+            // Log warnings if any
+            if !validation_result.warnings.is_empty() {
+                warn!(
+                    "Tool manifest warnings for plugin '{}': {:?}",
+                    plugin_id, validation_result.warnings
+                );
+            }
+
+            debug!("✅ Manifest validation passed for plugin: {}", plugin_id);
+        } else {
+            debug!(
+                "⚠️ No manifest found for plugin '{}' - using legacy mode",
+                plugin_id
+            );
+        }
+
         // Check dependencies
         let missing_deps = self.registry.check_dependencies(plugin_id).await?;
         if !missing_deps.is_empty() {
@@ -988,7 +1153,7 @@ impl PluginManager {
                 Ok(())
             }
             Err(e) => {
-                let error_msg = format!("Failed to load plugin: {}", e);
+                let error_msg = format!("Failed to load plugin: {e}");
                 self.registry
                     .update_plugin_state(plugin_id, PluginState::Error(error_msg.clone()))
                     .await?;
@@ -1051,12 +1216,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_plugin_registry() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation failed - converted from unwrap()");
         let plugin_dir = temp_dir.path().join("plugins");
         let config_dir = temp_dir.path().join("configs");
 
-        tokio::fs::create_dir_all(&plugin_dir).await.unwrap();
-        tokio::fs::create_dir_all(&config_dir).await.unwrap();
+        tokio::fs::create_dir_all(&plugin_dir)
+            .await
+            .expect("Async operation should succeed");
+        tokio::fs::create_dir_all(&config_dir)
+            .await
+            .expect("Async operation should succeed");
 
         let registry = PluginRegistry::new(plugin_dir, config_dir);
 
@@ -1080,8 +1249,10 @@ mod tests {
             security_level: SecurityLevel::Safe,
             signed: false,
             signature: None,
+            // capability_spec: None, // P1.2.3 temporarily disabled
             installed_at: None,
             last_updated: None,
+            manifest_path: None,
             installation_path: None,
             state: PluginState::Uninstalled,
             load_count: 0,
@@ -1095,7 +1266,12 @@ mod tests {
         // Test retrieval
         let retrieved = registry.get_plugin("test_plugin").await;
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().name, "Test Plugin");
+        assert_eq!(
+            retrieved
+                .expect("Operation failed - converted from unwrap()")
+                .name,
+            "Test Plugin"
+        );
     }
 
     #[test]
@@ -1112,13 +1288,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_manifest_loader_registers_plugin() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation failed - converted from unwrap()");
         let plugin_dir = temp_dir.path().join("plugins");
         let config_dir = temp_dir.path().join("configs");
         tokio::fs::create_dir_all(plugin_dir.join("p1"))
             .await
-            .unwrap();
-        tokio::fs::create_dir_all(&config_dir).await.unwrap();
+            .expect("Operation failed - converted from unwrap()");
+        tokio::fs::create_dir_all(&config_dir)
+            .await
+            .expect("Async operation should succeed");
 
         // Write tool.json
         let manifest = serde_json::json!({
@@ -1133,12 +1311,19 @@ mod tests {
             "configuration_schema": {}
         });
         let mp = plugin_dir.join("p1").join("tool.json");
-        tokio::fs::write(&mp, serde_json::to_string_pretty(&manifest).unwrap())
-            .await
-            .unwrap();
+        tokio::fs::write(
+            &mp,
+            serde_json::to_string_pretty(&manifest)
+                .expect("Operation failed - converted from unwrap()"),
+        )
+        .await
+        .expect("Operation failed - converted from unwrap()");
 
         let registry = PluginRegistry::new(plugin_dir.clone(), config_dir);
-        let loaded = registry.load_manifests_from_directory().await.unwrap();
+        let loaded = registry
+            .load_manifests_from_directory()
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(loaded, 1);
         let meta = registry.get_plugin("p1").await.expect("plugin registered");
         assert_eq!(meta.name, "Plugin One");

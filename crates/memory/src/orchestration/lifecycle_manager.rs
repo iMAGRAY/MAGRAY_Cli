@@ -1132,11 +1132,17 @@ mod tests {
         coordinators.insert("test".to_string(), mock_coord.clone());
 
         // Инициализируем компонент
-        mock_coord.initialize().await.unwrap();
+        mock_coord
+            .initialize()
+            .await
+            .expect("Async operation should succeed");
         assert!(mock_coord.is_ready().await);
 
         // Shutdown
-        manager.shutdown_production(coordinators).await.unwrap();
+        manager
+            .shutdown_production(coordinators)
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(manager.current_phase().await, LifecyclePhase::Stopped);
 
         // Проверяем что компонент остановлен

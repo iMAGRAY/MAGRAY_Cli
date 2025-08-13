@@ -545,12 +545,10 @@ impl MemoryServiceTrait for RefactoredDIMemoryService {
         };
 
         match tokio::runtime::Handle::try_current() {
-            Ok(_handle) => {
-                tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current()
-                        .block_on(async { self.search(query, layer, options).await })
-                })
-            }
+            Ok(_handle) => tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current()
+                    .block_on(async { self.search(query, layer, options).await })
+            }),
             Err(_) => {
                 // Создаем runtime для sync контекста
                 let rt = tokio::runtime::Runtime::new()?;

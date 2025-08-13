@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use colored::*;
@@ -19,6 +20,7 @@ struct McpToolConfig {
     args: Vec<String>,
     remote_tool: String,
     description: String,
+    server_url: String, // CRITICAL P0.2.4: Add server URL for whitelist/blacklist validation
 }
 
 fn tools_registry_path() -> std::path::PathBuf {
@@ -54,12 +56,19 @@ fn upsert_mcp_config(new_item: McpToolConfig) -> Result<()> {
 
 fn preload_persisted_into_registry(registry: &mut ToolRegistry) {
     for cfg in load_persisted_mcp() {
-        registry.register_mcp_tool(
+        // SECURITY: Use secure registration with minimal permissions for persisted tools
+        registry.register_mcp_tool_secure(
             &cfg.name,
             cfg.cmd.clone(),
             cfg.args.clone(),
             cfg.remote_tool.clone(),
             cfg.description.clone(),
+            cfg.server_url.clone(), // server_url for whitelist/blacklist validation
+            vec![],                 // fs_read_roots - no default read access
+            vec![],                 // fs_write_roots - no default write access
+            vec![],                 // net_allowlist - no default network access
+            false,                  // allow_shell - shell access denied by default
+            true,                   // supports_dry_run - enable dry run for safety
         );
     }
 }
@@ -318,6 +327,9 @@ pub enum ToolsSubcommand {
         /// Описание инструмента
         #[arg(long, default_value_t = String::from("MCP proxied tool"))]
         description: String,
+        /// URL сервера MCP для проверки whitelist/blacklist
+        #[arg(long, default_value_t = String::from("localhost"))]
+        server_url: String,
     },
 
     /// Выполнить инструмент по имени: --name <tool> --command <cmd> --arg k=v --arg x=y
@@ -419,10 +431,19 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 println!(
                     "  FS sandbox: {}  roots: {}",
                     if cfg.fs.enabled { "on" } else { "off" },
-                    if cfg.fs.roots.is_empty() {
-                        "<none>"
-                    } else {
-                        &cfg.fs.roots.join(":")
+                    {
+                        let all_roots: Vec<String> = cfg
+                            .fs
+                            .fs_read_roots
+                            .iter()
+                            .chain(cfg.fs.fs_write_roots.iter())
+                            .cloned()
+                            .collect();
+                        if all_roots.is_empty() {
+                            "<none>"
+                        } else {
+                            &all_roots.join(":")
+                        }
                     }
                 );
                 let net = if cfg.net.allowlist.is_empty() {
@@ -430,7 +451,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 } else {
                     cfg.net.allowlist.join(",")
                 };
-                println!("  NET allow: {}", net);
+                println!("  NET allow: {net}");
                 println!(
                     "  SHELL allow: {}",
                     if cfg.shell.allow_shell { "yes" } else { "no" }
@@ -709,18 +730,26 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             args,
             remote_tool,
             description,
+            server_url,
         } => {
             let args_vec: Vec<String> = if args.trim().is_empty() {
                 Vec::new()
             } else {
                 args.split_whitespace().map(|s| s.to_string()).collect()
             };
-            registry.register_mcp_tool(
+            // SECURITY: Use secure registration with minimal permissions for new tools
+            registry.register_mcp_tool_secure(
                 &name,
                 cmd.clone(),
                 args_vec.clone(),
                 remote_tool.clone(),
                 description.clone(),
+                server_url.clone(), // CRITICAL P0.2.4: Pass server URL for whitelist/blacklist validation
+                vec![],             // fs_read_roots - no default read access
+                vec![],             // fs_write_roots - no default write access
+                vec![],             // net_allowlist - no default network access
+                false,              // allow_shell - shell access denied by default
+                true,               // supports_dry_run - enable dry run for safety
             );
             upsert_mcp_config(McpToolConfig {
                 name: name.clone(),
@@ -728,6 +757,7 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                 args: args_vec,
                 remote_tool,
                 description,
+                server_url, // CRITICAL P0.2.4: Include server URL in configuration
             })?;
             println!(
                 "{} Зарегистрирован MCP инструмент: {}",
@@ -755,12 +785,12 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
             // Load effective policy
             let mut policy_path = crate::util::magray_home();
             policy_path.push("policy.json");
-            let effective = load_effective_policy(if policy_path.exists() {
+            let _effective = load_effective_policy(if policy_path.exists() {
                 Some(&policy_path)
             } else {
                 None
             });
-            let policy = PolicyEngine::from_document(effective);
+            let policy = common::policy::get_policy_engine_with_eventbus();
             // Enrich policy args
             if name == "web_fetch" {
                 if let Some(url) = args_map.get("url").cloned() {
@@ -876,13 +906,13 @@ async fn handle_tools_command(cmd: ToolsSubcommand) -> Result<()> {
                             .await
                             .unwrap_or_else(|e| tools::ToolOutput {
                                 success: false,
-                                result: format!("preview error: {}", e),
+                                result: format!("preview error: {e}"),
                                 formatted_output: None,
                                 metadata: std::collections::HashMap::new(),
                             });
                     println!("\n=== Предпросмотр (dry-run) {} ===", name.bold());
                     if let Some(fmt) = preview.formatted_output {
-                        println!("{}", fmt);
+                        println!("{fmt}");
                     } else {
                         println!("{}", preview.result);
                     }

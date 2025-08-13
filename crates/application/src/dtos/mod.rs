@@ -3,16 +3,18 @@
 //! DTOs изолируют Application Layer от Domain entities
 //! и предоставляют стабильные contracts для внешних клиентов.
 
-pub mod memory;
-pub mod search; 
-pub mod promotion;
 pub mod analytics;
+pub mod memory;
+pub mod promotion;
+pub mod promotion_criterion;
+pub mod search;
 
 // Re-export common DTOs
-pub use memory::*;
-pub use search::*;
-pub use promotion::*;
 pub use analytics::*;
+pub use memory::*;
+pub use promotion::*;
+pub use promotion_criterion::*;
+pub use search::*;
 
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -48,14 +50,17 @@ pub struct ResourceUsage {
 pub struct PaginationParams {
     #[validate(range(min = 1, max = 1000))]
     pub limit: u32,
-    
+
     #[validate(range(min = 0))]
     pub offset: u32,
 }
 
 impl Default for PaginationParams {
     fn default() -> Self {
-        Self { limit: 50, offset: 0 }
+        Self {
+            limit: 50,
+            offset: 0,
+        }
     }
 }
 

@@ -70,14 +70,14 @@ mod tests {
         // Регистрируем singleton
         container
             .register_singleton(|| Ok(TestService::new()))
-            .unwrap();
+            .expect("Failed to register singleton TestService in basic registration test");
 
         // Разрешаем
-        let service = container.resolve::<TestService>().unwrap();
+        let service = container.resolve::<TestService>().expect("Failed to resolve TestService in basic registration test");
         assert_eq!(service.value, 42);
 
         // Singleton - должны получить тот же экземпляр
-        let service2 = container.resolve::<TestService>().unwrap();
+        let service2 = container.resolve::<TestService>().expect("Failed to resolve TestService (singleton check) in basic registration test");
         assert!(Arc::ptr_eq(&service, &service2));
     }
 
@@ -88,11 +88,11 @@ mod tests {
         // Регистрируем transient
         container
             .register_transient(|| Ok(TestService::new()))
-            .unwrap();
+            .expect("Failed to register transient TestService in transient services test");
 
         // Transient - должны получить разные экземпляры
-        let service1 = container.resolve::<TestService>().unwrap();
-        let service2 = container.resolve::<TestService>().unwrap();
+        let service1 = container.resolve::<TestService>().expect("Failed to resolve TestService (first) in transient services test");
+        let service2 = container.resolve::<TestService>().expect("Failed to resolve TestService (second) in transient services test");
         assert!(!Arc::ptr_eq(&service1, &service2));
     }
 
@@ -103,7 +103,7 @@ mod tests {
         // Регистрируем базовый сервис
         container
             .register_singleton(|| Ok(TestService::new()))
-            .unwrap();
+            .expect("Failed to register singleton TestService in dependency injection test");
 
         // Регистрируем зависимый сервис с manual injection
         container
@@ -114,9 +114,9 @@ mod tests {
                     Ok(DependentService::new(test_service))
                 }
             })
-            .unwrap();
+            .expect("Failed to register DependentService in dependency injection test");
 
-        let dependent = container.resolve::<DependentService>().unwrap();
+        let dependent = container.resolve::<DependentService>().expect("Failed to resolve DependentService in dependency injection test");
         assert_eq!(dependent.value, 84); // 42 * 2
     }
 
@@ -133,7 +133,7 @@ mod tests {
             })
             .build();
 
-        let dependent = container.resolve::<DependentService>().unwrap();
+        let dependent = container.resolve::<DependentService>().expect("Failed to resolve DependentService in builder pattern test");
         assert_eq!(dependent.value, 84);
     }
 
@@ -148,10 +148,10 @@ mod tests {
         // Регистрируем и пробуем еще раз
         container
             .register_singleton(|| Ok(TestService::new()))
-            .unwrap();
+            .expect("Failed to register TestService in optional resolution test");
 
         let service = container.try_resolve::<TestService>();
         assert!(service.is_some());
-        assert_eq!(service.unwrap().value, 42);
+        assert_eq!(service.expect("TestService should be available after registration").value, 42);
     }
 }

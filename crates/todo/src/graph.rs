@@ -341,7 +341,7 @@ impl DependencyGraphV2 {
 }
 
 /// Статистика графа
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GraphStats {
     pub total_tasks: usize,
     pub total_dependencies: usize,
@@ -369,13 +369,15 @@ mod tests {
                         priority: crate::Priority::Medium,
                         ..Default::default()
                     };
-                    g.upsert_task(&task).unwrap();
+                    g.upsert_task(&task)
+                        .expect("Operation failed - converted from unwrap()");
                 })
             })
             .collect();
 
         for h in handles {
-            h.join().unwrap();
+            h.join()
+                .expect("Operation failed - converted from unwrap()");
         }
 
         let stats = graph.stats();

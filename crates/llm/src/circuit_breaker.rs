@@ -145,7 +145,7 @@ impl CircuitBreaker {
                 if let Some(last_failure) = self.last_failure_time {
                     let elapsed = last_failure.elapsed();
                     let remaining = self.recovery_timeout.saturating_sub(elapsed);
-                    format!("OPEN (recovery in: {:?})", remaining)
+                    format!("OPEN (recovery in: {remaining:?})")
                 } else {
                     "OPEN".to_string()
                 }

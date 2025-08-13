@@ -34,7 +34,7 @@ async fn test_async_factory_pattern() -> Result<()> {
 #[tokio::test]
 async fn test_no_runtime_conflict() -> Result<()> {
     let handle = tokio::spawn(async {
-        let config = default_config().unwrap();
+        let config = default_config().expect("Test operation should succeed");
         DIMemoryService::new(config).await
     });
 
@@ -51,8 +51,10 @@ async fn test_concurrent_di_creation() -> Result<()> {
 
     for i in 0..5 {
         let handle = tokio::spawn(async move {
-            let config = default_config().unwrap();
-            let service = DIMemoryService::new(config).await.unwrap();
+            let config = default_config().expect("Test operation should succeed");
+            let service = DIMemoryService::new(config)
+                .await
+                .expect("Test operation should succeed");
             // Note: di_container() method doesn't exist, check service created successfully
             let stats = service.get_stats().await;
             (i, stats.batch_stats.total_records == 0) // Service starts with empty state
@@ -112,7 +114,7 @@ async fn test_graceful_fallback() -> Result<()> {
 
     let optional = container.try_resolve::<String>();
     assert!(optional.is_some());
-    assert_eq!(*optional.unwrap(), "found");
+    assert_eq!(*optional.expect("Test operation should succeed"), "found");
 
     Ok(())
 }
@@ -179,14 +181,14 @@ async fn test_thread_safety() -> Result<()> {
     let handle1 = tokio::spawn(async move {
         container1
             .register(|_| Ok("thread1".to_string()), Lifetime::Singleton)
-            .unwrap();
+            .expect("Test operation should succeed");
     });
 
     let container2 = container.clone();
     let handle2 = tokio::spawn(async move {
         container2
             .register(|_| Ok(42), Lifetime::Singleton)
-            .unwrap();
+            .expect("Test operation should succeed");
     });
 
     handle1.await?;

@@ -1,11 +1,25 @@
 use crate::reranker_qwen3_optimized::OptimizedRerankingService;
 use crate::{models::OnnxSession, RerankingConfig, Result, TokenizerService};
+use async_trait::async_trait;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
-/// Reranking service with real ONNX inference
+/// Trait for reranking services
+#[async_trait]
+pub trait RerankingServiceTrait: Send + Sync {
+    /// Rerank documents based on query relevance
+    async fn rerank(
+        &self,
+        query: &str,
+        documents: &[String],
+        top_k: Option<usize>,
+    ) -> Result<Vec<RerankResult>>;
+}
+
+/// Concrete reranking service implementation with real ONNX inference
+#[derive(Clone)]
 pub struct RerankingService {
     optimized_service: Option<Arc<OptimizedRerankingService>>,
     // Fallback to basic implementation
@@ -455,5 +469,33 @@ impl RerankingService {
 
         // Normalize to [0, 1] range
         base_score.clamp(0.0, 1.0)
+    }
+}
+
+/// Implementation of RerankingServiceTrait for RerankingService
+#[async_trait]
+impl RerankingServiceTrait for RerankingService {
+    async fn rerank(
+        &self,
+        query: &str,
+        documents: &[String],
+        top_k: Option<usize>,
+    ) -> Result<Vec<RerankResult>> {
+        // Call the sync method in async context
+        let mut results = tokio::task::spawn_blocking({
+            let query = query.to_string();
+            let documents = documents.to_vec();
+            let self_clone = self.clone();
+            move || self_clone.rerank(&query, &documents)
+        })
+        .await
+        .map_err(|e| crate::AiError::InferenceError(format!("Reranking task failed: {e}")))??;
+
+        // Apply top_k limit if specified
+        if let Some(k) = top_k {
+            results.truncate(k);
+        }
+
+        Ok(results)
     }
 }

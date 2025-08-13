@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -294,8 +296,10 @@ mod tests {
             }],
         };
 
-        let json = serde_json::to_string(&plan).unwrap();
-        let parsed: ActionPlan = serde_json::from_str(&json).unwrap();
+        let json =
+            serde_json::to_string(&plan).expect("Operation failed - converted from unwrap()");
+        let parsed: ActionPlan =
+            serde_json::from_str(&json).expect("Operation failed - converted from unwrap()");
 
         assert_eq!(parsed.confidence, 0.9);
         assert_eq!(parsed.steps.len(), 1);

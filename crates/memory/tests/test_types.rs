@@ -98,12 +98,12 @@ fn test_record_serialization() {
     };
 
     // Сериализация в JSON
-    let json = serde_json::to_string(&record).unwrap();
+    let json = serde_json::to_string(&record).expect("Test operation should succeed");
     assert!(json.contains("Serialization test"));
     assert!(json.contains("document"));
 
     // Десериализация обратно
-    let deserialized: Record = serde_json::from_str(&json).unwrap();
+    let deserialized: Record = serde_json::from_str(&json).expect("Test operation should succeed");
     assert_eq!(deserialized.id, record.id);
     assert_eq!(deserialized.text, record.text);
     assert_eq!(deserialized.layer, record.layer);
@@ -205,8 +205,9 @@ fn test_search_options_serialization() {
     };
 
     // Сериализация и десериализация
-    let json = serde_json::to_string(&options).unwrap();
-    let deserialized: SearchOptions = serde_json::from_str(&json).unwrap();
+    let json = serde_json::to_string(&options).expect("Test operation should succeed");
+    let deserialized: SearchOptions =
+        serde_json::from_str(&json).expect("Test operation should succeed");
 
     assert_eq!(deserialized.layers, options.layers);
     assert_eq!(deserialized.top_k, options.top_k);

@@ -72,7 +72,7 @@ async fn test_memory_orchestrator_integration() -> Result<()> {
     let orchestrator = service.try_resolve::<MemoryOrchestrator>();
     assert!(orchestrator.is_some(), "MemoryOrchestrator should be available");
     
-    let orchestrator = orchestrator.unwrap();
+    let orchestrator = orchestrator.expect("Test operation should succeed");
     
     // Проверяем что все coordinators инициализированы
     let all_ready = orchestrator.all_ready().await;
@@ -152,7 +152,7 @@ async fn test_embedding_coordinator_integration() -> Result<()> {
     let embedding_coordinator = service.try_resolve::<EmbeddingCoordinator>();
     assert!(embedding_coordinator.is_some(), "EmbeddingCoordinator should be available");
     
-    let embedding_coordinator = embedding_coordinator.unwrap();
+    let embedding_coordinator = embedding_coordinator.expect("Test operation should succeed");
     
     // === ПРОВЕРКА COORDINATOR STATUS ===
     
@@ -264,7 +264,7 @@ async fn test_search_coordinator_integration() -> Result<()> {
     let search_coordinator = service.try_resolve::<SearchCoordinator>();
     assert!(search_coordinator.is_some(), "SearchCoordinator should be available");
     
-    let search_coordinator = search_coordinator.unwrap();
+    let search_coordinator = search_coordinator.expect("Test operation should succeed");
     
     // === SUB-5MS SLA TESTING ===
     
@@ -366,7 +366,7 @@ async fn test_health_manager_integration() -> Result<()> {
     let health_manager = service.try_resolve::<HealthManager>();
     assert!(health_manager.is_some(), "HealthManager should be available");
     
-    let health_manager = health_manager.unwrap();
+    let health_manager = health_manager.expect("Test operation should succeed");
     
     // === ПРОВЕРКА INITIAL HEALTH ===
     
@@ -471,7 +471,7 @@ async fn test_resource_controller_integration() -> Result<()> {
     let resource_controller = service.try_resolve::<ResourceController>();
     assert!(resource_controller.is_some(), "ResourceController should be available");
     
-    let resource_controller = resource_controller.unwrap();
+    let resource_controller = resource_controller.expect("Test operation should succeed");
     
     // === ПРОВЕРКА INITIAL RESOURCE STATE ===
     

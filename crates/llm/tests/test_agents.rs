@@ -1,19 +1,21 @@
+use anyhow::Result;
 use llm::agents::*;
-use llm::{LlmClient, LlmProvider};
+use llm::{LegacyLlmProvider, LlmClient};
 use mockito::Server;
 use std::collections::HashMap;
 
 #[tokio::test]
-async fn test_tool_selector_agent_creation() {
-    let mock_client = create_mock_client().await;
+async fn test_tool_selector_agent_creation() -> Result<()> {
+    let mock_client = create_mock_client().await?;
     let _agent = ToolSelectorAgent::new(mock_client);
 
     // Agent should be created successfully
     // No public methods to test except select_tool
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_tool_selector_simple_commands() {
+async fn test_tool_selector_simple_commands() -> Result<()> {
     let mut server = Server::new_async().await;
 
     let mock = server.mock("POST", "/chat/completions")
@@ -30,7 +32,7 @@ async fn test_tool_selector_simple_commands() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = ToolSelectorAgent::new(client);
 
     let available_tools = vec![
@@ -43,16 +45,17 @@ async fn test_tool_selector_simple_commands() {
         .await;
     assert!(selection.is_ok());
 
-    let tool_selection = selection.unwrap();
+    let tool_selection = selection.expect("Test operation should succeed");
     assert_eq!(tool_selection.tool_name, "file_read");
     assert!(tool_selection.confidence > 0.8);
     assert!(!tool_selection.reasoning.is_empty());
 
     mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_tool_selector_complex_queries() {
+async fn test_tool_selector_complex_queries() -> Result<()> {
     let mut server = Server::new_async().await;
 
     let mock = server.mock("POST", "/chat/completions")
@@ -69,7 +72,7 @@ async fn test_tool_selector_complex_queries() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = ToolSelectorAgent::new(client);
 
     let available_tools = vec![
@@ -85,23 +88,25 @@ async fn test_tool_selector_complex_queries() {
         .await;
     assert!(selection.is_ok());
 
-    let tool_selection = selection.unwrap();
+    let tool_selection = selection.expect("Test operation should succeed");
     assert_eq!(tool_selection.tool_name, "shell_exec");
     assert!(tool_selection.confidence > 0.8);
 
     mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_parameter_extractor_agent_creation() {
-    let mock_client = create_mock_client().await;
+async fn test_parameter_extractor_agent_creation() -> Result<()> {
+    let mock_client = create_mock_client().await?;
     let _agent = ParameterExtractorAgent::new(mock_client);
 
     // Agent should be created successfully
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_parameter_extractor_file_operations() {
+async fn test_parameter_extractor_file_operations() -> Result<()> {
     let mut server = Server::new_async().await;
 
     let mock = server.mock("POST", "/chat/completions")
@@ -118,7 +123,7 @@ async fn test_parameter_extractor_file_operations() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = ParameterExtractorAgent::new(client);
 
     let required_params = vec!["path".to_string()];
@@ -127,17 +132,18 @@ async fn test_parameter_extractor_file_operations() {
         .await;
     assert!(extraction.is_ok());
 
-    let param_extraction = extraction.unwrap();
+    let param_extraction = extraction.expect("Test operation should succeed");
     assert!(param_extraction.parameters.contains_key("path"));
     assert_eq!(param_extraction.parameters["path"], "config.json");
     assert!(param_extraction.confidence > 0.9);
     assert!(param_extraction.missing_params.is_empty());
 
     mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_parameter_extractor_shell_commands() {
+async fn test_parameter_extractor_shell_commands() -> Result<()> {
     let mut server = Server::new_async().await;
 
     let mock = server.mock("POST", "/chat/completions")
@@ -154,7 +160,7 @@ async fn test_parameter_extractor_shell_commands() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = ParameterExtractorAgent::new(client);
 
     let required_params = vec!["command".to_string()];
@@ -167,15 +173,16 @@ async fn test_parameter_extractor_shell_commands() {
         .await;
     assert!(extraction.is_ok());
 
-    let param_extraction = extraction.unwrap();
+    let param_extraction = extraction.expect("Test operation should succeed");
     assert!(param_extraction.parameters.contains_key("command"));
     assert!(param_extraction.parameters["command"].contains("dir"));
 
     mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_parameter_extractor_missing_parameters() {
+async fn test_parameter_extractor_missing_parameters() -> Result<()> {
     let mut server = Server::new_async().await;
 
     let mock = server.mock("POST", "/chat/completions")
@@ -192,7 +199,7 @@ async fn test_parameter_extractor_missing_parameters() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = ParameterExtractorAgent::new(client);
 
     let required_params = vec!["command".to_string(), "directory_name".to_string()];
@@ -201,24 +208,26 @@ async fn test_parameter_extractor_missing_parameters() {
         .await;
     assert!(extraction.is_ok());
 
-    let param_extraction = extraction.unwrap();
+    let param_extraction = extraction.expect("Test operation should succeed");
     assert!(param_extraction.parameters.contains_key("command"));
     assert!(!param_extraction.missing_params.is_empty());
     assert!(param_extraction.confidence < 0.8);
 
     mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_intent_analyzer_agent_creation() {
-    let mock_client = create_mock_client().await;
+async fn test_intent_analyzer_agent_creation() -> Result<()> {
+    let mock_client = create_mock_client().await?;
     let _agent = IntentAnalyzerAgent::new(mock_client);
 
     // Agent should be created successfully
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_intent_analyzer_chat_vs_tool() {
+async fn test_intent_analyzer_chat_vs_tool() -> Result<()> {
     let mut server = Server::new_async().await;
 
     // Test chat intent
@@ -236,21 +245,22 @@ async fn test_intent_analyzer_chat_vs_tool() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = IntentAnalyzerAgent::new(client);
 
     let decision = agent.analyze_intent("How are you today?").await;
     assert!(decision.is_ok());
 
-    let intent_decision = decision.unwrap();
+    let intent_decision = decision.expect("Test operation should succeed");
     assert_eq!(intent_decision.action_type, "chat");
     assert!(intent_decision.confidence > 0.9);
 
     chat_mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_intent_analyzer_tool_intent() {
+async fn test_intent_analyzer_tool_intent() -> Result<()> {
     let mut server = Server::new_async().await;
 
     let tool_mock = server.mock("POST", "/chat/completions")
@@ -267,29 +277,31 @@ async fn test_intent_analyzer_tool_intent() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = IntentAnalyzerAgent::new(client);
 
     let decision = agent.analyze_intent("delete the old log files").await;
     assert!(decision.is_ok());
 
-    let intent_decision = decision.unwrap();
+    let intent_decision = decision.expect("Test operation should succeed");
     assert_eq!(intent_decision.action_type, "tools");
     assert!(intent_decision.confidence > 0.9);
 
     tool_mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_action_planner_agent_creation() {
-    let mock_client = create_mock_client().await;
+async fn test_action_planner_agent_creation() -> Result<()> {
+    let mock_client = create_mock_client().await?;
     let _agent = ActionPlannerAgent::new(mock_client);
 
     // Agent should be created successfully
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_action_planner_simple_task() {
+async fn test_action_planner_simple_task() -> Result<()> {
     let mut server = Server::new_async().await;
 
     let mock = server.mock("POST", "/chat/completions")
@@ -306,7 +318,7 @@ async fn test_action_planner_simple_task() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = ActionPlannerAgent::new(client);
 
     let available_tools = vec!["file_read".to_string(), "file_write".to_string()];
@@ -315,7 +327,7 @@ async fn test_action_planner_simple_task() {
         .await;
     assert!(plan.is_ok());
 
-    let action_plan = plan.unwrap();
+    let action_plan = plan.expect("Test operation should succeed");
     assert_eq!(action_plan.steps.len(), 1);
     assert!(action_plan.confidence > 0.9);
 
@@ -324,10 +336,11 @@ async fn test_action_planner_simple_task() {
     assert!(step.parameters.contains_key("path"));
 
     mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_action_planner_complex_task() {
+async fn test_action_planner_complex_task() -> Result<()> {
     let mut server = Server::new_async().await;
 
     let mock = server.mock("POST", "/chat/completions")
@@ -344,7 +357,7 @@ async fn test_action_planner_complex_task() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = ActionPlannerAgent::new(client);
 
     let available_tools = vec![
@@ -360,7 +373,7 @@ async fn test_action_planner_complex_task() {
         .await;
     assert!(plan.is_ok());
 
-    let action_plan = plan.unwrap();
+    let action_plan = plan.expect("Test operation should succeed");
     assert!(action_plan.steps.len() >= 2);
     assert!(action_plan.confidence > 0.8);
 
@@ -372,10 +385,11 @@ async fn test_action_planner_complex_task() {
     }
 
     mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_agents_error_handling() {
+async fn test_agents_error_handling() -> Result<()> {
     let mut server = Server::new_async().await;
 
     // Mock server error
@@ -387,7 +401,7 @@ async fn test_agents_error_handling() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
 
     // Test all agents handle errors gracefully
     let tool_selector = ToolSelectorAgent::new(client.clone());
@@ -413,10 +427,11 @@ async fn test_agents_error_handling() {
     assert!(plan_result.is_err());
 
     error_mock.assert_async().await;
+    Ok(())
 }
 
 #[test]
-fn test_agent_data_structures() {
+fn test_agent_data_structures() -> Result<()> {
     // Test ToolSelection
     let tool_selection = ToolSelection {
         tool_name: "file_read".to_string(),
@@ -474,10 +489,11 @@ fn test_agent_data_structures() {
 
     assert_eq!(action_plan.steps.len(), 1);
     assert!(action_plan.confidence > 0.8);
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_json_parsing_edge_cases() {
+async fn test_json_parsing_edge_cases() -> Result<()> {
     let mut server = Server::new_async().await;
 
     // Mock malformed JSON response
@@ -495,7 +511,7 @@ async fn test_json_parsing_edge_cases() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
     let agent = ToolSelectorAgent::new(client);
 
     let available_tools = vec!["file_read".to_string()];
@@ -503,14 +519,15 @@ async fn test_json_parsing_edge_cases() {
 
     // Should handle malformed JSON gracefully (single quotes → double quotes)
     assert!(selection.is_ok());
-    let tool_selection = selection.unwrap();
+    let tool_selection = selection.expect("Test operation should succeed");
     assert_eq!(tool_selection.tool_name, "file_read");
 
     malformed_mock.assert_async().await;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_concurrent_agent_operations() {
+async fn test_concurrent_agent_operations() -> Result<()> {
     let mut server = Server::new_async().await;
 
     let mock = server.mock("POST", "/chat/completions")
@@ -528,7 +545,7 @@ async fn test_concurrent_agent_operations() {
         .create_async()
         .await;
 
-    let client = create_mock_client_with_server(&server).await;
+    let client = create_mock_client_with_server(&server).await?;
 
     // Run multiple tool selector operations concurrently
     let tool_selector1 = ToolSelectorAgent::new(client.clone());
@@ -545,21 +562,22 @@ async fn test_concurrent_agent_operations() {
     assert!(tool_result2.is_ok());
 
     mock.assert_async().await;
+    Ok(())
 }
 
 // Helper functions
-async fn create_mock_client() -> LlmClient {
-    let provider = LlmProvider::Local {
+async fn create_mock_client() -> Result<LlmClient> {
+    let provider = LegacyLlmProvider::Local {
         url: "http://localhost:8080".to_string(),
         model: "test-model".to_string(),
     };
-    LlmClient::new(provider, 1000, 0.7)
+    Ok(LlmClient::new(provider, 1000, 0.7))
 }
 
-async fn create_mock_client_with_server(server: &Server) -> LlmClient {
-    let provider = LlmProvider::Local {
+async fn create_mock_client_with_server(server: &Server) -> Result<LlmClient> {
+    let provider = LegacyLlmProvider::Local {
         url: server.url(),
         model: "test-model".to_string(),
     };
-    LlmClient::new(provider, 1000, 0.7)
+    Ok(LlmClient::new(provider, 1000, 0.7))
 }

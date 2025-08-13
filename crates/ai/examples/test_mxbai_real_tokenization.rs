@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+#![allow(unreachable_code)]
 use anyhow::Result;
 use std::path::PathBuf;
 
@@ -9,7 +11,7 @@ fn main() -> Result<()> {
 
     println!("🔍 Testing real tokenization in MxbaiRerankerService");
 
-    let model_path = PathBuf::from("crates/memory/models/mxbai_rerank_base_v2/model.onnx");
+    let _model_path = PathBuf::from("crates/memory/models/mxbai_rerank_base_v2/model.onnx");
 
     println!("\n1. Creating MxbaiRerankerService with real tokenization...");
     println!("⚠️ MXBai reranker service не реализован");

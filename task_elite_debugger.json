@@ -1,0 +1,17 @@
+{
+  "subagent_type": "elite-debugger",
+  "prompt": "КРИТИЧЕСКАЯ ДИАГНОСТИКА ORCHESTRATOR TIMEOUT: Исправить циклические перезапуски агентов в MAGRAY CLI orchestrator health monitoring system.\n\nПроблема выявлена:\n1. Agents создаются и регистрируются в HealthMonitor корректно\n2. HealthMonitor запускается с интервалом 30s\n3. КРИТИЧНО: Agents НЕ запускают heartbeat циклы после инициализации\n4. HealthMonitor определяет агентов как 'Unresponsive' из-за отсутствующих heartbeat\n5. Система входит в цикл бесконечных перезапусков каждые 30s\n6. AI команды работают технически (возвращают success), но с timeout проблемами\n\nТребуется исправить:\n- Добавить автоматические heartbeat loops для всех агентов после создания\n- Настроить корректные timeout configuration в health monitoring\n- Обеспечить stable health monitoring без ложных перезапусков\n- Протестировать что AI команды (chat) работают стабильно без timeout\n\nФайлы для модификации:\n- crates/orchestrator/src/agents/*.rs (добавить heartbeat loops)\n- crates/orchestrator/src/reliability/health.rs (настроить timeouts)\n- crates/orchestrator/src/orchestrator.rs (правильная инициализация heartbeat)\n\nАнализ показал:\n- Agents имеют heartbeat() методы но они вызываются только в restart()\n- Нет автоматического heartbeat loop после инициализации агента\n- Health check ожидает regular heartbeat но не получает их\n- Результат: циклические перезапуски блокируют нормальную работу\n\nЦель: AI команды должны выполняться без timeout/зависаний, health monitoring должен работать стабильно.",
+  "files": [
+    "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\orchestrator\\src",
+    "C:\\Users\\1\\Documents\\GitHub\\MAGRAY_Cli\\crates\\cli\\src\\services\\orchestration_service.rs"
+  ],
+  "timeout_sec": 1200,
+  "priority": "urgent",
+  "expect_artifacts": true,
+  "metadata": {
+    "task": "CRITICAL_ORCHESTRATOR_TIMEOUT_FIX",
+    "problem_type": "health_monitoring_infinite_restart_loop",
+    "root_cause": "missing_automatic_heartbeat_loops",
+    "impact": "ai_commands_timeout_hang"
+  }
+}

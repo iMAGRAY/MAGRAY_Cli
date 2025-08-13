@@ -1,10 +1,10 @@
 //! Search DTOs for semantic search operations
 
+use super::PaginationParams;
+use domain::LayerType;
+use domain::ScoreThreshold;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-use domain::value_objects::layer_type::LayerType;
-use domain::value_objects::score_threshold::ScoreThreshold;
-use super::PaginationParams;
 
 /// Semantic search request DTO
 #[derive(Debug, Serialize, Deserialize, Clone, Validate)]
@@ -12,18 +12,18 @@ pub struct SearchRequest {
     /// Search query text
     #[validate(length(min = 1, max = 10000))]
     pub query: String,
-    
+
     /// Maximum number of results
     #[validate(range(min = 1, max = 1000))]
     pub limit: u32,
-    
+
     /// Minimum similarity threshold
     #[validate(range(min = 0.0, max = 1.0))]
     pub min_score: Option<f32>,
-    
+
     /// Search filters
     pub filters: SearchFilters,
-    
+
     /// Search options
     pub options: SearchOptions,
 }
@@ -33,19 +33,19 @@ pub struct SearchRequest {
 pub struct SearchFilters {
     /// Filter by project
     pub project: Option<String>,
-    
+
     /// Filter by layers to search
     pub layers: Vec<LayerType>,
-    
+
     /// Filter by tags (AND operation)
     pub required_tags: Vec<String>,
-    
+
     /// Filter by tags (OR operation)
     pub optional_tags: Vec<String>,
-    
+
     /// Date range filter
     pub date_range: Option<DateRange>,
-    
+
     /// Exclude specific record IDs
     pub exclude_ids: Vec<String>,
 }
@@ -55,16 +55,16 @@ pub struct SearchFilters {
 pub struct SearchOptions {
     /// Enable re-ranking with LLM
     pub enable_reranking: bool,
-    
+
     /// Include similarity explanations
     pub explain_scores: bool,
-    
+
     /// Return embedding vectors
     pub include_embeddings: bool,
-    
+
     /// Search strategy
     pub strategy: SearchStrategy,
-    
+
     /// Hybrid search weights
     pub hybrid_weights: Option<HybridWeights>,
 }
@@ -112,7 +112,9 @@ pub struct SearchResult {
     pub content: String,
     pub content_preview: String,
     pub score: f32,
+    pub similarity_score: f32,
     pub layer: LayerType,
+    pub project: Option<String>,
     pub metadata: Option<serde_json::Value>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub last_accessed: chrono::DateTime<chrono::Utc>,
@@ -166,11 +168,11 @@ pub struct LayerSearchStats {
     pub cache_searched: bool,
     pub cache_hits: u64,
     pub cache_time_ms: u64,
-    
+
     pub index_searched: bool,
     pub index_hits: u64,
     pub index_time_ms: u64,
-    
+
     pub storage_searched: bool,
     pub storage_hits: u64,
     pub storage_time_ms: u64,
@@ -181,7 +183,7 @@ pub struct LayerSearchStats {
 pub struct MultiSearchRequest {
     #[validate(length(min = 1, max = 10))]
     pub queries: Vec<SearchRequest>,
-    
+
     /// Cross-query options
     pub options: MultiSearchOptions,
 }
@@ -190,10 +192,10 @@ pub struct MultiSearchRequest {
 pub struct MultiSearchOptions {
     /// Enable result deduplication
     pub deduplicate: bool,
-    
+
     /// Merge strategy for multiple queries
     pub merge_strategy: MergeStrategy,
-    
+
     /// Execute queries in parallel
     pub parallel_execution: bool,
 }
@@ -257,18 +259,19 @@ impl Default for MultiSearchOptions {
     }
 }
 
-
 /// Search memory request (simplified for use case)
 #[derive(Debug, Serialize, Deserialize, Clone, Validate)]
 pub struct SearchMemoryRequest {
     #[validate(length(min = 1, max = 1000))]
     pub query: String,
-    
+
     pub limit: Option<usize>,
     pub similarity_threshold: Option<f64>,
     pub layers: Option<Vec<LayerType>>,
     pub project: Option<String>,
+    pub project_filter: Option<String>,
     pub filters: Option<std::collections::HashMap<String, String>>,
+    pub include_embeddings: bool,
     pub use_cache: bool,
 }
 
@@ -287,9 +290,12 @@ pub struct SearchMemoryResponse {
 pub struct SimilaritySearchRequest {
     #[validate(length(min = 1, max = 4096))]
     pub query_embedding: Vec<f32>,
-    
+
     pub limit: Option<usize>,
     pub similarity_threshold: Option<f64>,
+    pub threshold: Option<f64>,
+    pub layers: Option<Vec<LayerType>>,
+    pub include_vectors: bool,
     pub metadata_filters: Option<std::collections::HashMap<String, String>>,
 }
 
@@ -319,7 +325,9 @@ impl Default for SearchMemoryRequest {
             similarity_threshold: Some(0.7),
             layers: None,
             project: None,
+            project_filter: None,
             filters: None,
+            include_embeddings: false,
             use_cache: true,
         }
     }

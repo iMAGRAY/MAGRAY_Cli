@@ -605,8 +605,12 @@ mod tests {
         let handler1 = Arc::new(TestHandler::new("handler1", 100, true));
         let handler2 = Arc::new(TestHandler::new("handler2", 200, true));
 
-        registry.register_handler(handler1.clone()).unwrap();
-        registry.register_handler(handler2.clone()).unwrap();
+        registry
+            .register_handler(handler1.clone())
+            .expect("Operation failed - converted from unwrap()");
+        registry
+            .register_handler(handler2.clone())
+            .expect("Operation failed - converted from unwrap()");
 
         assert_eq!(registry.handler_count(), 2);
 
@@ -619,7 +623,12 @@ mod tests {
         // Should route to handler2 (higher priority)
         let routing_result = registry.route_request(&context).await;
         assert!(routing_result.is_some());
-        assert_eq!(routing_result.unwrap().handler_name, "handler2");
+        assert_eq!(
+            routing_result
+                .expect("Operation failed - converted from unwrap()")
+                .handler_name,
+            "handler2"
+        );
     }
 
     #[tokio::test]
@@ -627,7 +636,9 @@ mod tests {
         let mut registry = HandlerRegistry::new();
 
         let handler = Arc::new(TestHandler::new("test_handler", 100, true));
-        registry.register_handler(handler.clone()).unwrap();
+        registry
+            .register_handler(handler.clone())
+            .expect("Operation failed - converted from unwrap()");
 
         let context = RequestContext {
             message: "test".to_string(),
@@ -645,7 +656,7 @@ mod tests {
         // Check statistics
         let stats = registry.get_handler_stats("test_handler");
         assert!(stats.is_some());
-        let stats = stats.unwrap();
+        let stats = stats.expect("Operation failed - converted from unwrap()");
         assert_eq!(stats.requests_handled, 1);
         assert_eq!(stats.successful_requests, 1);
     }
@@ -657,9 +668,9 @@ mod tests {
 
         let registry = HandlerRegistryBuilder::new()
             .with_handler(handler1)
-            .unwrap()
+            .expect("Operation failed - converted from unwrap()")
             .with_handler(handler2)
-            .unwrap()
+            .expect("Operation failed - converted from unwrap()")
             .build();
 
         assert_eq!(registry.handler_count(), 2);

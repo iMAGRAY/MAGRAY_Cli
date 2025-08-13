@@ -96,7 +96,7 @@ async fn test_error_chaining_and_context_preservation() -> Result<(), Box<dyn st
     assert!(error_string.contains("Database connection failed"));
     
     // Проверяем что можно получить source errors
-    let source = container_error.source().unwrap();
+    let source = container_error.source().expect("Test operation should succeed");
     assert!(source.to_string().contains("DatabaseService"));
     
     Ok(())

@@ -769,7 +769,10 @@ mod tests {
             ),
         ];
 
-        let filtered = rules_engine.filter_candidates(candidates).await.unwrap();
+        let filtered = rules_engine
+            .filter_candidates(candidates)
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(filtered.len(), 2); // Should filter out the record with too few accesses
     }
 }

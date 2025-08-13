@@ -88,7 +88,9 @@ fn test_tool_registration() {
     assert!(registry.get("test_tool").is_some());
 
     // Проверяем spec
-    let tool = registry.get("test_tool").unwrap();
+    let tool = registry
+        .get("test_tool")
+        .expect("Test operation should succeed");
     let spec = tool.spec();
     assert_eq!(spec.name, "test_tool");
     assert_eq!(spec.description, "Mock tool test_tool");
@@ -108,7 +110,9 @@ async fn test_tool_execution() {
 
     registry.register("executor", tool_ref);
 
-    let tool = registry.get("executor").unwrap();
+    let tool = registry
+        .get("executor")
+        .expect("Test operation should succeed");
     let input = ToolInput {
         command: "test".to_string(),
         args: HashMap::new(),
@@ -117,7 +121,10 @@ async fn test_tool_execution() {
         timeout_ms: None,
     };
 
-    let output = tool.execute(input).await.unwrap();
+    let output = tool
+        .execute(input)
+        .await
+        .expect("Test operation should succeed");
     assert!(output.success);
     assert_eq!(output.result, "Mock executor executed");
 }
@@ -152,9 +159,15 @@ async fn test_natural_language_support() {
     let input = mock_tool
         .parse_natural_language("test query")
         .await
-        .unwrap();
+        .expect("Test operation should succeed");
     assert_eq!(input.command, "nl_tool");
-    assert_eq!(input.args.get("query").unwrap(), "test query");
+    assert_eq!(
+        input
+            .args
+            .get("query")
+            .expect("Test operation should succeed"),
+        "test query"
+    );
 }
 
 #[test]
@@ -171,13 +184,14 @@ fn test_tool_input_serialization() {
     };
 
     // Сериализация
-    let json = serde_json::to_string(&input).unwrap();
+    let json = serde_json::to_string(&input).expect("Test operation should succeed");
     assert!(json.contains("test_cmd"));
     assert!(json.contains("arg1"));
     assert!(json.contains("value1"));
 
     // Десериализация
-    let deserialized: ToolInput = serde_json::from_str(&json).unwrap();
+    let deserialized: ToolInput =
+        serde_json::from_str(&json).expect("Test operation should succeed");
     assert_eq!(deserialized.command, "test_cmd");
     assert_eq!(deserialized.args.len(), 2);
     assert_eq!(deserialized.context, Some("test context".to_string()));
@@ -196,20 +210,27 @@ fn test_tool_output_serialization() {
     };
 
     // Сериализация
-    let json = serde_json::to_string(&output).unwrap();
+    let json = serde_json::to_string(&output).expect("Test operation should succeed");
     assert!(json.contains("true"));
     assert!(json.contains("test result"));
     assert!(json.contains("formatted result"));
 
     // Десериализация
-    let deserialized: ToolOutput = serde_json::from_str(&json).unwrap();
+    let deserialized: ToolOutput =
+        serde_json::from_str(&json).expect("Test operation should succeed");
     assert!(deserialized.success);
     assert_eq!(deserialized.result, "test result");
     assert_eq!(
         deserialized.formatted_output,
         Some("formatted result".to_string())
     );
-    assert_eq!(deserialized.metadata.get("key1").unwrap(), "value1");
+    assert_eq!(
+        deserialized
+            .metadata
+            .get("key1")
+            .expect("Test operation should succeed"),
+        "value1"
+    );
 }
 
 #[test]

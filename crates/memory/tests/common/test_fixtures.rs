@@ -40,7 +40,7 @@ pub struct TestContainerBuilder {
 impl TestContainerBuilder {
     pub fn new() -> Self {
         Self {
-            config: UnifiedDIConfiguration::test_config().unwrap(),
+            config: UnifiedDIConfiguration::test_config().expect("Test operation should succeed"),
             preset: FactoryPreset::Test,
             custom_services: Vec::new(),
             cleanup_callbacks: Vec::new(),
@@ -58,13 +58,13 @@ impl TestContainerBuilder {
     }
     
     pub fn with_minimal_config(mut self) -> Self {
-        self.config = UnifiedDIConfiguration::minimal_config().unwrap();
+        self.config = UnifiedDIConfiguration::minimal_config().expect("Test operation should succeed");
         self.preset = FactoryPreset::Minimal;
         self
     }
     
     pub fn with_production_config(mut self) -> Self {
-        self.config = UnifiedDIConfiguration::production_config().unwrap();
+        self.config = UnifiedDIConfiguration::production_config().expect("Test operation should succeed");
         self.preset = FactoryPreset::Production;
         self
     }
@@ -245,10 +245,10 @@ impl TestDataGenerator {
     /// Создает конфигурации для различных тестовых сценариев
     pub fn create_test_configurations() -> Vec<(&'static str, UnifiedDIConfiguration)> {
         vec![
-            ("minimal", UnifiedDIConfiguration::minimal_config().unwrap()),
-            ("test", UnifiedDIConfiguration::test_config().unwrap()),
-            ("development", UnifiedDIConfiguration::development_config().unwrap()),
-            ("production", UnifiedDIConfiguration::production_config().unwrap()),
+            ("minimal", UnifiedDIConfiguration::minimal_config().expect("Test operation should succeed")),
+            ("test", UnifiedDIConfiguration::test_config().expect("Test operation should succeed")),
+            ("development", UnifiedDIConfiguration::development_config().expect("Test operation should succeed")),
+            ("production", UnifiedDIConfiguration::production_config().expect("Test operation should succeed")),
         ]
     }
 }
@@ -277,7 +277,7 @@ impl PerformanceMeasurement {
         let result = operation();
         let duration = start.elapsed();
         
-        self.measurements.lock().unwrap().push(duration);
+        self.measurements.lock().expect("Test operation should succeed").push(duration);
         result
     }
     
@@ -290,12 +290,12 @@ impl PerformanceMeasurement {
         let result = operation().await;
         let duration = start.elapsed();
         
-        self.measurements.lock().unwrap().push(duration);
+        self.measurements.lock().expect("Test operation should succeed").push(duration);
         result
     }
     
     pub fn get_average_duration(&self) -> Duration {
-        let measurements = self.measurements.lock().unwrap();
+        let measurements = self.measurements.lock().expect("Test operation should succeed");
         if measurements.is_empty() {
             return Duration::from_secs(0);
         }
@@ -305,7 +305,7 @@ impl PerformanceMeasurement {
     }
     
     pub fn get_min_duration(&self) -> Duration {
-        self.measurements.lock().unwrap()
+        self.measurements.lock().expect("Test operation should succeed")
             .iter()
             .min()
             .copied()
@@ -313,7 +313,7 @@ impl PerformanceMeasurement {
     }
     
     pub fn get_max_duration(&self) -> Duration {
-        self.measurements.lock().unwrap()
+        self.measurements.lock().expect("Test operation should succeed")
             .iter()
             .max()
             .copied()
@@ -321,7 +321,7 @@ impl PerformanceMeasurement {
     }
     
     pub fn print_statistics(&self) {
-        let measurements = self.measurements.lock().unwrap();
+        let measurements = self.measurements.lock().expect("Test operation should succeed");
         if measurements.is_empty() {
             println!("No measurements for operation: {}", self.operation_name);
             return;
@@ -506,7 +506,7 @@ impl TestConcurrentService {
     
     pub fn increment(&self) -> usize {
         let new_value = self.counter.fetch_add(1, Ordering::SeqCst) + 1;
-        self.operations.lock().unwrap().push(format!("increment -> {}", new_value));
+        self.operations.lock().expect("Test operation should succeed").push(format!("increment -> {}", new_value));
         new_value
     }
     
@@ -515,7 +515,7 @@ impl TestConcurrentService {
     }
     
     pub fn get_operations_count(&self) -> usize {
-        self.operations.lock().unwrap().len()
+        self.operations.lock().expect("Test operation should succeed").len()
     }
 }
 

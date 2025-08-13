@@ -11,7 +11,7 @@ use tools::{Tool, ToolInput};
 
 #[tokio::test]
 async fn git_status_works_with_cwd_in_temp_repo() -> Result<()> {
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("Test operation should succeed");
     let repo = tmp.path();
     assert!(Command::new("git")
         .arg("init")
@@ -36,7 +36,7 @@ async fn git_status_works_with_cwd_in_temp_repo() -> Result<()> {
 
 #[tokio::test]
 async fn git_commit_and_diff_publish_events() -> Result<()> {
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("Test operation should succeed");
     let repo = tmp.path();
     assert!(Command::new("git")
         .arg("init")

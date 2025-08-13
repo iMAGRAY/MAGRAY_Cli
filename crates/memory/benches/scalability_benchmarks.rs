@@ -40,21 +40,25 @@ fn bench_search_scalability(c: &mut Criterion) {
             use_parallel: true,
         };
 
-        let index = VectorIndexHnswRs::new(config).unwrap();
+        let index = VectorIndexHnswRs::new(config).expect("Test operation should succeed");
 
         // Build index
         let vectors: Vec<(String, Vec<f32>)> = (0..size)
             .map(|i| (format!("doc_{}", i), generate_embedding(1024, i as f32)))
             .collect();
 
-        index.add_batch(vectors).unwrap();
+        index
+            .add_batch(vectors)
+            .expect("Test operation should succeed");
 
         // Benchmark search
         let query = generate_embedding(1024, size as f32 / 2.0);
 
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| {
-                let results = index.search(&query, 10).unwrap();
+                let results = index
+                    .search(&query, 10)
+                    .expect("Test operation should succeed");
                 black_box(results);
             });
         });
@@ -88,13 +92,16 @@ fn bench_insert_scalability(c: &mut Criterion) {
                             use_parallel: batch_size > 50,
                         };
 
-                        let index = VectorIndexHnswRs::new(config).unwrap();
+                        let index =
+                            VectorIndexHnswRs::new(config).expect("Test operation should succeed");
 
                         // Pre-populate with some data
                         let initial: Vec<(String, Vec<f32>)> = (0..10000)
                             .map(|i| (format!("init_{}", i), generate_embedding(1024, i as f32)))
                             .collect();
-                        index.add_batch(initial).unwrap();
+                        index
+                            .add_batch(initial)
+                            .expect("Test operation should succeed");
 
                         // Prepare batch to insert
                         let batch: Vec<(String, Vec<f32>)> = (0..batch_size)
@@ -109,7 +116,9 @@ fn bench_insert_scalability(c: &mut Criterion) {
                         (index, batch)
                     },
                     |(index, batch)| {
-                        index.add_batch(batch).unwrap();
+                        index
+                            .add_batch(batch)
+                            .expect("Test operation should succeed");
                     },
                 );
             },
@@ -124,21 +133,26 @@ fn bench_memory_scalability(c: &mut Criterion) {
     let mut group = c.benchmark_group("memory_scalability");
     group.sample_size(10);
 
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
     let sizes = vec![1000, 5000, 10000, 25000];
 
     for &size in &sizes {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Test operation should succeed");
 
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &size| {
             b.to_async(&rt).iter_with_setup(
                 || {
-                    let rt_inner = Runtime::new().unwrap();
+                    let rt_inner = Runtime::new().expect("Test operation should succeed");
                     let temp_path = temp_dir.path().join(format!("test_{}", size));
 
                     let store = rt_inner.block_on(async {
-                        let store = VectorStore::new(&temp_path).await.unwrap();
-                        store.init_layer(Layer::Interact).await.unwrap();
+                        let store = VectorStore::new(&temp_path)
+                            .await
+                            .expect("Test operation should succeed");
+                        store
+                            .init_layer(Layer::Interact)
+                            .await
+                            .expect("Test operation should succeed");
                         store
                     });
 
@@ -163,12 +177,18 @@ fn bench_memory_scalability(c: &mut Criterion) {
                 },
                 |(store, records)| async move {
                     let refs: Vec<&Record> = records.iter().collect();
-                    store.insert_batch(&refs).await.unwrap();
+                    store
+                        .insert_batch(&refs)
+                        .await
+                        .expect("Test operation should succeed");
 
                     // Perform some searches to test complete workflow
                     for i in 0..10 {
                         let query = generate_embedding(1024, i as f32);
-                        let results = store.search(&query, Layer::Interact, 10).await.unwrap();
+                        let results = store
+                            .search(&query, Layer::Interact, 10)
+                            .await
+                            .expect("Test operation should succeed");
                         black_box(results);
                     }
                 },
@@ -184,7 +204,7 @@ fn bench_concurrent_scalability(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_scalability");
     group.sample_size(10);
 
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
     let concurrency_levels = vec![1, 2, 4, 8, 16];
 
     for &concurrency in &concurrency_levels {
@@ -198,13 +218,15 @@ fn bench_concurrent_scalability(c: &mut Criterion) {
             use_parallel: true,
         };
 
-        let index = VectorIndexHnswRs::new(config).unwrap();
+        let index = VectorIndexHnswRs::new(config).expect("Test operation should succeed");
 
         // Pre-populate
         let initial: Vec<(String, Vec<f32>)> = (0..10000)
             .map(|i| (format!("doc_{}", i), generate_embedding(1024, i as f32)))
             .collect();
-        index.add_batch(initial).unwrap();
+        index
+            .add_batch(initial)
+            .expect("Test operation should succeed");
 
         group.bench_with_input(
             BenchmarkId::new("concurrent_search", concurrency),
@@ -215,7 +237,11 @@ fn bench_concurrent_scalability(c: &mut Criterion) {
                         .map(|i| {
                             let index_ref = &index;
                             let query = generate_embedding(1024, i as f32 * 100.0);
-                            async move { index_ref.search(&query, 10).unwrap() }
+                            async move {
+                                index_ref
+                                    .search(&query, 10)
+                                    .expect("Test operation should succeed")
+                            }
                         })
                         .collect();
 
@@ -246,21 +272,25 @@ fn bench_dimension_scalability(c: &mut Criterion) {
             use_parallel: true,
         };
 
-        let index = VectorIndexHnswRs::new(config).unwrap();
+        let index = VectorIndexHnswRs::new(config).expect("Test operation should succeed");
 
         // Build index
         let vectors: Vec<(String, Vec<f32>)> = (0..5000)
             .map(|i| (format!("doc_{}", i), generate_embedding(dim, i as f32)))
             .collect();
 
-        index.add_batch(vectors).unwrap();
+        index
+            .add_batch(vectors)
+            .expect("Test operation should succeed");
 
         // Benchmark search
         let query = generate_embedding(dim, 2500.0);
 
         group.bench_with_input(BenchmarkId::from_parameter(dim), &dim, |b, _| {
             b.iter(|| {
-                let results = index.search(&query, 10).unwrap();
+                let results = index
+                    .search(&query, 10)
+                    .expect("Test operation should succeed");
                 black_box(results);
             });
         });

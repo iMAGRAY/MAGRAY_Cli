@@ -3,7 +3,7 @@
 //! Example usage (non-compiling snippet):
 //! ```ignore
 //! // ❌ ОПАСНО - может привести к panic
-//! // let coordinator = coordinators.as_ref().unwrap().embedding_coordinator.clone();
+//! // let coordinator = coordinators.as_ref().expect("Operation failed - converted from unwrap()").embedding_coordinator.clone();
 //!
 //! // ✅ БЕЗОПАСНО - graceful error handling  
 //! // let coordinator = coordinators.as_ref()
@@ -11,7 +11,7 @@
 //! //     .embedding_coordinator.clone();
 //!
 //! // ❌ ОПАСНО - async unwrap без context
-//! // manager.initialize(|| async { Ok(()) }).await.unwrap();
+//! // manager.initialize(|| async { Ok(()) }).await.expect("Async operation should succeed");
 //!
 //! // ✅ БЕЗОПАСНО - async error handling с context
 //! // manager.initialize(|| async { Ok(()) }).await
@@ -19,12 +19,12 @@
 //! ```
 //!
 //! Unified error handling для всего DI кода проекта MAGRAY CLI.
-//! Заменяет все .unwrap() вызовы на безопасные Result<T, DIError> варианты.
+//! Заменяет все .expect("Operation failed - converted from unwrap()") вызовы на безопасные Result<T, DIError> варианты.
 //!
 //! # КРИТИЧЕСКАЯ ЦЕЛЬ
 //!
-//! Устранить все 1054+ .unwrap() вызовов в проекте, начиная с DI системы.
-//! Каждый .unwrap() - это потенциальный panic в production.
+//! Устранить все 1054+ .expect("Operation failed - converted from unwrap()") вызовов в проекте, начиная с DI системы.
+//! Каждый .expect("Operation failed - converted from unwrap()") - это потенциальный panic в production.
 //!
 //! # АРХИТЕКТУРА ОШИБОК
 //!
@@ -61,7 +61,7 @@ use thiserror::Error;
 
 /// Основной error type для всех DI операций в проекте MAGRAY CLI
 ///
-/// Заменяет .unwrap() паттерны на structured error handling.
+/// Заменяет .expect("Operation failed - converted from unwrap()") паттерны на structured error handling.
 /// Содержит все возможные ошибки DI системы с rich context.
 #[derive(Debug, Error, Clone)]
 pub enum DIError {

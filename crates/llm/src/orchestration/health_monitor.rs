@@ -391,7 +391,7 @@ mod tests {
     async fn test_health_monitor_creation() {
         let config = ProviderConfig::new("openai", "gpt-4o-mini")
             .with_api_key("test-key".to_string());
-        let provider = ProviderFactory::create_provider(&config).unwrap();
+        let provider = ProviderFactory::create_provider(&config).expect("Operation failed - converted from unwrap()");
         
         let providers = vec![provider];
         let monitor = HealthMonitor::new(providers, Duration::from_secs(30));
@@ -404,13 +404,13 @@ mod tests {
     fn test_health_status_updates() {
         let config = ProviderConfig::new("openai", "gpt-4o-mini")
             .with_api_key("test-key".to_string());
-        let provider = ProviderFactory::create_provider(&config).unwrap();
+        let provider = ProviderFactory::create_provider(&config).expect("Operation failed - converted from unwrap()");
         let provider_id = format!("{}:{}", provider.id().provider_type, provider.id().model);
         
         let mut monitor = HealthMonitor::new(vec![provider], Duration::from_secs(30));
         
         // Initial state should be healthy
-        let status = monitor.get_provider_health(&provider_id).unwrap();
+        let status = monitor.get_provider_health(&provider_id).expect("Operation failed - converted from unwrap()");
         assert_eq!(status.current_health, ProviderHealth::Healthy);
         assert_eq!(status.consecutive_failures, 0);
         
@@ -418,7 +418,7 @@ mod tests {
         monitor.update_provider_health(&provider_id, &ProviderHealth::Unavailable, 
             Duration::from_millis(0), Some("Test error".to_string()));
         
-        let status = monitor.get_provider_health(&provider_id).unwrap();
+        let status = monitor.get_provider_health(&provider_id).expect("Operation failed - converted from unwrap()");
         assert_eq!(status.current_health, ProviderHealth::Unavailable);
         assert_eq!(status.consecutive_failures, 1);
         
@@ -426,7 +426,7 @@ mod tests {
         monitor.update_provider_health(&provider_id, &ProviderHealth::Healthy, 
             Duration::from_millis(100), None);
             
-        let status = monitor.get_provider_health(&provider_id).unwrap();
+        let status = monitor.get_provider_health(&provider_id).expect("Operation failed - converted from unwrap()");
         assert_eq!(status.current_health, ProviderHealth::Healthy);
         assert_eq!(status.consecutive_failures, 0);
     }
@@ -438,8 +438,8 @@ mod tests {
         let config2 = ProviderConfig::new("anthropic", "claude-3-haiku-20240307")
             .with_api_key("test-key".to_string());
             
-        let provider1 = ProviderFactory::create_provider(&config1).unwrap();
-        let provider2 = ProviderFactory::create_provider(&config2).unwrap();
+        let provider1 = ProviderFactory::create_provider(&config1).expect("Operation failed - converted from unwrap()");
+        let provider2 = ProviderFactory::create_provider(&config2).expect("Operation failed - converted from unwrap()");
         
         let monitor = HealthMonitor::new(vec![provider1, provider2], Duration::from_secs(30));
         

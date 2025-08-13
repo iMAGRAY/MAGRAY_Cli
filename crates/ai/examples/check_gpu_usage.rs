@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+#![allow(unreachable_code)]
 // Проверка использования GPU в ONNX Runtime
 use ai::config::EmbeddingConfig;
 use ai::embeddings_cpu::CpuEmbeddingService;

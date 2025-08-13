@@ -295,7 +295,7 @@ impl SecurityEnforcer {
 
         // Check file extension restrictions
         if let Some(extension) = file_path.extension().and_then(|e| e.to_str()) {
-            let ext_with_dot = format!(".{}", extension);
+            let ext_with_dot = format!(".{extension}");
             if !self.config.allowed_file_extensions.contains(&ext_with_dot) {
                 warn!("🚨 Potentially unsafe file extension: {}", extension);
                 // Don't block, but log the warning
@@ -330,7 +330,7 @@ impl SecurityEnforcer {
                 self.log_violation(SecurityViolation {
                     tool_id: tool_id.to_string(),
                     violation_type: ViolationType::UnauthorizedNetworkAccess,
-                    description: format!("No network permissions for: {}:{}", host, port),
+                    description: format!("No network permissions for: {host}:{port}"),
                     severity: ViolationSeverity::High,
                     timestamp: SystemTime::now(),
                     remediation: Some("Grant network permissions".to_string()),
@@ -348,7 +348,7 @@ impl SecurityEnforcer {
                     self.log_violation(SecurityViolation {
                         tool_id: tool_id.to_string(),
                         violation_type: ViolationType::UnauthorizedNetworkAccess,
-                        description: format!("Host not in allowed list: {}", host),
+                        description: format!("Host not in allowed list: {host}"),
                         severity: ViolationSeverity::Medium,
                         timestamp: SystemTime::now(),
                         remediation: Some("Add host to allowed list".to_string()),
@@ -389,7 +389,7 @@ impl SecurityEnforcer {
                 self.log_violation(SecurityViolation {
                     tool_id: tool_id.to_string(),
                     violation_type: ViolationType::UnauthorizedCommand,
-                    description: format!("Blocked command detected: {}", blocked),
+                    description: format!("Blocked command detected: {blocked}"),
                     severity: ViolationSeverity::Critical,
                     timestamp: SystemTime::now(),
                     remediation: Some("Remove or modify the command".to_string()),
@@ -665,7 +665,7 @@ mod tests {
                 None,
             )
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         // Test read access (should pass)
         let result = enforcer

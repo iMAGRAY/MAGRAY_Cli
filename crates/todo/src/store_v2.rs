@@ -163,9 +163,8 @@ impl TodoStoreV2 {
                 task.confidence,
                 task.reasoning,
                 task.tool_hint,
-                task.tool_params
-                    .as_ref()
-                    .map(|p| serde_json::to_string(p).unwrap()),
+                task.tool_params.as_ref().map(|p| serde_json::to_string(p)
+                    .expect("Operation failed - converted from unwrap()")),
                 serde_json::to_string(&task.metadata)?,
             ],
         )?;
@@ -500,7 +499,8 @@ impl TodoStoreV2 {
 
     /// Парсинг строки результата в TodoItem
     fn parse_todo_row(row: &Row) -> rusqlite::Result<TodoItem> {
-        let id = Uuid::parse_str(&row.get::<_, String>(0)?).unwrap();
+        let id = Uuid::parse_str(&row.get::<_, String>(0)?)
+            .expect("Operation failed - converted from unwrap()");
 
         // Парсим JSON массивы
         let deps_json: Option<String> = row.get("dependencies")?;
@@ -565,7 +565,10 @@ impl TodoStoreV2 {
             id,
             title: row.get(1)?,
             description: row.get(2)?,
-            state: row.get::<_, String>(3)?.parse().unwrap(),
+            state: row
+                .get::<_, String>(3)?
+                .parse()
+                .expect("Operation failed - converted from unwrap()"),
             priority: match row.get::<_, i32>(4)? {
                 1 => Priority::Low,
                 2 => Priority::Medium,
@@ -574,10 +577,16 @@ impl TodoStoreV2 {
                 _ => Priority::Medium,
             },
             created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                .unwrap_or_else(|_| DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z").unwrap())
+                .unwrap_or_else(|_| {
+                    DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z")
+                        .expect("Operation failed - converted from unwrap()")
+                })
                 .with_timezone(&Utc),
             updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
-                .unwrap_or_else(|_| DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z").unwrap())
+                .unwrap_or_else(|_| {
+                    DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z")
+                        .expect("Operation failed - converted from unwrap()")
+                })
                 .with_timezone(&Utc),
             started_at: row.get::<_, Option<String>>(7)?.and_then(|s| {
                 DateTime::parse_from_rfc3339(&s)
@@ -700,14 +709,18 @@ impl TodoStoreV2 {
             root = serde_json::json!({});
         }
 
-        let obj = root.as_object_mut().unwrap();
+        let obj = root
+            .as_object_mut()
+            .expect("Operation failed - converted from unwrap()");
         let arr = obj
             .entry(key.to_string())
             .or_insert_with(|| serde_json::json!([]));
         if !arr.is_array() {
             *arr = serde_json::json!([]);
         }
-        arr.as_array_mut().unwrap().push(element);
+        arr.as_array_mut()
+            .expect("Operation failed - converted from unwrap()")
+            .push(element);
 
         tx.execute(
             "UPDATE todos SET metadata = ?1 WHERE id = ?2",
@@ -716,5 +729,58 @@ impl TodoStoreV2 {
 
         tx.commit()?;
         Ok(())
+    }
+
+    /// Получить задачи по состоянию
+    #[instrument(skip(self))]
+    pub async fn get_by_state(&self, state: TaskState, limit: usize) -> Result<Vec<TodoItem>> {
+        let conn = self.pool.get()?;
+
+        let sql = r#"
+            SELECT 
+                t.*,
+                (
+                    SELECT json_group_array(depends_on) 
+                    FROM todo_dependencies 
+                    WHERE task_id = t.id
+                ) as dependencies,
+                (
+                    SELECT json_group_array(tag) 
+                    FROM todo_tags 
+                    WHERE task_id = t.id
+                ) as tags,
+                (
+                    SELECT json_group_array(
+                        json_object('layer', mem_layer, 'key', mem_key, 'created_at', created_at)
+                    ) 
+                    FROM todo_context_refs 
+                    WHERE task_id = t.id
+                ) as context_refs
+            FROM todos t
+            WHERE t.state = ?1
+            ORDER BY t.priority DESC, t.created_at ASC
+            LIMIT ?2
+        "#;
+
+        let state_str = match state {
+            TaskState::Ready => "ready",
+            TaskState::InProgress => "in_progress",
+            TaskState::Done => "done",
+            TaskState::Blocked => "blocked",
+            TaskState::Failed => "failed",
+            TaskState::Cancelled => "cancelled",
+            TaskState::Planned => "planned",
+        };
+
+        let mut stmt = conn.prepare(sql)?;
+        let rows = stmt.query_map(params![state_str, limit], Self::parse_todo_row)?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            results.push(row?);
+        }
+
+        debug!("Найдено {} задач со состоянием {:?}", results.len(), state);
+        Ok(results)
     }
 }

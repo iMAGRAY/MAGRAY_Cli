@@ -3,9 +3,28 @@ name = "application"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+
+# Test utilities for mocking
+test-utils = []
+
+# AI features (conditional compilation)
+cpu = ["ai/cpu"]
+gpu = ["ai/gpu"]
+embeddings = ["ai/embeddings"]
+reranking = ["ai/reranking"]
+onnx = ["ai/onnx"]
+
 [dependencies]
 # Domain Layer
 domain = { path = "../domain" }
+
+# Todo Module
+todo = { path = "../todo" }
+
+# Tools Module
+tools = { path = "../tools" }
 
 # Common utilities
 common = { path = "../common" }
@@ -24,9 +43,11 @@ anyhow = "1.0"
 
 # UUID for request tracking
 uuid = { version = "1.10", features = ["v4"] }
+chrono = { workspace = true }
 
 # Logging
 tracing = "0.1"
+log = "0.4"
 
 # Metrics
 metrics = "0.21"
@@ -34,8 +55,16 @@ metrics = "0.21"
 # Validation
 validator = { version = "0.16", features = ["derive"] }
 
+# Hashing for cache keys
+md5 = "0.7"
+
+# AI crate dependency (conditional)
+ai = { path = "../ai", optional = true }
+
 [dev-dependencies]
 mockall = "0.12"
 tokio-test = "0.4"
 proptest = "1.0"
 criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3.5"
+futures = "0.3"

@@ -2,33 +2,34 @@
 //!
 //! Абстракция для AI embedding services независимо от конкретной реализации.
 
+use crate::{ApplicationError, ApplicationResult};
 use async_trait::async_trait;
-use crate::ApplicationResult;
 
 /// Trait для embedding generation services
 #[async_trait]
 pub trait EmbeddingProvider: Send + Sync {
     /// Generate embedding for single text
     async fn generate_embedding(&self, text: &str) -> ApplicationResult<Vec<f32>>;
-    
+
     /// Generate embeddings for batch of texts
-    async fn generate_batch_embeddings(&self, texts: &[String]) -> ApplicationResult<Vec<Vec<f32>>>;
-    
+    async fn generate_batch_embeddings(&self, texts: &[String])
+        -> ApplicationResult<Vec<Vec<f32>>>;
+
     /// Get embedding dimensions for this provider
     fn embedding_dimensions(&self) -> usize;
-    
+
     /// Get provider model name/identifier
     fn model_identifier(&self) -> &str;
-    
+
     /// Check if provider supports batching
     fn supports_batching(&self) -> bool;
-    
+
     /// Get maximum batch size supported
     fn max_batch_size(&self) -> usize;
-    
+
     /// Health check for embedding service
     async fn health_check(&self) -> ApplicationResult<ProviderHealth>;
-    
+
     /// Get provider performance metrics
     async fn get_metrics(&self) -> ApplicationResult<EmbeddingMetrics>;
 }
@@ -41,6 +42,19 @@ pub struct ProviderHealth {
     pub error_rate: f32,
     pub last_error: Option<String>,
     pub uptime_seconds: u64,
+}
+
+/// Extended health status with more embedding-specific information
+#[derive(Debug, Clone)]
+pub struct EmbeddingHealth {
+    pub is_healthy: bool,
+    pub gpu_available: bool,
+    pub cpu_available: bool,
+    pub response_time_ms: u64,
+    pub model_loaded: bool,
+    pub last_error: Option<String>,
+    pub dimensions: usize,
+    pub throughput_texts_per_second: f64,
 }
 
 /// Performance metrics for embedding provider
@@ -113,15 +127,26 @@ pub struct BatchEmbeddingRequest {
 }
 
 /// Options for batch processing
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BatchOptions {
     pub parallel_processing: bool,
     pub fail_fast: bool,
+    #[allow(clippy::type_complexity)]
     pub progress_callback: Option<ProgressCallback>,
 }
 
 /// Progress callback type for batch operations
-pub type ProgressCallback = Box<dyn Fn(usize, usize) + Send + Sync>;
+pub type ProgressCallback = std::sync::Arc<dyn Fn(usize, usize) + Send + Sync>;
+
+impl std::fmt::Debug for BatchOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BatchOptions")
+            .field("parallel_processing", &self.parallel_processing)
+            .field("fail_fast", &self.fail_fast)
+            .field("progress_callback", &self.progress_callback.is_some())
+            .finish()
+    }
+}
 
 /// Embedding response with metadata
 #[derive(Debug, Clone)]
@@ -162,12 +187,12 @@ impl MockEmbeddingProvider {
             call_count: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
     }
-    
+
     pub fn with_responses(mut self, responses: Vec<ApplicationResult<Vec<f32>>>) -> Self {
         self.responses = responses.into();
         self
     }
-    
+
     pub fn call_count(&self) -> usize {
         self.call_count.load(std::sync::atomic::Ordering::Relaxed)
     }
@@ -177,39 +202,52 @@ impl MockEmbeddingProvider {
 #[async_trait]
 impl EmbeddingProvider for MockEmbeddingProvider {
     async fn generate_embedding(&self, _text: &str) -> ApplicationResult<Vec<f32>> {
-        self.call_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        
+        self.call_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         if let Some(response) = self.responses.front() {
-            response.clone()
+            match response {
+                Ok(embedding) => Ok(embedding.clone()),
+                Err(e) => Err(ApplicationError::infrastructure(format!(
+                    "Mock embedding error: {}",
+                    e
+                ))),
+            }
         } else {
-            Ok((0..self.dimensions).map(|_| rand::random::<f32>()).collect())
+            // Generate mock embedding with simple pattern instead of rand
+            Ok((0..self.dimensions)
+                .map(|i| (i as f32) / (self.dimensions as f32))
+                .collect())
         }
     }
-    
-    async fn generate_batch_embeddings(&self, texts: &[String]) -> ApplicationResult<Vec<Vec<f32>>> {
+
+    async fn generate_batch_embeddings(
+        &self,
+        texts: &[String],
+    ) -> ApplicationResult<Vec<Vec<f32>>> {
         let mut results = Vec::with_capacity(texts.len());
         for text in texts {
             results.push(self.generate_embedding(text).await?);
         }
         Ok(results)
     }
-    
+
     fn embedding_dimensions(&self) -> usize {
         self.dimensions
     }
-    
+
     fn model_identifier(&self) -> &str {
         &self.model_name
     }
-    
+
     fn supports_batching(&self) -> bool {
         true
     }
-    
+
     fn max_batch_size(&self) -> usize {
         100
     }
-    
+
     async fn health_check(&self) -> ApplicationResult<ProviderHealth> {
         Ok(ProviderHealth {
             is_healthy: true,
@@ -219,7 +257,7 @@ impl EmbeddingProvider for MockEmbeddingProvider {
             uptime_seconds: 3600,
         })
     }
-    
+
     async fn get_metrics(&self) -> ApplicationResult<EmbeddingMetrics> {
         let call_count = self.call_count() as u64;
         Ok(EmbeddingMetrics {

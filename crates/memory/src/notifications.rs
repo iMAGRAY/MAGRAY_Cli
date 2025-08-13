@@ -813,7 +813,8 @@ mod tests {
     #[tokio::test]
     async fn test_notification_manager() {
         let config = NotificationConfig::default();
-        let manager = NotificationManager::new(config).unwrap();
+        let manager =
+            NotificationManager::new(config).expect("Operation failed - converted from unwrap()");
 
         let alert = HealthAlert {
             id: "test-2".to_string(),
@@ -869,7 +870,8 @@ mod tests {
             ignore_patterns: vec!["IGNORE".to_string()],
         };
 
-        let mut manager = NotificationManager::new(config).unwrap();
+        let mut manager =
+            NotificationManager::new(config).expect("Operation failed - converted from unwrap()");
         // inject dummy sender
         let singles = Arc::new(parking_lot::RwLock::new(0usize));
         let batches = Arc::new(parking_lot::RwLock::new(0usize));
@@ -895,7 +897,10 @@ mod tests {
             resolved: false,
             resolved_at: None,
         };
-        manager.handle_alert(alert_ignored).await.unwrap();
+        manager
+            .handle_alert(alert_ignored)
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(*singles.read(), 0);
 
         // passes filters and will be grouped (not sent yet)
@@ -911,7 +916,10 @@ mod tests {
             resolved: false,
             resolved_at: None,
         };
-        manager.handle_alert(alert_ok).await.unwrap();
+        manager
+            .handle_alert(alert_ok)
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(*singles.read(), 0);
 
         // second one triggers group send (max_group_size=2)
@@ -927,7 +935,10 @@ mod tests {
             resolved: false,
             resolved_at: None,
         };
-        manager.handle_alert(alert_ok2).await.unwrap();
+        manager
+            .handle_alert(alert_ok2)
+            .await
+            .expect("Async operation should succeed");
         // batch path counts number of alerts sent
         assert_eq!(*batches.read(), 2);
 
@@ -944,7 +955,10 @@ mod tests {
             resolved: false,
             resolved_at: None,
         };
-        manager.handle_alert(alert_fatal).await.unwrap();
+        manager
+            .handle_alert(alert_fatal)
+            .await
+            .expect("Async operation should succeed");
         assert_eq!(*singles.read(), 1);
     }
 }

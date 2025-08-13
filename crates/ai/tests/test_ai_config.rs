@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use ai::{AiConfig, EmbeddingConfig, RerankingConfig};
 use std::path::PathBuf;
 
@@ -82,12 +83,13 @@ fn test_ai_config_serialization() {
     let config = AiConfig::default();
 
     // Сериализация в JSON
-    let json = serde_json::to_string(&config).unwrap();
+    let json = serde_json::to_string(&config).expect("Test operation should succeed");
     assert!(json.contains("qwen3emb"));
     assert!(json.contains("qwen3_reranker"));
 
     // Десериализация обратно
-    let deserialized: AiConfig = serde_json::from_str(&json).unwrap();
+    let deserialized: AiConfig =
+        serde_json::from_str(&json).expect("Test operation should succeed");
     assert_eq!(deserialized.models_dir, config.models_dir);
     assert_eq!(
         deserialized.embedding.model_name,

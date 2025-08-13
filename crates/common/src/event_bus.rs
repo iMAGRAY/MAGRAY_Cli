@@ -141,7 +141,7 @@ mod tests {
                 let evt = rx.recv().await.expect("recv after lag");
                 assert_eq!(evt.payload, 2);
             }
-            Err(e) => panic!("unexpected recv error: {:?}", e),
+            Err(e) => panic!("unexpected recv error: {e:?}"),
         }
     }
 
@@ -154,10 +154,26 @@ mod tests {
         bus.publish(Topic("fanout.topic"), "a").await;
         bus.publish(Topic("fanout.topic"), "b").await;
 
-        let e1a = rx1.recv().await.unwrap().payload;
-        let e2a = rx2.recv().await.unwrap().payload;
-        let e1b = rx1.recv().await.unwrap().payload;
-        let e2b = rx2.recv().await.unwrap().payload;
+        let e1a = rx1
+            .recv()
+            .await
+            .expect("Async operation should succeed")
+            .payload;
+        let e2a = rx2
+            .recv()
+            .await
+            .expect("Async operation should succeed")
+            .payload;
+        let e1b = rx1
+            .recv()
+            .await
+            .expect("Async operation should succeed")
+            .payload;
+        let e2b = rx2
+            .recv()
+            .await
+            .expect("Async operation should succeed")
+            .payload;
 
         assert_eq!(e1a, "a");
         assert_eq!(e2a, "a");
@@ -186,7 +202,7 @@ mod tests {
                 let evt = rx_fast.recv().await.expect("recv after lag");
                 assert_eq!(evt.payload, "x2");
             }
-            Err(e) => panic!("unexpected recv error: {:?}", e),
+            Err(e) => panic!("unexpected recv error: {e:?}"),
         }
     }
 
@@ -208,8 +224,16 @@ mod tests {
         bus.publish(Topic("topic.a"), "A1").await;
         bus.publish(Topic("topic.b"), "B1").await;
 
-        let ea = rx_a.recv().await.unwrap().payload;
-        let eb = rx_b.recv().await.unwrap().payload;
+        let ea = rx_a
+            .recv()
+            .await
+            .expect("Async operation should succeed")
+            .payload;
+        let eb = rx_b
+            .recv()
+            .await
+            .expect("Async operation should succeed")
+            .payload;
         assert_eq!(ea, "A1");
         assert_eq!(eb, "B1");
     }

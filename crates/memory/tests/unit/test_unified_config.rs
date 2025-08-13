@@ -151,7 +151,7 @@ async fn test_environment_variable_loading() -> DIResult<()> {
 #[tokio::test]
 async fn test_file_based_configuration_loading() -> DIResult<()> {
     // Создаем временный файл конфигурации
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let config_file_path = temp_dir.path().join("test_config.toml");
     
     let config_content = r#"
@@ -173,7 +173,7 @@ async fn test_file_based_configuration_loading() -> DIResult<()> {
         ttl_seconds = 3600
     "#;
     
-    fs::write(&config_file_path, config_content).unwrap();
+    fs::write(&config_file_path, config_content).expect("Test operation should succeed");
     
     // Загружаем конфигурацию из файла
     let file_config = UnifiedDIConfiguration::from_file(&config_file_path).await?;
@@ -243,7 +243,7 @@ async fn test_configuration_environment_detection() -> DIResult<()> {
 #[tokio::test]
 async fn test_configuration_hot_reload_detection() -> DIResult<()> {
     // Создаем временный файл конфигурации
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("Test operation should succeed");
     let config_file_path = temp_dir.path().join("hot_reload_test.toml");
     
     let initial_content = r#"
@@ -252,7 +252,7 @@ async fn test_configuration_hot_reload_detection() -> DIResult<()> {
         log_level = "info"
     "#;
     
-    fs::write(&config_file_path, initial_content).unwrap();
+    fs::write(&config_file_path, initial_content).expect("Test operation should succeed");
     
     // Загружаем начальную конфигурацию
     let initial_config = UnifiedDIConfiguration::from_file(&config_file_path).await?;
@@ -265,7 +265,7 @@ async fn test_configuration_hot_reload_detection() -> DIResult<()> {
         log_level = "debug"
     "#;
     
-    fs::write(&config_file_path, updated_content).unwrap();
+    fs::write(&config_file_path, updated_content).expect("Test operation should succeed");
     
     // Проверяем обнаружение изменений
     let has_changes = initial_config.detect_changes(&config_file_path).await?;

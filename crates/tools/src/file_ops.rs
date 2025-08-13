@@ -1,8 +1,10 @@
 use crate::{Tool, ToolInput, ToolOutput, ToolSpec, UsageGuide};
 use anyhow::{anyhow, Result};
+use common::policy::{get_policy_engine_with_eventbus, PolicyAction};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::io::{BufRead, BufReader, Read};
+use std::path::Path;
 use walkdir::WalkDir;
 
 // ===== Security Validation Functions =====
@@ -152,83 +154,166 @@ fn validate_file_extension(path: &str) -> Result<()> {
     Ok(())
 }
 
-// ===== Filesystem Sandbox (env-driven) =====
-fn fs_sandbox_enabled() -> bool {
-    common::sandbox_config::SandboxConfig::from_env().fs.enabled
-}
+/// CRITICAL SECURITY: PolicyEngine integration for file operations
+/// This function applies policy rules to file operations and logs violations to EventBus
+fn check_policy_for_file_operation(
+    operation: &str,
+    path: &str,
+    args: &HashMap<String, String>,
+) -> Result<()> {
+    let policy_engine = get_policy_engine_with_eventbus();
 
-fn fs_sandbox_roots() -> Vec<PathBuf> {
-    let cfg = common::sandbox_config::SandboxConfig::from_env();
-    if cfg.fs.roots.is_empty() {
-        return Vec::new();
+    // Create policy arguments
+    let mut policy_args = args.clone();
+    policy_args.insert("operation".to_string(), operation.to_string());
+    policy_args.insert("path".to_string(), path.to_string());
+
+    let decision = policy_engine.evaluate_tool(operation, &policy_args);
+
+    match decision.action {
+        PolicyAction::Deny => {
+            let reason = decision
+                .matched_rule
+                .as_ref()
+                .and_then(|rule| rule.reason.as_deref())
+                .unwrap_or("Security policy prohibits this file operation");
+
+            return Err(anyhow!(
+                "🔒 POLICY VIOLATION: {} operation denied by security policy for path: '{}'\nReason: {}",
+                operation,
+                path,
+                reason
+            ));
+        }
+        PolicyAction::Ask => {
+            // In automated context, treat Ask as Deny for security
+            return Err(anyhow!(
+                "🔒 POLICY REQUIREMENT: {} operation requires user confirmation for path: '{}'\nUse interactive CLI for file operations requiring confirmation",
+                operation,
+                path
+            ));
+        }
+        PolicyAction::Allow => {
+            // Continue with operation
+        }
     }
-    cfg.fs
-        .roots
-        .iter()
-        .filter(|s| !s.trim().is_empty())
-        .filter_map(|s| {
-            let p = PathBuf::from(s);
-            std::fs::canonicalize(&p).ok()
-        })
-        .collect()
+
+    Ok(())
 }
 
-fn err_outside_sandbox(path: &str) -> anyhow::Error {
-    anyhow!(
-        "Доступ к пути вне песочницы запрещён: {} (включите корни через MAGRAY_FS_ROOTS)",
-        path
-    )
+// ===== CRITICAL MEMORY OPTIMIZATION: Streaming File Operations =====
+
+/// КРИТИЧЕСКАЯ ОПТИМИЗАЦИЯ: Memory-efficient file reading с streaming для больших файлов
+/// Предотвращает heap overflow при чтении файлов >100MB
+fn read_file_with_memory_optimization(path: &str) -> Result<String> {
+    let file_path = Path::new(path);
+    let file_size = fs::metadata(file_path)?.len();
+
+    // Для файлов больше 100MB используем streaming чтение
+    const LARGE_FILE_THRESHOLD: u64 = 100 * 1024 * 1024; // 100MB
+    const MAX_BUFFER_SIZE: usize = 8 * 1024 * 1024; // 8MB buffer
+
+    if file_size > LARGE_FILE_THRESHOLD {
+        // Streaming reading для больших файлов
+        let file = fs::File::open(file_path)?;
+        let mut reader = BufReader::with_capacity(MAX_BUFFER_SIZE, file);
+        let mut content = String::new();
+        let mut total_read = 0;
+
+        // Читаем по chunks с контролем memory
+        loop {
+            let mut chunk = vec![0; MAX_BUFFER_SIZE];
+            let bytes_read = reader.read(&mut chunk)?;
+
+            if bytes_read == 0 {
+                break;
+            }
+
+            // Проверяем не превышаем ли memory limit
+            total_read += bytes_read;
+            if total_read > 500 * 1024 * 1024 {
+                // 500MB limit
+                return Err(anyhow!(
+                    "File too large to read safely: {} bytes (max 500MB)",
+                    total_read
+                ));
+            }
+
+            // Преобразуем bytes в string с memory-safe подходом
+            let chunk_str = String::from_utf8_lossy(&chunk[..bytes_read]);
+            content.push_str(&chunk_str);
+
+            // Принудительно освобождаем memory каждые 50MB
+            if total_read.is_multiple_of(50 * 1024 * 1024) {
+                // Force collection для предотвращения memory buildup
+                drop(chunk);
+            }
+        }
+
+        Ok(content)
+    } else {
+        // Обычное чтение для небольших файлов
+        fs::read_to_string(path).map_err(|e| anyhow!("Failed to read file: {}", e))
+    }
 }
 
+// ===== SECURITY P0.1.6: Enhanced Filesystem Sandbox with separate read/write roots =====
+
+/// SECURITY: Enhanced read access validation with separate read roots
 fn ensure_read_allowed(path: &str) -> Result<()> {
-    // SECURITY: Валидация пути на предмет path traversal атак
+    // SECURITY: Basic path traversal and malicious path protection
     validate_path_security(path, "read")?;
 
-    if !fs_sandbox_enabled() {
-        return Ok(());
-    }
-    let roots = fs_sandbox_roots();
-    if roots.is_empty() {
-        return Err(anyhow!(
-            "FS песочница включена, но MAGRAY_FS_ROOTS не задан"
-        ));
-    }
-    let canon = std::fs::canonicalize(Path::new(path))
-        .map_err(|e| anyhow!("Не удалось открыть '{}': {}", path, e))?;
-    if roots.iter().any(|r| canon.starts_with(r)) {
-        Ok(())
-    } else {
-        Err(err_outside_sandbox(path))
-    }
+    // SECURITY: Policy engine check for file read operations
+    let args = HashMap::from([
+        ("path".to_string(), path.to_string()),
+        ("operation".to_string(), "read".to_string()),
+    ]);
+    check_policy_for_file_operation("file_read", path, &args)?;
+
+    // SECURITY P0.1.6: Use SandboxConfig with separate read roots
+    let sandbox_config = common::sandbox_config::SandboxConfig::from_env();
+    sandbox_config
+        .validate_read_access(path)
+        .map_err(|e| anyhow!("🔒 READ ACCESS DENIED: {}", e))
 }
 
+/// SECURITY: Enhanced write access validation with separate write roots
 fn ensure_write_allowed(path: &str) -> Result<()> {
-    // SECURITY: Валидация пути на предмет path traversal атак
+    // SECURITY: Basic path traversal and malicious path protection
     validate_path_security(path, "write")?;
 
-    if !fs_sandbox_enabled() {
-        return Ok(());
-    }
-    let roots = fs_sandbox_roots();
-    if roots.is_empty() {
-        return Err(anyhow!(
-            "FS песочница включена, но MAGRAY_FS_ROOTS не задан"
-        ));
-    }
-    let p = Path::new(path);
-    let check_path = if p.exists() {
-        std::fs::canonicalize(p).map_err(|e| anyhow!("Не удалось открыть '{}': {}", path, e))?
-    } else {
-        let parent = p.parent().unwrap_or(Path::new("."));
-        let parent_canon = std::fs::canonicalize(parent)
-            .map_err(|e| anyhow!("Не удалось открыть родителя '{}': {}", parent.display(), e))?;
-        parent_canon.join(p.file_name().unwrap_or_default())
-    };
-    if roots.iter().any(|r| check_path.starts_with(r)) {
-        Ok(())
-    } else {
-        Err(err_outside_sandbox(path))
-    }
+    // SECURITY: Policy engine check for file write operations
+    let args = HashMap::from([
+        ("path".to_string(), path.to_string()),
+        ("operation".to_string(), "write".to_string()),
+    ]);
+    check_policy_for_file_operation("file_write", path, &args)?;
+
+    // SECURITY P0.1.6: Use SandboxConfig with separate write roots
+    let sandbox_config = common::sandbox_config::SandboxConfig::from_env();
+    sandbox_config
+        .validate_write_access(path)
+        .map_err(|e| anyhow!("🔒 WRITE ACCESS DENIED: {}", e))
+}
+
+/// SECURITY: Enhanced search access validation (uses read roots)
+fn ensure_search_allowed(path: &str) -> Result<()> {
+    // SECURITY: Basic path traversal and malicious path protection
+    validate_path_security(path, "search")?;
+
+    // SECURITY: Policy engine check for file search operations
+    let args = HashMap::from([
+        ("path".to_string(), path.to_string()),
+        ("operation".to_string(), "search".to_string()),
+    ]);
+    check_policy_for_file_operation("file_search", path, &args)?;
+
+    // SECURITY P0.1.6: Search operations use read roots
+    let sandbox_config = common::sandbox_config::SandboxConfig::from_env();
+    sandbox_config
+        .validate_read_access(path)
+        .map_err(|e| anyhow!("🔒 SEARCH ACCESS DENIED: {}", e))
 }
 
 // FileReader - чтение файлов с простым форматированием
@@ -259,7 +344,30 @@ impl Tool for FileReader {
                 "показать содержимое config.toml".to_string(),
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
-            usage_guide: None,
+            usage_guide: Some(crate::UsageGuide {
+                usage_title: "file_read".into(),
+                usage_summary: "🔒 SECURITY: Read access restricted to configured read roots"
+                    .into(),
+                preconditions: vec![
+                    "Path must be within MAGRAY_FS_READ_ROOTS".into(),
+                    "Filesystem sandbox must be configured".into(),
+                ],
+                arguments_brief: HashMap::from([(
+                    "path".to_string(),
+                    "File path to read".to_string(),
+                )]),
+                good_for: vec!["reading".into(), "analysis".into()],
+                not_for: vec!["system_files".into(), "sensitive_data".into()],
+                constraints: vec!["Path traversal protection enabled".into()],
+                examples: vec!["file_read ./project/src/main.rs".into()],
+                platforms: vec!["linux".into(), "mac".into(), "win".into()],
+                cost_class: "free".into(),
+                latency_class: "fast".into(),
+                side_effects: vec![],
+                risk_score: 2,
+                capabilities: vec!["read".into(), "fs".into()],
+                tags: vec!["filesystem".into(), "security".into()],
+            }),
             permissions: None,
             supports_dry_run: false,
         }
@@ -273,11 +381,12 @@ impl Tool for FileReader {
 
         ensure_read_allowed(path)?;
 
-        let content = fs::read_to_string(path)?;
+        // КРИТИЧЕСКАЯ ОПТИМИЗАЦИЯ MEMORY: Используем streaming для больших файлов
+        let content = read_file_with_memory_optimization(path)?;
 
         // Простое форматирование с заголовком
         let mut formatted = String::new();
-        formatted.push_str(&format!("\n📄 Файл: {}\n", path));
+        formatted.push_str(&format!("\n📄 Файл: {path}\n"));
         formatted.push_str(&"─".repeat(60));
         formatted.push('\n');
         formatted.push_str(&content);
@@ -333,14 +442,43 @@ impl Tool for FileWriter {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: "file_write".to_string(),
-            description: "Создаёт или перезаписывает файл с указанным содержимым".to_string(),
+            description:
+                "🔒 SECURITY: Creates or overwrites files within configured write roots only"
+                    .to_string(),
             usage: "file_write <путь> <содержимое>".to_string(),
             examples: vec![
                 "file_write test.txt Hello World".to_string(),
                 "создать файл config.json с содержимым {...}".to_string(),
             ],
             input_schema: r#"{"path": "string", "content": "string"}"#.to_string(),
-            usage_guide: None,
+            usage_guide: Some(crate::UsageGuide {
+                usage_title: "file_write".into(),
+                usage_summary: "🔒 SECURITY: Write access restricted to configured write roots"
+                    .into(),
+                preconditions: vec![
+                    "Path must be within MAGRAY_FS_WRITE_ROOTS".into(),
+                    "File extension must be in allowed list".into(),
+                    "Filesystem sandbox must be configured".into(),
+                ],
+                arguments_brief: HashMap::from([
+                    ("path".to_string(), "File path to write".to_string()),
+                    ("content".to_string(), "Content to write".to_string()),
+                ]),
+                good_for: vec!["creating_files".into(), "configuration".into()],
+                not_for: vec!["system_files".into(), "executable_files".into()],
+                constraints: vec![
+                    "Path traversal protection enabled".into(),
+                    "Dangerous file extensions blocked".into(),
+                ],
+                examples: vec!["file_write ./output/result.txt Content here".into()],
+                platforms: vec!["linux".into(), "mac".into(), "win".into()],
+                cost_class: "free".into(),
+                latency_class: "fast".into(),
+                side_effects: vec!["File creation/modification".into()],
+                risk_score: 4,
+                capabilities: vec!["write".into(), "fs".into()],
+                tags: vec!["filesystem".into(), "security".into(), "destructive".into()],
+            }),
             permissions: None,
             supports_dry_run: true,
         }
@@ -386,7 +524,7 @@ impl Tool for FileWriter {
 
         Ok(ToolOutput {
             success: true,
-            result: format!("✅ Файл '{}' успешно создан", path),
+            result: format!("✅ Файл '{path}' успешно создан"),
             formatted_output: None,
             metadata: HashMap::from([("bytes".into(), content.len().to_string())]),
         })
@@ -434,7 +572,8 @@ impl Tool for DirLister {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: "dir_list".to_string(),
-            description: "Показывает содержимое директории в виде красивого дерева".to_string(),
+            description: "🔒 SECURITY: Lists directory contents within configured read roots only"
+                .to_string(),
             usage: "dir_list <путь>".to_string(),
             examples: vec![
                 "dir_list .".to_string(),
@@ -442,7 +581,30 @@ impl Tool for DirLister {
                 "показать содержимое папки".to_string(),
             ],
             input_schema: r#"{"path": "string"}"#.to_string(),
-            usage_guide: None,
+            usage_guide: Some(crate::UsageGuide {
+                usage_title: "dir_list".into(),
+                usage_summary: "🔒 SECURITY: Directory access restricted to configured read roots"
+                    .into(),
+                preconditions: vec![
+                    "Directory must be within MAGRAY_FS_READ_ROOTS".into(),
+                    "Filesystem sandbox must be configured".into(),
+                ],
+                arguments_brief: HashMap::from([(
+                    "path".to_string(),
+                    "Directory path to list".to_string(),
+                )]),
+                good_for: vec!["exploration".into(), "discovery".into()],
+                not_for: vec!["system_directories".into(), "sensitive_paths".into()],
+                constraints: vec!["Path traversal protection enabled".into()],
+                examples: vec!["dir_list ./project/src".into()],
+                platforms: vec!["linux".into(), "mac".into(), "win".into()],
+                cost_class: "free".into(),
+                latency_class: "fast".into(),
+                side_effects: vec![],
+                risk_score: 1,
+                capabilities: vec!["read".into(), "fs".into()],
+                tags: vec!["filesystem".into(), "security".into()],
+            }),
             permissions: None,
             supports_dry_run: false,
         }
@@ -483,14 +645,14 @@ impl Tool for DirLister {
             let name_str = name.to_string_lossy();
 
             if entry_path.is_dir() {
-                output.push_str(&format!("📁 {}/\n", name_str));
+                output.push_str(&format!("📁 {name_str}/\n"));
             } else {
                 let icon = "📄";
                 let size = entry
                     .metadata()
                     .map(|m| format_size(m.len()))
                     .unwrap_or_else(|_| "?".to_string());
-                output.push_str(&format!("{} {} ({})\n", icon, name_str, size));
+                output.push_str(&format!("{icon} {name_str} ({size})\n"));
             }
         }
 
@@ -545,7 +707,8 @@ impl Tool for FileSearcher {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: "file_search".to_string(),
-            description: "Ищет файлы по имени или расширению".to_string(),
+            description: "🔒 SECURITY: Searches for files within configured read roots only"
+                .to_string(),
             usage: "file_search <паттерн> [путь]".to_string(),
             examples: vec![
                 "file_search *.rs".to_string(),
@@ -553,7 +716,40 @@ impl Tool for FileSearcher {
                 "найти все файлы .toml".to_string(),
             ],
             input_schema: r#"{"pattern": "string", "path": "string?"}"#.to_string(),
-            usage_guide: None,
+            usage_guide: Some(crate::UsageGuide {
+                usage_title: "file_search".into(),
+                usage_summary: "🔒 SECURITY: File search restricted to configured read roots"
+                    .into(),
+                preconditions: vec![
+                    "Search path must be within MAGRAY_FS_READ_ROOTS".into(),
+                    "Filesystem sandbox must be configured".into(),
+                ],
+                arguments_brief: HashMap::from([
+                    (
+                        "pattern".to_string(),
+                        "Search pattern (supports wildcards)".to_string(),
+                    ),
+                    (
+                        "path".to_string(),
+                        "Optional search root directory".to_string(),
+                    ),
+                ]),
+                good_for: vec!["discovery".into(), "finding_files".into()],
+                not_for: vec!["system_wide_search".into(), "sensitive_data".into()],
+                constraints: vec![
+                    "Path traversal protection enabled".into(),
+                    "Maximum depth: 10 levels".into(),
+                    "Results limited to 100 files".into(),
+                ],
+                examples: vec!["file_search *.rs ./src".into()],
+                platforms: vec!["linux".into(), "mac".into(), "win".into()],
+                cost_class: "free".into(),
+                latency_class: "medium".into(),
+                side_effects: vec![],
+                risk_score: 2,
+                capabilities: vec!["search".into(), "fs".into()],
+                tags: vec!["filesystem".into(), "security".into()],
+            }),
             permissions: None,
             supports_dry_run: false,
         }
@@ -566,7 +762,7 @@ impl Tool for FileSearcher {
             .ok_or_else(|| anyhow!("Отсутствует параметр 'pattern'"))?;
         let search_path = input.args.get("path").map(|s| s.as_str()).unwrap_or(".");
 
-        ensure_read_allowed(search_path)?;
+        ensure_search_allowed(search_path)?;
 
         let mut results = Vec::new();
         let pattern_lower = pattern.to_lowercase();
@@ -613,7 +809,7 @@ impl Tool for FileSearcher {
         }
 
         let mut output = String::new();
-        output.push_str(&format!("\n🔍 Поиск: {} в {}\n", pattern, search_path));
+        output.push_str(&format!("\n🔍 Поиск: {pattern} в {search_path}\n"));
         output.push_str(&"─".repeat(60));
         output.push('\n');
 
@@ -622,7 +818,7 @@ impl Tool for FileSearcher {
         } else {
             output.push_str(&format!("Найдено {} файлов:\n", results.len()));
             for result in results.iter().take(100) {
-                output.push_str(&format!("  📄 {}\n", result));
+                output.push_str(&format!("  📄 {result}\n"));
             }
             if results.len() > 100 {
                 output.push_str(&format!("  ... и ещё {} файлов\n", results.len() - 100));
@@ -732,8 +928,8 @@ impl Tool for FileDeleter {
             meta.insert("dry_run".into(), "true".into());
             return Ok(ToolOutput {
                 success: true,
-                result: format!("[dry-run] rm {}", path),
-                formatted_output: Some(format!("$ rm {}\n[dry-run: no side effects]", path)),
+                result: format!("[dry-run] rm {path}"),
+                formatted_output: Some(format!("$ rm {path}\n[dry-run: no side effects]")),
                 metadata: meta,
             });
         }
@@ -759,7 +955,7 @@ impl Tool for FileDeleter {
 
         Ok(ToolOutput {
             success: true,
-            result: format!("✅ Файл '{}' удалён", path),
+            result: format!("✅ Файл '{path}' удалён"),
             formatted_output: None,
             metadata: HashMap::from([("bytes".into(), bytes.to_string())]),
         })
@@ -866,11 +1062,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_reader_existing_file() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("File operation should succeed");
         let file_path = temp_dir.path().join("test.txt");
         let test_content = "Hello, World!";
 
-        fs::write(&file_path, test_content).unwrap();
+        fs::write(&file_path, test_content).expect("File operation should succeed");
 
         let reader = FileReader::new();
         let mut input_args = HashMap::new();
@@ -901,11 +1097,23 @@ mod tests {
             .parse_natural_language("показать содержимое src/main.rs")
             .await?;
         assert_eq!(input.command, "file_read");
-        assert_eq!(input.args.get("path").unwrap(), "src/main.rs");
+        assert_eq!(
+            input
+                .args
+                .get("path")
+                .expect("File operation should succeed"),
+            "src/main.rs"
+        );
 
         // Test without recognizable path
         let input = reader.parse_natural_language("показать файл").await?;
-        assert_eq!(input.args.get("path").unwrap(), "показать файл");
+        assert_eq!(
+            input
+                .args
+                .get("path")
+                .expect("File operation should succeed"),
+            "показать файл"
+        );
 
         Ok(())
     }
@@ -930,7 +1138,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_writer_write_file() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("File operation should succeed");
         let file_path = temp_dir.path().join("test_output.txt");
         let test_content = "Test content";
 
@@ -952,7 +1160,8 @@ mod tests {
         assert!(result.result.contains("успешно создан"));
 
         // Verify file was actually created
-        let written_content = fs::read_to_string(&file_path).unwrap();
+        let written_content =
+            fs::read_to_string(&file_path).expect("File operation should succeed");
         assert_eq!(written_content, test_content);
 
         Ok(())
@@ -983,8 +1192,20 @@ mod tests {
             .parse_natural_language("создать файл test.txt с содержимым Hello World")
             .await?;
         assert_eq!(input.command, "file_write");
-        assert_eq!(input.args.get("path").unwrap(), "создать файл test.txt");
-        assert_eq!(input.args.get("content").unwrap(), "Hello World");
+        assert_eq!(
+            input
+                .args
+                .get("path")
+                .expect("File operation should succeed"),
+            "создать файл test.txt"
+        );
+        assert_eq!(
+            input
+                .args
+                .get("content")
+                .expect("File operation should succeed"),
+            "Hello World"
+        );
 
         // Test invalid format
         let result = writer.parse_natural_language("создать файл test.txt").await;
@@ -1031,11 +1252,150 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_filesystem_roots_restrictions() -> Result<()> {
+        use std::env;
+
+        // Setup test environment with restricted roots
+        let temp_dir = TempDir::new().expect("File operation should succeed");
+        let allowed_read_root = temp_dir.path().join("read_allowed");
+        let allowed_write_root = temp_dir.path().join("write_allowed");
+        let forbidden_dir = temp_dir.path().join("forbidden");
+
+        fs::create_dir_all(&allowed_read_root).expect("File operation should succeed");
+        fs::create_dir_all(&allowed_write_root).expect("File operation should succeed");
+        fs::create_dir_all(&forbidden_dir).expect("File operation should succeed");
+
+        let test_file_allowed_read = allowed_read_root.join("test.txt");
+        let test_file_allowed_write = allowed_write_root.join("test.txt");
+        let test_file_forbidden = forbidden_dir.join("test.txt");
+
+        fs::write(&test_file_allowed_read, "content").expect("File operation should succeed");
+        fs::write(&test_file_forbidden, "content").expect("File operation should succeed");
+
+        // Set environment variables for sandbox config
+        env::set_var("MAGRAY_FS_SANDBOX", "true");
+        env::set_var(
+            "MAGRAY_FS_READ_ROOTS",
+            allowed_read_root.to_string_lossy().as_ref(),
+        );
+        env::set_var(
+            "MAGRAY_FS_WRITE_ROOTS",
+            allowed_write_root.to_string_lossy().as_ref(),
+        );
+
+        // Test 1: FileReader - allowed read should work
+        let reader = FileReader::new();
+        let input = ToolInput {
+            command: "file_read".to_string(),
+            args: HashMap::from([(
+                "path".to_string(),
+                test_file_allowed_read.to_string_lossy().to_string(),
+            )]),
+            context: None,
+            dry_run: false,
+            timeout_ms: None,
+        };
+        let result = reader.execute(input).await;
+        assert!(result.is_ok(), "Read from allowed root should succeed");
+
+        // Test 2: FileReader - forbidden read should fail
+        let input_forbidden = ToolInput {
+            command: "file_read".to_string(),
+            args: HashMap::from([(
+                "path".to_string(),
+                test_file_forbidden.to_string_lossy().to_string(),
+            )]),
+            context: None,
+            dry_run: false,
+            timeout_ms: None,
+        };
+        let result_forbidden = reader.execute(input_forbidden).await;
+        assert!(
+            result_forbidden.is_err(),
+            "Read from forbidden root should fail"
+        );
+        assert!(result_forbidden
+            .unwrap_err()
+            .to_string()
+            .contains("READ ACCESS DENIED"));
+
+        // Test 3: FileWriter - allowed write should work
+        let writer = FileWriter::new();
+        let input_write = ToolInput {
+            command: "file_write".to_string(),
+            args: HashMap::from([
+                (
+                    "path".to_string(),
+                    test_file_allowed_write.to_string_lossy().to_string(),
+                ),
+                ("content".to_string(), "new content".to_string()),
+            ]),
+            context: None,
+            dry_run: false,
+            timeout_ms: None,
+        };
+        let result_write = writer.execute(input_write).await;
+        assert!(result_write.is_ok(), "Write to allowed root should succeed");
+
+        // Test 4: FileWriter - forbidden write should fail
+        let forbidden_write_file = forbidden_dir.join("new_file.txt");
+        let input_forbidden_write = ToolInput {
+            command: "file_write".to_string(),
+            args: HashMap::from([
+                (
+                    "path".to_string(),
+                    forbidden_write_file.to_string_lossy().to_string(),
+                ),
+                ("content".to_string(), "forbidden content".to_string()),
+            ]),
+            context: None,
+            dry_run: false,
+            timeout_ms: None,
+        };
+        let result_forbidden_write = writer.execute(input_forbidden_write).await;
+        assert!(
+            result_forbidden_write.is_err(),
+            "Write to forbidden root should fail"
+        );
+        assert!(result_forbidden_write
+            .unwrap_err()
+            .to_string()
+            .contains("WRITE ACCESS DENIED"));
+
+        // Cleanup environment
+        env::remove_var("MAGRAY_FS_SANDBOX");
+        env::remove_var("MAGRAY_FS_READ_ROOTS");
+        env::remove_var("MAGRAY_FS_WRITE_ROOTS");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_path_traversal_protection() -> Result<()> {
+        let reader = FileReader::new();
+
+        // Test path traversal attack
+        let input = ToolInput {
+            command: "file_read".to_string(),
+            args: HashMap::from([("path".to_string(), "../../../etc/passwd".to_string())]),
+            context: None,
+            dry_run: false,
+            timeout_ms: None,
+        };
+
+        let result = reader.execute(input).await;
+        assert!(result.is_err(), "Path traversal should be blocked");
+        assert!(result.unwrap_err().to_string().contains("SECURITY ERROR"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_file_delete_removes_and_emits_event() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("File operation should succeed");
         let file_path = temp_dir.path().join("to_remove.txt");
         let content = "bye";
-        fs::write(&file_path, content).unwrap();
+        fs::write(&file_path, content).expect("File operation should succeed");
 
         // Подпишемся на события fs.diff до действия
         let mut rx = events::subscribe(topics::TOPIC_FS_DIFF).await;

@@ -29,7 +29,7 @@ fn create_test_record(id: &str, dimension: usize) -> Record {
 }
 
 fn bench_vector_store_operations(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
 
     // Test vector store operations with different batch sizes
     let mut group = c.benchmark_group("vector_store_operations");
@@ -44,16 +44,21 @@ fn bench_vector_store_operations(c: &mut Criterion) {
                 b.to_async(&rt).iter_batched(
                     || {
                         // Setup: create fresh store and records
-                        let temp_dir = tempfile::tempdir().unwrap();
+                        let temp_dir = tempfile::tempdir().expect("Test operation should succeed");
                         let records: Vec<_> = (0..size)
                             .map(|i| create_test_record(&format!("test_{}", i), DIMENSIONS))
                             .collect();
                         (temp_dir, records)
                     },
                     |(temp_dir, records)| async move {
-                        let store = VectorStore::new(temp_dir.path()).await.unwrap();
+                        let store = VectorStore::new(temp_dir.path())
+                            .await
+                            .expect("Test operation should succeed");
                         let record_refs: Vec<_> = records.iter().collect();
-                        store.insert_batch(&record_refs).await.unwrap();
+                        store
+                            .insert_batch(&record_refs)
+                            .await
+                            .expect("Test operation should succeed");
                     },
                     criterion::BatchSize::SmallInput,
                 );
@@ -65,17 +70,22 @@ fn bench_vector_store_operations(c: &mut Criterion) {
 }
 
 fn bench_hnsw_search_performance(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
 
-    let temp_dir = tempfile::tempdir().unwrap();
+    let temp_dir = tempfile::tempdir().expect("Test operation should succeed");
     let store = rt.block_on(async {
-        let store = VectorStore::new(temp_dir.path()).await.unwrap();
+        let store = VectorStore::new(temp_dir.path())
+            .await
+            .expect("Test operation should succeed");
 
         let records: Vec<_> = (0..10000)
             .map(|i| create_test_record(&format!("search_test_{}", i), DIMENSIONS))
             .collect();
         let record_refs: Vec<_> = records.iter().collect();
-        store.insert_batch(&record_refs).await.unwrap();
+        store
+            .insert_batch(&record_refs)
+            .await
+            .expect("Test operation should succeed");
         store
     });
 
@@ -94,7 +104,7 @@ fn bench_hnsw_search_performance(c: &mut Criterion) {
                     store
                         .search(&query_embedding, Layer::Interact, search_limit)
                         .await
-                        .unwrap()
+                        .expect("Test operation should succeed")
                 });
             },
         );
@@ -104,7 +114,7 @@ fn bench_hnsw_search_performance(c: &mut Criterion) {
 }
 
 fn bench_cache_performance(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
 
     let mut group = c.benchmark_group("embedding_cache");
 
@@ -118,9 +128,10 @@ fn bench_cache_performance(c: &mut Criterion) {
                 b.to_async(&rt).iter_batched(
                     || {
                         // Setup: create fresh cache
-                        let temp_dir = tempfile::tempdir().unwrap();
+                        let temp_dir = tempfile::tempdir().expect("Test operation should succeed");
                         let config = CacheConfig::default();
-                        let cache = EmbeddingCache::new(temp_dir.path(), config).unwrap();
+                        let cache = EmbeddingCache::new(temp_dir.path(), config)
+                            .expect("Test operation should succeed");
 
                         let test_data: Vec<_> = (0..size)
                             .map(|i| {
@@ -156,7 +167,7 @@ fn bench_cache_performance(c: &mut Criterion) {
 }
 
 fn bench_promotion_engine(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
 
     let mut group = c.benchmark_group("promotion_engine");
 
@@ -164,9 +175,11 @@ fn bench_promotion_engine(c: &mut Criterion) {
         b.to_async(&rt).iter_batched(
             || {
                 // Setup: create store with test data
-                let temp_dir = tempfile::tempdir().unwrap();
+                let temp_dir = tempfile::tempdir().expect("Test operation should succeed");
                 rt.block_on(async {
-                    let store = VectorStore::new(temp_dir.path()).await.unwrap();
+                    let store = VectorStore::new(temp_dir.path())
+                        .await
+                        .expect("Test operation should succeed");
 
                     let records: Vec<_> = (0..1000)
                         .map(|i| {
@@ -177,19 +190,25 @@ fn bench_promotion_engine(c: &mut Criterion) {
                         })
                         .collect();
                     let record_refs: Vec<_> = records.iter().collect();
-                    store.insert_batch(&record_refs).await.unwrap();
+                    store
+                        .insert_batch(&record_refs)
+                        .await
+                        .expect("Test operation should succeed");
 
                     let config = MLPromotionConfig::default();
                     rt.block_on(async {
                         MLPromotionEngine::new(std::sync::Arc::new(store), config)
                             .await
-                            .unwrap()
+                            .expect("Test operation should succeed")
                     })
                 })
             },
             |mut engine| async move {
                 // Benchmark: run promotion cycle
-                engine.run_ml_promotion_cycle().await.unwrap();
+                engine
+                    .run_ml_promotion_cycle()
+                    .await
+                    .expect("Test operation should succeed");
             },
             criterion::BatchSize::SmallInput,
         );
@@ -199,7 +218,7 @@ fn bench_promotion_engine(c: &mut Criterion) {
 }
 
 fn bench_memory_service_integration(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("Test operation should succeed");
 
     let mut group = c.benchmark_group("memory_service_integration");
 
@@ -208,9 +227,14 @@ fn bench_memory_service_integration(c: &mut Criterion) {
             || {
                 // Setup: create full memory service
                 rt.block_on(async {
-                    let config = default_config().unwrap();
-                    let service = DIMemoryService::new(config).await.unwrap();
-                    service.initialize().await.unwrap();
+                    let config = default_config().expect("Test operation should succeed");
+                    let service = DIMemoryService::new(config)
+                        .await
+                        .expect("Test operation should succeed");
+                    service
+                        .initialize()
+                        .await
+                        .expect("Test operation should succeed");
 
                     let test_records: Vec<_> = (0..100)
                         .map(|i| create_test_record(&format!("integration_test_{}", i), DIMENSIONS))
@@ -222,7 +246,10 @@ fn bench_memory_service_integration(c: &mut Criterion) {
             |(service, records)| async move {
                 // Benchmark: full workflow
                 for record in &records {
-                    service.insert(record.clone()).await.unwrap();
+                    service
+                        .insert(record.clone())
+                        .await
+                        .expect("Test operation should succeed");
                 }
 
                 let query = "test content";
@@ -236,7 +263,7 @@ fn bench_memory_service_integration(c: &mut Criterion) {
                 let search_results = service
                     .search(query, Layer::Interact, search_options)
                     .await
-                    .unwrap();
+                    .expect("Test operation should succeed");
 
                 // Verify results
                 assert!(!search_results.is_empty());

@@ -186,68 +186,68 @@ mod tests {
 
     #[test]
     fn test_memory_container_creation() {
-        let container = create_memory_container().unwrap();
+        let container = create_memory_container().expect("DI integration operation should succeed");
 
         assert!(container.is_registered::<MemoryService>());
         assert!(container.is_registered::<CacheService>());
         assert!(container.is_registered::<OrchestratorService>());
 
-        let orchestrator = container.resolve::<OrchestratorService>().unwrap();
+        let orchestrator = container.resolve::<OrchestratorService>().expect("DI integration operation should succeed");
         let result = orchestrator.orchestrate();
         assert!(result.contains("Orchestrating with memory"));
     }
 
     #[test]
     fn test_advanced_container() {
-        let container = create_advanced_memory_container().unwrap();
+        let container = create_advanced_memory_container().expect("DI integration operation should succeed");
 
         // Проверяем все сервисы
-        let config = container.resolve::<SimpleConfig>().unwrap();
+        let config = container.resolve::<SimpleConfig>().expect("DI integration operation should succeed");
         assert_eq!(config.max_services, 2000); // production config
 
-        let memory = container.resolve::<MemoryService>().unwrap();
+        let memory = container.resolve::<MemoryService>().expect("DI integration operation should succeed");
         assert!(memory.health_check());
 
-        let cache1 = container.resolve::<CacheService>().unwrap();
-        let cache2 = container.resolve::<CacheService>().unwrap();
+        let cache1 = container.resolve::<CacheService>().expect("DI integration operation should succeed");
+        let cache2 = container.resolve::<CacheService>().expect("DI integration operation should succeed");
         // Transient - разные экземпляры
         assert!(!Arc::ptr_eq(&cache1, &cache2));
         assert_eq!(cache1.get_capacity(), 2000);
 
-        let orchestrator = container.resolve::<OrchestratorService>().unwrap();
+        let orchestrator = container.resolve::<OrchestratorService>().expect("DI integration operation should succeed");
         assert!(!orchestrator.orchestrate().is_empty());
     }
 
     #[test]
     fn test_migration_demo() {
         // Это не должно падать
-        migration_example().unwrap();
+        migration_example().expect("DI integration operation should succeed");
     }
 
     #[test]
     fn test_service_lifecycles() {
-        let container = create_advanced_memory_container().unwrap();
+        let container = create_advanced_memory_container().expect("DI integration operation should succeed");
 
         // Singleton services
-        let config1 = container.resolve::<SimpleConfig>().unwrap();
-        let config2 = container.resolve::<SimpleConfig>().unwrap();
+        let config1 = container.resolve::<SimpleConfig>().expect("DI integration operation should succeed");
+        let config2 = container.resolve::<SimpleConfig>().expect("DI integration operation should succeed");
         assert!(Arc::ptr_eq(&config1, &config2));
 
-        let memory1 = container.resolve::<MemoryService>().unwrap();
-        let memory2 = container.resolve::<MemoryService>().unwrap();
+        let memory1 = container.resolve::<MemoryService>().expect("DI integration operation should succeed");
+        let memory2 = container.resolve::<MemoryService>().expect("DI integration operation should succeed");
         assert!(Arc::ptr_eq(&memory1, &memory2));
 
         // Transient services
-        let cache1 = container.resolve::<CacheService>().unwrap();
-        let cache2 = container.resolve::<CacheService>().unwrap();
+        let cache1 = container.resolve::<CacheService>().expect("DI integration operation should succeed");
+        let cache2 = container.resolve::<CacheService>().expect("DI integration operation should succeed");
         assert!(!Arc::ptr_eq(&cache1, &cache2));
     }
 
     #[test]
     fn test_dependency_resolution() {
-        let container = create_advanced_memory_container().unwrap();
+        let container = create_advanced_memory_container().expect("DI integration operation should succeed");
 
-        let orchestrator = container.resolve::<OrchestratorService>().unwrap();
+        let orchestrator = container.resolve::<OrchestratorService>().expect("DI integration operation should succeed");
 
         // Проверяем что зависимости правильно внедрены
         let result = orchestrator.orchestrate();

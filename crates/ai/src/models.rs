@@ -78,8 +78,7 @@ impl OnnxSession {
 
         if !std::path::Path::new(&ort_lib_path).exists() {
             return Err(AiError::ModelLoadError(format!(
-                "ONNX Runtime library not found at: {}",
-                ort_lib_path
+                "ONNX Runtime library not found at: {ort_lib_path}"
             )));
         }
 
@@ -330,7 +329,10 @@ mod tests {
 
         let fallback_reason = session.get_fallback_reason();
         assert!(fallback_reason.is_some());
-        assert_eq!(fallback_reason.unwrap(), "Test fallback");
+        assert_eq!(
+            fallback_reason.expect("Operation should succeed"),
+            "Test fallback"
+        );
     }
 
     #[test]
@@ -349,11 +351,11 @@ mod tests {
 
     #[test]
     fn test_onnx_session_with_existing_file() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
         let model_path = temp_dir.path().join("model.onnx");
 
         // Create empty model file
-        File::create(&model_path).unwrap();
+        File::create(&model_path).expect("Operation should succeed");
 
         let session = OnnxSession::new("test_embed_model".to_string(), model_path.clone(), false)?;
 
@@ -440,7 +442,7 @@ mod tests {
 
     #[test]
     fn test_model_loader_creation() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
         let _loader = ModelLoader::new(temp_dir.path())?;
 
         // Directory should be created
@@ -451,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_model_loader_model_exists() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
         let loader = ModelLoader::new(temp_dir.path())?;
 
         // Model doesn't exist yet
@@ -459,7 +461,7 @@ mod tests {
 
         // Create model directory
         let model_dir = temp_dir.path().join("test_model");
-        std::fs::create_dir(&model_dir).unwrap();
+        std::fs::create_dir(&model_dir).expect("Operation should succeed");
 
         // Now it should exist
         assert!(loader.model_exists("test_model"));
@@ -469,7 +471,7 @@ mod tests {
 
     #[test]
     fn test_model_loader_list_models() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
         let loader = ModelLoader::new(temp_dir.path())?;
 
         // Initially empty
@@ -477,8 +479,8 @@ mod tests {
         assert!(models.is_empty());
 
         // Create some model directories
-        std::fs::create_dir(temp_dir.path().join("model_a")).unwrap();
-        std::fs::create_dir(temp_dir.path().join("model_b")).unwrap();
+        std::fs::create_dir(temp_dir.path().join("model_a")).expect("Operation should succeed");
+        std::fs::create_dir(temp_dir.path().join("model_b")).expect("Operation should succeed");
 
         let models = loader.list_models()?;
         assert_eq!(models.len(), 2);
@@ -490,7 +492,7 @@ mod tests {
 
     #[test]
     fn test_model_loader_get_model_path() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
         let loader = ModelLoader::new(temp_dir.path())?;
 
         let expected_path = temp_dir.path().join("test_model").join("model.onnx");
@@ -503,19 +505,19 @@ mod tests {
 
     #[test]
     fn test_model_loader_get_tokenizer_path() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
         let loader = ModelLoader::new(temp_dir.path())?;
 
         // Create model directory
         let model_dir = temp_dir.path().join("test_model");
-        std::fs::create_dir(&model_dir).unwrap();
+        std::fs::create_dir(&model_dir).expect("Operation should succeed");
 
         // Default case - no tokenizer files exist
         let tokenizer_path = loader.get_tokenizer_path("test_model");
         assert_eq!(tokenizer_path, model_dir.join("tokenizer.json"));
 
         // Create tokenizer.json
-        File::create(model_dir.join("tokenizer.json")).unwrap();
+        File::create(model_dir.join("tokenizer.json")).expect("Operation should succeed");
         let tokenizer_path = loader.get_tokenizer_path("test_model");
         assert_eq!(tokenizer_path, model_dir.join("tokenizer.json"));
 
@@ -524,7 +526,7 @@ mod tests {
 
     #[test]
     fn test_model_loader_load_nonexistent_model() -> Result<()> {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
         let loader = ModelLoader::new(temp_dir.path())?;
 
         let result = loader.load_model("nonexistent_model", false);

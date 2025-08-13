@@ -45,7 +45,7 @@ async fn verify_sha256(path: &Path, expected_hex: &str) -> Result<bool> {
         hasher.update(&buf[..n]);
     }
     let result = hasher.finalize();
-    let hex = format!("{:x}", result);
+    let hex = format!("{result:x}");
     Ok(hex.eq_ignore_ascii_case(expected_hex))
 }
 
@@ -56,7 +56,7 @@ impl ModelDownloader {
         if let Ok(token) = std::env::var("HF_TOKEN") {
             if !token.is_empty() {
                 if let Ok(value) =
-                    reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token))
+                    reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))
                 {
                     headers.insert(reqwest::header::AUTHORIZATION, value);
                 }
@@ -527,10 +527,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_model_info() {
-        let temp_dir = TempDir::new().unwrap();
-        let downloader = ModelDownloader::new(temp_dir.path()).unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
+        let downloader = ModelDownloader::new(temp_dir.path()).expect("Operation should succeed");
 
-        let info = downloader.get_model_info("qwen3emb").unwrap();
+        let info = downloader
+            .get_model_info("qwen3emb")
+            .expect("Operation should succeed");
         assert_eq!(info.name, "qwen3emb");
         assert!(!info.files.is_empty());
         assert!(info.total_size == 0);
@@ -538,26 +540,34 @@ mod tests {
 
     #[tokio::test]
     async fn test_model_detection() {
-        let temp_dir = TempDir::new().unwrap();
-        let downloader = ModelDownloader::new(temp_dir.path()).unwrap();
+        let temp_dir = TempDir::new().expect("Operation should succeed");
+        let downloader = ModelDownloader::new(temp_dir.path()).expect("Operation should succeed");
 
         let model_path = temp_dir.path().join("qwen3emb");
-        let is_complete = downloader.is_model_complete(&model_path).await.unwrap();
+        let is_complete = downloader
+            .is_model_complete(&model_path)
+            .await
+            .expect("Operation should succeed");
         assert!(!is_complete);
 
         // Создаём фейковые файлы
-        fs::create_dir_all(&model_path).await.unwrap();
+        fs::create_dir_all(&model_path)
+            .await
+            .expect("Operation should succeed");
         fs::write(model_path.join("model.onnx"), b"fake")
             .await
-            .unwrap();
+            .expect("Operation should succeed");
         fs::write(model_path.join("tokenizer.json"), b"fake")
             .await
-            .unwrap();
+            .expect("Operation should succeed");
         fs::write(model_path.join("config.json"), b"fake")
             .await
-            .unwrap();
+            .expect("Operation should succeed");
 
-        let is_complete = downloader.is_model_complete(&model_path).await.unwrap();
+        let is_complete = downloader
+            .is_model_complete(&model_path)
+            .await
+            .expect("Operation should succeed");
         assert!(is_complete);
     }
 }

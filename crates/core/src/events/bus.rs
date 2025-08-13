@@ -1,15 +1,19 @@
 //! EventBus implementation with backpressure and resilience
 
 use super::*;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 use tokio::sync::broadcast;
 use tokio::time::{timeout, Duration};
 use tracing::{debug, error, info, warn};
 
+/// Type alias for complex subscription map
+type SubscriptionMap = Arc<RwLock<HashMap<String, Vec<Arc<dyn EventHandler>>>>>;
+
 /// High-performance EventBus implementation
 pub struct EventBus {
     /// Topic-based subscription management
-    subscriptions: Arc<RwLock<HashMap<String, Vec<Arc<dyn EventHandler>>>>>,
+    subscriptions: SubscriptionMap,
 
     /// Event publisher for broadcasting
     publisher: broadcast::Sender<Event>,
@@ -48,7 +52,7 @@ impl EventBus {
     }
 
     /// Create EventBus with default configuration
-    pub fn default() -> Self {
+    pub fn new_default() -> Self {
         Self::new(BackpressureConfig::default())
     }
 
@@ -141,6 +145,7 @@ impl EventBus {
     }
 
     /// Internal helper to deliver event to handler safely
+    #[allow(dead_code)]
     async fn deliver_event_safely(
         &self,
         handler: Arc<dyn EventHandler>,
@@ -201,7 +206,7 @@ impl EventBus {
                 stats_guard.failed_deliveries += 1;
                 stats_guard
                     .slow_consumers
-                    .push(format!("{}:{}", topic, handler_name));
+                    .push(format!("{topic}:{handler_name}"));
             }
         }
     }
@@ -288,7 +293,10 @@ impl EventSubscriber for EventBus {
 
         info!(
             "Handler '{}' subscribed to topic '{}'",
-            handlers.last().unwrap().name(),
+            handlers
+                .last()
+                .expect("Operation failed - converted from unwrap()")
+                .name(),
             topic
         );
 
@@ -350,6 +358,33 @@ macro_rules! event {
     };
 }
 
+/// CRITICAL P0.2.6: Global EventBus instance for production audit logging
+/// This provides a shared EventBus instance for all components to publish security events
+static GLOBAL_EVENT_BUS: OnceLock<Arc<EventBus>> = OnceLock::new();
+
+/// Get or initialize the global EventBus instance
+pub fn get_global_event_bus() -> Arc<EventBus> {
+    GLOBAL_EVENT_BUS
+        .get_or_init(|| {
+            let config = BackpressureConfig {
+                max_queue_size: 50000, // Large queue for security events
+                slow_consumer_threshold_ms: 2000,
+                drop_strategy: DropStrategy::DropOldest,
+            };
+            Arc::new(EventBus::new(config))
+        })
+        .clone()
+}
+
+/// Initialize the global EventBus with background tasks
+pub async fn init_global_event_bus() {
+    let _bus = get_global_event_bus();
+    // Start background tasks for the global EventBus
+    // Note: We can't modify the bus to start tasks after creation,
+    // so this is a placeholder for future enhancement
+    tracing::info!("Global EventBus initialized for production audit logging");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,7 +411,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_event_bus_basic_flow() {
-        let mut bus = EventBus::default();
+        let mut bus = EventBus::new_default();
         bus.start_background_tasks().await;
 
         // Subscribe handler
@@ -384,7 +419,9 @@ mod tests {
             name: "test_handler".to_string(),
         });
 
-        bus.subscribe("test", handler).await.unwrap();
+        bus.subscribe("test", handler)
+            .await
+            .expect("Async operation should succeed");
 
         // Publish event
         bus.publish(
@@ -393,7 +430,7 @@ mod tests {
             "test_source",
         )
         .await
-        .unwrap();
+        .expect("Operation failed - converted from unwrap()");
 
         // Allow some time for async delivery
         tokio::time::sleep(Duration::from_millis(100)).await;

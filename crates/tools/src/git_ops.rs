@@ -46,14 +46,14 @@ impl Tool for GitStatus {
             Ok(ToolOutput {
                 success: true,
                 result: stdout.to_string(),
-                formatted_output: Some(format!("Git status:\n{}", stdout)),
+                formatted_output: Some(format!("Git status:\n{stdout}")),
                 metadata: HashMap::new(),
             })
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr);
             Ok(ToolOutput {
                 success: false,
-                result: format!("Git error: {}", stderr),
+                result: format!("Git error: {stderr}"),
                 formatted_output: None,
                 metadata: HashMap::new(),
             })
@@ -118,10 +118,9 @@ impl Tool for GitCommit {
             meta.insert("message".into(), message.clone());
             return Ok(ToolOutput {
                 success: true,
-                result: format!("[dry-run] git add . && git commit -m \"{}\"", message),
+                result: format!("[dry-run] git add . && git commit -m \"{message}\""),
                 formatted_output: Some(format!(
-                    "$ git add .\n$ git commit -m \"{}\"\n[dry-run: no side effects]",
-                    message
+                    "$ git add .\n$ git commit -m \"{message}\"\n[dry-run: no side effects]"
                 )),
                 metadata: meta,
             });
@@ -156,7 +155,7 @@ impl Tool for GitCommit {
             let stderr = String::from_utf8_lossy(&add.stderr);
             return Ok(ToolOutput {
                 success: false,
-                result: format!("Ошибка git add: {}", stderr),
+                result: format!("Ошибка git add: {stderr}"),
                 formatted_output: None,
                 metadata: HashMap::new(),
             });
@@ -225,14 +224,14 @@ impl Tool for GitCommit {
             Ok(ToolOutput {
                 success: true,
                 result: stdout.to_string(),
-                formatted_output: Some(format!("✅ Создан коммит:\n{}", stdout)),
+                formatted_output: Some(format!("✅ Создан коммит:\n{stdout}")),
                 metadata: HashMap::from([("message".into(), message)]),
             })
         } else {
             let stderr = String::from_utf8_lossy(&commit.stderr);
             Ok(ToolOutput {
                 success: false,
-                result: format!("Ошибка коммита: {}", stderr),
+                result: format!("Ошибка коммита: {stderr}"),
                 formatted_output: None,
                 metadata: HashMap::new(),
             })
@@ -322,7 +321,7 @@ impl Tool for GitDiff {
                 formatted_output: Some(if stdout.is_empty() {
                     "Нет незакоммиченных изменений".to_string()
                 } else {
-                    format!("Git diff:\n{}", stdout)
+                    format!("Git diff:\n{stdout}")
                 }),
                 metadata: HashMap::new(),
             })
@@ -330,7 +329,7 @@ impl Tool for GitDiff {
             let stderr = String::from_utf8_lossy(&output.stderr);
             Ok(ToolOutput {
                 success: false,
-                result: format!("Git error: {}", stderr),
+                result: format!("Git error: {stderr}"),
                 formatted_output: None,
                 metadata: HashMap::new(),
             })
@@ -429,11 +428,23 @@ mod tests {
             .parse_natural_language("закоммитить changes with message \"Fix bug\"")
             .await?;
         assert_eq!(input.command, "git_commit");
-        assert_eq!(input.args.get("message").unwrap(), "Fix bug");
+        assert_eq!(
+            input
+                .args
+                .get("message")
+                .expect("Operation failed - converted from unwrap()"),
+            "Fix bug"
+        );
 
         let input = git_commit.parse_natural_language("просто commit").await?;
         assert_eq!(input.command, "git_commit");
-        assert_eq!(input.args.get("message").unwrap(), "просто commit");
+        assert_eq!(
+            input
+                .args
+                .get("message")
+                .expect("Operation failed - converted from unwrap()"),
+            "просто commit"
+        );
 
         Ok(())
     }

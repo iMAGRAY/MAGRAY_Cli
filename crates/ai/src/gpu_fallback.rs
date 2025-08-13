@@ -252,7 +252,11 @@ impl GpuFallbackManager {
         // Проверяем доступность GPU через circuit breaker
         #[cfg(feature = "gpu")]
         let use_gpu = self.gpu_service.is_some()
-            && self.gpu_circuit_breaker.lock().unwrap().is_gpu_available();
+            && self
+                .gpu_circuit_breaker
+                .lock()
+                .map(|breaker| breaker.is_gpu_available())
+                .unwrap_or(false);
 
         #[cfg(not(feature = "gpu"))]
         let use_gpu = false;
@@ -307,7 +311,10 @@ impl GpuFallbackManager {
                     "❌ GPU embedding timeout после {:?}",
                     self.policy.gpu_timeout
                 );
-                self.fallback_stats.lock().unwrap().gpu_timeout_count += 1;
+                self.fallback_stats
+                    .lock()
+                    .expect("Operation should succeed")
+                    .gpu_timeout_count += 1;
                 Err(anyhow::anyhow!("GPU embedding timeout"))
             }
         }
@@ -322,14 +329,20 @@ impl GpuFallbackManager {
     /// Получить embeddings через CPU
     async fn embed_with_cpu(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let start = Instant::now();
-        self.fallback_stats.lock().unwrap().cpu_fallbacks += 1;
+        self.fallback_stats
+            .lock()
+            .expect("Operation should succeed")
+            .cpu_fallbacks += 1;
 
         let results = self.cpu_service.embed_batch(texts)?;
 
         let embeddings: Vec<Vec<f32>> = results.into_iter().map(|r| r.embedding).collect();
 
         let elapsed = start.elapsed();
-        let mut stats = self.fallback_stats.lock().unwrap();
+        let mut stats = self
+            .fallback_stats
+            .lock()
+            .expect("Operation should succeed");
         stats.avg_cpu_time_ms = (stats.avg_cpu_time_ms * stats.cpu_fallbacks as f64
             + elapsed.as_millis() as f64)
             / (stats.cpu_fallbacks + 1) as f64;
@@ -340,30 +353,48 @@ impl GpuFallbackManager {
 
     /// Записать успешный GPU вызов
     fn record_gpu_success(&self) {
-        let mut stats = self.fallback_stats.lock().unwrap();
+        let mut stats = self
+            .fallback_stats
+            .lock()
+            .expect("Operation should succeed");
         stats.gpu_successes += 1;
 
-        let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
+        let mut breaker = self
+            .gpu_circuit_breaker
+            .lock()
+            .expect("Operation should succeed");
         breaker.record_success();
     }
 
     /// Записать ошибку GPU
     fn record_gpu_error(&self) {
-        let mut stats = self.fallback_stats.lock().unwrap();
+        let mut stats = self
+            .fallback_stats
+            .lock()
+            .expect("Operation should succeed");
         stats.gpu_failures += 1;
 
-        let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
+        let mut breaker = self
+            .gpu_circuit_breaker
+            .lock()
+            .expect("Operation should succeed");
         breaker.record_error();
     }
 
     /// Получить статистику
     pub fn get_stats(&self) -> FallbackStats {
-        self.fallback_stats.lock().unwrap().clone()
+        self.fallback_stats
+            .lock()
+            .expect("Operation should succeed")
+            .clone()
     }
 
     /// Принудительно переключиться на CPU
     pub fn force_cpu_mode(&self) {
-        let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
+        let mut breaker = self
+            .gpu_circuit_breaker
+            .lock()
+            .expect("Operation should succeed");
         breaker.state = CircuitState::Open;
         breaker.last_error_time = Some(Instant::now());
         info!("🔴 Принудительное переключение на CPU режим");
@@ -371,7 +402,10 @@ impl GpuFallbackManager {
 
     /// Сбросить circuit breaker и попробовать GPU снова
     pub fn reset_circuit_breaker(&self) {
-        let mut breaker = self.gpu_circuit_breaker.lock().unwrap();
+        let mut breaker = self
+            .gpu_circuit_breaker
+            .lock()
+            .expect("Operation should succeed");
         breaker.state = CircuitState::Closed;
         breaker.consecutive_errors = 0;
         breaker.last_error_time = None;

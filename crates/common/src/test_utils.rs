@@ -56,22 +56,34 @@ impl MockHttpClient {
 
     /// Set global network delay simulation
     pub fn set_network_delay(&self, delay: Duration) {
-        *self.delay_simulation.write().unwrap() = Some(delay);
+        *self
+            .delay_simulation
+            .write()
+            .expect("RwLock should not be poisoned") = Some(delay);
     }
 
     /// Set failure rate (0.0 to 1.0) for simulating network issues
     pub fn set_failure_rate(&self, rate: f64) {
-        *self.failure_rate.write().unwrap() = rate.clamp(0.0, 1.0);
+        *self
+            .failure_rate
+            .write()
+            .expect("RwLock should not be poisoned") = rate.clamp(0.0, 1.0);
     }
 
     /// Get all logged requests for verification
     pub fn get_requests(&self) -> Vec<MockRequest> {
-        self.request_log.lock().unwrap().clone()
+        self.request_log
+            .lock()
+            .expect("Lock should not be poisoned")
+            .clone()
     }
 
     /// Clear request history
     pub fn clear_history(&self) {
-        self.request_log.lock().unwrap().clear();
+        self.request_log
+            .lock()
+            .expect("Lock should not be poisoned")
+            .clear();
     }
 
     /// Simulate making an HTTP request
@@ -90,23 +102,35 @@ impl MockHttpClient {
             body,
             timestamp: Instant::now(),
         };
-        self.request_log.lock().unwrap().push(request);
+        self.request_log
+            .lock()
+            .expect("Lock should not be poisoned")
+            .push(request);
 
         // Simulate network delay
-        let delay_opt = *self.delay_simulation.read().unwrap();
+        let delay_opt = *self
+            .delay_simulation
+            .read()
+            .expect("RwLock should not be poisoned");
         if let Some(delay) = delay_opt {
             tokio::time::sleep(delay).await;
         }
 
         // Simulate random failures
-        let failure_rate = *self.failure_rate.read().unwrap();
+        let failure_rate = *self
+            .failure_rate
+            .read()
+            .expect("RwLock should not be poisoned");
         if rand::random::<f64>() < failure_rate {
             return Err("Simulated network failure".to_string());
         }
 
         // Find matching response
         let selected_response: Option<MockResponse> = {
-            let responses = self.responses.read().unwrap();
+            let responses = self
+                .responses
+                .read()
+                .expect("RwLock should not be poisoned");
             responses
                 .iter()
                 .find(|(pattern, _)| url.contains(*pattern))
@@ -119,7 +143,7 @@ impl MockHttpClient {
             return Ok(resp);
         }
 
-        Err(format!("No mock response configured for URL: {}", url))
+        Err(format!("No mock response configured for URL: {url}"))
     }
 }
 
@@ -162,7 +186,7 @@ impl MockResponseBuilder {
     }
 
     pub fn with_json_body<T: serde::Serialize>(mut self, data: &T) -> Self {
-        self.body = serde_json::to_string(data).unwrap();
+        self.body = serde_json::to_string(data).expect("Failed to serialize data to JSON");
         self.headers
             .insert("Content-Type".to_string(), "application/json".to_string());
         self
@@ -189,7 +213,7 @@ impl MockResponseBuilder {
         self.client
             .responses
             .write()
-            .unwrap()
+            .expect("Failed to execute async operation")
             .insert(self.url_pattern, response);
     }
 }
@@ -241,7 +265,10 @@ impl MockDatabase {
 
     /// Set database operation latency simulation
     pub fn set_latency(&self, latency: Duration) {
-        *self.latency_simulation.write().unwrap() = Some(latency);
+        *self
+            .latency_simulation
+            .write()
+            .expect("RwLock should not be poisoned") = Some(latency);
     }
 
     /// Add failure scenario for specific operations
@@ -251,7 +278,10 @@ impl MockDatabase {
             failure_rate,
             error_message: error.to_string(),
         };
-        self.failure_scenarios.write().unwrap().push(scenario);
+        self.failure_scenarios
+            .write()
+            .expect("RwLock should not be poisoned")
+            .push(scenario);
     }
 
     /// Simulate database insert operation
@@ -267,8 +297,8 @@ impl MockDatabase {
 
         self.data
             .write()
-            .unwrap()
-            .insert(format!("{}:{}", table, key), value);
+            .expect("Failed to execute async operation")
+            .insert(format!("{table}:{key}"), value);
 
         self.log_operation(DatabaseOperation {
             operation_type: DatabaseOperationType::Insert,
@@ -294,8 +324,8 @@ impl MockDatabase {
         let result = self
             .data
             .read()
-            .unwrap()
-            .get(&format!("{}:{}", table, key))
+            .expect("Failed to execute async operation")
+            .get(&format!("{table}:{key}"))
             .cloned();
 
         self.log_operation(DatabaseOperation {
@@ -320,11 +350,18 @@ impl MockDatabase {
         self.simulate_operation_delay().await;
         self.check_failure_scenarios("update", table).await?;
 
-        let full_key = format!("{}:{}", table, key);
-        let existed = self.data.read().unwrap().contains_key(&full_key);
+        let full_key = format!("{table}:{key}");
+        let existed = self
+            .data
+            .read()
+            .expect("RwLock should not be poisoned")
+            .contains_key(&full_key);
 
         if existed {
-            self.data.write().unwrap().insert(full_key, value);
+            self.data
+                .write()
+                .expect("RwLock should not be poisoned")
+                .insert(full_key, value);
         }
 
         self.log_operation(DatabaseOperation {
@@ -344,8 +381,13 @@ impl MockDatabase {
         self.simulate_operation_delay().await;
         self.check_failure_scenarios("delete", table).await?;
 
-        let full_key = format!("{}:{}", table, key);
-        let existed = self.data.write().unwrap().remove(&full_key).is_some();
+        let full_key = format!("{table}:{key}");
+        let existed = self
+            .data
+            .write()
+            .expect("RwLock should not be poisoned")
+            .remove(&full_key)
+            .is_some();
 
         self.log_operation(DatabaseOperation {
             operation_type: DatabaseOperationType::Delete,
@@ -360,12 +402,18 @@ impl MockDatabase {
 
     /// Get all logged operations
     pub fn get_operations(&self) -> Vec<DatabaseOperation> {
-        self.operation_log.lock().unwrap().clone()
+        self.operation_log
+            .lock()
+            .expect("Lock should not be poisoned")
+            .clone()
     }
 
     /// Get operation statistics
     pub fn get_operation_stats(&self) -> DatabaseStats {
-        let ops = self.operation_log.lock().unwrap();
+        let ops = self
+            .operation_log
+            .lock()
+            .expect("Lock should not be poisoned");
         let total_ops = ops.len();
 
         if total_ops == 0 {
@@ -387,14 +435,21 @@ impl MockDatabase {
     }
 
     async fn simulate_operation_delay(&self) {
-        let latency = *self.latency_simulation.read().unwrap();
+        let latency = *self
+            .latency_simulation
+            .read()
+            .expect("RwLock should not be poisoned");
         if let Some(latency) = latency {
             tokio::time::sleep(latency).await;
         }
     }
 
     async fn check_failure_scenarios(&self, operation: &str, table: &str) -> Result<(), String> {
-        let scenarios: Vec<FailureScenario> = self.failure_scenarios.read().unwrap().clone();
+        let scenarios: Vec<FailureScenario> = self
+            .failure_scenarios
+            .read()
+            .expect("RwLock should not be poisoned")
+            .clone();
         for scenario in scenarios.iter() {
             let pattern = &scenario.operation_pattern;
             if (pattern == operation || pattern == "all" || pattern == table)
@@ -407,7 +462,10 @@ impl MockDatabase {
     }
 
     fn log_operation(&self, operation: DatabaseOperation) {
-        self.operation_log.lock().unwrap().push(operation);
+        self.operation_log
+            .lock()
+            .expect("Lock should not be poisoned")
+            .push(operation);
     }
 }
 
@@ -453,7 +511,10 @@ impl MockEventSystem {
     /// Create a new event channel
     pub fn create_channel(&self, name: &str) -> broadcast::Receiver<MockEvent> {
         let (tx, rx) = broadcast::channel(1000);
-        self.channels.write().unwrap().insert(name.to_string(), tx);
+        self.channels
+            .write()
+            .expect("RwLock should not be poisoned")
+            .insert(name.to_string(), tx);
         rx
     }
 
@@ -474,14 +535,22 @@ impl MockEventSystem {
         };
 
         // Log the event
-        self.event_log.lock().unwrap().push(event.clone());
+        self.event_log
+            .lock()
+            .expect("Lock should not be poisoned")
+            .push(event.clone());
 
         // Send to subscribers
-        if let Some(tx) = self.channels.read().unwrap().get(channel) {
+        if let Some(tx) = self
+            .channels
+            .read()
+            .expect("RwLock should not be poisoned")
+            .get(channel)
+        {
             tx.send(event)
-                .map_err(|e| format!("Failed to send event: {}", e))?;
+                .map_err(|e| format!("Failed to send event: {e}"))?;
         } else {
-            return Err(format!("Channel '{}' not found", channel));
+            return Err(format!("Channel '{channel}' not found"));
         }
 
         Ok(())
@@ -491,7 +560,7 @@ impl MockEventSystem {
     pub fn subscribe(&self, channel: &str, subscriber_id: &str) -> broadcast::Receiver<MockEvent> {
         self.subscribers
             .lock()
-            .unwrap()
+            .expect("Failed to execute async operation")
             .entry(channel.to_string())
             .or_default()
             .push(subscriber_id.to_string());
@@ -501,14 +570,17 @@ impl MockEventSystem {
 
     /// Get all events from log
     pub fn get_events(&self) -> Vec<MockEvent> {
-        self.event_log.lock().unwrap().clone()
+        self.event_log
+            .lock()
+            .expect("Lock should not be poisoned")
+            .clone()
     }
 
     /// Get events by type
     pub fn get_events_by_type(&self, event_type: &str) -> Vec<MockEvent> {
         self.event_log
             .lock()
-            .unwrap()
+            .expect("Failed to execute async operation")
             .iter()
             .filter(|event| event.event_type == event_type)
             .cloned()
@@ -519,7 +591,7 @@ impl MockEventSystem {
     pub fn get_subscriber_count(&self, channel: &str) -> usize {
         self.subscribers
             .lock()
-            .unwrap()
+            .expect("Failed to execute async operation")
             .get(channel)
             .map(|subs| subs.len())
             .unwrap_or(0)
@@ -739,7 +811,7 @@ impl MockMetricsCollector {
         // Update current metrics
         self.metrics
             .write()
-            .unwrap()
+            .expect("Failed to execute async operation")
             .insert(name.to_string(), value.clone());
 
         // Add to history
@@ -749,21 +821,31 @@ impl MockMetricsCollector {
             timestamp: Instant::now(),
             labels,
         };
-        self.history.lock().unwrap().push(event);
+        self.history
+            .lock()
+            .expect("Lock should not be poisoned")
+            .push(event);
     }
 
     pub fn get_metric(&self, name: &str) -> Option<MetricValue> {
-        self.metrics.read().unwrap().get(name).cloned()
+        self.metrics
+            .read()
+            .expect("RwLock should not be poisoned")
+            .get(name)
+            .cloned()
     }
 
     pub fn get_history(&self) -> Vec<MetricEvent> {
-        self.history.lock().unwrap().clone()
+        self.history
+            .lock()
+            .expect("Lock should not be poisoned")
+            .clone()
     }
 
     pub fn get_metrics_by_label(&self, label_key: &str, label_value: &str) -> Vec<MetricEvent> {
         self.history
             .lock()
-            .unwrap()
+            .expect("Failed to execute async operation")
             .iter()
             .filter(|event| event.labels.get(label_key) == Some(&label_value.to_string()))
             .cloned()

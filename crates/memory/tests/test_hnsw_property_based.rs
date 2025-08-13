@@ -193,7 +193,7 @@ fn property_search_returns_valid_results() {
             return TestResult::discard();
         }
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("Test operation should succeed");
         rt.block_on(async {
             let index = match create_test_index(dimension) {
                 Ok(idx) => idx,
@@ -394,7 +394,7 @@ fn property_search_consistency() {
             return TestResult::discard();
         }
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("Test operation should succeed");
         rt.block_on(async {
             let index = match create_test_index(dimension) {
                 Ok(idx) => idx,
@@ -469,7 +469,7 @@ fn property_index_persistence() {
             return TestResult::discard();
         }
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("Test operation should succeed");
         rt.block_on(async {
             let temp_dir = match tempfile::TempDir::new() {
                 Ok(dir) => dir,
@@ -583,7 +583,7 @@ fn property_empty_search_behavior() {
             return TestResult::discard();
         }
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("Test operation should succeed");
         rt.block_on(async {
             let index = match create_test_index(dim) {
                 Ok(idx) => idx,
@@ -623,7 +623,7 @@ fn property_search_limit_respected() {
             return TestResult::discard();
         }
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("Test operation should succeed");
         rt.block_on(async {
             let index = match create_test_index(dimension) {
                 Ok(idx) => idx,

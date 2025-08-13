@@ -333,16 +333,16 @@ mod tests {
         assert!(!core.is_ready().await);
 
         // Инициализация
-        core.initialize().await.unwrap();
+        core.initialize().await.expect("Operation should succeed");
         assert!(core.is_ready().await);
 
         // Health check
-        let health = core.health_check().await.unwrap();
+        let health = core.health_check().await.expect("Operation should succeed");
         assert_eq!(health.len(), 2);
         assert!(health.values().all(|&h| h));
 
         // Shutdown
-        core.shutdown().await.unwrap();
+        core.shutdown().await.expect("Operation should succeed");
         assert!(!core.is_ready().await);
     }
 
@@ -363,7 +363,7 @@ mod tests {
         let mut core = AgentCore::new();
         core.register_component(Box::new(TestComponent::new("stats_test")));
 
-        core.initialize().await.unwrap();
+        core.initialize().await.expect("Operation should succeed");
 
         // Симулируем обработку запросов
         core.update_request_stats("stats_test", 100.0);

@@ -34,7 +34,7 @@ async fn test_llm_client_from_env_variations() {
     std::env::set_var("MAX_TOKENS", "2000");
     std::env::set_var("TEMPERATURE", "0.5");
 
-    let _client = LlmClient::from_env().unwrap();
+    let _client = LlmClient::from_env().expect("Test operation should succeed");
     // Client should be created successfully
 
     // Test Local provider from env
@@ -42,7 +42,7 @@ async fn test_llm_client_from_env_variations() {
     std::env::set_var("LOCAL_LLM_URL", "http://localhost:1234/v1");
     std::env::set_var("LOCAL_LLM_MODEL", "llama-3");
 
-    let _local_client = LlmClient::from_env().unwrap();
+    let _local_client = LlmClient::from_env().expect("Test operation should succeed");
     // Local client should be created successfully
 
     // Cleanup
@@ -166,7 +166,10 @@ async fn test_openai_completion_with_system_prompt() {
 
     let request = CompletionRequest::new("Hello").system_prompt("You are a helpful assistant");
 
-    let response = client.complete(request).await.unwrap();
+    let response = client
+        .complete(request)
+        .await
+        .expect("Test operation should succeed");
     assert_eq!(response, "System-guided response");
 
     mock.assert_async().await;
@@ -205,7 +208,10 @@ async fn test_anthropic_completion_with_parameters() {
         .max_tokens(150)
         .temperature(0.2);
 
-    let response = client.complete(request).await.unwrap();
+    let response = client
+        .complete(request)
+        .await
+        .expect("Test operation should succeed");
     assert_eq!(response, "Anthropic response with custom params");
 
     mock.assert_async().await;
@@ -240,7 +246,10 @@ async fn test_local_completion_with_custom_endpoint() {
     let client = LlmClient::new(provider, 1000, 0.7);
 
     let request = CompletionRequest::new("Test local");
-    let response = client.complete(request).await.unwrap();
+    let response = client
+        .complete(request)
+        .await
+        .expect("Test operation should succeed");
     assert_eq!(response, "Local model response");
 
     mock.assert_async().await;
@@ -279,7 +288,10 @@ async fn test_chat_simple_wrapper() {
     let client = LlmClient::new(provider, 1000, 0.7);
 
     // Test the chat_simple method
-    let response = client.chat_simple("Hello!").await.unwrap();
+    let response = client
+        .chat_simple("Hello!")
+        .await
+        .expect("Test operation should succeed");
     assert_eq!(response, "Simple chat response");
 
     mock.assert_async().await;
@@ -318,7 +330,10 @@ async fn test_chat_with_empty_messages() {
     let client = LlmClient::new(provider, 1000, 0.7);
 
     let messages: Vec<ChatMessage> = vec![];
-    let response = client.chat(&messages).await.unwrap();
+    let response = client
+        .chat(&messages)
+        .await
+        .expect("Test operation should succeed");
     assert_eq!(response, "Empty conversation response");
 
     mock.assert_async().await;
@@ -520,7 +535,10 @@ async fn test_concurrent_requests() {
     }
 
     for handle in handles {
-        let response = handle.await.unwrap().unwrap();
+        let response = handle
+            .await
+            .expect("Test operation should succeed")
+            .expect("Test operation should succeed");
         assert_eq!(response, "Concurrent response");
     }
 
@@ -596,10 +614,11 @@ fn test_message_serialization_roundtrip() {
     ];
 
     // Serialize to JSON
-    let json = serde_json::to_string(&original_messages).unwrap();
+    let json = serde_json::to_string(&original_messages).expect("Test operation should succeed");
 
     // Deserialize back from JSON
-    let deserialized_messages: Vec<ChatMessage> = serde_json::from_str(&json).unwrap();
+    let deserialized_messages: Vec<ChatMessage> =
+        serde_json::from_str(&json).expect("Test operation should succeed");
 
     // Should be identical
     assert_eq!(original_messages.len(), deserialized_messages.len());

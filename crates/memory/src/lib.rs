@@ -1,3 +1,11 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::empty_line_after_doc_comments)]
+#![allow(clippy::manual_is_multiple_of)]
+#![allow(clippy::manual_slice_size_calculation)]
+#![allow(clippy::field_reassign_with_default)]
 #![cfg_attr(
     feature = "minimal",
     allow(dead_code, unused_imports, unused_variables)
@@ -13,12 +21,12 @@ mod cache_interface;
 mod cache_lru;
 #[cfg(not(feature = "minimal"))]
 pub mod fallback;
+#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
+pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 #[cfg(not(feature = "minimal"))]
 pub mod health;
 #[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
 pub mod hnsw_index;
-#[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
-pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 #[cfg(not(feature = "minimal"))]
 mod metrics;
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
@@ -41,6 +49,12 @@ pub mod simd_optimized; // SIMD оптимизации для векторных
 pub mod simd_safe_replacement; // БЕЗОПАСНАЯ замена для небезопасных SIMD операций
 #[cfg(not(feature = "minimal"))]
 pub mod simd_ultra_optimized; // Ultra-optimized SIMD для sub-1ms performance // FACADE для обратной совместимости
+
+// UNIFIED MODULES - объединяют дублированный функционал
+#[cfg(not(feature = "minimal"))]
+pub mod unified_memory_service; // Unified Memory Service - объединяет все memory сервисы
+#[cfg(not(feature = "minimal"))]
+pub mod unified_simd; // Unified SIMD - объединяет все SIMD реализации
 
 #[cfg(not(feature = "minimal"))]
 pub use service_di::service_config::default_config;
@@ -103,10 +117,10 @@ pub use cache_lru::{
 
 #[cfg(not(feature = "minimal"))]
 pub type CacheConfigType = LruCacheConfig;
-#[cfg(not(feature = "minimal"))]
-pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 #[cfg(all(not(feature = "minimal"), feature = "orchestration-modules"))]
 pub use service_di::{BatchInsertResult, BatchSearchResult};
+#[cfg(not(feature = "minimal"))]
+pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 
 // NEW: Refactored services based on SOLID principles
 #[cfg(all(not(feature = "minimal"), feature = "services-modules"))]
@@ -167,10 +181,22 @@ pub use simd_ultra_optimized::{
     batch_cosine_distance_ultra, cosine_distance_ultra_optimized, test_ultra_optimized_performance,
     AlignedVector,
 };
+
+// UNIFIED EXPORTS - новые объединенные модули
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub use storage::VectorStore;
 #[cfg(not(feature = "minimal"))]
 pub use transaction::{Transaction, TransactionGuard, TransactionManager};
+#[cfg(not(feature = "minimal"))]
+pub use unified_memory_service::{
+    BackendStats, BackendType, CacheStats, UnifiedMemoryConfig, UnifiedMemoryService,
+    UnifiedMemoryStats,
+};
+#[cfg(not(feature = "minimal"))]
+pub use unified_simd::{
+    batch_cosine_distance_unified, benchmark_unified_simd, cosine_distance_unified, SIMDAlgorithm,
+    SIMDConfig, SIMDStats, UnifiedSIMDCapabilities, UnifiedSIMDProcessor,
+};
 
 // Профессиональная HNSW реализация - единственная векторная реализация
 #[cfg(all(not(feature = "minimal"), feature = "hnsw-index"))]
@@ -197,4 +223,3 @@ pub use streaming::{
 
 #[cfg(not(feature = "minimal"))]
 pub use types::Layer as MemoryLayer;
-

@@ -7,6 +7,7 @@ use tracing::{debug, info};
 
 use super::traits::PromotionMetrics;
 use super::types::MLPromotionStats;
+use common::MemoryError;
 
 /// Реализация системы метрик для ML promotion
 #[derive(Debug, Clone)]
@@ -129,7 +130,13 @@ impl Default for InternalStats {
 #[async_trait]
 impl PromotionMetrics for MLPromotionMetricsCollector {
     fn record_inference(&mut self, inference_time_ms: u64, accuracy: f32) {
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = match self.safe_lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                tracing::error!("Failed to acquire metrics lock: {}", e);
+                return;
+            }
+        };
 
         // Добавляем новые данные
         stats.inference_times.push_back(inference_time_ms);
@@ -152,7 +159,16 @@ impl PromotionMetrics for MLPromotionMetricsCollector {
     }
 
     fn record_feature_extraction(&mut self, extraction_time_ms: u64) {
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = match self.safe_lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                tracing::error!(
+                    "Failed to acquire metrics lock for feature extraction: {}",
+                    e
+                );
+                return;
+            }
+        };
 
         stats.feature_extraction_times.push_back(extraction_time_ms);
         stats.total_extractions += 1;
@@ -167,7 +183,13 @@ impl PromotionMetrics for MLPromotionMetricsCollector {
     }
 
     fn update_cache_stats(&mut self, hit_rate: f32) {
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = match self.safe_lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                tracing::error!("Failed to acquire metrics lock for cache stats: {}", e);
+                return;
+            }
+        };
 
         stats.cache_hit_rates.push_back(hit_rate);
         stats.cache_requests += 1;
@@ -185,7 +207,7 @@ impl PromotionMetrics for MLPromotionMetricsCollector {
     }
 
     fn update_gpu_stats(&mut self, utilization: f32) {
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self.stats.lock().expect("Lock should not be poisoned");
 
         stats.gpu_utilization_samples.push_back(utilization);
 
@@ -199,7 +221,7 @@ impl PromotionMetrics for MLPromotionMetricsCollector {
     }
 
     fn get_stats(&self) -> MLPromotionStats {
-        let stats = self.stats.lock().unwrap();
+        let stats = self.stats.lock().expect("Lock should not be poisoned");
 
         // Вычисляем агрегированные метрики
         let avg_inference_time = if stats.inference_times.is_empty() {
@@ -258,7 +280,7 @@ impl PromotionMetrics for MLPromotionMetricsCollector {
     fn reset_metrics(&mut self) {
         // Сначала создаем копию данных для снимка
         let snapshot_data = {
-            let stats = self.stats.lock().unwrap();
+            let stats = self.stats.lock().expect("Lock should not be poisoned");
             // Копируем данные вместо передачи ссылки
             InternalStats {
                 inference_times: stats.inference_times.clone(),
@@ -276,7 +298,7 @@ impl PromotionMetrics for MLPromotionMetricsCollector {
 
         // Теперь безопасно сбрасываем все метрики
         {
-            let mut stats = self.stats.lock().unwrap();
+            let mut stats = self.stats.lock().expect("Lock should not be poisoned");
             stats.inference_times.clear();
             stats.accuracy_scores.clear();
             stats.feature_extraction_times.clear();
@@ -315,13 +337,22 @@ impl MLPromotionMetricsCollector {
         }
     }
 
+    /// Safe mutex lock with error handling
+    fn safe_lock(
+        &self,
+    ) -> std::result::Result<std::sync::MutexGuard<'_, InternalStats>, MemoryError> {
+        self.stats.lock().map_err(|_| MemoryError::Promotion {
+            reason: "ML metrics mutex poisoned".to_string(),
+        })
+    }
+
     /// Записывает успешную promotion
     pub fn record_promotion(
         &mut self,
         from_layer: crate::types::Layer,
         to_layer: crate::types::Layer,
     ) {
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self.stats.lock().expect("Lock should not be poisoned");
         stats.total_analyzed += 1;
 
         match (from_layer, to_layer) {
@@ -341,7 +372,7 @@ impl MLPromotionMetricsCollector {
 
     /// Получает детальные метрики производительности
     pub fn get_performance_breakdown(&self) -> PerformanceBreakdown {
-        let stats = self.stats.lock().unwrap();
+        let stats = self.stats.lock().expect("Lock should not be poisoned");
 
         PerformanceBreakdown {
             inference_p50: self.calculate_percentile(&stats.inference_times, 0.5),
@@ -365,7 +396,7 @@ impl MLPromotionMetricsCollector {
 
     /// Получает исторические данные
     pub fn get_historical_data(&self) -> Vec<HistoricalSnapshot> {
-        let stats = self.stats.lock().unwrap();
+        let stats = self.stats.lock().expect("Lock should not be poisoned");
         stats.historical_snapshots.clone()
     }
 
@@ -429,7 +460,7 @@ impl MLPromotionMetricsCollector {
         };
 
         // Добавляем в историю и поддерживаем максимальный размер
-        let mut stats_mut = self.stats.lock().unwrap();
+        let mut stats_mut = self.stats.lock().expect("Lock should not be poisoned");
         stats_mut.historical_snapshots.push(snapshot);
 
         if stats_mut.historical_snapshots.len() > self.config.max_history_points {
@@ -439,7 +470,7 @@ impl MLPromotionMetricsCollector {
 
     /// Экспортирует метрики в JSON формат
     pub fn export_metrics(&self) -> serde_json::Value {
-        let stats = self.stats.lock().unwrap();
+        let stats = self.stats.lock().expect("Lock should not be poisoned");
         let current_stats = self.get_stats();
         let performance = self.get_performance_breakdown();
 

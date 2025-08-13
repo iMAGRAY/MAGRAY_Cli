@@ -239,7 +239,7 @@ async fn test_concurrent_service_resolution() -> DIResult<()> {
     let results = timeout(Duration::from_secs(10), async {
         let mut results = Vec::new();
         for task in tasks {
-            results.push(task.await.unwrap()?);
+            results.push(task.await.expect("Test operation should succeed")?);
         }
         DIResult::Ok(results)
     }).await.map_err(|_| DIError::TimeoutError {

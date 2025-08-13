@@ -1,9 +1,10 @@
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use common::{MemoryError, MemoryResult};
 use sled::{Db, Tree};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::{
     storage::VectorStore,
@@ -395,7 +396,11 @@ impl PromotionEngine {
 
         for (layer, time_index) in &self.time_indices {
             let time_index_size = time_index.len();
-            let score_index_size = self.score_indices.get(layer).unwrap().len();
+            let score_index_size = self
+                .score_indices
+                .get(layer)
+                .map(|idx| idx.len())
+                .unwrap_or(0);
 
             match layer {
                 Layer::Interact => {
@@ -421,8 +426,20 @@ impl PromotionEngine {
         info!("🔧 Проверка необходимости восстановления индексов");
 
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-            let time_index = self.time_indices.get(&layer).unwrap();
-            let score_index = self.score_indices.get(&layer).unwrap();
+            let time_index = match self.time_indices.get(&layer) {
+                Some(idx) => idx,
+                None => {
+                    warn!("Time index not found for layer {:?}, skipping", layer);
+                    continue;
+                }
+            };
+            let score_index = match self.score_indices.get(&layer) {
+                Some(idx) => idx,
+                None => {
+                    warn!("Score index not found for layer {:?}, skipping", layer);
+                    continue;
+                }
+            };
 
             // Если индексы пусты, нужно их восстановить
             if time_index.is_empty() || score_index.is_empty() {
@@ -436,8 +453,14 @@ impl PromotionEngine {
 
     /// Восстанавливает индексы для конкретного слоя
     async fn rebuild_indices_for_layer(&self, layer: Layer) -> Result<()> {
-        let time_index = self.time_indices.get(&layer).unwrap();
-        let score_index = self.score_indices.get(&layer).unwrap();
+        let time_index = self
+            .time_indices
+            .get(&layer)
+            .ok_or_else(|| anyhow::anyhow!("Time index not found for layer {:?}", layer))?;
+        let score_index = self
+            .score_indices
+            .get(&layer)
+            .ok_or_else(|| anyhow::anyhow!("Score index not found for layer {:?}", layer))?;
 
         // Очищаем существующие индексы
         time_index.clear()?;
@@ -478,7 +501,16 @@ impl PromotionEngine {
         // В данной реализации мы просто проверяем консистентность
         // В будущем можно добавить более сложную логику отслеживания изменений
         for layer in [Layer::Interact, Layer::Insights, Layer::Assets] {
-            let time_index = self.time_indices.get(&layer).unwrap();
+            let time_index = match self.time_indices.get(&layer) {
+                Some(idx) => idx,
+                None => {
+                    warn!(
+                        "Time index not found for layer {:?}, skipping incremental update",
+                        layer
+                    );
+                    continue;
+                }
+            };
             let tree = Arc::new(self.store.get_tree(layer).await?);
 
             // Простая проверка: количество записей в дереве должно совпадать с индексом
@@ -504,8 +536,14 @@ impl PromotionEngine {
         min_score: f32,
         limit: usize,
     ) -> Result<Vec<Record>> {
-        let time_index = self.time_indices.get(&layer).unwrap();
-        let _score_index = self.score_indices.get(&layer).unwrap();
+        let time_index = self
+            .time_indices
+            .get(&layer)
+            .ok_or_else(|| anyhow::anyhow!("Time index not found for layer {:?}", layer))?;
+        let _score_index = self
+            .score_indices
+            .get(&layer)
+            .ok_or_else(|| anyhow::anyhow!("Score index not found for layer {:?}", layer))?;
         let mut candidates = Vec::new();
 
         // Ищем записи старше указанного времени
@@ -579,8 +617,18 @@ impl PromotionEngine {
 
     /// Обновляет индексы для записи
     async fn update_indices_for_record(&self, record: &Record, is_new: bool) -> Result<()> {
-        let time_index = self.time_indices.get(&record.layer).unwrap();
-        let score_index = self.score_indices.get(&record.layer).unwrap();
+        let time_index =
+            self.time_indices
+                .get(&record.layer)
+                .ok_or_else(|| MemoryError::Promotion {
+                    reason: format!("Time index not found for layer {:?}", record.layer),
+                })?;
+        let score_index =
+            self.score_indices
+                .get(&record.layer)
+                .ok_or_else(|| MemoryError::Promotion {
+                    reason: format!("Score index not found for layer {:?}", record.layer),
+                })?;
 
         let record_id = record.id.as_bytes();
         let time_key = format!("{:020}", record.ts.timestamp_nanos_opt().unwrap_or(0));
@@ -606,7 +654,12 @@ impl PromotionEngine {
         layer: Layer,
         before: DateTime<Utc>,
     ) -> Result<Vec<Record>> {
-        let time_index = self.time_indices.get(&layer).unwrap();
+        let time_index = self
+            .time_indices
+            .get(&layer)
+            .ok_or_else(|| MemoryError::Promotion {
+                reason: format!("Time index not found for layer {:?}", layer),
+            })?;
         let mut expired = Vec::new();
 
         let time_threshold = format!("{:020}", before.timestamp_nanos_opt().unwrap_or(0));

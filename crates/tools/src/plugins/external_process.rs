@@ -376,7 +376,7 @@ impl ProcessSandbox {
         let result = if success {
             stdout.clone()
         } else {
-            format!("Process failed with exit code {}: {}", exit_code, stderr)
+            format!("Process failed with exit code {exit_code}: {stderr}")
         };
 
         let formatted_output = if !stdout.is_empty() || !stderr.is_empty() {
@@ -514,10 +514,10 @@ impl ProcessSandbox {
                 let mut data = String::new();
                 data.push_str(&format!("command: {}\n", input.command));
                 for (key, value) in &input.args {
-                    data.push_str(&format!("{}: {}\n", key, value));
+                    data.push_str(&format!("{key}: {value}\n"));
                 }
                 if let Some(ref context) = input.context {
-                    data.push_str(&format!("context: {}\n", context));
+                    data.push_str(&format!("context: {context}\n"));
                 }
                 Ok(data)
             }

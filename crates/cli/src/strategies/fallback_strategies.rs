@@ -465,7 +465,10 @@ mod tests {
         let context = create_test_context("test message");
         let error = anyhow::anyhow!("Network connection failed");
 
-        let result = strategy.handle_fallback(&context, &error).await.unwrap();
+        let result = strategy
+            .handle_fallback(&context, &error)
+            .await
+            .expect("Async operation should succeed");
         if let AgentResponse::Error(msg) = result {
             assert!(msg.contains("сетевым соединением"));
         } else {
@@ -479,7 +482,10 @@ mod tests {
         let context = create_test_context("test message");
         let error = anyhow::anyhow!("OpenAI API error");
 
-        let result = strategy.handle_fallback(&context, &error).await.unwrap();
+        let result = strategy
+            .handle_fallback(&context, &error)
+            .await
+            .expect("Async operation should succeed");
         if let AgentResponse::Error(msg) = result {
             assert!(msg.contains("AI сервис"));
         } else {
@@ -495,7 +501,10 @@ mod tests {
 
         assert!(strategy.can_handle(&error));
 
-        let result = strategy.handle_fallback(&context, &error).await.unwrap();
+        let result = strategy
+            .handle_fallback(&context, &error)
+            .await
+            .expect("Async operation should succeed");
         if let AgentResponse::Error(msg) = result {
             assert!(msg.contains("circuit breaker"));
             assert!(msg.contains("30 секунд"));
@@ -514,7 +523,10 @@ mod tests {
         let error = anyhow::anyhow!("Circuit breaker is open");
 
         // Должен использовать circuit breaker стратегию (высший приоритет)
-        let result = composite.handle_fallback(&context, &error).await.unwrap();
+        let result = composite
+            .handle_fallback(&context, &error)
+            .await
+            .expect("Async operation should succeed");
         if let AgentResponse::Error(msg) = result {
             assert!(msg.contains("circuit breaker"));
         } else {

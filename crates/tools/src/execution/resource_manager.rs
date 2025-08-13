@@ -433,7 +433,7 @@ mod tests {
             .await;
         assert!(guard.is_ok());
 
-        let _guard = guard.unwrap();
+        let _guard = guard.expect("Operation failed - converted from unwrap()");
 
         // Test resource stats
         let stats = manager.get_resource_stats().await;

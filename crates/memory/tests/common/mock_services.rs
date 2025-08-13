@@ -58,7 +58,7 @@ impl MockMonitoringService {
             success: true,
         };
         
-        self.recorded_operations.lock().unwrap().push(operation);
+        self.recorded_operations.lock().expect("Test operation should succeed").push(operation);
         
         // Симулируем небольшую задержку для реализма
         sleep(Duration::from_millis(1)).await;
@@ -74,7 +74,7 @@ impl MockMonitoringService {
             success: false,
         };
         
-        self.recorded_operations.lock().unwrap().push(operation);
+        self.recorded_operations.lock().expect("Test operation should succeed").push(operation);
     }
     
     pub async fn get_stats(&self) -> DIResult<MonitoringStats> {
@@ -103,7 +103,7 @@ impl MockMonitoringService {
     }
     
     fn calculate_success_rate(&self) -> f64 {
-        let operations = self.recorded_operations.lock().unwrap();
+        let operations = self.recorded_operations.lock().expect("Test operation should succeed");
         if operations.is_empty() {
             return 1.0;
         }
@@ -113,7 +113,7 @@ impl MockMonitoringService {
     }
     
     fn calculate_average_duration(&self) -> Duration {
-        let operations = self.recorded_operations.lock().unwrap();
+        let operations = self.recorded_operations.lock().expect("Test operation should succeed");
         if operations.is_empty() {
             return Duration::from_secs(0);
         }
@@ -169,7 +169,7 @@ impl MockCacheService {
     }
     
     pub fn get(&self, key: &str) -> Option<String> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.read().expect("Test operation should succeed");
         
         if let Some(entry) = cache.get(key) {
             // Проверяем TTL
@@ -184,7 +184,7 @@ impl MockCacheService {
     }
     
     pub fn put(&self, key: String, value: String) {
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().expect("Test operation should succeed");
         
         // Простая LRU eviction если превышен размер
         if cache.len() >= self.max_size {
@@ -204,7 +204,7 @@ impl MockCacheService {
     }
     
     pub fn clear(&self) {
-        self.cache.write().unwrap().clear();
+        self.cache.write().expect("Test operation should succeed").clear();
     }
     
     pub fn get_hit_rate(&self) -> f64 {
@@ -219,7 +219,7 @@ impl MockCacheService {
     }
     
     pub fn get_size(&self) -> usize {
-        self.cache.read().unwrap().len()
+        self.cache.read().expect("Test operation should succeed").len()
     }
 }
 
@@ -245,19 +245,19 @@ impl MockDatabaseService {
     }
     
     pub fn with_latency(mut self, latency: Duration) -> Self {
-        *self.operation_latency.lock().unwrap() = latency;
+        *self.operation_latency.lock().expect("Test operation should succeed") = latency;
         self
     }
     
     pub fn with_failure_rate(mut self, failure_rate: f64) -> Self {
-        *self.failure_rate.lock().unwrap() = failure_rate;
+        *self.failure_rate.lock().expect("Test operation should succeed") = failure_rate;
         self
     }
     
     pub async fn store_record(&self, record: MemoryRecord) -> DIResult<()> {
         self.simulate_operation().await?;
         
-        let mut records = self.records.write().unwrap();
+        let mut records = self.records.write().expect("Test operation should succeed");
         records.insert(record.id.clone(), record);
         
         Ok(())
@@ -266,14 +266,14 @@ impl MockDatabaseService {
     pub async fn get_record(&self, id: &str) -> DIResult<Option<MemoryRecord>> {
         self.simulate_operation().await?;
         
-        let records = self.records.read().unwrap();
+        let records = self.records.read().expect("Test operation should succeed");
         Ok(records.get(id).cloned())
     }
     
     pub async fn search_records(&self, query: &str) -> DIResult<Vec<MemoryRecord>> {
         self.simulate_operation().await?;
         
-        let records = self.records.read().unwrap();
+        let records = self.records.read().expect("Test operation should succeed");
         let results: Vec<MemoryRecord> = records
             .values()
             .filter(|record| record.content.contains(query))
@@ -286,12 +286,12 @@ impl MockDatabaseService {
     pub async fn delete_record(&self, id: &str) -> DIResult<bool> {
         self.simulate_operation().await?;
         
-        let mut records = self.records.write().unwrap();
+        let mut records = self.records.write().expect("Test operation should succeed");
         Ok(records.remove(id).is_some())
     }
     
     pub fn get_record_count(&self) -> usize {
-        self.records.read().unwrap().len()
+        self.records.read().expect("Test operation should succeed").len()
     }
     
     pub fn get_query_count(&self) -> usize {
@@ -321,11 +321,11 @@ impl MockDatabaseService {
         }
         
         // Симулируем задержку
-        let latency = *self.operation_latency.lock().unwrap();
+        let latency = *self.operation_latency.lock().expect("Test operation should succeed");
         sleep(latency).await;
         
         // Симулируем случайные сбои
-        let failure_rate = *self.failure_rate.lock().unwrap();
+        let failure_rate = *self.failure_rate.lock().expect("Test operation should succeed");
         if fastrand::f64() < failure_rate {
             return Err(DIError::DatabaseError {
                 operation: "simulated_failure".to_string(),
@@ -362,14 +362,14 @@ impl MockEmbeddingService {
     pub async fn embed_text(&self, text: &str) -> DIResult<Vec<f32>> {
         // Проверяем кеш
         {
-            let cache = self.cache.read().unwrap();
+            let cache = self.cache.read().expect("Test operation should succeed");
             if let Some(embedding) = cache.get(text) {
                 return Ok(embedding.clone());
             }
         }
         
         // Симулируем время обработки
-        let processing_time = *self.processing_time.lock().unwrap();
+        let processing_time = *self.processing_time.lock().expect("Test operation should succeed");
         sleep(processing_time).await;
         
         self.processed_count.fetch_add(1, Ordering::SeqCst);
@@ -379,7 +379,7 @@ impl MockEmbeddingService {
         
         // Кешируем результат
         {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self.cache.write().expect("Test operation should succeed");
             cache.insert(text.to_string(), embedding.clone());
         }
         
@@ -402,15 +402,15 @@ impl MockEmbeddingService {
     }
     
     pub fn get_cache_size(&self) -> usize {
-        self.cache.read().unwrap().len()
+        self.cache.read().expect("Test operation should succeed").len()
     }
     
     pub fn clear_cache(&self) {
-        self.cache.write().unwrap().clear();
+        self.cache.write().expect("Test operation should succeed").clear();
     }
     
     pub fn set_processing_time(&self, duration: Duration) {
-        *self.processing_time.lock().unwrap() = duration;
+        *self.processing_time.lock().expect("Test operation should succeed") = duration;
     }
     
     fn generate_embedding(&self, text: &str) -> Vec<f32> {
@@ -496,7 +496,7 @@ impl MockStressTestService {
         
         // Сохраняем часть данных
         {
-            let mut operation_data = self.operation_data.lock().unwrap();
+            let mut operation_data = self.operation_data.lock().expect("Test operation should succeed");
             operation_data.extend_from_slice(&data[..std::cmp::min(data.len(), 1024)]);
         }
         
@@ -508,7 +508,7 @@ impl MockStressTestService {
             cpu_operations: self.cpu_intensive_operations.load(Ordering::SeqCst),
             memory_allocations: self.memory_allocations.load(Ordering::SeqCst),
             current_concurrent: self.concurrent_operations.load(Ordering::SeqCst),
-            operation_data_size: self.operation_data.lock().unwrap().len(),
+            operation_data_size: self.operation_data.lock().expect("Test operation should succeed").len(),
         }
     }
     
@@ -516,7 +516,7 @@ impl MockStressTestService {
         self.cpu_intensive_operations.store(0, Ordering::SeqCst);
         self.memory_allocations.store(0, Ordering::SeqCst);
         self.concurrent_operations.store(0, Ordering::SeqCst);
-        self.operation_data.lock().unwrap().clear();
+        self.operation_data.lock().expect("Test operation should succeed").clear();
     }
 }
 
@@ -557,7 +557,7 @@ impl MockFailureRecoveryService {
         
         if !self.is_healthy.load(Ordering::SeqCst) {
             let failure_count = self.failure_count.fetch_add(1, Ordering::SeqCst) + 1;
-            *self.last_failure.lock().unwrap() = Some(Instant::now());
+            *self.last_failure.lock().expect("Test operation should succeed") = Some(Instant::now());
             
             return Err(DIError::ServiceError {
                 service_name: "MockFailureRecoveryService".to_string(),
@@ -571,7 +571,7 @@ impl MockFailureRecoveryService {
     
     pub fn trigger_failure(&self) {
         self.is_healthy.store(false, Ordering::SeqCst);
-        *self.last_failure.lock().unwrap() = Some(Instant::now());
+        *self.last_failure.lock().expect("Test operation should succeed") = Some(Instant::now());
     }
     
     pub async fn force_recovery(&self) {
@@ -597,7 +597,7 @@ impl MockFailureRecoveryService {
             return;
         }
         
-        let last_failure = self.last_failure.lock().unwrap();
+        let last_failure = self.last_failure.lock().expect("Test operation should succeed");
         if let Some(failure_time) = *last_failure {
             if failure_time.elapsed() >= self.recovery_delay {
                 drop(last_failure); // Release lock before async operation

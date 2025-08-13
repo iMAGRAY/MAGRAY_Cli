@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 #![cfg(feature = "gpu")]
 use ai::model_downloader::{ensure_model, ModelDownloader};
 use anyhow::Result;
@@ -413,11 +414,11 @@ async fn test_download_with_progress_tracking() -> Result<()> {
 proptest! {
     #[test]
     fn test_model_path_safety(
-        model_name in prop::string::string_regex("[a-zA-Z0-9_-]{1,50}").unwrap()
+        model_name in prop::string::string_regex("[a-zA-Z0-9_-]{1,50}").expect("Test operation should succeed")
     ) {
         tokio_test::block_on(async {
-            let temp_dir = TempDir::new().unwrap();
-            let downloader = ModelDownloader::new(temp_dir.path()).unwrap();
+            let temp_dir = TempDir::new().expect("Test operation should succeed");
+            let downloader = ModelDownloader::new(temp_dir.path()).expect("Test operation should succeed");
 
             let path = downloader.get_model_path(&model_name);
             let base_path = downloader.base_path();
@@ -438,8 +439,8 @@ proptest! {
         file_size in 100usize..1000
     ) {
         tokio_test::block_on(async {
-            let temp_dir = TempDir::new().unwrap();
-            let downloader = ModelDownloader::new(temp_dir.path()).unwrap();
+            let temp_dir = TempDir::new().expect("Test operation should succeed");
+            let downloader = ModelDownloader::new(temp_dir.path()).expect("Test operation should succeed");
 
             let mut expected_size = 0u64;
 

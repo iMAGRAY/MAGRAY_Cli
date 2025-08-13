@@ -11,6 +11,7 @@ extended-tests = []
 # Core dependencies - ONLY pure Rust, no external system dependencies
 anyhow.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 thiserror.workspace = true

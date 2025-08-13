@@ -2,6 +2,7 @@ use super::{
     LatencyClass, LlmProvider, LlmRequest, LlmResponse, ProviderCapabilities, ProviderHealth,
     ProviderId, TokenUsage,
 };
+use crate::retry::{execute_streaming_with_retry, execute_with_retry, RetryConfig, RetryableError};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -15,6 +16,91 @@ pub struct AnthropicProvider {
     model: String,
     client: Client,
     timeout: Duration,
+    retry_config: RetryConfig,
+}
+
+/// Anthropic-specific error type with retryable classification
+#[derive(Debug)]
+struct AnthropicError {
+    error_type: String,
+    message: String,
+    status_code: Option<u16>,
+    is_retryable: bool,
+}
+
+impl AnthropicError {
+    fn from_status_code(status_code: u16, message: String) -> Self {
+        let (error_type, is_retryable) = match status_code {
+            // Rate limiting - always retryable
+            429 => ("rate_limit".to_string(), true),
+            // Timeout - retryable
+            408 => ("timeout".to_string(), true),
+            // Anthropic-specific errors (before general server error range)
+            522 => ("overloaded".to_string(), true), // Anthropic overloaded
+            529 => ("overloaded".to_string(), true), // Site overloaded
+            // Server errors - retryable
+            500..=599 => ("server_error".to_string(), true),
+            // Client errors - generally not retryable
+            400 => ("bad_request".to_string(), false),
+            401 => ("unauthorized".to_string(), false),
+            403 => ("forbidden".to_string(), false),
+            404 => ("not_found".to_string(), false),
+            _ => ("unknown".to_string(), false),
+        };
+
+        Self {
+            error_type,
+            message,
+            status_code: Some(status_code),
+            is_retryable,
+        }
+    }
+
+    fn from_reqwest_error(error: reqwest::Error) -> Self {
+        let is_retryable = error.is_timeout() || error.is_connect();
+        Self {
+            error_type: if error.is_timeout() {
+                "timeout"
+            } else if error.is_connect() {
+                "network"
+            } else {
+                "request"
+            }
+            .to_string(),
+            message: error.to_string(),
+            status_code: error.status().map(|s| s.as_u16()),
+            is_retryable,
+        }
+    }
+
+    fn from_anthropic_api_error(message: String) -> Self {
+        // Check for specific Anthropic error patterns
+        let is_retryable = message.contains("overloaded")
+            || message.contains("rate limited")
+            || message.contains("timeout")
+            || message.contains("temporarily unavailable");
+
+        Self {
+            error_type: "anthropic_api".to_string(),
+            message,
+            status_code: None,
+            is_retryable,
+        }
+    }
+}
+
+impl RetryableError for AnthropicError {
+    fn is_retryable(&self) -> bool {
+        self.is_retryable
+    }
+
+    fn error_type(&self) -> String {
+        self.error_type.clone()
+    }
+
+    fn error_message(&self) -> String {
+        self.message.clone()
+    }
 }
 
 impl AnthropicProvider {
@@ -28,11 +114,17 @@ impl AnthropicProvider {
             .build()
             .map_err(|e| anyhow!("Failed to create HTTP client: {}", e))?;
 
+        // Conservative retry config for Anthropic due to slower nature
+        let retry_config = RetryConfig::conservative()
+            .with_initial_delay(Duration::from_millis(500))
+            .with_max_delay(Duration::from_secs(45));
+
         Ok(Self {
             api_key,
             model,
             client,
             timeout: Duration::from_secs(90),
+            retry_config,
         })
     }
 
@@ -42,6 +134,11 @@ impl AnthropicProvider {
             .timeout(timeout)
             .build()
             .expect("Failed to rebuild HTTP client with timeout");
+        self
+    }
+
+    pub fn with_retry_config(mut self, retry_config: RetryConfig) -> Self {
+        self.retry_config = retry_config;
         self
     }
 
@@ -203,23 +300,47 @@ impl LlmProvider for AnthropicProvider {
             self.model
         );
 
-        let response = self
-            .client
-            .post("https://api.anthropic.com/v1/messages")
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .header("anthropic-version", "2023-06-01")
-            .json(&anthropic_request)
-            .send()
-            .await?;
+        // Execute with retry logic
+        let client = self.client.clone();
+        let api_key = self.api_key.clone();
 
-        if !response.status().is_success() {
-            let error_text = response.text().await?;
-            error!("Anthropic API error: {}", error_text);
-            return Err(anyhow!("Anthropic API error: {}", error_text));
-        }
+        let anthropic_response = execute_with_retry(&self.retry_config, || {
+            let client = client.clone();
+            let api_key = api_key.clone();
+            let anthropic_request = anthropic_request.clone();
 
-        let anthropic_response: AnthropicResponse = response.json().await?;
+            Box::pin(async move {
+                let response = client
+                    .post("https://api.anthropic.com/v1/messages")
+                    .header("Authorization", format!("Bearer {api_key}"))
+                    .header("Content-Type", "application/json")
+                    .header("anthropic-version", "2023-06-01")
+                    .json(&anthropic_request)
+                    .send()
+                    .await
+                    .map_err(AnthropicError::from_reqwest_error)?;
+
+                if !response.status().is_success() {
+                    let status = response.status().as_u16();
+                    let error_text = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Failed to read error response".to_string());
+                    return Err(AnthropicError::from_status_code(status, error_text));
+                }
+
+                let anthropic_response: AnthropicResponse =
+                    response.json().await.map_err(|e| AnthropicError {
+                        error_type: "parse_error".to_string(),
+                        message: format!("Failed to parse response: {e}"),
+                        status_code: None,
+                        is_retryable: false,
+                    })?;
+
+                Ok(anthropic_response)
+            })
+        })
+        .await?;
         let elapsed = start_time.elapsed();
 
         let content_block = anthropic_response
@@ -293,45 +414,64 @@ impl LlmProvider for AnthropicProvider {
         tokio::spawn(async move {
             info!("🚀 Starting streaming request to Anthropic");
 
-            match client
-                .post("https://api.anthropic.com/v1/messages")
-                .header("Authorization", format!("Bearer {}", api_key))
-                .header("Content-Type", "application/json")
-                .header("anthropic-version", "2023-06-01")
-                .json(&anthropic_request)
-                .send()
-                .await
-            {
-                Ok(response) => {
-                    if !response.status().is_success() {
-                        error!("Anthropic streaming request failed: {}", response.status());
-                        return;
-                    }
+            // Use simplified retry for streaming
+            let result = execute_streaming_with_retry(
+                2,                      // Max 2 retries for streaming
+                Duration::from_secs(1), // 1 second base delay
+                || {
+                    let client = client.clone();
+                    let api_key = api_key.clone();
+                    let anthropic_request = anthropic_request.clone();
+                    let tx = tx.clone();
 
-                    // In a real implementation, you would parse the SSE stream
-                    // For now, we'll simulate streaming by chunking the response
-                    match response.text().await {
-                        Ok(text) => {
-                            let words: Vec<&str> = text.split_whitespace().collect();
-                            for word in words {
-                                if tx.send(format!("{} ", word)).await.is_err() {
-                                    break;
-                                }
-                                tokio::time::sleep(Duration::from_millis(80)).await;
-                                // Anthropic is slower
+                    Box::pin(async move {
+                        let response = client
+                            .post("https://api.anthropic.com/v1/messages")
+                            .header("Authorization", format!("Bearer {api_key}"))
+                            .header("Content-Type", "application/json")
+                            .header("anthropic-version", "2023-06-01")
+                            .json(&anthropic_request)
+                            .send()
+                            .await
+                            .map_err(AnthropicError::from_reqwest_error)?;
+
+                        if !response.status().is_success() {
+                            let status = response.status().as_u16();
+                            let error_text = response
+                                .text()
+                                .await
+                                .unwrap_or_else(|_| "Failed to read error response".to_string());
+                            return Err(AnthropicError::from_status_code(status, error_text));
+                        }
+
+                        // In a real implementation, you would parse the SSE stream
+                        // For now, we'll simulate streaming by chunking the response
+                        let text = response.text().await.map_err(|e| AnthropicError {
+                            error_type: "stream_error".to_string(),
+                            message: format!("Failed to read streaming response: {e}"),
+                            status_code: None,
+                            is_retryable: true,
+                        })?;
+
+                        let words: Vec<&str> = text.split_whitespace().collect();
+                        for word in words {
+                            if tx.send(format!("{word} ")).await.is_err() {
+                                break;
                             }
+                            tokio::time::sleep(Duration::from_millis(80)).await;
+                            // Anthropic is slower
                         }
-                        Err(e) => {
-                            error!("Failed to read streaming response: {}", e);
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to send streaming request: {}", e);
-                }
-            }
 
-            info!("✅ Streaming request completed");
+                        Ok(())
+                    })
+                },
+            )
+            .await;
+
+            match result {
+                Ok(_) => info!("✅ Streaming request completed successfully"),
+                Err(e) => error!("❌ Streaming request failed after retries: {}", e),
+            }
         });
 
         Ok(rx)
@@ -339,7 +479,7 @@ impl LlmProvider for AnthropicProvider {
 }
 
 // Anthropic-specific request/response types
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct AnthropicRequest {
     model: String,
     max_tokens: u32,
@@ -348,7 +488,7 @@ struct AnthropicRequest {
     temperature: Option<f32>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct AnthropicStreamRequest {
     model: String,
     max_tokens: u32,
@@ -358,7 +498,7 @@ struct AnthropicStreamRequest {
     stream: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct AnthropicMessage {
     role: String,
     content: String,
@@ -395,7 +535,7 @@ mod tests {
             "test-api-key".to_string(),
             "claude-3-haiku-20240307".to_string(),
         )
-        .unwrap();
+        .expect("Operation failed - converted from unwrap()");
 
         assert_eq!(provider.id().provider_type, "anthropic");
         assert_eq!(provider.id().model, "claude-3-haiku-20240307");
@@ -412,7 +552,7 @@ mod tests {
             "test-api-key".to_string(),
             "claude-3-haiku-20240307".to_string(),
         )
-        .unwrap();
+        .expect("Operation failed - converted from unwrap()");
 
         let valid_request = LlmRequest::new("Hello").with_parameters(Some(1000), Some(0.7));
         assert!(provider.validate_request(&valid_request).is_ok());

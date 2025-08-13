@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::manual_is_multiple_of)]
 use ai::config::*;
 use std::path::PathBuf;
 
@@ -93,12 +95,13 @@ fn test_config_serde_serialization() {
     let config = AiConfig::default();
 
     // Test JSON serialization
-    let json = serde_json::to_string(&config).unwrap();
+    let json = serde_json::to_string(&config).expect("Test operation should succeed");
     assert!(json.contains("qwen3emb"));
     assert!(json.contains("qwen3_reranker"));
 
     // Test deserialization
-    let deserialized: AiConfig = serde_json::from_str(&json).unwrap();
+    let deserialized: AiConfig =
+        serde_json::from_str(&json).expect("Test operation should succeed");
     assert_eq!(
         config.embedding.model_name,
         deserialized.embedding.model_name

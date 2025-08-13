@@ -95,8 +95,7 @@ impl GpuMemoryBuffer {
 }
 
 impl Drop for GpuMemoryBuffer {
-    fn drop(&mut self) {
-    }
+    fn drop(&mut self) {}
 }
 
 unsafe impl Send for GpuMemoryBuffer {}

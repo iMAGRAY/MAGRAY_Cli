@@ -1,51 +1,68 @@
 //! Search Memory Use Case
 //!
-//! Бизнес-логика для поиска записей в memory system с семантическим 
+//! Бизнес-логика для поиска записей в memory system с семантическим
 //! поиском и фильтрацией по слоям.
 
+use crate::dtos::{
+    SearchMemoryRequest, SearchMemoryResponse, SimilaritySearchRequest, SimilaritySearchResponse,
+};
+use crate::ports::{
+    metrics_collector::MetricsCollectorExt, CacheProvider, EmbeddingProvider, MetricsCollector,
+    SearchProvider,
+};
+use crate::{ApplicationError, ApplicationResult, RequestContext};
 use async_trait::async_trait;
-use crate::{ApplicationResult, ApplicationError, RequestContext};
-use crate::dtos::{SearchMemoryRequest, SearchMemoryResponse, SimilaritySearchRequest, SimilaritySearchResponse};
-use crate::ports::{EmbeddingProvider, SearchProvider, MetricsCollector, CacheProvider};
-use domain::entities::embedding_vector::EmbeddingVector;
-use domain::entities::search_query::SearchQuery;
-use domain::repositories::search_repository::SearchRepository;
-use domain::services::search_domain_service::SearchDomainService;
-use domain::value_objects::layer_type::LayerType;
-use domain::value_objects::score_threshold::ScoreThreshold;
+use domain::services::search_domain_service::SearchDomainServiceTrait;
+use domain::EmbeddingVector;
+use domain::LayerType;
+use domain::ScoreThreshold;
+use domain::SearchQuery;
+use domain::SearchRepository;
 use std::sync::Arc;
-use tracing::{info, warn, error, instrument};
+use tracing::{error, info, instrument, warn};
 
 /// Use case для поиска записей в памяти
 #[async_trait]
 pub trait SearchMemoryUseCase: Send + Sync {
     /// Search memory records by text query
-    async fn search_memory(&self, request: SearchMemoryRequest, context: RequestContext) -> ApplicationResult<SearchMemoryResponse>;
-    
+    async fn search_memory(
+        &self,
+        request: SearchMemoryRequest,
+        context: RequestContext,
+    ) -> ApplicationResult<SearchMemoryResponse>;
+
     /// Search memory records by semantic similarity
-    async fn similarity_search(&self, request: SimilaritySearchRequest, context: RequestContext) -> ApplicationResult<SimilaritySearchResponse>;
-    
+    async fn similarity_search(
+        &self,
+        request: SimilaritySearchRequest,
+        context: RequestContext,
+    ) -> ApplicationResult<SimilaritySearchResponse>;
+
     /// Get cached search results if available
-    async fn get_cached_search(&self, query_hash: &str, context: RequestContext) -> ApplicationResult<Option<SearchMemoryResponse>>;
+    async fn get_cached_search(
+        &self,
+        query_hash: &str,
+        context: RequestContext,
+    ) -> ApplicationResult<Option<SearchMemoryResponse>>;
 }
 
 /// Implementation of search memory use case
 pub struct SearchMemoryUseCaseImpl {
     search_repository: Arc<dyn SearchRepository>,
-    search_domain_service: Arc<dyn SearchDomainService>,
+    search_domain_service: Arc<dyn SearchDomainServiceTrait>,
     embedding_provider: Arc<dyn EmbeddingProvider>,
     search_provider: Arc<dyn SearchProvider>,
-    cache_provider: Arc<dyn CacheProvider>,
+    cache_provider: crate::adapters::CacheServiceAdapter,
     metrics_collector: Arc<dyn MetricsCollector>,
 }
 
 impl SearchMemoryUseCaseImpl {
     pub fn new(
         search_repository: Arc<dyn SearchRepository>,
-        search_domain_service: Arc<dyn SearchDomainService>,
+        search_domain_service: Arc<dyn SearchDomainServiceTrait>,
         embedding_provider: Arc<dyn EmbeddingProvider>,
         search_provider: Arc<dyn SearchProvider>,
-        cache_provider: Arc<dyn CacheProvider>,
+        cache_provider: crate::adapters::CacheServiceAdapter,
         metrics_collector: Arc<dyn MetricsCollector>,
     ) -> Self {
         Self {
@@ -62,105 +79,153 @@ impl SearchMemoryUseCaseImpl {
 #[async_trait]
 impl SearchMemoryUseCase for SearchMemoryUseCaseImpl {
     #[instrument(skip(self, request), fields(query_length = request.query.len()))]
-    async fn search_memory(&self, request: SearchMemoryRequest, context: RequestContext) -> ApplicationResult<SearchMemoryResponse> {
+    async fn search_memory(
+        &self,
+        request: SearchMemoryRequest,
+        context: RequestContext,
+    ) -> ApplicationResult<SearchMemoryResponse> {
         let start_time = std::time::Instant::now();
-        
-        info!("Starting search memory operation for request: {}", context.request_id);
-        
+
+        info!(
+            "Starting search memory operation for request: {}",
+            context.request_id
+        );
+
         // Validate request
         self.validate_search_request(&request)?;
-        
+
         let query_hash = self.create_query_hash(&request);
-        
+
         // Check cache first
         if request.use_cache {
-            if let Some(cached_response) = self.get_cached_search(&query_hash, context.clone()).await? {
-                info!("Returning cached search results for query: {}", request.query);
+            if let Some(cached_response) =
+                self.get_cached_search(&query_hash, context.clone()).await?
+            {
+                info!(
+                    "Returning cached search results for query: {}",
+                    request.query
+                );
                 self.record_cache_hit(&query_hash).await?;
                 return Ok(cached_response);
             }
         }
-        
+
         // Generate query embedding
         let embedding_start = std::time::Instant::now();
         let query_embedding = self.generate_query_embedding(&request.query).await?;
         let embedding_time = embedding_start.elapsed();
-        
+
         // Create search query domain object
         let search_query = self.create_search_query(&request, query_embedding)?;
-        
+
         // Execute search across layers
         let search_start = std::time::Instant::now();
         let search_results = self.execute_layered_search(&search_query, &request).await?;
         let search_time = search_start.elapsed();
-        
+
         // Post-process results
         let processed_results = self.post_process_results(search_results, &request).await?;
-        
+
         let total_time = start_time.elapsed();
-        
+
         // Record metrics
-        self.record_search_metrics(&request, processed_results.len(), total_time, embedding_time, search_time).await?;
-        
+        self.record_search_metrics(
+            &request,
+            processed_results.len(),
+            total_time,
+            embedding_time,
+            search_time,
+        )
+        .await?;
+
+        let total_results_count = processed_results.len();
         let response = SearchMemoryResponse {
             results: processed_results,
-            total_results: processed_results.len(),
+            total_results: total_results_count,
             search_time_ms: total_time.as_millis() as u64,
             query_hash: query_hash.clone(),
-            layers_searched: request.layers.clone().unwrap_or_else(|| vec![LayerType::Cache, LayerType::Index, LayerType::Storage]),
+            layers_searched: request.layers.clone().unwrap_or_else(|| {
+                vec![LayerType::Interact, LayerType::Insights, LayerType::Assets]
+            }),
         };
-        
+
         if request.use_cache {
             self.cache_search_results(&query_hash, &response).await?;
         }
-        
-        info!("Search completed: {} results in {}ms", response.total_results, total_time.as_millis());
-        
+
+        info!(
+            "Search completed: {} results in {}ms",
+            response.total_results,
+            total_time.as_millis()
+        );
+
         Ok(response)
     }
 
     #[instrument(skip(self, request), fields(embedding_dims = request.query_embedding.len()))]
-    async fn similarity_search(&self, request: SimilaritySearchRequest, context: RequestContext) -> ApplicationResult<SimilaritySearchResponse> {
+    async fn similarity_search(
+        &self,
+        request: SimilaritySearchRequest,
+        context: RequestContext,
+    ) -> ApplicationResult<SimilaritySearchResponse> {
         let start_time = std::time::Instant::now();
-        
-        info!("Starting similarity search operation for request: {}", context.request_id);
-        
+
+        info!(
+            "Starting similarity search operation for request: {}",
+            context.request_id
+        );
+
         // Validate request
         self.validate_similarity_request(&request)?;
-        
+
         // Create embedding vector
-        let query_embedding = EmbeddingVector::new(request.query_embedding.clone())
+        let embedding_dims = request.query_embedding.len();
+        let query_embedding = EmbeddingVector::new(request.query_embedding.clone(), embedding_dims)
             .map_err(|e| ApplicationError::Domain(e))?;
-        
+
+        // Save dimensions before moving the vector
+        let embedding_dimensions = query_embedding.dimensions().len();
+
         // Create search query
-        let search_query = SearchQuery::new(
-            "".to_string(), // No text for similarity search
-            query_embedding.clone(),
-        ).map_err(|e| ApplicationError::Domain(e))?;
-        
+        let search_query = SearchQuery::new("similarity_search".to_string())
+            .map_err(|e| ApplicationError::Domain(e))?
+            .with_vector(query_embedding);
+
         // Execute similarity search
         let search_start = std::time::Instant::now();
-        let search_results = self.execute_similarity_search(&search_query, &request).await?;
+        let search_results = self
+            .execute_similarity_search(&search_query, &request)
+            .await?;
         let search_time = search_start.elapsed();
-        
+
         let total_time = start_time.elapsed();
-        
+
         // Record metrics
-        self.record_similarity_metrics(&request, search_results.len(), total_time, search_time).await?;
-        
+        let results_count = search_results.len();
+        self.record_similarity_metrics(&request, results_count, total_time, search_time)
+            .await?;
+
         let response = SimilaritySearchResponse {
             results: search_results,
-            total_results: search_results.len(),
+            total_results: results_count,
             search_time_ms: total_time.as_millis() as u64,
-            embedding_dimensions: query_embedding.dimensions(),
+            embedding_dimensions: embedding_dimensions,
         };
-        
-        info!("Similarity search completed: {} results in {}ms", response.total_results, total_time.as_millis());
-        
+
+        info!(
+            "Similarity search completed: {} results in {}ms",
+            response.total_results,
+            total_time.as_millis()
+        );
+
         Ok(response)
     }
 
-    async fn get_cached_search(&self, query_hash: &str, _context: RequestContext) -> ApplicationResult<Option<SearchMemoryResponse>> {
+    async fn get_cached_search(
+        &self,
+        query_hash: &str,
+        _context: RequestContext,
+    ) -> ApplicationResult<Option<SearchMemoryResponse>> {
         match self.cache_provider.get_search_results(query_hash).await {
             Ok(cached_results) => Ok(cached_results),
             Err(e) => {
@@ -177,123 +242,173 @@ impl SearchMemoryUseCaseImpl {
         if request.query.is_empty() {
             return Err(ApplicationError::validation("Search query cannot be empty"));
         }
-        
+
         if request.query.len() > 1000 {
-            return Err(ApplicationError::validation("Search query too long (max 1000 characters)"));
+            return Err(ApplicationError::validation(
+                "Search query too long (max 1000 characters)",
+            ));
         }
-        
+
         if let Some(limit) = request.limit {
             if limit == 0 || limit > 1000 {
-                return Err(ApplicationError::validation("Limit must be between 1 and 1000"));
+                return Err(ApplicationError::validation(
+                    "Limit must be between 1 and 1000",
+                ));
             }
         }
-        
+
         if let Some(threshold) = request.similarity_threshold {
             if threshold < 0.0 || threshold > 1.0 {
-                return Err(ApplicationError::validation("Similarity threshold must be between 0.0 and 1.0"));
+                return Err(ApplicationError::validation(
+                    "Similarity threshold must be between 0.0 and 1.0",
+                ));
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Validate similarity search request
-    fn validate_similarity_request(&self, request: &SimilaritySearchRequest) -> ApplicationResult<()> {
+    fn validate_similarity_request(
+        &self,
+        request: &SimilaritySearchRequest,
+    ) -> ApplicationResult<()> {
         if request.query_embedding.is_empty() {
-            return Err(ApplicationError::validation("Query embedding cannot be empty"));
+            return Err(ApplicationError::validation(
+                "Query embedding cannot be empty",
+            ));
         }
-        
+
         if request.query_embedding.len() > 4096 {
-            return Err(ApplicationError::validation("Query embedding dimensions too large (max 4096)"));
+            return Err(ApplicationError::validation(
+                "Query embedding dimensions too large (max 4096)",
+            ));
         }
-        
+
         if let Some(limit) = request.limit {
             if limit == 0 || limit > 1000 {
-                return Err(ApplicationError::validation("Limit must be between 1 and 1000"));
+                return Err(ApplicationError::validation(
+                    "Limit must be between 1 and 1000",
+                ));
             }
         }
-        
+
         if let Some(threshold) = request.similarity_threshold {
             if threshold < 0.0 || threshold > 1.0 {
-                return Err(ApplicationError::validation("Similarity threshold must be between 0.0 and 1.0"));
+                return Err(ApplicationError::validation(
+                    "Similarity threshold must be between 0.0 and 1.0",
+                ));
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Create query hash for caching
     fn create_query_hash(&self, request: &SearchMemoryRequest) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         request.query.hash(&mut hasher);
         request.layers.hash(&mut hasher);
         request.limit.hash(&mut hasher);
-        request.similarity_threshold.map(|t| (t * 1000000.0) as u64).hash(&mut hasher);
-        request.filters.hash(&mut hasher);
-        
+        if let Some(threshold) = request.similarity_threshold {
+            (threshold * 1000000.0).to_bits().hash(&mut hasher);
+        }
+        if let Some(filters) = &request.filters {
+            for (k, v) in filters {
+                k.hash(&mut hasher);
+                v.hash(&mut hasher);
+            }
+        }
+
         format!("search_{:x}", hasher.finish())
     }
-    
+
     /// Generate embedding for query
     async fn generate_query_embedding(&self, query: &str) -> ApplicationResult<EmbeddingVector> {
-        let raw_embedding = self.embedding_provider.generate_embedding(query).await
-            .map_err(|e| ApplicationError::infrastructure_with_source("Failed to generate query embedding", e))?;
-        
-        EmbeddingVector::new(raw_embedding)
-            .map_err(|e| ApplicationError::Domain(e))
+        let raw_embedding = self
+            .embedding_provider
+            .generate_embedding(query)
+            .await
+            .map_err(|e| {
+                ApplicationError::infrastructure_with_source(
+                    "Failed to generate query embedding",
+                    e,
+                )
+            })?;
+
+        EmbeddingVector::new(raw_embedding, 384).map_err(|e| ApplicationError::Domain(e))
     }
-    
+
     /// Create search query domain object
-    fn create_search_query(&self, request: &SearchMemoryRequest, embedding: EmbeddingVector) -> ApplicationResult<SearchQuery> {
-        SearchQuery::new(request.query.clone(), embedding)
-            .map_err(|e| ApplicationError::Domain(e))
+    fn create_search_query(
+        &self,
+        request: &SearchMemoryRequest,
+        _embedding: EmbeddingVector,
+    ) -> ApplicationResult<SearchQuery> {
+        SearchQuery::new(request.query.clone()).map_err(|e| ApplicationError::Domain(e))
     }
-    
+
     /// Execute layered search
     async fn execute_layered_search(
         &self,
         query: &SearchQuery,
         request: &SearchMemoryRequest,
     ) -> ApplicationResult<Vec<crate::dtos::SearchResult>> {
-        let layers = request.layers.clone().unwrap_or_else(|| vec![LayerType::Cache, LayerType::Index, LayerType::Storage]);
+        let layers = request
+            .layers
+            .clone()
+            .unwrap_or_else(|| vec![LayerType::Interact, LayerType::Insights, LayerType::Assets]);
         let limit = request.limit.unwrap_or(10);
-        
-        let threshold = request.similarity_threshold
-            .map(|t| ScoreThreshold::new(t).map_err(|e| ApplicationError::Domain(e)))
+
+        let threshold = request
+            .similarity_threshold
+            .map(|t| ScoreThreshold::new(t as f32).map_err(|e| ApplicationError::Domain(e)))
             .transpose()?;
-        
+
         // Search through domain service with layered approach
-        let domain_results = self.search_domain_service.search_across_layers(
-            query,
-            &layers,
-            limit,
-            threshold.as_ref(),
-            request.project.as_deref(),
-            request.filters.as_ref(),
-        ).await.map_err(|e| ApplicationError::Domain(e))?;
-        
+        let domain_results = self
+            .search_domain_service
+            .search_across_layers(
+                query.clone(),
+                &layers,
+                limit,
+                threshold.as_ref(),
+                request.project.as_deref(),
+                request.filters.as_ref(),
+            )
+            .await
+            .map_err(|e| ApplicationError::Domain(e))?;
+
         // Convert domain results to DTOs
         let mut results = Vec::new();
-        for domain_result in domain_results {
+        for domain_result in domain_results.records {
             let result = crate::dtos::SearchResult {
-                record_id: domain_result.record_id().to_string(),
-                content: domain_result.content().clone(),
-                similarity_score: domain_result.similarity_score(),
-                layer: domain_result.layer(),
-                metadata: domain_result.metadata().cloned(),
-                tags: domain_result.tags().clone(),
-                last_accessed: domain_result.last_accessed().clone(),
-                project: domain_result.project().cloned(),
+                record_id: domain_result.record.id().to_string(),
+                content: domain_result.record.content().to_string(),
+                content_preview: domain_result.record.content_preview().unwrap_or_else(|| {
+                    let preview_len = domain_result.record.content().len().min(200);
+                    domain_result.record.content()[..preview_len].to_string()
+                }),
+                score: domain_result.relevance_score,
+                similarity_score: domain_result.relevance_score,
+                layer: domain_result.record.layer(),
+                project: Some(domain_result.record.project().to_string()),
+                metadata: Some(domain_result.record.metadata().clone()),
+                created_at: domain_result.record.created_at(),
+                last_accessed: domain_result.record.last_accessed(),
+                tags: domain_result.record.tags().to_vec(),
+                explanation: None,
+                embedding: None,
             };
             results.push(result);
         }
-        
+
         Ok(results)
     }
-    
+
     /// Execute similarity search
     async fn execute_similarity_search(
         &self,
@@ -301,18 +416,24 @@ impl SearchMemoryUseCaseImpl {
         request: &SimilaritySearchRequest,
     ) -> ApplicationResult<Vec<crate::dtos::SimilarityResult>> {
         let limit = request.limit.unwrap_or(10);
-        
-        let threshold = request.similarity_threshold
-            .map(|t| ScoreThreshold::new(t).map_err(|e| ApplicationError::Domain(e)))
+
+        let threshold = request
+            .similarity_threshold
+            .map(|t| ScoreThreshold::new(t as f32).map_err(|e| ApplicationError::Domain(e)))
             .transpose()?;
-        
+
         // Search through search provider
-        let search_results = self.search_provider.similarity_search(
-            query.embedding(),
-            limit,
-            threshold.as_ref(),
-        ).await?;
-        
+        let search_results = self
+            .search_provider
+            .similarity_search(
+                query.query_vector().ok_or_else(|| {
+                    ApplicationError::validation("Query vector is required for similarity search")
+                })?,
+                limit,
+                threshold.as_ref(),
+            )
+            .await?;
+
         // Convert to DTOs
         let mut results = Vec::new();
         for result in search_results {
@@ -324,10 +445,10 @@ impl SearchMemoryUseCaseImpl {
             };
             results.push(similarity_result);
         }
-        
+
         Ok(results)
     }
-    
+
     /// Post-process search results
     async fn post_process_results(
         &self,
@@ -335,28 +456,31 @@ impl SearchMemoryUseCaseImpl {
         request: &SearchMemoryRequest,
     ) -> ApplicationResult<Vec<crate::dtos::SearchResult>> {
         let mut processed = results;
-        
+
         if let Some(filters) = &request.filters {
             processed = self.apply_custom_filters(processed, filters).await?;
         }
-        
+
         // Sort by relevance (similarity score descending, then by layer priority)
         processed.sort_by(|a, b| {
-            let score_cmp = b.similarity_score.partial_cmp(&a.similarity_score).unwrap_or(std::cmp::Ordering::Equal);
+            let score_cmp = b
+                .similarity_score
+                .partial_cmp(&a.similarity_score)
+                .unwrap_or(std::cmp::Ordering::Equal);
             if score_cmp == std::cmp::Ordering::Equal {
                 self.compare_layer_priority(&a.layer, &b.layer)
             } else {
                 score_cmp
             }
         });
-        
+
         if let Some(limit) = request.limit {
             processed.truncate(limit);
         }
-        
+
         Ok(processed)
     }
-    
+
     /// Apply custom filters
     async fn apply_custom_filters(
         &self,
@@ -364,10 +488,10 @@ impl SearchMemoryUseCaseImpl {
         filters: &std::collections::HashMap<String, String>,
     ) -> ApplicationResult<Vec<crate::dtos::SearchResult>> {
         let mut filtered = Vec::new();
-        
+
         for result in results {
             let mut should_include = true;
-            
+
             // Apply metadata filters
             if let Some(metadata) = &result.metadata {
                 for (key, expected_value) in filters {
@@ -384,37 +508,48 @@ impl SearchMemoryUseCaseImpl {
             } else if !filters.is_empty() {
                 should_include = false;
             }
-            
+
             if should_include {
                 filtered.push(result);
             }
         }
-        
+
         Ok(filtered)
     }
-    
+
     /// Compare layer priority (Cache > Index > Storage)
     fn compare_layer_priority(&self, a: &LayerType, b: &LayerType) -> std::cmp::Ordering {
         let priority_a = match a {
-            LayerType::Cache => 3,
-            LayerType::Index => 2,
-            LayerType::Storage => 1,
+            LayerType::Interact => 3,
+            LayerType::Insights => 2,
+            LayerType::Assets => 1,
         };
-        
+
         let priority_b = match b {
-            LayerType::Cache => 3,
-            LayerType::Index => 2,
-            LayerType::Storage => 1,
+            LayerType::Interact => 3,
+            LayerType::Insights => 2,
+            LayerType::Assets => 1,
         };
-        
+
         priority_a.cmp(&priority_b)
     }
-    
+
     /// Cache search results
-    async fn cache_search_results(&self, query_hash: &str, response: &SearchMemoryResponse) -> ApplicationResult<()> {
-        match self.cache_provider.cache_search_results(query_hash, response).await {
+    async fn cache_search_results(
+        &self,
+        query_hash: &str,
+        response: &SearchMemoryResponse,
+    ) -> ApplicationResult<()> {
+        match self
+            .cache_provider
+            .cache_search_results(query_hash, response)
+            .await
+        {
             Ok(_) => {
-                info!("Successfully cached search results for query: {}", query_hash);
+                info!(
+                    "Successfully cached search results for query: {}",
+                    query_hash
+                );
                 Ok(())
             }
             Err(e) => {
@@ -423,18 +558,16 @@ impl SearchMemoryUseCaseImpl {
             }
         }
     }
-    
+
     /// Record cache hit metrics
     async fn record_cache_hit(&self, query_hash: &str) -> ApplicationResult<()> {
-        self.metrics_collector.increment_counter(
-            "search_cache_hits_total",
-            1,
-            Some(vec![("query_hash".to_string(), query_hash.to_string())]),
-        ).await?;
-        
+        self.metrics_collector
+            .increment_counter("search_cache_hits_total", 1, None)
+            .await?;
+
         Ok(())
     }
-    
+
     /// Record search metrics
     async fn record_search_metrics(
         &self,
@@ -445,7 +578,7 @@ impl SearchMemoryUseCaseImpl {
         search_time: std::time::Duration,
     ) -> ApplicationResult<()> {
         use crate::ports::{MemoryOperation, MemoryOperationType};
-        
+
         let operation = MemoryOperation {
             operation_type: MemoryOperationType::Search,
             layer: "multiple".to_string(),
@@ -455,25 +588,27 @@ impl SearchMemoryUseCaseImpl {
             success: true,
             error: None,
         };
-        
-        self.metrics_collector.record_memory_operation(operation).await?;
-        
+
+        self.metrics_collector
+            .record_memory_operation(operation)
+            .await?;
+
         // Record detailed timing
-        self.metrics_collector.record_timing(
-            "search_embedding_generation",
-            embedding_time.as_millis() as u64,
-            None,
-        ).await?;
-        
-        self.metrics_collector.record_timing(
-            "search_execution",
-            search_time.as_millis() as u64,
-            None,
-        ).await?;
-        
+        self.metrics_collector
+            .record_timing(
+                "search_embedding_generation",
+                embedding_time.as_millis() as u64,
+                None,
+            )
+            .await?;
+
+        self.metrics_collector
+            .record_timing("search_execution", search_time.as_millis() as u64, None)
+            .await?;
+
         Ok(())
     }
-    
+
     /// Record similarity search metrics
     async fn record_similarity_metrics(
         &self,
@@ -482,24 +617,22 @@ impl SearchMemoryUseCaseImpl {
         total_time: std::time::Duration,
         search_time: std::time::Duration,
     ) -> ApplicationResult<()> {
-        self.metrics_collector.increment_counter(
-            "similarity_search_operations_total",
-            1,
-            None,
-        ).await?;
-        
-        self.metrics_collector.record_gauge(
-            "similarity_search_result_count",
-            result_count as f64,
-            None,
-        ).await?;
-        
-        self.metrics_collector.record_timing(
-            "similarity_search_duration",
-            total_time.as_millis() as u64,
-            None,
-        ).await?;
-        
+        self.metrics_collector
+            .increment_counter("similarity_search_operations_total", 1, None)
+            .await?;
+
+        self.metrics_collector
+            .record_gauge("similarity_search_result_count", result_count as f64, None)
+            .await?;
+
+        self.metrics_collector
+            .record_timing(
+                "similarity_search_duration",
+                total_time.as_millis() as u64,
+                None,
+            )
+            .await?;
+
         Ok(())
     }
 }

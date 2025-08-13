@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use ai::auto_device_selector::*;
 use ai::config::EmbeddingConfig;
 
@@ -66,7 +67,10 @@ async fn test_device_selection_with_config() {
     if let Ok(decision) = result {
         // Decision should be valid
         assert!(decision.cpu_score >= 0.0);
-        assert!(decision.gpu_score.is_none() || decision.gpu_score.unwrap() >= 0.0);
+        assert!(
+            decision.gpu_score.is_none()
+                || decision.gpu_score.expect("Test operation should succeed") >= 0.0
+        );
         assert!(decision.recommended_batch_size > 0);
         assert!(!decision.reason.is_empty());
     }
@@ -121,7 +125,10 @@ fn test_device_decision_gpu_score_handling() {
     };
 
     assert!(with_gpu.gpu_score.is_some());
-    assert_eq!(with_gpu.gpu_score.unwrap(), 2.0);
+    assert_eq!(
+        with_gpu.gpu_score.expect("Test operation should succeed"),
+        2.0
+    );
 
     // Test without GPU score
     let without_gpu = DeviceDecision {

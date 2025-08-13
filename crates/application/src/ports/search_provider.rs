@@ -2,10 +2,10 @@
 //!
 //! Абстракция для поисковых индексов и векторного поиска независимо от конкретной реализации.
 
-use async_trait::async_trait;
 use crate::ApplicationResult;
-use domain::entities::embedding_vector::EmbeddingVector;
-use domain::value_objects::layer_type::LayerType;
+use async_trait::async_trait;
+use domain::EmbeddingVector;
+use domain::LayerType;
 use serde::{Deserialize, Serialize};
 
 /// Trait для search providers
@@ -13,37 +13,52 @@ use serde::{Deserialize, Serialize};
 pub trait SearchProvider: Send + Sync {
     /// Add document to search index
     async fn index_document(&self, document: &SearchDocument) -> ApplicationResult<IndexResult>;
-    
+
     /// Add multiple documents to index
-    async fn index_documents(&self, documents: &[SearchDocument]) -> ApplicationResult<BatchIndexResult>;
-    
+    async fn index_documents(
+        &self,
+        documents: &[SearchDocument],
+    ) -> ApplicationResult<BatchIndexResult>;
+
     /// Remove document from index
     async fn remove_document(&self, document_id: &str) -> ApplicationResult<bool>;
-    
+
     /// Update document in index
     async fn update_document(&self, document: &SearchDocument) -> ApplicationResult<IndexResult>;
-    
+
     /// Perform vector similarity search
-    async fn vector_search(&self, request: &VectorSearchRequest) -> ApplicationResult<VectorSearchResult>;
-    
+    async fn vector_search(
+        &self,
+        request: &VectorSearchRequest,
+    ) -> ApplicationResult<VectorSearchResult>;
+
     /// Perform text-based search
-    async fn text_search(&self, request: &TextSearchRequest) -> ApplicationResult<TextSearchResult>;
-    
+    async fn text_search(&self, request: &TextSearchRequest)
+        -> ApplicationResult<TextSearchResult>;
+
     /// Perform hybrid search (vector + text)
-    async fn hybrid_search(&self, request: &HybridSearchRequest) -> ApplicationResult<HybridSearchResult>;
-    
+    async fn hybrid_search(
+        &self,
+        request: &HybridSearchRequest,
+    ) -> ApplicationResult<HybridSearchResult>;
+
     /// Perform similarity search with raw embedding
-    async fn similarity_search(&self, query_embedding: &domain::entities::embedding_vector::EmbeddingVector, limit: usize, threshold: Option<&domain::value_objects::score_threshold::ScoreThreshold>) -> ApplicationResult<Vec<SimilaritySearchMatch>>;
-    
+    async fn similarity_search(
+        &self,
+        query_embedding: &domain::EmbeddingVector,
+        limit: usize,
+        threshold: Option<&domain::ScoreThreshold>,
+    ) -> ApplicationResult<Vec<SimilaritySearchMatch>>;
+
     /// Get document by ID
     async fn get_document(&self, document_id: &str) -> ApplicationResult<Option<SearchDocument>>;
-    
+
     /// Get index statistics
     async fn get_index_stats(&self) -> ApplicationResult<IndexStatistics>;
-    
+
     /// Health check for search provider
     async fn health_check(&self) -> ApplicationResult<SearchHealth>;
-    
+
     /// Optimize index (rebuild, compress, etc.)
     async fn optimize_index(&self) -> ApplicationResult<OptimizationResult>;
 }
@@ -254,11 +269,11 @@ pub struct LayerSearchStats {
     pub cache_searched: bool,
     pub cache_results: usize,
     pub cache_time_ms: u64,
-    
+
     pub index_searched: bool,
     pub index_results: usize,
     pub index_time_ms: u64,
-    
+
     pub storage_searched: bool,
     pub storage_results: usize,
     pub storage_time_ms: u64,
@@ -405,25 +420,25 @@ impl SearchDocument {
             content: content.to_string(),
             embedding: None,
             metadata: DocumentMetadata::default(),
-            layer: LayerType::Storage,
+            layer: LayerType::Assets,
         }
     }
-    
+
     pub fn with_embedding(mut self, embedding: EmbeddingVector) -> Self {
         self.embedding = Some(embedding);
         self
     }
-    
+
     pub fn with_layer(mut self, layer: LayerType) -> Self {
         self.layer = layer;
         self
     }
-    
+
     pub fn with_project(mut self, project: &str) -> Self {
         self.metadata.project = Some(project.to_string());
         self
     }
-    
+
     pub fn with_tags(mut self, tags: Vec<String>) -> Self {
         self.metadata.tags = tags;
         self
@@ -445,17 +460,26 @@ impl MockSearchProvider {
             operations: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
-    
+
     pub fn add_mock_document(&self, document: SearchDocument) {
-        self.documents.lock().unwrap().insert(document.id.clone(), document);
+        self.documents
+            .lock()
+            .expect("Operation should succeed")
+            .insert(document.id.clone(), document);
     }
-    
+
     pub fn get_operations(&self) -> Vec<String> {
-        self.operations.lock().unwrap().clone()
+        self.operations
+            .lock()
+            .expect("Operation should succeed")
+            .clone()
     }
-    
+
     fn record_operation(&self, operation: &str) {
-        self.operations.lock().unwrap().push(operation.to_string());
+        self.operations
+            .lock()
+            .expect("Operation should succeed")
+            .push(operation.to_string());
     }
 }
 
@@ -464,9 +488,12 @@ impl MockSearchProvider {
 impl SearchProvider for MockSearchProvider {
     async fn index_document(&self, document: &SearchDocument) -> ApplicationResult<IndexResult> {
         self.record_operation(&format!("index_document:{}", document.id));
-        
-        self.documents.lock().unwrap().insert(document.id.clone(), document.clone());
-        
+
+        self.documents
+            .lock()
+            .expect("Operation should succeed")
+            .insert(document.id.clone(), document.clone());
+
         Ok(IndexResult {
             document_id: document.id.clone(),
             success: true,
@@ -475,17 +502,20 @@ impl SearchProvider for MockSearchProvider {
             error: None,
         })
     }
-    
-    async fn index_documents(&self, documents: &[SearchDocument]) -> ApplicationResult<BatchIndexResult> {
+
+    async fn index_documents(
+        &self,
+        documents: &[SearchDocument],
+    ) -> ApplicationResult<BatchIndexResult> {
         self.record_operation(&format!("index_documents:{}", documents.len()));
-        
+
         let mut results = Vec::new();
         let start_time = std::time::Instant::now();
-        
+
         for document in documents {
             results.push(self.index_document(document).await?);
         }
-        
+
         Ok(BatchIndexResult {
             total_documents: documents.len(),
             successful_indexes: results.len(),
@@ -495,23 +525,31 @@ impl SearchProvider for MockSearchProvider {
             total_size_bytes: documents.iter().map(|d| d.content.len()).sum(),
         })
     }
-    
+
     async fn remove_document(&self, document_id: &str) -> ApplicationResult<bool> {
         self.record_operation(&format!("remove_document:{}", document_id));
-        Ok(self.documents.lock().unwrap().remove(document_id).is_some())
+        Ok(self
+            .documents
+            .lock()
+            .expect("Operation should succeed")
+            .remove(document_id)
+            .is_some())
     }
-    
+
     async fn update_document(&self, document: &SearchDocument) -> ApplicationResult<IndexResult> {
         self.record_operation(&format!("update_document:{}", document.id));
         self.index_document(document).await
     }
-    
-    async fn vector_search(&self, request: &VectorSearchRequest) -> ApplicationResult<VectorSearchResult> {
+
+    async fn vector_search(
+        &self,
+        request: &VectorSearchRequest,
+    ) -> ApplicationResult<VectorSearchResult> {
         self.record_operation(&format!("vector_search:limit={}", request.limit));
-        
-        let documents = self.documents.lock().unwrap();
+
+        let documents = self.documents.lock().expect("Operation should succeed");
         let mut results = Vec::new();
-        
+
         for document in documents.values() {
             if let Some(embedding) = &document.embedding {
                 // Mock similarity calculation
@@ -524,13 +562,13 @@ impl SearchProvider for MockSearchProvider {
                         vector_included: request.include_vectors,
                     });
                 }
-                
+
                 if results.len() >= request.limit {
                     break;
                 }
             }
         }
-        
+
         Ok(VectorSearchResult {
             results,
             total_found: documents.len(),
@@ -548,15 +586,22 @@ impl SearchProvider for MockSearchProvider {
             },
         })
     }
-    
-    async fn text_search(&self, request: &TextSearchRequest) -> ApplicationResult<TextSearchResult> {
+
+    async fn text_search(
+        &self,
+        request: &TextSearchRequest,
+    ) -> ApplicationResult<TextSearchResult> {
         self.record_operation(&format!("text_search:{}", request.query));
-        
-        let documents = self.documents.lock().unwrap();
+
+        let documents = self.documents.lock().expect("Operation should succeed");
         let mut results = Vec::new();
-        
+
         for document in documents.values() {
-            if document.content.to_lowercase().contains(&request.query.to_lowercase()) {
+            if document
+                .content
+                .to_lowercase()
+                .contains(&request.query.to_lowercase())
+            {
                 let score = 0.8 - (results.len() as f32 * 0.1);
                 if score >= request.min_score.unwrap_or(0.0) {
                     results.push(TextSearchMatch {
@@ -564,20 +609,22 @@ impl SearchProvider for MockSearchProvider {
                         relevance_score: score,
                         highlights: vec![TextHighlight {
                             field: "content".to_string(),
-                            fragments: vec![document.content[..50.min(document.content.len())].to_string()],
+                            fragments: vec![
+                                document.content[..50.min(document.content.len())].to_string()
+                            ],
                             start_offset: 0,
                             end_offset: 50.min(document.content.len()),
                         }],
                         explanation: Some("Mock text match".to_string()),
                     });
                 }
-                
+
                 if results.len() >= request.limit {
                     break;
                 }
             }
         }
-        
+
         Ok(TextSearchResult {
             results,
             total_found: documents.len(),
@@ -595,37 +642,48 @@ impl SearchProvider for MockSearchProvider {
             },
             query_analysis: QueryAnalysis {
                 normalized_query: request.query.to_lowercase(),
-                extracted_terms: request.query.split_whitespace().map(|s| s.to_string()).collect(),
+                extracted_terms: request
+                    .query
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect(),
                 detected_language: Some("en".to_string()),
                 query_type: QueryType::Simple,
                 complexity_score: 0.5,
             },
         })
     }
-    
-    async fn hybrid_search(&self, request: &HybridSearchRequest) -> ApplicationResult<HybridSearchResult> {
+
+    async fn hybrid_search(
+        &self,
+        request: &HybridSearchRequest,
+    ) -> ApplicationResult<HybridSearchResult> {
         self.record_operation(&format!("hybrid_search:{}", request.query));
-        
+
         // Mock hybrid search by combining vector and text results
-        let documents = self.documents.lock().unwrap();
+        let documents = self.documents.lock().expect("Operation should succeed");
         let mut results = Vec::new();
-        
+
         for document in documents.values() {
-            let text_score = if document.content.to_lowercase().contains(&request.query.to_lowercase()) {
+            let text_score = if document
+                .content
+                .to_lowercase()
+                .contains(&request.query.to_lowercase())
+            {
                 0.8
             } else {
                 0.2
             };
-            
+
             let vector_score = if document.embedding.is_some() {
                 0.9
             } else {
                 0.0
             };
-            
-            let combined_score = (vector_score * request.weights.vector_weight) + 
-                                (text_score * request.weights.text_weight);
-            
+
+            let combined_score = (vector_score * request.weights.vector_weight)
+                + (text_score * request.weights.text_weight);
+
             if combined_score >= request.min_score.unwrap_or(0.0) {
                 results.push(HybridSearchMatch {
                     document: document.clone(),
@@ -638,15 +696,19 @@ impl SearchProvider for MockSearchProvider {
                     explanation: Some("Mock hybrid match".to_string()),
                 });
             }
-            
+
             if results.len() >= request.limit {
                 break;
             }
         }
-        
+
         // Sort by combined score
-        results.sort_by(|a, b| b.combined_score.partial_cmp(&a.combined_score).unwrap());
-        
+        results.sort_by(|a, b| {
+            b.combined_score
+                .partial_cmp(&a.combined_score)
+                .expect("Operation should succeed")
+        });
+
         Ok(HybridSearchResult {
             results,
             total_found: documents.len(),
@@ -664,7 +726,11 @@ impl SearchProvider for MockSearchProvider {
             },
             query_analysis: QueryAnalysis {
                 normalized_query: request.query.to_lowercase(),
-                extracted_terms: request.query.split_whitespace().map(|s| s.to_string()).collect(),
+                extracted_terms: request
+                    .query
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect(),
                 detected_language: Some("en".to_string()),
                 query_type: QueryType::Simple,
                 complexity_score: 0.7,
@@ -678,14 +744,19 @@ impl SearchProvider for MockSearchProvider {
             },
         })
     }
-    
+
     async fn get_document(&self, document_id: &str) -> ApplicationResult<Option<SearchDocument>> {
         self.record_operation(&format!("get_document:{}", document_id));
-        Ok(self.documents.lock().unwrap().get(document_id).cloned())
+        Ok(self
+            .documents
+            .lock()
+            .expect("Operation should succeed")
+            .get(document_id)
+            .cloned())
     }
-    
+
     async fn get_index_stats(&self) -> ApplicationResult<IndexStatistics> {
-        let documents = self.documents.lock().unwrap();
+        let documents = self.documents.lock().expect("Operation should succeed");
         Ok(IndexStatistics {
             total_documents: documents.len() as u64,
             total_size_bytes: documents.values().map(|d| d.content.len() as u64).sum(),
@@ -708,7 +779,7 @@ impl SearchProvider for MockSearchProvider {
             },
         })
     }
-    
+
     async fn health_check(&self) -> ApplicationResult<SearchHealth> {
         Ok(SearchHealth {
             is_healthy: true,
@@ -720,10 +791,10 @@ impl SearchProvider for MockSearchProvider {
             last_error: None,
         })
     }
-    
+
     async fn optimize_index(&self) -> ApplicationResult<OptimizationResult> {
         self.record_operation("optimize_index");
-        
+
         Ok(OptimizationResult {
             optimization_type: OptimizationType::Compact,
             duration_ms: 5000,
@@ -733,45 +804,55 @@ impl SearchProvider for MockSearchProvider {
             performance_improvement: 0.15,
         })
     }
-    
+
     async fn similarity_search(
-        &self, 
-        query_embedding: &domain::entities::embedding_vector::EmbeddingVector, 
-        limit: usize, 
-        threshold: Option<&domain::value_objects::score_threshold::ScoreThreshold>
+        &self,
+        query_embedding: &domain::EmbeddingVector,
+        limit: usize,
+        threshold: Option<&domain::ScoreThreshold>,
     ) -> ApplicationResult<Vec<SimilaritySearchMatch>> {
         self.record_operation(&format!("similarity_search:limit={}", limit));
-        
-        let documents = self.documents.lock().unwrap();
+
+        let documents = self.documents.lock().expect("Operation should succeed");
         let mut results = Vec::new();
-        
+
         for document in documents.values() {
             if let Some(embedding) = &document.embedding {
                 // Mock similarity calculation
                 let similarity = 0.95 - (results.len() as f64 * 0.05);
-                
-                let min_threshold = threshold.map(|t| t.value()).unwrap_or(0.0);
+
+                let min_threshold = threshold.map(|t| t.value()).unwrap_or(0.0) as f64;
                 if similarity >= min_threshold {
                     results.push(SimilaritySearchMatch {
                         record_id: document.id.clone(),
                         embedding: embedding.as_vec().clone(),
                         similarity_score: similarity,
-                        metadata: Some([
-                            ("layer".to_string(), format!("{:?}", document.layer)),
-                            ("content_length".to_string(), document.content.len().to_string()),
-                        ].into()),
+                        metadata: Some(
+                            [
+                                ("layer".to_string(), format!("{:?}", document.layer)),
+                                (
+                                    "content_length".to_string(),
+                                    document.content.len().to_string(),
+                                ),
+                            ]
+                            .into(),
+                        ),
                     });
                 }
-                
+
                 if results.len() >= limit {
                     break;
                 }
             }
         }
-        
+
         // Sort by similarity descending
-        results.sort_by(|a, b| b.similarity_score.partial_cmp(&a.similarity_score).unwrap());
-        
+        results.sort_by(|a, b| {
+            b.similarity_score
+                .partial_cmp(&a.similarity_score)
+                .expect("Operation should succeed")
+        });
+
         Ok(results)
     }
 }

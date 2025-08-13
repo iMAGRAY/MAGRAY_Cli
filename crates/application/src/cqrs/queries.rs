@@ -2,21 +2,18 @@
 //!
 //! Запросы для чтения данных из memory системы
 
+use crate::dtos::memory::DateRange;
+use crate::dtos::{
+    AnalyzeUsageRequest, AnalyzeUsageResponse, GenerateInsightsRequest, GenerateInsightsResponse,
+    HealthReport, ListMemoryRequest, ListMemoryResponse, PaginationParams, RetrieveMemoryRequest,
+    RetrieveMemoryResponse, SearchMemoryRequest, SearchMemoryResponse, SimilaritySearchRequest,
+    SimilaritySearchResponse, SortOptions, SystemStatistics,
+};
+use crate::{ApplicationResult, RequestContext};
+use domain::EmbeddingVector;
+use domain::LayerType;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-use crate::{ApplicationResult, RequestContext};
-use crate::dtos::{
-    RetrieveMemoryRequest, RetrieveMemoryResponse,
-    SearchMemoryRequest, SearchMemoryResponse,
-    SimilaritySearchRequest, SimilaritySearchResponse,
-    ListMemoryRequest, ListMemoryResponse,
-    AnalyzeUsageRequest, AnalyzeUsageResponse,
-    GenerateInsightsRequest, GenerateInsightsResponse,
-    SystemStatistics, HealthReport,
-    PaginationParams, DateRange, SortOptions
-};
-use domain::value_objects::layer_type::LayerType;
-use domain::entities::embedding_vector::EmbeddingVector;
 
 /// Query to retrieve a single memory record
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
@@ -341,11 +338,11 @@ impl From<SearchMemoryRequest> for SearchMemoryQuery {
     fn from(request: SearchMemoryRequest) -> Self {
         Self {
             query: request.query,
-            layers: request.layers,
-            limit: request.limit,
+            layers: request.layers.unwrap_or(vec![]),
+            limit: request.limit.unwrap_or(50),
             include_embeddings: request.include_embeddings,
             project_filter: request.project_filter,
-            tag_filters: request.tag_filters,
+            tag_filters: vec![], // Default empty filters
         }
     }
 }
@@ -354,9 +351,9 @@ impl From<SimilaritySearchRequest> for SimilaritySearchQuery {
     fn from(request: SimilaritySearchRequest) -> Self {
         Self {
             query_embedding: request.query_embedding,
-            limit: request.limit,
+            limit: request.limit.unwrap_or(10),
             threshold: request.threshold,
-            layers: request.layers,
+            layers: request.layers.unwrap_or_else(Vec::new),
             include_vectors: request.include_vectors,
         }
     }
@@ -378,7 +375,7 @@ impl From<ListMemoryRequest> for ListMemoryQuery {
 impl From<AnalyzeUsageRequest> for AnalyzeUsageQuery {
     fn from(request: AnalyzeUsageRequest) -> Self {
         Self {
-            time_window_hours: request.time_window_hours,
+            time_window_hours: Some(request.time_window_hours as u64),
             layers: request.layers,
             project_filter: request.project_filter,
             include_patterns: true,
@@ -391,8 +388,11 @@ impl From<GenerateInsightsRequest> for GenerateInsightsQuery {
     fn from(request: GenerateInsightsRequest) -> Self {
         Self {
             analysis_type: InsightType::UsagePatterns, // Default mapping
-            time_range: request.time_range,
-            layers: request.layers,
+            time_range: request.time_window_hours.map(|h| DateRange {
+                from: chrono::Utc::now(),
+                to: chrono::Utc::now() + chrono::Duration::hours(h as i64),
+            }),
+            layers: None, // Not available in request, use default
             detail_level: InsightDetailLevel::Detailed,
         }
     }
@@ -422,7 +422,7 @@ impl SearchMemoryQuery {
     pub fn new(query: &str, limit: usize) -> Self {
         Self {
             query: query.to_string(),
-            layers: vec![LayerType::Cache, LayerType::Index, LayerType::Storage],
+            layers: vec![LayerType::Interact, LayerType::Insights, LayerType::Assets],
             limit,
             include_embeddings: false,
             project_filter: None,
@@ -457,7 +457,7 @@ impl SimilaritySearchQuery {
             query_embedding,
             limit,
             threshold: None,
-            layers: vec![LayerType::Cache, LayerType::Index],
+            layers: vec![LayerType::Interact, LayerType::Insights],
             include_vectors: false,
         }
     }

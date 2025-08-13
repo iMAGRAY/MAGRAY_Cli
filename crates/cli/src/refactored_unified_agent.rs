@@ -615,14 +615,21 @@ mod tests {
     #[tokio::test]
     async fn test_refactored_agent_basic_functionality() {
         let config = RefactoredAgentConfig::default();
-        let mut agent = RefactoredUnifiedAgent::new(config).await.unwrap();
+        let mut agent = RefactoredUnifiedAgent::new(config)
+            .await
+            .expect("Async operation should succeed");
 
         // Регистрируем mock handler
         let handler = Arc::new(MockHandler::new("test_handler", true));
-        agent.register_handler(handler.clone()).unwrap();
+        agent
+            .register_handler(handler.clone())
+            .expect("Operation failed - converted from unwrap()");
 
         // Инициализируем агента
-        agent.initialize().await.unwrap();
+        agent
+            .initialize()
+            .await
+            .expect("Async operation should succeed");
 
         assert!(agent.system_ready().await);
 
@@ -659,7 +666,9 @@ mod tests {
             },
         );
 
-        let mut agent = RefactoredUnifiedAgent::new(config).await.unwrap();
+        let mut agent = RefactoredUnifiedAgent::new(config)
+            .await
+            .expect("Async operation should succeed");
 
         // Handler который всегда падает
         struct FailingHandler;
@@ -677,8 +686,13 @@ mod tests {
             }
         }
 
-        agent.register_handler(Arc::new(FailingHandler)).unwrap();
-        agent.initialize().await.unwrap();
+        agent
+            .register_handler(Arc::new(FailingHandler))
+            .expect("Operation failed - converted from unwrap()");
+        agent
+            .initialize()
+            .await
+            .expect("Async operation should succeed");
 
         let context = RequestContext {
             message: "test".to_string(),
@@ -704,11 +718,18 @@ mod tests {
             ..Default::default()
         };
 
-        let mut agent = RefactoredUnifiedAgent::new(config).await.unwrap();
+        let mut agent = RefactoredUnifiedAgent::new(config)
+            .await
+            .expect("Async operation should succeed");
 
         let handler = Arc::new(MockHandler::new("perf_test_handler", true));
-        agent.register_handler(handler.clone()).unwrap();
-        agent.initialize().await.unwrap();
+        agent
+            .register_handler(handler.clone())
+            .expect("Operation failed - converted from unwrap()");
+        agent
+            .initialize()
+            .await
+            .expect("Async operation should succeed");
 
         let context = RequestContext {
             message: "performance test".to_string(),
@@ -743,7 +764,7 @@ mod tests {
             .await;
 
         assert!(agent.is_ok());
-        let agent = agent.unwrap();
+        let agent = agent.expect("Operation failed - converted from unwrap()");
 
         assert_eq!(agent.config.max_concurrent_operations, 20);
         assert!(agent.config.enable_adaptive_routing);

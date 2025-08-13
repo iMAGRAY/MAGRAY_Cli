@@ -441,7 +441,10 @@ impl MLDataProcessor {
         record_id: &Uuid,
         current_access_count: u32,
     ) -> Option<CachedFeatures> {
-        let cache = self.feature_cache.lock().unwrap();
+        let cache = self
+            .feature_cache
+            .lock()
+            .expect("Lock should not be poisoned");
 
         if let Some(cached) = cache.get(record_id) {
             // Проверяем TTL
@@ -458,7 +461,10 @@ impl MLDataProcessor {
     }
 
     fn cache_features(&self, record_id: &Uuid, features: &PromotionFeatures, access_count: u32) {
-        let mut cache = self.feature_cache.lock().unwrap();
+        let mut cache = self
+            .feature_cache
+            .lock()
+            .expect("Lock should not be poisoned");
 
         // Проверяем размер кэша
         if cache.len() >= self.config.max_cache_size {
@@ -587,7 +593,10 @@ impl MLDataProcessor {
 
     /// Получает статистику data processor
     pub fn get_statistics(&self) -> DataProcessorStatistics {
-        let cache = self.feature_cache.lock().unwrap();
+        let cache = self
+            .feature_cache
+            .lock()
+            .expect("Lock should not be poisoned");
 
         DataProcessorStatistics {
             cache_size: cache.len(),
@@ -599,7 +608,10 @@ impl MLDataProcessor {
 
     /// Очищает кэш features
     pub fn clear_cache(&mut self) {
-        let mut cache = self.feature_cache.lock().unwrap();
+        let mut cache = self
+            .feature_cache
+            .lock()
+            .expect("Lock should not be poisoned");
         cache.clear();
         info!("🧹 Feature cache очищен");
     }
@@ -788,7 +800,7 @@ mod tests {
         let importance = analyzer
             .analyze_importance("This is a critical error")
             .await
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
         assert!(importance > 0.0);
 
         let density = analyzer.calculate_keyword_density("critical error warning info");

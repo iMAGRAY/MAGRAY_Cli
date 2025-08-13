@@ -16,7 +16,7 @@ enum TestGpuCommand {
 async fn test_gpu_info_command() {
     // Test basic GPU info parsing
     let args = vec!["test", "gpu", "info"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     // Should not panic
@@ -28,7 +28,7 @@ async fn test_gpu_info_command() {
 #[tokio::test]
 async fn test_gpu_benchmark_command_basic() {
     let args = vec!["test", "gpu", "benchmark"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;
@@ -46,7 +46,7 @@ async fn test_gpu_benchmark_with_params() {
         "50",
         "--compare",
     ];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;
@@ -57,7 +57,7 @@ async fn test_gpu_benchmark_with_params() {
 #[tokio::test]
 async fn test_gpu_cache_stats() {
     let args = vec!["test", "gpu", "cache", "stats"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;
@@ -67,7 +67,7 @@ async fn test_gpu_cache_stats() {
 #[tokio::test]
 async fn test_gpu_cache_clear() {
     let args = vec!["test", "gpu", "cache", "clear"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;
@@ -77,7 +77,7 @@ async fn test_gpu_cache_clear() {
 #[tokio::test]
 async fn test_gpu_cache_size() {
     let args = vec!["test", "gpu", "cache", "size"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;
@@ -87,7 +87,7 @@ async fn test_gpu_cache_size() {
 #[tokio::test]
 async fn test_gpu_memory_stats() {
     let args = vec!["test", "gpu", "memory", "stats"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;
@@ -97,7 +97,7 @@ async fn test_gpu_memory_stats() {
 #[tokio::test]
 async fn test_gpu_memory_clear() {
     let args = vec!["test", "gpu", "memory", "clear"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;
@@ -107,7 +107,7 @@ async fn test_gpu_memory_clear() {
 #[tokio::test]
 async fn test_gpu_optimize_default() {
     let args = vec!["test", "gpu", "optimize"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;
@@ -117,7 +117,7 @@ async fn test_gpu_optimize_default() {
 #[tokio::test]
 async fn test_gpu_optimize_with_model() {
     let args = vec!["test", "gpu", "optimize", "custom-model"];
-    let cli = TestCli::try_parse_from(args).unwrap();
+    let cli = TestCli::try_parse_from(args).expect("Test operation should succeed");
 
     let TestGpuCommand::Gpu(gpu_cmd) = cli.command;
     let result = gpu_cmd.execute().await;

@@ -66,6 +66,7 @@ mod tests {
         let mut fake = FakeMemoryService {
             storage: Default::default(),
         };
-        fake.store(vec![1, 2, 3]).unwrap();
+        fake.store(vec![1, 2, 3])
+            .expect("Test operation should succeed");
     }
 }

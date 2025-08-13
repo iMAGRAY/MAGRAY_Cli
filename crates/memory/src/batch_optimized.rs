@@ -957,7 +957,8 @@ mod tests {
     #[tokio::test]
     async fn test_batch_optimized_processor_creation() {
         let config = BatchOptimizedConfig::default();
-        let processor = BatchOptimizedProcessor::new(config).expect("Failed to create BatchOptimizedProcessor");
+        let processor =
+            BatchOptimizedProcessor::new(config).expect("Failed to create BatchOptimizedProcessor");
 
         // Проверяем что processor создался
         assert!(processor.get_throughput_qps() >= 0.0);
@@ -970,7 +971,8 @@ mod tests {
             worker_threads: 2,
             ..Default::default()
         };
-        let processor = BatchOptimizedProcessor::new(config).expect("Failed to create BatchOptimizedProcessor for batch test");
+        let processor = BatchOptimizedProcessor::new(config)
+            .expect("Failed to create BatchOptimizedProcessor for batch test");
 
         // Создаем test records
         let mut records = Vec::new();
@@ -981,7 +983,10 @@ mod tests {
         }
 
         // Insert batch
-        let response = processor.insert_batch(records).await.expect("Failed to insert batch records");
+        let response = processor
+            .insert_batch(records)
+            .await
+            .expect("Failed to insert batch records");
         assert_eq!(response.processed_count, 10);
         assert!(response.used_simd);
 
@@ -1004,7 +1009,8 @@ mod tests {
     #[tokio::test]
     async fn test_batch_search_multiple_queries() {
         let config = BatchOptimizedConfig::default();
-        let processor = BatchOptimizedProcessor::new(config).expect("Failed to create BatchOptimizedProcessor for multiple queries test");
+        let processor = BatchOptimizedProcessor::new(config)
+            .expect("Failed to create BatchOptimizedProcessor for multiple queries test");
 
         // Insert some test data
         let records = vec![
@@ -1012,12 +1018,18 @@ mod tests {
             create_test_record(Layer::Insights),
             create_test_record(Layer::Assets),
         ];
-        processor.insert_batch(records).await.expect("Failed to insert test records");
+        processor
+            .insert_batch(records)
+            .await
+            .expect("Failed to insert test records");
 
         // Multiple queries
         let queries = vec![vec![0.1; 1024], vec![0.2; 1024], vec![0.3; 1024]];
 
-        let results = processor.batch_search(queries, 2, None).await.expect("Failed to perform batch search");
+        let results = processor
+            .batch_search(queries, 2, None)
+            .await
+            .expect("Failed to perform batch search");
 
         assert_eq!(results.len(), 3); // Должно быть 3 sets результатов
 

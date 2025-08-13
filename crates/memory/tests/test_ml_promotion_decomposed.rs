@@ -217,7 +217,10 @@ mod test_algorithms {
         ];
 
         let initial_accuracy = algorithm.get_accuracy();
-        let final_accuracy = algorithm.train(&training_data).await.unwrap();
+        let final_accuracy = algorithm
+            .train(&training_data)
+            .await
+            .expect("Test operation should succeed");
 
         assert!(final_accuracy >= 0.0 && final_accuracy <= 1.0);
         // Accuracy может как увеличиться, так и остаться тем же для такого маленького dataset
@@ -414,7 +417,10 @@ mod test_rules_engine {
             ),
         ];
 
-        let filtered = rules_engine.filter_candidates(candidates).await.unwrap();
+        let filtered = rules_engine
+            .filter_candidates(candidates)
+            .await
+            .expect("Test operation should succeed");
 
         // Должно отфильтровать плохой record
         assert!(filtered.len() < 3);
@@ -483,7 +489,7 @@ mod test_data_processor {
         let importance = analyzer
             .analyze_importance("This is a critical error warning")
             .await
-            .unwrap();
+            .expect("Test operation should succeed");
         assert!(importance > 0.0);
 
         let density = analyzer.calculate_keyword_density("critical error warning info test");
@@ -493,10 +499,13 @@ mod test_data_processor {
         let no_keywords = analyzer
             .analyze_importance("normal text without special words")
             .await
-            .unwrap();
+            .expect("Test operation should succeed");
         assert!(no_keywords < importance);
 
-        let topic_relevance = analyzer.get_topic_relevance("some text").await.unwrap();
+        let topic_relevance = analyzer
+            .get_topic_relevance("some text")
+            .await
+            .expect("Test operation should succeed");
         assert!(topic_relevance >= 0.0 && topic_relevance <= 1.0);
     }
 
@@ -640,7 +649,8 @@ mod test_solid_principles {
 
         // Algorithms - только ML алгоритмы
         let config = magray_memory::ml_promotion::algorithms::AlgorithmConfig::default();
-        let _algo = AlgorithmFactory::create("frequency", config).unwrap();
+        let _algo =
+            AlgorithmFactory::create("frequency", config).expect("Test operation should succeed");
 
         // Metrics - только сбор метрик
         let _metrics = MLPromotionMetricsCollector::new(MetricsConfig::default());
@@ -679,9 +689,12 @@ mod test_solid_principles {
 
         let config = magray_memory::ml_promotion::algorithms::AlgorithmConfig::default();
 
-        let freq_algo = AlgorithmFactory::create("frequency", config.clone()).unwrap();
-        let semantic_algo = AlgorithmFactory::create("semantic", config.clone()).unwrap();
-        let hybrid_algo = AlgorithmFactory::create("hybrid", config).unwrap();
+        let freq_algo = AlgorithmFactory::create("frequency", config.clone())
+            .expect("Test operation should succeed");
+        let semantic_algo = AlgorithmFactory::create("semantic", config.clone())
+            .expect("Test operation should succeed");
+        let hybrid_algo =
+            AlgorithmFactory::create("hybrid", config).expect("Test operation should succeed");
 
         let features = create_test_features();
 
@@ -724,7 +737,8 @@ mod test_solid_principles {
 
         // Можем инжектить различные implementations через builder
         let config = magray_memory::ml_promotion::algorithms::AlgorithmConfig::default();
-        let algorithm = AlgorithmFactory::create("hybrid", config).unwrap();
+        let algorithm =
+            AlgorithmFactory::create("hybrid", config).expect("Test operation should succeed");
         let metrics = Box::new(MLPromotionMetricsCollector::new(MetricsConfig::default()));
 
         let _builder_with_deps = builder.with_algorithm(algorithm).with_metrics(metrics);

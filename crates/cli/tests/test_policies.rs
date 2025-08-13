@@ -27,17 +27,17 @@ fn default_policy_blocks_shell_exec() {
 
 #[test]
 fn user_policy_overrides_allow_shell_exec() {
-    let temp = TempDir::new().unwrap();
+    let temp = TempDir::new().expect("Test operation should succeed");
     let home = temp.path().join(".magray");
-    fs::create_dir_all(&home).unwrap();
+    fs::create_dir_all(&home).expect("Test operation should succeed");
     let policy_path = home.join("policy.json");
-    let mut f = fs::File::create(&policy_path).unwrap();
+    let mut f = fs::File::create(&policy_path).expect("Test operation should succeed");
     // Allow shell_exec by overriding default
     write!(
         f,
         r#"{{"rules":[{{"subject_kind":"Tool","subject_name":"shell_exec","when_contains_args":null,"action":"Allow","reason":"override"}}]}}"#
     )
-    .unwrap();
+    .expect("Test operation should succeed");
 
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
     cmd.args([
@@ -69,17 +69,17 @@ fn default_policy_allows_memory_backup() {
 
 #[test]
 fn user_policy_blocks_memory_backup() {
-    let temp = TempDir::new().unwrap();
+    let temp = TempDir::new().expect("Test operation should succeed");
     let home = temp.path().join(".magray");
-    fs::create_dir_all(&home).unwrap();
+    fs::create_dir_all(&home).expect("Test operation should succeed");
     let policy_path = home.join("policy.json");
-    let mut f = fs::File::create(&policy_path).unwrap();
+    let mut f = fs::File::create(&policy_path).expect("Test operation should succeed");
     // Deny memory.backup
     write!(
         f,
         r#"{{"rules":[{{"subject_kind":"Command","subject_name":"memory.backup","when_contains_args":null,"action":"Deny","reason":"no backups"}}]}}"#
     )
-    .unwrap();
+    .expect("Test operation should succeed");
 
     let mut cmd = Command::cargo_bin("magray").expect("binary built");
     cmd.args(["memory", "backup"])
@@ -92,15 +92,15 @@ fn user_policy_blocks_memory_backup() {
 
 #[test]
 fn ask_policy_requires_confirmation_and_env_override_allows() {
-    let temp = TempDir::new().unwrap();
+    let temp = TempDir::new().expect("Test operation should succeed");
     let home = temp.path().join(".magray");
-    fs::create_dir_all(&home).unwrap();
+    fs::create_dir_all(&home).expect("Test operation should succeed");
     let policy_path = home.join("policy.json");
-    let mut f = fs::File::create(&policy_path).unwrap();
+    let mut f = fs::File::create(&policy_path).expect("Test operation should succeed");
     write!(
         f,
         r#"{{"rules":[{{"subject_kind":"Tool","subject_name":"web_search","when_contains_args":null,"action":"Ask","reason":"medium"}}]}}"#
-    ).unwrap();
+    ).expect("Test operation should succeed");
 
     // Non-interactive should fail
     let mut cmd = Command::cargo_bin("magray").expect("binary built");

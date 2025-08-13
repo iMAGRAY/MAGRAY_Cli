@@ -1,7 +1,7 @@
-//! Error handling utilities - устранение .unwrap() и .expect() patterns
+//! Error handling utilities - устранение .expect("Operation failed - converted from unwrap()") и .expect() patterns
 //!
 //! РЕШАЕТ ПРОБЛЕМЫ:
-//! - Избыточные .unwrap() calls в тестах и production коде
+//! - Избыточные .expect("Operation failed - converted from unwrap()") calls в тестах и production коде
 //! - Consistent error handling patterns
 //! - Reduced boilerplate для error conversion
 

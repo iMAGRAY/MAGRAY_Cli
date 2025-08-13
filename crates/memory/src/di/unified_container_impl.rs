@@ -1295,4 +1295,79 @@ impl DynamicDIContainer for UnifiedContainer {
             debug_mode: false, // TODO: получить из config
         }
     }
+
+    /// КРИТИЧЕСКАЯ MEMORY CLEANUP ФУНКЦИЯ
+    /// Очищает все caches и освобождает memory для предотвращения leaks
+    pub fn cleanup_memory(&self) {
+        // Очистить singleton cache
+        if let Ok(mut cache) = self.singleton_cache.write() {
+            let cache_size = cache.len();
+            cache.clear();
+            log::info!("Cleared singleton cache: {} entries", cache_size);
+        }
+
+        // Очистить resolver cache
+        if let Ok(mut cache) = self.resolver.cache.write() {
+            let cache_size = cache.len();
+            cache.clear();
+            log::info!("Cleared resolver cache: {} entries", cache_size);
+        }
+
+        // Сбросить метрики для освобождения accumulated data
+        if let Some(metrics) = &self.metrics {
+            metrics.reset_metrics();
+        }
+
+        log::info!("DI Container memory cleanup completed");
+    }
+
+    /// Получить использование memory
+    pub fn memory_usage(&self) -> MemoryUsage {
+        let singleton_count = self.singleton_cache.read()
+            .map(|cache| cache.len())
+            .unwrap_or(0);
+        
+        let resolver_cache_count = self.resolver.cache.read()
+            .map(|cache| cache.len())
+            .unwrap_or(0);
+
+        let registration_count = self.registry.factories.read()
+            .map(|factories| factories.len())
+            .unwrap_or(0);
+
+        MemoryUsage {
+            singleton_instances: singleton_count,
+            cached_instances: resolver_cache_count,
+            registered_types: registration_count,
+            estimated_memory_mb: (singleton_count + resolver_cache_count) * 8 / 1024 / 1024,
+        }
+    }
+}
+
+/// Memory usage statistics
+pub struct MemoryUsage {
+    pub singleton_instances: usize,
+    pub cached_instances: usize, 
+    pub registered_types: usize,
+    pub estimated_memory_mb: usize,
+}
+
+/// КРИТИЧЕСКИ ВАЖНАЯ РЕАЛИЗАЦИЯ Drop ДЛЯ АВТОМАТИЧЕСКОЙ ОЧИСТКИ
+impl Drop for UnifiedContainer {
+    fn drop(&mut self) {
+        log::debug!("Dropping UnifiedContainer, performing memory cleanup");
+        self.cleanup_memory();
+        
+        // Принудительно удаляем циклические ссылки
+        if let Ok(mut cache) = self.singleton_cache.write() {
+            cache.clear();
+        }
+        
+        // Дополнительная очистка resolver cache на случай циклических ссылок
+        if let Ok(mut cache) = self.resolver.cache.write() {
+            cache.clear();
+        }
+        
+        log::info!("UnifiedContainer dropped and memory cleanup completed");
+    }
 }

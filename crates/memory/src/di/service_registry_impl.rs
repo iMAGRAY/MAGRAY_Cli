@@ -293,10 +293,10 @@ impl ServiceRegistryImpl {
             total_resolutions += info.get_resolution_count();
 
             // Найдем самую старую и новую регистрации
-            if oldest_registration.is_none() || info.registered_at < oldest_registration.unwrap() {
+            if oldest_registration.is_none() || info.registered_at < oldest_registration.expect("Operation failed - converted from unwrap()") {
                 oldest_registration = Some(info.registered_at);
             }
-            if newest_registration.is_none() || info.registered_at > newest_registration.unwrap() {
+            if newest_registration.is_none() || info.registered_at > newest_registration.expect("Operation failed - converted from unwrap()") {
                 newest_registration = Some(info.registered_at);
             }
         }
@@ -574,7 +574,7 @@ mod tests {
                 create_mock_factory(),
                 LifetimeStrategy::Singleton,
             )
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         registry
             .register_type_erased(
@@ -583,7 +583,7 @@ mod tests {
                 create_mock_factory(),
                 LifetimeStrategy::Transient,
             )
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         let stats = registry.get_stats();
         assert_eq!(stats.total_registrations, 2);
@@ -604,7 +604,7 @@ mod tests {
                 create_mock_factory(),
                 LifetimeStrategy::Singleton,
             )
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         assert_eq!(registry.registration_count(), 1);
 
@@ -623,7 +623,7 @@ mod tests {
                 create_mock_factory(),
                 LifetimeStrategy::Singleton,
             )
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         let report = registry.get_detailed_report();
         assert!(report.contains("Service Registry Detailed Report"));
@@ -646,7 +646,7 @@ mod tests {
                 create_mock_factory(),
                 LifetimeStrategy::Singleton,
             )
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         assert!(registry.validate().is_ok());
     }

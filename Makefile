@@ -4,11 +4,16 @@
 # Minimum coverage threshold for coverage-based CI runs (percentage)
 MIN_COVERAGE ?= 40
 
-.PHONY: help build-all build-cpu build-gpu build-minimal test test-all bench clean docker-build docker-test release rag-report rag-report-fast rag-report-rerank
+.PHONY: help start start-release run build-all build-cpu build-gpu build-minimal test test-all bench clean docker-build docker-test release rag-report rag-report-fast rag-report-rerank
 
 # Default target
 help:
 	@echo "🚀 MAGRAY CLI Build System"
+	@echo ""
+	@echo "🚀 Quick Start Commands:"
+	@echo "  make start          - Build and start MAGRAY CLI (CPU debug)"
+	@echo "  make start-release  - Build and start MAGRAY CLI (CPU release)"
+	@echo "  make run            - Build and run MAGRAY CLI (CPU debug)"
 	@echo ""
 	@echo "📦 Build Commands:"
 	@echo "  make build-cpu      - Build CPU-only version (production)"
@@ -179,6 +184,20 @@ dev-cpu:
 dev-gpu:
 	@echo "🔧 Development build (GPU)..."
 	cargo build --features=gpu
+
+# Start/Run commands for direct execution
+.PHONY: start run start-release
+start: dev-cpu
+	@echo "🚀 Starting MAGRAY CLI (CPU debug mode)..."
+	./target/debug/magray
+
+start-release: build-cpu
+	@echo "🚀 Starting MAGRAY CLI (CPU release mode)..."
+	./target/release/magray
+
+run: dev-cpu
+	@echo "🏃 Running MAGRAY CLI (CPU debug mode)..."
+	cargo run --features=cpu --bin magray
 
 watch:
 	@echo "👀 Watching for changes..."

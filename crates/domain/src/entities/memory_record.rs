@@ -144,6 +144,47 @@ impl MemoryRecord {
         &self.access_pattern
     }
 
+    /// Get content preview (first 200 characters)
+    pub fn content_preview(&self) -> Option<String> {
+        if self.content.len() <= 200 {
+            Some(self.content.clone())
+        } else {
+            Some(format!("{}...", &self.content[..200]))
+        }
+    }
+
+    /// Get metadata as JSON value
+    pub fn metadata(&self) -> serde_json::Value {
+        let mut metadata = serde_json::Map::new();
+        metadata.insert(
+            "kind".to_string(),
+            serde_json::Value::String(self.kind.clone()),
+        );
+        metadata.insert(
+            "project".to_string(),
+            serde_json::Value::String(self.project.clone()),
+        );
+        metadata.insert(
+            "session".to_string(),
+            serde_json::Value::String(self.session.clone()),
+        );
+        metadata.insert(
+            "tags".to_string(),
+            serde_json::Value::Array(
+                self.tags
+                    .iter()
+                    .map(|t| serde_json::Value::String(t.clone()))
+                    .collect(),
+            ),
+        );
+        serde_json::Value::Object(metadata)
+    }
+
+    /// Get last access time
+    pub fn last_accessed(&self) -> DateTime<Utc> {
+        self.access_pattern.last_accessed()
+    }
+
     // Business methods - core domain operations
 
     /// Add business tag with validation
@@ -336,7 +377,7 @@ mod tests {
             "test_project".to_string(),
             "session_1".to_string(),
         )
-        .unwrap();
+        .expect("Operation failed - converted from unwrap()");
 
         assert_eq!(record.content(), "Test content");
         assert_eq!(record.layer(), LayerType::Interact);
@@ -377,7 +418,7 @@ mod tests {
             "project".to_string(),
             "session".to_string(),
         )
-        .unwrap();
+        .expect("Operation failed - converted from unwrap()");
 
         // Add valid tag
         assert!(record.add_tag("important".to_string()).is_ok());
@@ -404,7 +445,7 @@ mod tests {
             "project".to_string(),
             "session".to_string(),
         )
-        .unwrap();
+        .expect("Operation failed - converted from unwrap()");
 
         // Should not promote initially
         assert!(!record.should_promote_to_layer(LayerType::Insights));

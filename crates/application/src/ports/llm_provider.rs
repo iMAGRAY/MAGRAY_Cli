@@ -2,8 +2,8 @@
 //!
 //! Абстракция для Language Model services для reranking, анализа и генерации.
 
-use async_trait::async_trait;
 use crate::ApplicationResult;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 /// Trait для LLM services
@@ -11,25 +11,36 @@ use serde::{Deserialize, Serialize};
 pub trait LlmProvider: Send + Sync {
     /// Generate text completion/chat response
     async fn generate_response(&self, request: &LlmRequest) -> ApplicationResult<LlmResponse>;
-    
+
     /// Batch text generation
-    async fn generate_batch_responses(&self, requests: &[LlmRequest]) -> ApplicationResult<Vec<LlmResponse>>;
-    
+    async fn generate_batch_responses(
+        &self,
+        requests: &[LlmRequest],
+    ) -> ApplicationResult<Vec<LlmResponse>>;
+
     /// Rerank search results using LLM
-    async fn rerank_results(&self, query: &str, results: &[RerankItem]) -> ApplicationResult<Vec<RerankResult>>;
-    
+    async fn rerank_results(
+        &self,
+        query: &str,
+        results: &[RerankItem],
+    ) -> ApplicationResult<Vec<RerankResult>>;
+
     /// Analyze text intent and extract entities
     async fn analyze_intent(&self, text: &str) -> ApplicationResult<IntentAnalysis>;
-    
+
     /// Extract structured information from text
-    async fn extract_information(&self, text: &str, schema: &ExtractionSchema) -> ApplicationResult<serde_json::Value>;
-    
+    async fn extract_information(
+        &self,
+        text: &str,
+        schema: &ExtractionSchema,
+    ) -> ApplicationResult<serde_json::Value>;
+
     /// Health check for LLM service
     async fn health_check(&self) -> ApplicationResult<LlmHealth>;
-    
+
     /// Get provider capabilities
     fn get_capabilities(&self) -> LlmCapabilities;
-    
+
     /// Get provider model information
     fn model_info(&self) -> ModelInfo;
 }
@@ -54,7 +65,7 @@ pub struct Message {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MessageRole {
     User,
-    Assistant, 
+    Assistant,
     System,
     Tool,
 }
@@ -281,7 +292,7 @@ pub struct LlmCapabilities {
 /// Model information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelInfo {
-    pub provider: LlmProvider,
+    pub provider: String,
     pub model_name: String,
     pub model_version: String,
     pub context_window: u32,
@@ -326,16 +337,19 @@ impl LlmRequest {
             context: None,
         }
     }
-    
+
     pub fn with_system_message(mut self, system_content: &str) -> Self {
-        self.messages.insert(0, Message {
-            role: MessageRole::System,
-            content: system_content.to_string(),
-            metadata: None,
-        });
+        self.messages.insert(
+            0,
+            Message {
+                role: MessageRole::System,
+                content: system_content.to_string(),
+                metadata: None,
+            },
+        );
         self
     }
-    
+
     pub fn with_parameters(mut self, parameters: LlmParameters) -> Self {
         self.parameters = parameters;
         self
@@ -355,7 +369,7 @@ impl MockLlmProvider {
         Self {
             responses: std::sync::Mutex::new(std::collections::VecDeque::new()),
             model_info: ModelInfo {
-                provider: LlmProviderType::Custom("mock".to_string()),
+                provider: "mock".to_string(),
                 model_name: "mock-llm".to_string(),
                 model_version: "1.0".to_string(),
                 context_window: 4096,
@@ -364,9 +378,12 @@ impl MockLlmProvider {
             },
         }
     }
-    
+
     pub fn add_response(&self, response: ApplicationResult<LlmResponse>) {
-        self.responses.lock().unwrap().push_back(response);
+        self.responses
+            .lock()
+            .expect("Operation should succeed")
+            .push_back(response);
     }
 }
 
@@ -374,7 +391,12 @@ impl MockLlmProvider {
 #[async_trait]
 impl LlmProvider for MockLlmProvider {
     async fn generate_response(&self, _request: &LlmRequest) -> ApplicationResult<LlmResponse> {
-        if let Some(response) = self.responses.lock().unwrap().pop_front() {
+        if let Some(response) = self
+            .responses
+            .lock()
+            .expect("Operation should succeed")
+            .pop_front()
+        {
             response
         } else {
             Ok(LlmResponse {
@@ -396,25 +418,36 @@ impl LlmProvider for MockLlmProvider {
             })
         }
     }
-    
-    async fn generate_batch_responses(&self, requests: &[LlmRequest]) -> ApplicationResult<Vec<LlmResponse>> {
+
+    async fn generate_batch_responses(
+        &self,
+        requests: &[LlmRequest],
+    ) -> ApplicationResult<Vec<LlmResponse>> {
         let mut responses = Vec::new();
         for request in requests {
             responses.push(self.generate_response(request).await?);
         }
         Ok(responses)
     }
-    
-    async fn rerank_results(&self, _query: &str, results: &[RerankItem]) -> ApplicationResult<Vec<RerankResult>> {
-        Ok(results.iter().enumerate().map(|(i, item)| RerankResult {
-            id: item.id.clone(),
-            rerank_score: 1.0 - (i as f32 * 0.1),
-            combined_score: item.original_score * (1.0 - (i as f32 * 0.1)),
-            explanation: Some("Mock reranking".to_string()),
-            confidence: 0.8,
-        }).collect())
+
+    async fn rerank_results(
+        &self,
+        _query: &str,
+        results: &[RerankItem],
+    ) -> ApplicationResult<Vec<RerankResult>> {
+        Ok(results
+            .iter()
+            .enumerate()
+            .map(|(i, item)| RerankResult {
+                id: item.id.clone(),
+                rerank_score: 1.0 - (i as f32 * 0.1),
+                combined_score: item.original_score * (1.0 - (i as f32 * 0.1)),
+                explanation: Some("Mock reranking".to_string()),
+                confidence: 0.8,
+            })
+            .collect())
     }
-    
+
     async fn analyze_intent(&self, _text: &str) -> ApplicationResult<IntentAnalysis> {
         Ok(IntentAnalysis {
             primary_intent: Intent::Question,
@@ -429,11 +462,15 @@ impl LlmProvider for MockLlmProvider {
             complexity: QueryComplexity::Simple,
         })
     }
-    
-    async fn extract_information(&self, _text: &str, _schema: &ExtractionSchema) -> ApplicationResult<serde_json::Value> {
+
+    async fn extract_information(
+        &self,
+        _text: &str,
+        _schema: &ExtractionSchema,
+    ) -> ApplicationResult<serde_json::Value> {
         Ok(serde_json::json!({}))
     }
-    
+
     async fn health_check(&self) -> ApplicationResult<LlmHealth> {
         Ok(LlmHealth {
             is_healthy: true,
@@ -444,7 +481,7 @@ impl LlmProvider for MockLlmProvider {
             model_availability: ModelAvailability::Available,
         })
     }
-    
+
     fn get_capabilities(&self) -> LlmCapabilities {
         LlmCapabilities {
             supports_streaming: false,
@@ -456,7 +493,7 @@ impl LlmProvider for MockLlmProvider {
             supported_formats: vec!["text/plain".to_string()],
         }
     }
-    
+
     fn model_info(&self) -> ModelInfo {
         self.model_info.clone()
     }

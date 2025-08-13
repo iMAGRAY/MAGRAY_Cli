@@ -387,7 +387,7 @@ async fn test_concurrent_operations() -> Result<()> {
             i + 1
         );
         assert!(
-            result.unwrap().is_ok(),
+            result.expect("Test operation should succeed").is_ok(),
             "Insert {} должен быть успешным",
             i + 1
         );
@@ -416,7 +416,7 @@ async fn test_concurrent_operations() -> Result<()> {
             i + 1
         );
         assert!(
-            result.unwrap().is_ok(),
+            result.expect("Test operation should succeed").is_ok(),
             "Search {} должен быть успешным",
             i + 1
         );
@@ -570,7 +570,10 @@ async fn test_operation_limiter_concurrency() -> Result<()> {
     // All operations should succeed
     for result in results {
         assert!(result.is_ok(), "Task должна завершиться без panic");
-        assert!(result.unwrap().is_ok(), "Insert должен быть успешным");
+        assert!(
+            result.expect("Test operation should succeed").is_ok(),
+            "Insert должен быть успешным"
+        );
     }
 
     // With 2 concurrent operations and 5 total operations, minimum time should be around 300ms

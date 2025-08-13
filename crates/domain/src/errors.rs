@@ -82,6 +82,10 @@ pub enum DomainError {
     /// Business validation: invalid promotion criteria
     #[error("Invalid promotion criteria: {0}")]
     InvalidPromotionCriteria(String),
+
+    /// Infrastructure failure (temporary compatibility)
+    #[error("Infrastructure error: {0}")]
+    Infrastructure(String),
 }
 
 /// Domain result type
@@ -135,6 +139,14 @@ impl DomainError {
         } else {
             ErrorCategory::Other
         }
+    }
+
+    /// Check if error is retryable
+    pub fn is_retryable(&self) -> bool {
+        matches!(
+            self,
+            DomainError::Infrastructure(_) | DomainError::ConcurrentModification { .. }
+        )
     }
 }
 

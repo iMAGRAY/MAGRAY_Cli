@@ -601,7 +601,7 @@ mod tests {
                 create_mock_factory(),
                 LifetimeStrategy::Singleton,
             )
-            .unwrap();
+            .expect("Operation failed - converted from unwrap()");
 
         // Теперь тип может быть разрешен
         assert!(resolver.can_resolve(type_id));

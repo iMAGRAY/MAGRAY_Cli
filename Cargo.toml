@@ -9,7 +9,8 @@ members = [
     "crates/todo",
     "crates/ai",
     "crates/common",
-    "crates/domain"       # TODO: Migrate to core
+    "crates/domain",      # TODO: Migrate to core
+    "crates/ui"           # NEW: TUI Framework
 ]
 exclude = [
     "fuzz",
@@ -44,12 +45,14 @@ console = "0.15"
 tokio-stream = "0.1"
 walkdir = "2.4"
 tempfile = "3.8"
+ratatui = "0.28"
+crossterm = "0.28"
 
 # Testing dependencies
 proptest = "1.5"
 quickcheck = "1.0" 
 arbitrary = "1.4"
-mockall = "0.14"
+mockall = "0.13"
 mockito = "1.7"
 rstest = "0.24"
 tokio-test = "0.4"

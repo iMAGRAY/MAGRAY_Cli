@@ -40,13 +40,14 @@ fn test_structured_log_entry_full() {
     };
 
     // Проверяем сериализацию
-    let json_str = serde_json::to_string(&entry).unwrap();
+    let json_str = serde_json::to_string(&entry).expect("Test operation should succeed");
     assert!(json_str.contains("test-component"));
     assert!(json_str.contains("req-123"));
     assert!(json_str.contains("150"));
 
     // Проверяем десериализацию
-    let deserialized: StructuredLogEntry = serde_json::from_str(&json_str).unwrap();
+    let deserialized: StructuredLogEntry =
+        serde_json::from_str(&json_str).expect("Test operation should succeed");
     assert_eq!(deserialized.level, "INFO");
     assert_eq!(deserialized.message, "Test log message");
 }
@@ -63,7 +64,7 @@ fn test_structured_log_entry_minimal() {
         performance: None,
     };
 
-    let json_str = serde_json::to_string(&entry).unwrap();
+    let json_str = serde_json::to_string(&entry).expect("Test operation should succeed");
     assert!(json_str.contains("ERROR"));
     assert!(json_str.contains("Error occurred"));
     assert!(!json_str.contains("context"));
@@ -82,7 +83,7 @@ fn test_execution_context_complete() {
         thread_id: "main-thread".to_string(),
     };
 
-    let json = serde_json::to_value(&context).unwrap();
+    let json = serde_json::to_value(&context).expect("Test operation should succeed");
     assert_eq!(json["request_id"], "unique-request-id");
     assert_eq!(json["user_id"], "user123");
     assert_eq!(json["app_version"], "2.1.0");
@@ -102,7 +103,7 @@ fn test_execution_context_partial() {
         thread_id: "thread-1".to_string(),
     };
 
-    let json = serde_json::to_value(&context).unwrap();
+    let json = serde_json::to_value(&context).expect("Test operation should succeed");
     assert_eq!(json["request_id"], Value::Null);
     assert_eq!(json["user_id"], Value::Null);
 }
@@ -119,7 +120,7 @@ fn test_performance_metrics_all_fields() {
         cache_misses: Some(50),
     };
 
-    let json = serde_json::to_value(&metrics).unwrap();
+    let json = serde_json::to_value(&metrics).expect("Test operation should succeed");
     assert_eq!(json["duration_ms"], 250);
     assert_eq!(json["cpu_usage_percent"], 75.5);
     assert_eq!(json["memory_used_bytes"], 512 * 1024 * 1024);
@@ -139,7 +140,7 @@ fn test_performance_metrics_partial() {
         cache_misses: None,
     };
 
-    let json_str = serde_json::to_string(&metrics).unwrap();
+    let json_str = serde_json::to_string(&metrics).expect("Test operation should succeed");
     assert!(json_str.contains("100"));
     assert!(!json_str.contains("cpu_usage_percent"));
 }
@@ -233,7 +234,7 @@ fn test_flatten_fields() {
         performance: None,
     };
 
-    let json = serde_json::to_value(&entry).unwrap();
+    let json = serde_json::to_value(&entry).expect("Test operation should succeed");
     assert_eq!(json["key1"], "value1");
     assert_eq!(json["key2"], 42);
 }
@@ -262,7 +263,7 @@ fn test_error_serialization() {
         performance: None,
     };
 
-    let json_str = serde_json::to_string(&entry).unwrap();
+    let json_str = serde_json::to_string(&entry).expect("Test operation should succeed");
     assert!(json_str.contains("ValidationError"));
     assert!(json_str.contains("400"));
     assert!(json_str.contains("Invalid format"));
@@ -281,7 +282,7 @@ fn test_empty_fields_map() {
         performance: None,
     };
 
-    let json = serde_json::to_value(&entry).unwrap();
+    let json = serde_json::to_value(&entry).expect("Test operation should succeed");
     assert_eq!(json["message"], "Empty fields test");
     // Поскольку fields помечен как #[serde(flatten)], пустой HashMap не создаёт отдельное поле
 }
@@ -304,11 +305,12 @@ fn test_special_characters_in_fields() {
     };
 
     // Должно корректно сериализоваться
-    let json_str = serde_json::to_string(&entry).unwrap();
+    let json_str = serde_json::to_string(&entry).expect("Test operation should succeed");
     assert!(json_str.contains("emoji value"));
 
     // И десериализоваться обратно
-    let deserialized: StructuredLogEntry = serde_json::from_str(&json_str).unwrap();
+    let deserialized: StructuredLogEntry =
+        serde_json::from_str(&json_str).expect("Test operation should succeed");
     assert!(deserialized.fields.contains_key("unicode_🚀"));
 }
 
@@ -324,10 +326,11 @@ fn test_large_performance_metrics() {
     };
 
     // Должно корректно сериализоваться даже с максимальными значениями
-    let json_str = serde_json::to_string(&metrics).unwrap();
+    let json_str = serde_json::to_string(&metrics).expect("Test operation should succeed");
     assert!(!json_str.is_empty());
 
-    let deserialized: PerformanceMetrics = serde_json::from_str(&json_str).unwrap();
+    let deserialized: PerformanceMetrics =
+        serde_json::from_str(&json_str).expect("Test operation should succeed");
     assert_eq!(deserialized.duration_ms, u64::MAX);
 }
 

@@ -108,7 +108,7 @@ async fn test_concurrent_service_resolution_thread_safety() -> DIResult<()> {
     let total_expected_operations = thread_count * operations_per_thread;
     
     for result in results {
-        let (thread_id, resolutions, errors) = result.unwrap();
+        let (thread_id, resolutions, errors) = result.expect("Test operation should succeed");
         if resolutions > 0 {
             successful_threads += 1;
         }
@@ -262,7 +262,7 @@ async fn test_service_creation_race_conditions() -> DIResult<()> {
     // Проверяем что все задачи завершились успешно
     let mut successful_resolutions = 0;
     for result in results {
-        if result.unwrap().is_ok() {
+        if result.expect("Test operation should succeed").is_ok() {
             successful_resolutions += 1;
         }
     }
@@ -370,7 +370,7 @@ async fn test_deadlock_prevention_complex_dependencies() -> DIResult<()> {
     let mut max_duration = Duration::from_secs(0);
     
     for result in results {
-        match result.unwrap() {
+        match result.expect("Test operation should succeed") {
             Ok((pattern_id, duration)) => {
                 successful_patterns += 1;
                 max_duration = max_duration.max(duration);
@@ -650,13 +650,13 @@ async fn test_concurrent_configuration_hot_reload() -> DIResult<()> {
         tokio::spawn(async move {
             for iteration in 0..10 {
                 // Создаем новую конфигурацию
-                let mut new_config = UnifiedDIConfiguration::test_config().unwrap();
+                let mut new_config = UnifiedDIConfiguration::test_config().expect("Test operation should succeed");
                 new_config.max_services += iteration * 10;
                 new_config.timeout_seconds += iteration * 5;
                 
                 // В реальной системе здесь был бы hot reload
                 // Пока что просто проверяем что система может обработать изменения конфигурации
-                let validation_result = new_config.validate().unwrap();
+                let validation_result = new_config.validate().expect("Test operation should succeed");
                 assert!(validation_result.is_valid);
                 
                 reload_counter.fetch_add(1, Ordering::SeqCst);

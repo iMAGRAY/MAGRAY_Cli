@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 #![cfg(feature = "gpu")]
 
 use ai::{EmbeddingConfig, FallbackPolicy, GpuFallbackManager};
@@ -37,7 +38,7 @@ async fn test_gpu_fallback_manager_creation() {
     let manager = GpuFallbackManager::new(config).await;
 
     assert!(manager.is_ok());
-    let manager = manager.unwrap();
+    let manager = manager.expect("Test operation should succeed");
 
     let stats = manager.get_stats();
     assert_eq!(stats.gpu_success_rate(), 0.0);
@@ -49,7 +50,9 @@ async fn test_gpu_fallback_manager_cpu_only() {
     let mut config = EmbeddingConfig::default();
     config.use_gpu = false;
 
-    let manager = GpuFallbackManager::new(config).await.unwrap();
+    let manager = GpuFallbackManager::new(config)
+        .await
+        .expect("Test operation should succeed");
 
     let texts = vec!["test text".to_string()];
     let _result = manager.embed_batch_with_fallback(texts).await;
@@ -66,7 +69,9 @@ async fn test_gpu_fallback_manager_cpu_only() {
 async fn test_fallback_stats_rates() {
     // Create manager and get stats
     let config = EmbeddingConfig::default();
-    let manager = GpuFallbackManager::new(config).await.unwrap();
+    let manager = GpuFallbackManager::new(config)
+        .await
+        .expect("Test operation should succeed");
     let stats = manager.get_stats();
 
     // Stats should be zero initially
@@ -77,7 +82,9 @@ async fn test_fallback_stats_rates() {
 #[tokio::test]
 async fn test_force_cpu_mode() {
     let config = EmbeddingConfig::default();
-    let manager = GpuFallbackManager::new(config).await.unwrap();
+    let manager = GpuFallbackManager::new(config)
+        .await
+        .expect("Test operation should succeed");
 
     manager.force_cpu_mode();
 
@@ -93,7 +100,9 @@ async fn test_force_cpu_mode() {
 #[tokio::test]
 async fn test_reset_circuit_breaker() {
     let config = EmbeddingConfig::default();
-    let manager = GpuFallbackManager::new(config).await.unwrap();
+    let manager = GpuFallbackManager::new(config)
+        .await
+        .expect("Test operation should succeed");
 
     // Force CPU mode
     manager.force_cpu_mode();

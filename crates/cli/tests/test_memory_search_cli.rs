@@ -5,7 +5,7 @@ use tempfile::TempDir;
 
 #[test]
 fn memory_search_rerank_fallback_cli() {
-    let temp = TempDir::new().unwrap();
+    let temp = TempDir::new().expect("Test operation should succeed");
     // Prepare environment
     let mut add = Command::cargo_bin("magray").expect("binary built");
     add.current_dir(&temp)

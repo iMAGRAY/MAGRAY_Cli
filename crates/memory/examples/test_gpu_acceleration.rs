@@ -74,7 +74,7 @@ async fn test_memory_gpu_integration() -> Result<()> {
     info!("\n📍 Тест 2: Интеграция GPU с системой памяти");
 
     // Создаем конфигурацию с GPU
-    let mut config = default_config().unwrap();
+    let mut config = default_config().expect("Test operation should succeed");
     config.ai_config.embedding.use_gpu = true;
 
     // Инициализируем сервис
@@ -114,7 +114,7 @@ async fn test_memory_gpu_integration() -> Result<()> {
 async fn test_batch_processing() -> Result<()> {
     info!("\n📍 Тест 3: Батчевая обработка эмбеддингов");
 
-    let mut config = default_config().unwrap();
+    let mut config = default_config().expect("Test operation should succeed");
     config.ai_config.embedding.use_gpu = true;
     let service = MemoryService::new(config).await?;
 
@@ -164,21 +164,29 @@ async fn test_performance_comparison() -> Result<()> {
     // CPU конфигурация
     let mut cpu_config = MemoryConfig::default();
     cpu_config.ai_config.embedding.use_gpu = false;
-    cpu_config.db_path = cpu_config.db_path.parent().unwrap().join("cpu_test_db");
+    cpu_config.db_path = cpu_config
+        .db_path
+        .parent()
+        .expect("Test operation should succeed")
+        .join("cpu_test_db");
     cpu_config.cache_path = cpu_config
         .cache_path
         .parent()
-        .unwrap()
+        .expect("Test operation should succeed")
         .join("cpu_test_cache");
 
     // GPU конфигурация
     let mut gpu_config = MemoryConfig::default();
     gpu_config.ai_config.embedding.use_gpu = true;
-    gpu_config.db_path = gpu_config.db_path.parent().unwrap().join("gpu_test_db");
+    gpu_config.db_path = gpu_config
+        .db_path
+        .parent()
+        .expect("Test operation should succeed")
+        .join("gpu_test_db");
     gpu_config.cache_path = gpu_config
         .cache_path
         .parent()
-        .unwrap()
+        .expect("Test operation should succeed")
         .join("gpu_test_cache");
 
     // Тест CPU
@@ -258,7 +266,7 @@ async fn test_performance_comparison() -> Result<()> {
 async fn test_vector_search() -> Result<()> {
     info!("\n📍 Тест 5: Векторный поиск с GPU эмбеддингами");
 
-    let mut config = default_config().unwrap();
+    let mut config = default_config().expect("Test operation should succeed");
     config.ai_config.embedding.use_gpu = true;
     let service = MemoryService::new(config).await?;
 
@@ -350,13 +358,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_memory_gpu_basic() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut config = default_config().unwrap();
+        let temp_dir = TempDir::new().expect("Test operation should succeed");
+        let mut config = default_config().expect("Test operation should succeed");
         config.db_path = temp_dir.path().join("test_db");
         config.cache_path = temp_dir.path().join("test_cache");
 
         // Должен создаться с CPU fallback если нет GPU
-        let service = MemoryService::new(config).await.unwrap();
+        let service = MemoryService::new(config)
+            .await
+            .expect("Test operation should succeed");
 
         // Базовый тест вставки
         let record = Record {
