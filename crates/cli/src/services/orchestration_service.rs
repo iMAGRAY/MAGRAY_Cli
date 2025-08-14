@@ -20,6 +20,57 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
+/// Прямой тест OpenAI API без LLM client - для диагностики
+async fn try_direct_openai_test() -> anyhow::Result<String> {
+    let api_key = std::env::var("OPENAI_API_KEY")
+        .map_err(|_| anyhow::anyhow!("OPENAI_API_KEY not found in environment"))?;
+
+    if !api_key.starts_with("sk-") {
+        return Err(anyhow::anyhow!(
+            "API key doesn't look like OpenAI key (should start with sk-)"
+        ));
+    }
+
+    let client = reqwest::Client::new();
+    let request_body = serde_json::json!({
+        "model": "gpt-4o-mini",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Привет! Ответь одним предложением что ты работаешь."
+            }
+        ],
+        "max_tokens": 50
+    });
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", "application/json")
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("HTTP request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(anyhow::anyhow!("API returned {}: {}", status, error_text));
+    }
+
+    let response_json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to parse JSON: {}", e))?;
+
+    let content = response_json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("No content in response"))?
+        .to_string();
+
+    Ok(content)
+}
+
 // Remove the problematic import for now and create a simplified service
 
 /// Command execution request for orchestrator
@@ -155,10 +206,25 @@ impl OrchestrationService {
 
         info!("AgentOrchestrator initialized successfully");
 
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Also initialize LLM client for TUI chat support
+        let llm_client_option = match LlmClient::from_env() {
+            Ok(client) => {
+                info!("LLM client initialized successfully for orchestrator mode");
+                Some(Arc::new(client))
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to initialize LLM client: {}, TUI chat will be limited",
+                    e
+                );
+                None
+            }
+        };
+
         Ok(Self {
             orchestrator: Arc::new(RwLock::new(Some(orchestrator))),
             fallback_agent: Arc::new(RwLock::new(None)),
-            llm_client: Arc::new(RwLock::new(None)),
+            llm_client: Arc::new(RwLock::new(llm_client_option)),
             config: orchestrator_config,
             orchestrator_available: Arc::new(AtomicBool::new(true)),
             fallback_mode: Arc::new(AtomicBool::new(false)),
@@ -168,19 +234,86 @@ impl OrchestrationService {
     }
 
     /// Create orchestration service with LLM-powered fallback
+    /// КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Graceful fallback при недоступности LLM client
     pub async fn with_llm_fallback() -> Result<Self> {
         info!("Initializing OrchestrationService with LLM-powered fallback");
 
-        // Create LLM client for intelligent fallback
-        let llm_client = LlmClient::from_env()
-            .map_err(|e| anyhow!("Failed to create LLM client for fallback: {}", e))?;
+        // КРИТИЧЕСКАЯ ДИАГНОСТИКА LLM client с детальными логами
+        warn!("=== LLM CLIENT DIAGNOSTIC START ===");
+        warn!("🔍 Checking environment variables:");
 
-        info!("LLM client initialized for intelligent fallback");
+        // Проверяем переменные окружения
+        if let Ok(key) = std::env::var("OPENAI_API_KEY") {
+            if key.starts_with("sk-") {
+                warn!("✅ OPENAI_API_KEY found and looks valid (starts with sk-)");
+            } else {
+                warn!("⚠️  OPENAI_API_KEY found but doesn't look like OpenAI key (should start with sk-)");
+            }
+        } else {
+            warn!("❌ OPENAI_API_KEY not found in environment");
+        }
+
+        // Проверяем .env файл
+        if std::path::Path::new(".env").exists() {
+            warn!("✅ .env file exists");
+        } else {
+            warn!("⚠️  .env file not found in current directory");
+        }
+
+        warn!("🔧 Attempting to create LLM client...");
+        let llm_client_result = LlmClient::from_env();
+        let llm_client_option = match llm_client_result {
+            Ok(client) => {
+                warn!("✅ LLM client created successfully!");
+
+                // Test LLM client with a simple request
+                warn!("📞 Testing LLM connectivity with 'Hello' message...");
+                match client.chat_simple("Hello").await {
+                    Ok(response) => {
+                        warn!(
+                            "✅ LLM CLIENT TEST SUCCESS! Response: {:?}",
+                            response.chars().take(50).collect::<String>()
+                        );
+                        Some(Arc::new(client))
+                    }
+                    Err(e) => {
+                        error!("❌ LLM CLIENT TEST FAILED: {}", e);
+                        warn!("Possible causes:");
+                        warn!("1. Invalid API key (check if it's expired or revoked)");
+                        warn!("2. Network connectivity issues");
+                        warn!("3. Service provider rate limiting or downtime");
+                        warn!("4. Firewall blocking HTTPS requests");
+                        warn!("⚠️  Proceeding without LLM client - TUI will show config help");
+                        None // НЕ используем неработающий клиент
+                    }
+                }
+            }
+            Err(e) => {
+                error!("❌ FAILED TO CREATE LLM CLIENT: {}", e);
+                warn!("Root causes:");
+                warn!("• Missing .env file in project root");
+                warn!("• Missing API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)");
+                warn!("• Invalid environment configuration");
+                warn!("• LLM crate configuration issues");
+                warn!("⚠️  Proceeding without LLM client - TUI will show detailed setup help");
+                None
+            }
+        };
+
+        warn!(
+            "=== LLM CLIENT DIAGNOSTIC END (available: {}) ===",
+            llm_client_option.is_some()
+        );
+
+        info!(
+            "OrchestrationService initialized (LLM available: {})",
+            llm_client_option.is_some()
+        );
 
         Ok(Self {
             orchestrator: Arc::new(RwLock::new(None)),
             fallback_agent: Arc::new(RwLock::new(None)),
-            llm_client: Arc::new(RwLock::new(Some(Arc::new(llm_client)))),
+            llm_client: Arc::new(RwLock::new(llm_client_option)),
             config: OrchestratorConfig::default(),
             orchestrator_available: Arc::new(AtomicBool::new(false)),
             fallback_mode: Arc::new(AtomicBool::new(true)),
@@ -524,10 +657,11 @@ impl OrchestrationService {
 
     /// TUI-specific message processing without workflow execution logging
     /// This method provides direct LLM response for TUI chat interface
+    /// КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Better error handling и retry logic
     pub async fn process_tui_message(&self, message: &str) -> Result<String> {
         debug!("Processing TUI message (quiet mode): {}", message);
 
-        // Use LLM fallback for direct response without workflow logging
+        // Проверяем доступность LLM client
         if let Some(ref llm_client_arc) = *self.llm_client.read().await {
             let prompt = format!(
                 "You are MAGRAY CLI, an intelligent assistant. The user requested: {message}
@@ -541,13 +675,27 @@ Provide a helpful, concise response."
                     Ok(response)
                 }
                 Err(e) => {
-                    warn!("TUI LLM response failed: {}", e);
-                    Ok(format!("I understand you said: '{message}'. I'm processing your request but encountered a minor issue. Please try again."))
+                    error!("TUI LLM response failed, attempting retry: {}", e);
+                    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Пытаемся повторно с простым промптом
+                    match llm_client_arc.chat_simple(message).await {
+                        Ok(retry_response) => {
+                            debug!("TUI retry response successful");
+                            Ok(retry_response)
+                        }
+                        Err(retry_e) => {
+                            error!("TUI LLM retry also failed: {}", retry_e);
+                            Err(anyhow!(
+                                "LLM service unavailable: {} (retry: {})",
+                                e,
+                                retry_e
+                            ))
+                        }
+                    }
                 }
             }
         } else {
-            // Fallback response if no LLM available
-            Ok(format!("I received your message: '{message}'. I'm currently initializing my systems to provide better responses."))
+            error!("No LLM client available for TUI message processing");
+            Ok(format!("❌ LLM client недоступен\n\nПроблема: LLM client не смог инициализироваться\n\nВаше сообщение: \"{message}\""))
         }
     }
 
