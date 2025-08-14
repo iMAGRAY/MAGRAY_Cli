@@ -1,8 +1,8 @@
+use super::super::integration::human_like_testing::TestScenario;
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use anyhow::{Result, Context};
-use serde::{Deserialize, Serialize};
-use super::super::integration::human_like_testing::TestScenario;
 
 /// Scenario Manager - загружает и управляет тестовыми сценариями из YAML файлов
 pub struct ScenarioManager {
@@ -65,11 +65,14 @@ impl ScenarioManager {
     }
 
     /// Загружает все сценарии из указанного YAML файла
-    pub fn load_scenarios_from_file<P: AsRef<Path>>(&self, file_path: P) -> Result<Vec<TestScenario>> {
+    pub fn load_scenarios_from_file<P: AsRef<Path>>(
+        &self,
+        file_path: P,
+    ) -> Result<Vec<TestScenario>> {
         let full_path = Path::new(&self.scenarios_dir).join(file_path);
-        
+
         println!("📁 Loading scenarios from: {}", full_path.display());
-        
+
         let content = fs::read_to_string(&full_path)
             .with_context(|| format!("Failed to read scenarios file: {}", full_path.display()))?;
 
@@ -90,9 +93,13 @@ impl ScenarioManager {
             .collect();
 
         if let Some(meta) = scenarios_file.meta {
-            println!("📋 Loaded {} scenarios (version: {}, estimated time: {}min)", 
-                   scenarios.len(), meta.version, meta.estimated_total_time_minutes);
-            
+            println!(
+                "📋 Loaded {} scenarios (version: {}, estimated time: {}min)",
+                scenarios.len(),
+                meta.version,
+                meta.estimated_total_time_minutes
+            );
+
             if !meta.categories.is_empty() {
                 println!("🏷️  Categories: {}", meta.categories.join(", "));
             }
@@ -104,64 +111,77 @@ impl ScenarioManager {
     /// Загружает сценарии определенного типа
     pub fn load_scenarios_by_type(&self, scenario_type: &str) -> Result<Vec<TestScenario>> {
         let all_scenarios = self.load_all_scenarios()?;
-        
+
         let filtered: Vec<TestScenario> = all_scenarios
             .into_iter()
             .filter(|scenario| scenario.expected_type == scenario_type)
             .collect();
 
-        println!("🔍 Filtered {} scenarios of type '{}'", filtered.len(), scenario_type);
-        
+        println!(
+            "🔍 Filtered {} scenarios of type '{}'",
+            filtered.len(),
+            scenario_type
+        );
+
         Ok(filtered)
     }
 
     /// Загружает все доступные сценарии из всех YAML файлов
     pub fn load_all_scenarios(&self) -> Result<Vec<TestScenario>> {
         let scenarios_path = Path::new(&self.scenarios_dir);
-        
+
         if !scenarios_path.exists() {
-            return Err(anyhow::anyhow!("Scenarios directory does not exist: {}", scenarios_path.display()));
+            return Err(anyhow::anyhow!(
+                "Scenarios directory does not exist: {}",
+                scenarios_path.display()
+            ));
         }
 
         let mut all_scenarios = Vec::new();
-        
+
         // Ищем все YAML файлы в директории
         for entry in fs::read_dir(scenarios_path)? {
             let entry = entry?;
             let path = entry.path();
-            
-            if path.extension().and_then(|s| s.to_str()) == Some("yaml") || 
-               path.extension().and_then(|s| s.to_str()) == Some("yml") {
-                
-                match self.load_scenarios_from_file(&path.file_name().unwrap()) {
+
+            if path.extension().and_then(|s| s.to_str()) == Some("yaml")
+                || path.extension().and_then(|s| s.to_str()) == Some("yml")
+            {
+                match self.load_scenarios_from_file(path.file_name().unwrap()) {
                     Ok(mut scenarios) => {
-                        println!("✅ Loaded {} scenarios from {}", 
-                               scenarios.len(), path.file_name().unwrap().to_string_lossy());
+                        println!(
+                            "✅ Loaded {} scenarios from {}",
+                            scenarios.len(),
+                            path.file_name().unwrap().to_string_lossy()
+                        );
                         all_scenarios.append(&mut scenarios);
                     }
                     Err(e) => {
-                        eprintln!("❌ Failed to load scenarios from {}: {}", 
-                                path.file_name().unwrap().to_string_lossy(), e);
+                        eprintln!(
+                            "❌ Failed to load scenarios from {}: {}",
+                            path.file_name().unwrap().to_string_lossy(),
+                            e
+                        );
                     }
                 }
             }
         }
 
         println!("📊 Total scenarios loaded: {}", all_scenarios.len());
-        
+
         Ok(all_scenarios)
     }
 
     /// Возвращает статистику загруженных сценариев
     pub fn get_scenarios_stats(&self) -> Result<ScenarioStats> {
         let scenarios = self.load_all_scenarios()?;
-        
+
         let mut by_type = std::collections::HashMap::new();
         let mut categories = std::collections::HashSet::new();
-        
+
         for scenario in &scenarios {
             *by_type.entry(scenario.expected_type.clone()).or_insert(0) += 1;
-            
+
             // Извлекаем категории из evaluation_criteria
             for criterion in &scenario.evaluation_criteria {
                 if criterion.contains("_") {
@@ -174,10 +194,7 @@ impl ScenarioManager {
         }
 
         // Примерная оценка времени (среднее время выполнения * количество)
-        let estimated_time = scenarios
-            .iter()
-            .map(|s| s.timeout_seconds)
-            .sum::<u64>() / 60; // конвертируем в минуты
+        let estimated_time = scenarios.iter().map(|s| s.timeout_seconds).sum::<u64>() / 60; // конвертируем в минуты
 
         Ok(ScenarioStats {
             total_count: scenarios.len(),
@@ -221,21 +238,29 @@ impl ScenarioManager {
             if scenario.id.is_empty() {
                 return Err(anyhow::anyhow!("Scenario has empty ID"));
             }
-            
+
             if scenario.input.is_empty() {
-                return Err(anyhow::anyhow!("Scenario '{}' has empty input", scenario.id));
+                return Err(anyhow::anyhow!(
+                    "Scenario '{}' has empty input",
+                    scenario.id
+                ));
             }
-            
+
             if scenario.timeout_seconds == 0 {
-                return Err(anyhow::anyhow!("Scenario '{}' has zero timeout", scenario.id));
+                return Err(anyhow::anyhow!(
+                    "Scenario '{}' has zero timeout",
+                    scenario.id
+                ));
             }
-            
+
             if scenario.timeout_seconds > 300 {
-                println!("⚠️  Warning: Scenario '{}' has very long timeout: {}s", 
-                       scenario.id, scenario.timeout_seconds);
+                println!(
+                    "⚠️  Warning: Scenario '{}' has very long timeout: {}s",
+                    scenario.id, scenario.timeout_seconds
+                );
             }
         }
-        
+
         // Проверяем на дублированные ID
         let mut ids = std::collections::HashSet::new();
         for scenario in scenarios {
@@ -243,8 +268,11 @@ impl ScenarioManager {
                 return Err(anyhow::anyhow!("Duplicate scenario ID: {}", scenario.id));
             }
         }
-        
-        println!("✅ All {} scenarios validated successfully", scenarios.len());
+
+        println!(
+            "✅ All {} scenarios validated successfully",
+            scenarios.len()
+        );
         Ok(())
     }
 }
@@ -252,8 +280,6 @@ impl ScenarioManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
-    use std::fs::write;
 
     #[test]
     fn test_scenario_manager_creation() {
@@ -265,7 +291,7 @@ mod tests {
     fn test_basic_scenarios_creation() {
         let manager = ScenarioManager::new("./tests/scenarios");
         let scenarios = manager.create_basic_scenarios();
-        
+
         assert_eq!(scenarios.len(), 2);
         assert_eq!(scenarios[0].id, "quick_greeting");
         assert_eq!(scenarios[1].id, "help_command");
@@ -275,7 +301,7 @@ mod tests {
     fn test_scenario_validation() {
         let manager = ScenarioManager::new("./tests/scenarios");
         let scenarios = manager.create_basic_scenarios();
-        
+
         assert!(manager.validate_scenarios(&scenarios).is_ok());
     }
 

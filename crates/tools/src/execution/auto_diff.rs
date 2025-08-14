@@ -461,7 +461,7 @@ impl AutoDiffEngine {
     async fn compute_file_hash(&self, path: &Path) -> Result<String> {
         let content = tokio::fs::read(path).await?;
         let digest = sha2::Sha256::digest(&content);
-        Ok(format!("{:x}", digest))
+        Ok(format!("{digest:x}"))
     }
 
     /// Get file permissions (Unix-style)
@@ -481,9 +481,9 @@ impl AutoDiffEngine {
         let size_change = after.size as i64 - before.size as i64;
 
         if size_change > 0 {
-            format!("Content changed (+{} bytes)", size_change)
+            format!("Content changed (+{size_change} bytes)")
         } else if size_change < 0 {
-            format!("Content changed ({} bytes)", size_change)
+            format!("Content changed ({size_change} bytes)")
         } else {
             "Content changed".to_string()
         }
@@ -515,11 +515,7 @@ impl AutoDiffEngine {
         let bytes_modified = modified
             .iter()
             .filter_map(|change| match (&change.before, &change.after) {
-                (Some(before), Some(after)) => Some(if after.size > before.size {
-                    after.size - before.size
-                } else {
-                    before.size - after.size
-                }),
+                (Some(before), Some(after)) => Some(after.size.abs_diff(before.size)),
                 _ => None,
             })
             .sum();

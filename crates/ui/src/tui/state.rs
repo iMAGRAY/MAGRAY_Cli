@@ -110,7 +110,7 @@ impl AppState {
     pub fn start_orchestration(&mut self, operation: String) {
         self.orchestration_active = true;
         self.current_operation = Some(operation.clone());
-        self.set_status(format!("Starting orchestration: {}", operation));
+        self.set_status(format!("Starting orchestration: {operation}"));
     }
 
     pub fn stop_orchestration(&mut self) {

@@ -123,15 +123,13 @@ async fn test_intelligent_selection_for_different_intents() {
         let plan = planner.build_plan(&intent).await;
         assert!(
             plan.is_ok(),
-            "Plan building should succeed for intent type: {:?}",
-            intent_type
+            "Plan building should succeed for intent type: {intent_type:?}"
         );
 
         let plan = plan.unwrap();
         assert!(
             !plan.steps.is_empty(),
-            "Plan should have steps for intent type: {:?}",
-            intent_type
+            "Plan should have steps for intent type: {intent_type:?}"
         );
     }
 }

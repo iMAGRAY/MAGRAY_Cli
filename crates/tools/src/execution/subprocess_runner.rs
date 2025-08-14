@@ -412,8 +412,7 @@ impl ProcessLifecycleManager {
                     error!("Failed to kill process {}: {}", self.process_id, e);
                     self.state = ProcessState::Crashed;
                     Err(SubprocessError::CommunicationError(format!(
-                        "Failed to kill process: {}",
-                        e
+                        "Failed to kill process: {e}"
                     )))
                 }
             }

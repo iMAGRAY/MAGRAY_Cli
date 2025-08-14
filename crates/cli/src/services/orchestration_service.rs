@@ -484,15 +484,6 @@ impl Default for OrchestrationService {
 impl OrchestrationService {
     /// Simple user request processing (placeholder until full integration)
     pub async fn process_user_request(&self, message: &str) -> Result<String> {
-        println!("🔍 DEBUG: Processing user request: {}", message);
-        println!(
-            "🔍 DEBUG: Orchestrator available: {}",
-            self.orchestrator_available.load(Ordering::Relaxed)
-        );
-        println!(
-            "🔍 DEBUG: Fallback mode: {}",
-            self.fallback_mode.load(Ordering::Relaxed)
-        );
         debug!("Processing user request: {}", message);
 
         // Create simple command request
@@ -531,6 +522,35 @@ impl OrchestrationService {
         }
     }
 
+    /// TUI-specific message processing without workflow execution logging
+    /// This method provides direct LLM response for TUI chat interface
+    pub async fn process_tui_message(&self, message: &str) -> Result<String> {
+        debug!("Processing TUI message (quiet mode): {}", message);
+
+        // Use LLM fallback for direct response without workflow logging
+        if let Some(ref llm_client_arc) = *self.llm_client.read().await {
+            let prompt = format!(
+                "You are MAGRAY CLI, an intelligent assistant. The user requested: {message}
+
+Provide a helpful, concise response."
+            );
+
+            match llm_client_arc.chat_simple(&prompt).await {
+                Ok(response) => {
+                    debug!("TUI response generated successfully");
+                    Ok(response)
+                }
+                Err(e) => {
+                    warn!("TUI LLM response failed: {}", e);
+                    Ok(format!("I understand you said: '{message}'. I'm processing your request but encountered a minor issue. Please try again."))
+                }
+            }
+        } else {
+            // Fallback response if no LLM available
+            Ok(format!("I received your message: '{message}'. I'm currently initializing my systems to provide better responses."))
+        }
+    }
+
     /// Execute command without mutable reference (for trait compatibility)
     async fn execute_command_immutable(
         &self,
@@ -542,20 +562,11 @@ impl OrchestrationService {
         let orchestrator_guard = self.orchestrator.read().await;
         let orchestrator_available = orchestrator_guard.is_some();
 
-        println!(
-            "🔍 DEBUG: execute_command_immutable - orchestrator available: {}",
-            orchestrator_available
-        );
-        println!(
-            "🔍 DEBUG: execute_command_immutable - fallback mode: {}",
-            self.fallback_mode.load(Ordering::Relaxed)
-        );
-
         if orchestrator_available && !self.fallback_mode.load(Ordering::Relaxed) {
-            println!("🔍 DEBUG: Using orchestrator execution");
+            debug!("Using orchestrator execution");
             self.execute_through_orchestrator(request, start_time).await
         } else {
-            println!("🔍 DEBUG: Using fallback execution");
+            debug!("Using fallback execution");
             self.execute_fallback(request, start_time).await
         }
     }

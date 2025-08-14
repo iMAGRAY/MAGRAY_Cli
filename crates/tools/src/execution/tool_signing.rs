@@ -158,7 +158,7 @@ impl ToolSigner {
             .map_err(|e| anyhow!("Failed to read directory entry: {}", e))?
         {
             let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "json") {
+            if path.extension().is_some_and(|ext| ext == "json") {
                 match self.load_certificate_from_file(&path).await {
                     Ok(cert) => {
                         self.add_trusted_certificate(cert);
@@ -209,7 +209,7 @@ impl ToolSigner {
         let (files_hash, signed_files) = self.compute_directory_hash(tool_directory).await?;
 
         // Create signature data (manifest + files hash)
-        let signature_data = format!("{}{}", manifest_content, files_hash);
+        let signature_data = format!("{manifest_content}{files_hash}");
         let signature_bytes = signature_data.as_bytes();
 
         // Compute signature (simplified - in real implementation you'd use proper crypto)
@@ -461,7 +461,7 @@ impl ToolSigner {
         use base64::Engine;
         Ok(ToolSignature {
             algorithm: "DEMO_SHA256".to_string(),
-            signature: base64::engine::general_purpose::STANDARD.encode(&signature_hash),
+            signature: base64::engine::general_purpose::STANDARD.encode(signature_hash),
             key_id: key_id.to_string(),
             created_at: SystemTime::now(),
             metadata: HashMap::new(),
@@ -490,7 +490,7 @@ impl ToolSigner {
         hasher.update(signature.key_id.as_bytes());
         let expected_hash = hasher.finalize();
         use base64::Engine;
-        let expected_signature = base64::engine::general_purpose::STANDARD.encode(&expected_hash);
+        let expected_signature = base64::engine::general_purpose::STANDARD.encode(expected_hash);
 
         Ok(signature.signature == expected_signature)
     }

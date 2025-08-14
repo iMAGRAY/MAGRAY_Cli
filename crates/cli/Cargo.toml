@@ -74,7 +74,10 @@ orchestrator = { path = "../orchestrator" }
 ui = { path = "../ui" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
+chrono = { workspace = true }
 clap = { workspace = true }
+crossterm = { workspace = true }
+ratatui = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 indicatif = { workspace = true }
@@ -87,7 +90,6 @@ colored = "2.0"
 prettytable-rs = "0.10"
 async-trait = { workspace = true }
 sysinfo = "0.31"
-chrono = { workspace = true }
 uuid = { workspace = true }
 parking_lot = "0.12.4"
 rand = "0.9.2"

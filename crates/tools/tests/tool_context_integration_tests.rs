@@ -216,8 +216,7 @@ async fn test_orchestrator_integration_pattern() {
         let response = builder.build_context(request).await;
         assert!(
             response.is_ok(),
-            "Orchestrator pattern should work for query: {}",
-            query
+            "Orchestrator pattern should work for query: {query}"
         );
 
         let response = response.unwrap();

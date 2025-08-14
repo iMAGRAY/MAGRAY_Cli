@@ -1,3 +1,4 @@
+use crate::services;
 use anyhow::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
@@ -13,11 +14,9 @@ use ratatui::{
     Frame, Terminal,
 };
 use std::io;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::time::{timeout, Duration as TokioDuration};
-use chrono;
-use crate::services;
-use std::sync::{Arc, RwLock};
 
 /// Сообщение в чате
 #[derive(Debug, Clone)]
@@ -45,15 +44,15 @@ impl TuiChatState {
             scroll_offset: 0,
             is_processing: false,
         };
-        
+
         state.add_message(
             "System".to_string(),
             "🎉 Добро пожаловать в MAGRAY CLI TUI Chat! \n\n✨ Это полноценный чат интерфейс как в Claude Code!\n\n💡 Возможности:\n• Отправка сообщений: Enter\n• Прокрутка истории: Page Up/Down\n• Навигация: стрелки\n• Выход: ESC или Ctrl+C\n\n🤖 Напишите ваше сообщение ниже:".to_string(),
         );
-        
+
         state
     }
-    
+
     fn add_message(&mut self, role: String, content: String) {
         self.messages.push(ChatMessage {
             role,
@@ -61,34 +60,34 @@ impl TuiChatState {
             timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
         });
     }
-    
+
     /// Converts character position to byte index for UTF-8 string operations
     fn char_to_byte_index(&self, char_pos: usize) -> usize {
-        self.input.char_indices()
+        self.input
+            .char_indices()
             .nth(char_pos)
             .map(|(byte_idx, _)| byte_idx)
             .unwrap_or(self.input.len())
     }
-    
+
     /// Converts byte index to character position for cursor positioning
+    #[allow(dead_code)]
     fn byte_to_char_index(&self, byte_idx: usize) -> usize {
-        self.input[..byte_idx.min(self.input.len())]
-            .chars()
-            .count()
+        self.input[..byte_idx.min(self.input.len())].chars().count()
     }
-    
+
     /// Get the maximum cursor position (character count)
     fn max_cursor_position(&self) -> usize {
         self.input.chars().count()
     }
-    
+
     /// Safely insert character at cursor position
     fn insert_char(&mut self, c: char) {
         let byte_idx = self.char_to_byte_index(self.cursor_position);
         self.input.insert(byte_idx, c);
         self.cursor_position += 1;
     }
-    
+
     /// Safely remove character before cursor position
     fn backspace(&mut self) {
         if self.cursor_position > 0 {
@@ -104,14 +103,14 @@ impl TuiChatState {
             }
         }
     }
-    
+
     /// Move cursor left by one character
     fn move_cursor_left(&mut self) {
         if self.cursor_position > 0 {
             self.cursor_position -= 1;
         }
     }
-    
+
     /// Move cursor right by one character
     fn move_cursor_right(&mut self) {
         let max_pos = self.max_cursor_position();
@@ -125,37 +124,39 @@ impl TuiChatState {
 pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Result<()> {
     println!("🚀 Инициализация TUI чат интерфейса...");
     println!("📱 Создаём полноценный чат как в Claude Code...");
-    
+
     // Быстрая настройка терминала с улучшенной обработкой ошибок
-    enable_raw_mode().map_err(|e| anyhow::format_err!("Не удалось включить raw mode терминала: {}", e))?;
-    
+    enable_raw_mode()
+        .map_err(|e| anyhow::format_err!("Не удалось включить raw mode терминала: {}", e))?;
+
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
         .map_err(|e| anyhow::format_err!("Не удалось настроить терминал: {}", e))?;
-    
+
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)
         .map_err(|e| anyhow::format_err!("Не удалось создать терминал: {}", e))?;
-    
+
     // Состояние приложения с оптимизированной инициализацией
     let mut state = TuiChatState::new();
-    
+
     // Главный цикл
     loop {
         // Отрисовка UI
         if let Err(e) = terminal.draw(|f| render_ui(f, &state)) {
             return Err(anyhow::format_err!("Terminal draw failed: {}", e));
         }
-        
+
         // Обработка событий
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 // Выход (Ctrl+C или ESC)
-                if (key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c')) 
-                   || key.code == KeyCode::Esc {
+                if (key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c'))
+                    || key.code == KeyCode::Esc
+                {
                     break;
                 }
-                
+
                 if !state.is_processing {
                     match key.code {
                         // Отправка сообщения
@@ -166,10 +167,10 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
                                 state.input.clear();
                                 state.cursor_position = 0;
                                 state.is_processing = true;
-                                
+
                                 // Отрисовка с индикатором обработки
                                 terminal.draw(|f| render_ui(f, &state))?;
-                                
+
                                 // Получение ответа с timeout защитой
                                 let request_future = service.process_user_request(&message);
                                 match timeout(TokioDuration::from_secs(60), request_future).await {
@@ -177,13 +178,19 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
                                         state.add_message("Assistant".to_string(), response);
                                     }
                                     Ok(Err(e)) => {
-                                        state.add_message("Error".to_string(), format!("Ошибка: {}", e));
+                                        state.add_message(
+                                            "Error".to_string(),
+                                            format!("Ошибка: {e}"),
+                                        );
                                     }
                                     Err(_) => {
-                                        state.add_message("Error".to_string(), "Timeout: Запрос занял более 60 секунд".to_string());
+                                        state.add_message(
+                                            "Error".to_string(),
+                                            "Timeout: Запрос занял более 60 секунд".to_string(),
+                                        );
                                     }
                                 }
-                                
+
                                 state.is_processing = false;
                             }
                         }
@@ -234,7 +241,7 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
             }
         }
     }
-    
+
     // Восстановление терминала
     let cleanup_result = (|| -> Result<()> {
         disable_raw_mode()?;
@@ -246,13 +253,13 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
         terminal.show_cursor()?;
         Ok(())
     })();
-    
+
     if let Err(e) = cleanup_result {
-        eprintln!("⚠️  Warning: Terminal cleanup error: {}", e);
+        eprintln!("⚠️  Warning: Terminal cleanup error: {e}");
         // Попытка force cleanup
         let _ = disable_raw_mode();
     }
-    
+
     Ok(())
 }
 
@@ -261,31 +268,39 @@ fn render_ui(f: &mut Frame, state: &TuiChatState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Заголовок
-            Constraint::Min(1),     // Чат
-            Constraint::Length(3),  // Ввод
-            Constraint::Length(1),  // Статус
+            Constraint::Length(3), // Заголовок
+            Constraint::Min(1),    // Чат
+            Constraint::Length(3), // Ввод
+            Constraint::Length(1), // Статус
         ])
         .split(f.area());
-    
+
     // Заголовок
     let header = Paragraph::new(Line::from(vec![
-        Span::styled("🤖 MAGRAY CLI", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "🤖 MAGRAY CLI",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" | "),
-        Span::styled("💬 Claude Code-Style Chat", Style::default().fg(Color::Green)),
+        Span::styled(
+            "💬 Claude Code-Style Chat",
+            Style::default().fg(Color::Green),
+        ),
         Span::raw(" | "),
         Span::styled("ESC or Ctrl+C to exit", Style::default().fg(Color::Gray)),
     ]))
     .block(Block::default().borders(Borders::ALL))
     .alignment(Alignment::Center);
     f.render_widget(header, chunks[0]);
-    
+
     // История чата
     render_chat_history(f, chunks[1], state);
-    
+
     // Поле ввода
     render_input_field(f, chunks[2], state);
-    
+
     // Статус бар
     render_status_bar(f, chunks[3], state);
 }
@@ -304,21 +319,27 @@ fn render_chat_history(f: &mut Frame, area: Rect, state: &TuiChatState) {
                 "Error" => Style::default().fg(Color::Red),
                 _ => Style::default(),
             };
-            
+
             let mut lines = vec![];
-            
+
             // Заголовок сообщения
             lines.push(ListItem::new(Line::from(vec![
-                Span::styled(format!("[{}] ", msg.timestamp), Style::default().fg(Color::Gray)),
-                Span::styled(format!("{}: ", msg.role), style.add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("[{}] ", msg.timestamp),
+                    Style::default().fg(Color::Gray),
+                ),
+                Span::styled(
+                    format!("{}: ", msg.role),
+                    style.add_modifier(Modifier::BOLD),
+                ),
             ])));
-            
+
             // Контент - разбиваем длинные строки
             let max_width = (area.width - 4) as usize;
             for line in msg.content.lines() {
                 if line.len() <= max_width {
                     lines.push(ListItem::new(Line::from(Span::styled(
-                        format!("  {}", line),
+                        format!("  {line}"),
                         style,
                     ))));
                 } else {
@@ -331,21 +352,20 @@ fn render_chat_history(f: &mut Frame, area: Rect, state: &TuiChatState) {
                     }
                 }
             }
-            
+
             // Пустая строка между сообщениями
             lines.push(ListItem::new(Line::from("")));
-            
+
             lines
         })
         .collect();
-    
-    let messages_list = List::new(messages)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("💬 Chat History (Claude Code Style)")
-        );
-    
+
+    let messages_list = List::new(messages).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("💬 Chat History (Claude Code Style)"),
+    );
+
     f.render_widget(messages_list, area);
 }
 
@@ -372,9 +392,9 @@ fn render_input_field(f: &mut Frame, area: Rect, state: &TuiChatState) {
                 }),
         )
         .wrap(Wrap { trim: false });
-    
+
     f.render_widget(input, area);
-    
+
     // Курсор
     if !state.is_processing && area.width > 2 {
         let cursor_x = area.x + 1 + (state.cursor_position as u16).min(area.width - 2);
@@ -402,7 +422,7 @@ fn render_status_bar(f: &mut Frame, area: Rect, state: &TuiChatState) {
             Style::default().fg(Color::DarkGray),
         ),
     ]);
-    
+
     let status_bar = Paragraph::new(status);
     f.render_widget(status_bar, area);
 }
@@ -447,7 +467,9 @@ impl AsyncServiceState {
                         }
                         Err(fallback_err) => {
                             if let Ok(mut error_lock) = init_error_clone.write() {
-                                *error_lock = Some(format!("Failed to initialize: {} (fallback: {})", e, fallback_err));
+                                *error_lock = Some(format!(
+                                    "Failed to initialize: {e} (fallback: {fallback_err})"
+                                ));
                             }
                         }
                     }
@@ -462,7 +484,9 @@ impl AsyncServiceState {
                         }
                         Err(fallback_err) => {
                             if let Ok(mut error_lock) = init_error_clone.write() {
-                                *error_lock = Some(format!("Initialization timeout (fallback: {})", fallback_err));
+                                *error_lock = Some(format!(
+                                    "Initialization timeout (fallback: {fallback_err})"
+                                ));
                             }
                         }
                     }
@@ -482,21 +506,22 @@ pub async fn run_tui_chat_with_async_init() -> Result<()> {
     // Очистим терминал перед инициализацией TUI
     print!("\x1b[2J\x1b[H"); // Clear screen and move cursor to home
     std::io::Write::flush(&mut std::io::stdout()).ok();
-    
+
     // Настройка терминала
     enable_raw_mode().map_err(|e| anyhow::anyhow!("Failed to enable raw mode: {}", e))?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
         .map_err(|e| anyhow::anyhow!("Failed to setup terminal: {}", e))?;
     let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)
-        .map_err(|e| anyhow::anyhow!("Failed to create terminal: {}", e))?;
+    let mut terminal =
+        Terminal::new(backend).map_err(|e| anyhow::anyhow!("Failed to create terminal: {}", e))?;
 
     // Состояние чата
     let mut state = TuiChatState::new();
     state.add_message(
         "System".to_string(),
-        "🚀 Инициализация MAGRAY AI системы...\n⏳ Подключение к мульти-агентной архитектуре...".to_string(),
+        "🚀 Инициализация MAGRAY AI системы...\n⏳ Подключение к мульти-агентной архитектуре..."
+            .to_string(),
     );
 
     // Асинхронная инициализация сервиса
@@ -511,7 +536,8 @@ pub async fn run_tui_chat_with_async_init() -> Result<()> {
         terminal.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture
-    ).ok();
+    )
+    .ok();
 
     result
 }
@@ -529,19 +555,22 @@ async fn run_tui_loop(
         // Проверяем состояние инициализации каждые 500ms
         if !service_ready && last_init_check.elapsed() >= std::time::Duration::from_millis(500) {
             last_init_check = std::time::Instant::now();
-            
+
             if let Ok(is_initializing) = async_state.is_initializing.read() {
                 if !*is_initializing {
                     if let Ok(error) = async_state.init_error.read() {
                         if let Some(err_msg) = &*error {
                             state.add_message(
                                 "System".to_string(),
-                                format!("❌ Ошибка инициализации: {}\n💡 Используйте простые команды", err_msg),
+                                format!(
+                                    "❌ Ошибка инициализации: {err_msg}\n💡 Используйте простые команды"
+                                ),
                             );
                         } else {
                             state.add_message(
                                 "System".to_string(),
-                                "✅ AI система готова к работе!\n💬 Напишите ваше сообщение ниже:".to_string(),
+                                "✅ AI система готова к работе!\n💬 Напишите ваше сообщение ниже:"
+                                    .to_string(),
                             );
                         }
                     }
@@ -557,71 +586,69 @@ async fn run_tui_loop(
 
         // Обработка событий
         if event::poll(Duration::from_millis(100))? {
-            match event::read()? {
-                Event::Key(key) => {
-                    if (key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c'))
-                        || key.code == KeyCode::Esc
-                    {
-                        break;
-                    }
+            if let Event::Key(key) = event::read()? {
+                if (key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c'))
+                    || key.code == KeyCode::Esc
+                {
+                    break;
+                }
 
-                    if !state.is_processing {
-                        match key.code {
-                            KeyCode::Enter => {
-                                if !state.input.trim().is_empty() {
-                                    let message = state.input.clone();
-                                    state.add_message("You".to_string(), message.clone());
-                                    state.input.clear();
-                                    state.cursor_position = 0;
-                                    state.is_processing = true;
+                if !state.is_processing {
+                    match key.code {
+                        KeyCode::Enter => {
+                            if !state.input.trim().is_empty() {
+                                let message = state.input.clone();
+                                state.add_message("You".to_string(), message.clone());
+                                state.input.clear();
+                                state.cursor_position = 0;
+                                state.is_processing = true;
 
-                                    // Обработка сообщения
-                                    if let Ok(service_lock) = async_state.service.read() {
-                                        if let Some(service) = &*service_lock {
-                                            let service_clone = Arc::clone(service);
-                                            let response = process_message_async(service_clone, message).await;
-                                            state.add_message("AI".to_string(), response);
-                                        } else {
-                                            state.add_message(
-                                                "AI".to_string(),
-                                                "Система пока инициализируется. Попробуйте через несколько секунд.".to_string(),
-                                            );
-                                        }
+                                // Обработка сообщения
+                                if let Ok(service_lock) = async_state.service.read() {
+                                    if let Some(service) = &*service_lock {
+                                        let service_clone = Arc::clone(service);
+                                        let response =
+                                            process_message_async(service_clone, message).await;
+                                        state.add_message("AI".to_string(), response);
+                                    } else {
+                                        state.add_message(
+                                            "AI".to_string(),
+                                            "Система пока инициализируется. Попробуйте через несколько секунд.".to_string(),
+                                        );
                                     }
-                                    state.is_processing = false;
                                 }
+                                state.is_processing = false;
                             }
-                            KeyCode::Char(c) => {
-                                // Use UTF-8 safe character insertion
-                                state.insert_char(c);
-                            }
-                            KeyCode::Backspace => {
-                                // Use UTF-8 safe backspace operation
-                                state.backspace();
-                            }
-                            KeyCode::Left => {
-                                // Move cursor left by one character (UTF-8 safe)
-                                state.move_cursor_left();
-                            }
-                            KeyCode::Right => {
-                                // Move cursor right by one character (UTF-8 safe)
-                                state.move_cursor_right();
-                            }
-                            KeyCode::PageUp => {
-                                if state.scroll_offset > 0 {
-                                    state.scroll_offset -= 1;
-                                }
-                            }
-                            KeyCode::PageDown => {
-                                if state.scroll_offset < state.messages.len().saturating_sub(1) {
-                                    state.scroll_offset += 1;
-                                }
-                            }
-                            _ => {}
                         }
+                        KeyCode::Char(c) => {
+                            // Use UTF-8 safe character insertion
+                            state.insert_char(c);
+                        }
+                        KeyCode::Backspace => {
+                            // Use UTF-8 safe backspace operation
+                            state.backspace();
+                        }
+                        KeyCode::Left => {
+                            // Move cursor left by one character (UTF-8 safe)
+                            state.move_cursor_left();
+                        }
+                        KeyCode::Right => {
+                            // Move cursor right by one character (UTF-8 safe)
+                            state.move_cursor_right();
+                        }
+                        KeyCode::PageUp => {
+                            if state.scroll_offset > 0 {
+                                state.scroll_offset -= 1;
+                            }
+                        }
+                        KeyCode::PageDown => {
+                            if state.scroll_offset < state.messages.len().saturating_sub(1) {
+                                state.scroll_offset += 1;
+                            }
+                        }
+                        _ => {}
                     }
                 }
-                _ => {}
             }
         }
     }
@@ -629,19 +656,19 @@ async fn run_tui_loop(
     Ok(())
 }
 
-/// Асинхронная обработка сообщения
+/// Асинхронная обработка сообщения для TUI (без workflow логов)
 async fn process_message_async(
     service: Arc<services::OrchestrationService>,
     message: String,
 ) -> String {
     match timeout(
         TokioDuration::from_secs(30),
-        service.process_user_request(&message),
+        service.process_tui_message(&message),
     )
     .await
     {
         Ok(Ok(response)) => response,
-        Ok(Err(e)) => format!("Ошибка обработки: {}", e),
+        Ok(Err(e)) => format!("Ошибка обработки: {e}"),
         Err(_) => "Таймаут при обработке запроса (30 сек)".to_string(),
     }
 }

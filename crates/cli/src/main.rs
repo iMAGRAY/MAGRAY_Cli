@@ -145,8 +145,15 @@ async fn main() -> Result<()> {
     // Если команда не указана, запускаем интерактивный чат
     let cli = if cli.command.is_none() {
         println!("🚀 Команда не указана - запускаем Claude Code-подобный TUI чат...");
+
+        // Для TUI режима отключаем подробное логирование
+        std::env::set_var("RUST_LOG", "error");
+
         Cli {
-            command: Some(Commands::Chat { message: None, no_tui: false }),
+            command: Some(Commands::Chat {
+                message: None,
+                no_tui: false,
+            }),
         }
     } else {
         cli
@@ -1082,7 +1089,7 @@ async fn create_agent_orchestrator() -> Result<AgentOrchestrator> {
 /// Создание и инициализация нового AgentOrchестrator-based сервиса
 async fn create_orchestrator_service() -> Result<services::OrchestrationService> {
     use indicatif::{ProgressBar, ProgressStyle};
-    
+
     // Показываем прогресс инициализации
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
@@ -1091,7 +1098,7 @@ async fn create_orchestrator_service() -> Result<services::OrchestrationService>
             .template("{spinner:.cyan} {msg}")
             .unwrap_or_else(|_| ProgressStyle::default_spinner()),
     );
-    
+
     spinner.set_message("Инициализация агентной системы...");
     spinner.enable_steady_tick(Duration::from_millis(100));
 
@@ -1104,7 +1111,7 @@ async fn create_orchestrator_service() -> Result<services::OrchestrationService>
         }
         Err(e) => {
             spinner.set_message("⚠️  Переключение на LLM режим...");
-            
+
             warn!(
                 "Failed to create orchestrator service: {}, falling back to LLM-powered service",
                 e
@@ -1119,8 +1126,9 @@ async fn create_orchestrator_service() -> Result<services::OrchestrationService>
                 Err(fallback_error) => {
                     spinner.finish_with_message("❌ Ошибка инициализации");
                     Err(anyhow::anyhow!(
-                        "Orchestrator failed: {}. Fallback failed: {}", 
-                        e, fallback_error
+                        "Orchestrator failed: {}. Fallback failed: {}",
+                        e,
+                        fallback_error
                     ))
                 }
             }
@@ -1642,7 +1650,7 @@ async fn run_tui_mode() -> Result<()> {
 
     // Запускаем TUI
     if let Err(e) = app.run() {
-        eprintln!("TUI error: {}", e);
+        eprintln!("TUI error: {e}");
         return Err(anyhow::anyhow!("TUI execution failed: {}", e));
     }
 

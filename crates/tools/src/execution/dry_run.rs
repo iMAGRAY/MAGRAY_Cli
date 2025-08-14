@@ -243,7 +243,7 @@ impl DryRunExecutor {
         ToolOutput {
             success: true,
             result: result.clone(),
-            formatted_output: Some(format!("DRY RUN: {}", result)),
+            formatted_output: Some(format!("DRY RUN: {result}")),
             metadata,
         }
     }
@@ -262,7 +262,7 @@ impl ChangePredictor for FileOperationPredictor {
                 if let Some(path) = input.args.get("path") {
                     changes.push(Change {
                         change_type: ChangeType::FileCreate,
-                        target: format!("access_log for {}", path),
+                        target: format!("access_log for {path}"),
                         description: "File access would be logged".to_string(),
                         confidence: 0.9,
                         reversible: true,
@@ -480,27 +480,24 @@ impl ChangePredictor for NetworkOperationPredictor {
         let mut max_risk = 3u8; // Network operations are generally safe
 
         for change in changes {
-            match change.change_type {
-                ChangeType::NetworkRequest => {
-                    if change.target.starts_with("http://") {
-                        risks.push(Risk {
-                            category: RiskCategory::NetworkSecurity,
-                            description: "Unencrypted HTTP request may expose data".to_string(),
-                            severity: 5,
-                            mitigation: Some("Use HTTPS instead".to_string()),
-                        });
-                        max_risk = max_risk.max(5);
-                    } else {
-                        risks.push(Risk {
-                            category: RiskCategory::PrivacyBreach,
-                            description: "Network request may expose IP address".to_string(),
-                            severity: 2,
-                            mitigation: None,
-                        });
-                        max_risk = max_risk.max(2);
-                    }
+            if let ChangeType::NetworkRequest = change.change_type {
+                if change.target.starts_with("http://") {
+                    risks.push(Risk {
+                        category: RiskCategory::NetworkSecurity,
+                        description: "Unencrypted HTTP request may expose data".to_string(),
+                        severity: 5,
+                        mitigation: Some("Use HTTPS instead".to_string()),
+                    });
+                    max_risk = max_risk.max(5);
+                } else {
+                    risks.push(Risk {
+                        category: RiskCategory::PrivacyBreach,
+                        description: "Network request may expose IP address".to_string(),
+                        severity: 2,
+                        mitigation: None,
+                    });
+                    max_risk = max_risk.max(2);
                 }
-                _ => {}
             }
         }
 

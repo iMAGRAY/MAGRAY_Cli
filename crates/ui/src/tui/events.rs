@@ -35,12 +35,12 @@ impl EventHandler {
                 if crossterm::event::poll(timeout).unwrap() {
                     match crossterm::event::read().unwrap() {
                         Event::Key(key) => {
-                            if let Err(_) = event_sender.send(TUIEvent::Key(key)) {
+                            if event_sender.send(TUIEvent::Key(key)).is_err() {
                                 break;
                             }
                         }
                         Event::Resize(width, height) => {
-                            if let Err(_) = event_sender.send(TUIEvent::Resize(width, height)) {
+                            if event_sender.send(TUIEvent::Resize(width, height)).is_err() {
                                 break;
                             }
                         }
@@ -49,7 +49,7 @@ impl EventHandler {
                 }
 
                 if last_tick.elapsed() >= tick_rate {
-                    if let Err(_) = event_sender.send(TUIEvent::Tick) {
+                    if event_sender.send(TUIEvent::Tick).is_err() {
                         break;
                     }
                     last_tick = Instant::now();

@@ -1,8 +1,8 @@
-use anyhow::{Result, Context};
-use serde::{Deserialize, Serialize};
-use reqwest::Client;
-use tokio::time::{timeout, Duration};
 use super::super::integration::human_like_testing::{TestResult, TestScenario};
+use anyhow::{Context, Result};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use tokio::time::{timeout, Duration};
 
 /// GPT-5 nano API Evaluator - оценивает качество ответов MAGRAY CLI через OpenAI API
 pub struct Gpt5Evaluator {
@@ -26,20 +26,20 @@ pub struct EvaluationResult {
 /// Детальные оценки по критериям
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvaluationScores {
-    pub relevance: f64,           // Релевантность ответа (1-10)
-    pub technical_accuracy: f64,  // Техническая точность (1-10)
-    pub completeness: f64,        // Полнота решения (1-10)
-    pub practicality: f64,        // Практичность рекомендаций (1-10)
-    pub overall_quality: f64,     // Общее качество (1-10)
+    pub relevance: f64,          // Релевантность ответа (1-10)
+    pub technical_accuracy: f64, // Техническая точность (1-10)
+    pub completeness: f64,       // Полнота решения (1-10)
+    pub practicality: f64,       // Практичность рекомендаций (1-10)
+    pub overall_quality: f64,    // Общее качество (1-10)
 }
 
 /// Развернутая обратная связь от GPT-5
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvaluationFeedback {
-    pub strengths: Vec<String>,    // Сильные стороны ответа
-    pub weaknesses: Vec<String>,   // Слабые места
-    pub suggestions: Vec<String>,  // Предложения по улучшению
-    pub summary: String,           // Краткое резюме оценки
+    pub strengths: Vec<String>,   // Сильные стороны ответа
+    pub weaknesses: Vec<String>,  // Слабые места
+    pub suggestions: Vec<String>, // Предложения по улучшению
+    pub summary: String,          // Краткое резюме оценки
 }
 
 /// Метаданные оценки
@@ -123,21 +123,21 @@ impl Gpt5Evaluator {
     pub fn from_env() -> Result<Self> {
         let api_key = std::env::var("OPENAI_API_KEY")
             .context("OPENAI_API_KEY environment variable not found")?;
-        
+
         Ok(Self::new(api_key))
     }
 
     /// Загружает API ключ из .env файла
     pub fn from_env_file<P: AsRef<std::path::Path>>(env_path: P) -> Result<Self> {
         let content = std::fs::read_to_string(env_path)?;
-        
+
         for line in content.lines() {
             if line.starts_with("OPENAI_API_KEY=") {
                 let api_key = line.trim_start_matches("OPENAI_API_KEY=").trim();
                 return Ok(Self::new(api_key.to_string()));
             }
         }
-        
+
         Err(anyhow::anyhow!("OPENAI_API_KEY not found in .env file"))
     }
 
@@ -155,35 +155,33 @@ impl Gpt5Evaluator {
 
     /// Оценивает результат тестирования с помощью GPT-5 nano
     pub async fn evaluate_response(
-        &self, 
-        scenario: &TestScenario, 
-        test_result: &TestResult
+        &self,
+        scenario: &TestScenario,
+        test_result: &TestResult,
     ) -> Result<EvaluationResult> {
-        
         println!("🤖 Evaluating response for scenario: {}", scenario.name);
-        
+
         let start_time = std::time::Instant::now();
-        
+
         // Создаем промпт для оценки
         let evaluation_prompt = self.create_evaluation_prompt(scenario, test_result);
-        
+
         // Выполняем API запрос к OpenAI
         let gpt_response = self.call_openai_api(&evaluation_prompt).await?;
-        
+
         // Парсим JSON ответ
         let evaluation_data: GPTEvaluationResponse = serde_json::from_str(&gpt_response)
             .context("Failed to parse GPT evaluation response as JSON")?;
 
         let execution_time = start_time.elapsed().as_millis() as u64;
-        
+
         // Вычисляем общую оценку как среднее арифметическое
-        let overall_score = (
-            evaluation_data.relevance +
-            evaluation_data.technical_accuracy +
-            evaluation_data.completeness +
-            evaluation_data.practicality +
-            evaluation_data.overall_quality
-        ) / 5.0;
+        let overall_score = (evaluation_data.relevance
+            + evaluation_data.technical_accuracy
+            + evaluation_data.completeness
+            + evaluation_data.practicality
+            + evaluation_data.overall_quality)
+            / 5.0;
 
         let result = EvaluationResult {
             scenario_id: scenario.id.clone(),
@@ -210,14 +208,19 @@ impl Gpt5Evaluator {
             },
         };
 
-        println!("✅ Evaluation completed. Overall score: {:.1}/10", overall_score);
-        
+        println!("✅ Evaluation completed. Overall score: {overall_score:.1}/10");
+
         Ok(result)
     }
 
     /// Создает промпт для оценки ответа
-    fn create_evaluation_prompt(&self, scenario: &TestScenario, test_result: &TestResult) -> String {
-        format!(r#"
+    fn create_evaluation_prompt(
+        &self,
+        scenario: &TestScenario,
+        test_result: &TestResult,
+    ) -> String {
+        format!(
+            r#"
 Вы являетесь экспертом по оценке качества AI-ассистентов. Оцените ответ MAGRAY CLI на пользовательский запрос.
 
 ## КОНТЕКСТ ТЕСТИРОВАНИЯ:
@@ -272,8 +275,10 @@ impl Gpt5Evaluator {
             cli_output = test_result.output,
             success = test_result.success,
             execution_time = test_result.execution_time_ms,
-            error_info = test_result.error_message.as_ref()
-                .map(|err| format!("Ошибка: {}", err))
+            error_info = test_result
+                .error_message
+                .as_ref()
+                .map(|err| format!("Ошибка: {err}"))
                 .unwrap_or_default()
         )
     }
@@ -306,17 +311,20 @@ impl Gpt5Evaluator {
                 .header("Authorization", format!("Bearer {}", self.api_key))
                 .header("Content-Type", "application/json")
                 .json(&request)
-                .send()
-        ).await
-            .context("OpenAI API request timeout")?
-            .context("Failed to send request to OpenAI API")?;
+                .send(),
+        )
+        .await
+        .context("OpenAI API request timeout")?
+        .context("Failed to send request to OpenAI API")?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
             return Err(anyhow::anyhow!("OpenAI API error: {}", error_text));
         }
 
-        let api_response: OpenAIResponse = response.json().await
+        let api_response: OpenAIResponse = response
+            .json()
+            .await
             .context("Failed to parse OpenAI API response")?;
 
         if api_response.choices.is_empty() {
@@ -330,21 +338,32 @@ impl Gpt5Evaluator {
     pub async fn evaluate_test_batch(
         &self,
         scenarios: &[TestScenario],
-        test_results: &[TestResult]
+        test_results: &[TestResult],
     ) -> Result<Vec<EvaluationResult>> {
-        
-        println!("🔍 Starting batch evaluation of {} test results", test_results.len());
-        
+        println!(
+            "🔍 Starting batch evaluation of {} test results",
+            test_results.len()
+        );
+
         let mut evaluation_results = Vec::new();
-        
+
         for (i, test_result) in test_results.iter().enumerate() {
             // Находим соответствующий сценарий
-            let scenario = scenarios.iter()
+            let scenario = scenarios
+                .iter()
                 .find(|s| s.id == test_result.scenario_id)
-                .context(format!("Scenario not found for result: {}", test_result.scenario_id))?;
+                .context(format!(
+                    "Scenario not found for result: {}",
+                    test_result.scenario_id
+                ))?;
 
-            println!("📊 Evaluating {}/{}: {}", i + 1, test_results.len(), scenario.name);
-            
+            println!(
+                "📊 Evaluating {}/{}: {}",
+                i + 1,
+                test_results.len(),
+                scenario.name
+            );
+
             match self.evaluate_response(scenario, test_result).await {
                 Ok(evaluation) => {
                     evaluation_results.push(evaluation);
@@ -366,7 +385,7 @@ impl Gpt5Evaluator {
                             strengths: vec![],
                             weaknesses: vec!["Evaluation failed due to technical error".to_string()],
                             suggestions: vec!["Review evaluation system configuration".to_string()],
-                            summary: format!("Evaluation failed: {}", e),
+                            summary: format!("Evaluation failed: {e}"),
                         },
                         metadata: EvaluationMetadata {
                             evaluation_time_ms: 0,
@@ -383,9 +402,14 @@ impl Gpt5Evaluator {
             tokio::time::sleep(Duration::from_millis(1000)).await;
         }
 
-        println!("✅ Batch evaluation completed: {}/{} successful", 
-               evaluation_results.iter().filter(|r| r.overall_score > 0.0).count(),
-               evaluation_results.len());
+        println!(
+            "✅ Batch evaluation completed: {}/{} successful",
+            evaluation_results
+                .iter()
+                .filter(|r| r.overall_score > 0.0)
+                .count(),
+            evaluation_results.len()
+        );
 
         Ok(evaluation_results)
     }
@@ -405,7 +429,7 @@ mod tests {
     #[test]
     fn test_prompt_creation() {
         let evaluator = Gpt5Evaluator::new("test_key".to_string());
-        
+
         let scenario = TestScenario {
             id: "test".to_string(),
             name: "Test Scenario".to_string(),
@@ -414,7 +438,7 @@ mod tests {
             timeout_seconds: 30,
             evaluation_criteria: vec!["test_criterion".to_string()],
         };
-        
+
         let test_result = TestResult {
             scenario_id: "test".to_string(),
             input: "test input".to_string(),
@@ -424,7 +448,7 @@ mod tests {
             error_message: None,
             timestamp: "2025-01-01T00:00:00Z".to_string(),
         };
-        
+
         let prompt = evaluator.create_evaluation_prompt(&scenario, &test_result);
         assert!(prompt.contains("test input"));
         assert!(prompt.contains("test output"));

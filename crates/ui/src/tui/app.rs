@@ -276,7 +276,7 @@ impl TUIApp {
                 self.terminal.resize(Rect::new(0, 0, width, height))?;
             }
             TUIEvent::OrchestrationUpdate(message) => {
-                self.state.set_status(format!("Orchestration: {}", message));
+                self.state.set_status(format!("Orchestration: {message}"));
             }
             TUIEvent::PlanGenerated(plan_json) => {
                 self.state.plan_viewer.update(&plan_json);
@@ -285,12 +285,12 @@ impl TUIApp {
                     .set_status("Plan generated successfully".to_string());
             }
             TUIEvent::ExecutionProgress(progress) => {
-                self.state.set_status(format!("Execution: {}", progress));
+                self.state.set_status(format!("Execution: {progress}"));
             }
             TUIEvent::ExecutionComplete(result) => {
                 self.state.stop_orchestration();
                 self.state
-                    .set_status(format!("Execution complete: {}", result));
+                    .set_status(format!("Execution complete: {result}"));
             }
             TUIEvent::Error(error) => {
                 self.state.set_error(error);
@@ -330,8 +330,7 @@ impl TUIApp {
                 self.state.set_status("Plan saved (simulation)".to_string());
             }
             _ => {
-                self.state
-                    .set_error(format!("Unknown command: {}", command));
+                self.state.set_error(format!("Unknown command: {command}"));
             }
         }
     }

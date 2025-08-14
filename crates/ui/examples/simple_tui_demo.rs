@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Запускаем TUI
     if let Err(e) = app.run() {
-        eprintln!("TUI error: {}", e);
+        eprintln!("TUI error: {e}");
         return Err(e);
     }
 

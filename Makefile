@@ -189,11 +189,15 @@ dev-gpu:
 .PHONY: start run start-release
 start: dev-cpu
 	@echo "🚀 Starting MAGRAY CLI (CPU debug mode)..."
-	./target/debug/magray
+	@echo "🔄 Checking for running magray processes..."
+	@-taskkill /F /IM magray.exe 2>nul || echo "No magray processes found"
+	cargo run -p cli --bin magray
 
 start-release: build-cpu
 	@echo "🚀 Starting MAGRAY CLI (CPU release mode)..."
-	./target/release/magray
+	@echo "🔄 Checking for running magray processes..."
+	@-taskkill /F /IM magray.exe 2>nul || echo "No magray processes found"
+	cargo run -p cli --bin magray --release
 
 run: dev-cpu
 	@echo "🏃 Running MAGRAY CLI (CPU debug mode)..."

@@ -37,7 +37,7 @@ async fn test_qwen3_memory_bridge_basic() -> Result<()> {
 
                     // Проверяем доступность Qwen3
                     let available = bridge.is_qwen3_available().await;
-                    println!("Qwen3 provider доступность: {}", available);
+                    println!("Qwen3 provider доступность: {available}");
 
                     // Пытаемся получить embedding
                     let test_result = bridge.embed_text("test embedding").await;
@@ -50,7 +50,7 @@ async fn test_qwen3_memory_bridge_basic() -> Result<()> {
                             assert_eq!(embedding.len(), 1024, "Ожидаем Qwen3 dimension");
                         }
                         Err(e) => {
-                            println!("⚠️ Single embedding через fallback: {}", e);
+                            println!("⚠️ Single embedding через fallback: {e}");
                         }
                     }
 
@@ -70,12 +70,12 @@ async fn test_qwen3_memory_bridge_basic() -> Result<()> {
                             }
                         }
                         Err(e) => {
-                            println!("⚠️ Batch embedding через fallback: {}", e);
+                            println!("⚠️ Batch embedding через fallback: {e}");
                         }
                     }
                 }
                 Err(e) => {
-                    println!("⚠️ Bridge инициализация завершилась с ошибкой: {}", e);
+                    println!("⚠️ Bridge инициализация завершилась с ошибкой: {e}");
                     println!("💡 Это ожидаемо без реальной модели Qwen3");
 
                     // Но bridge все равно должен работать через fallback
@@ -89,7 +89,7 @@ async fn test_qwen3_memory_bridge_basic() -> Result<()> {
                             assert_eq!(embedding.len(), 1024);
                         }
                         Err(e) => {
-                            println!("❌ Даже fallback не работает: {}", e);
+                            println!("❌ Даже fallback не работает: {e}");
                             // Это критическая ошибка
                             return Err(e);
                         }
@@ -115,7 +115,7 @@ async fn test_qwen3_memory_bridge_basic() -> Result<()> {
             println!("✅ Все базовые тесты Qwen3MemoryBridge прошли успешно");
         }
         Err(e) => {
-            println!("❌ Не удалось создать Qwen3MemoryBridge: {}", e);
+            println!("❌ Не удалось создать Qwen3MemoryBridge: {e}");
             println!("💡 Проверьте что модель qwen3emb доступна в models/");
             return Err(e);
         }
