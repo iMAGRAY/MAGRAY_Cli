@@ -929,9 +929,11 @@ async fn run_interactive_chat(orchestrator: &AgentOrchestrator) -> Result<()> {
     Ok(())
 }
 
-/// Запускает TUI чат интерфейс
-async fn run_tui_chat(service: &services::OrchestrationService) -> Result<()> {
-    tui_chat::run_tui_chat(service).await
+/// DEPRECATED: Запускает TUI чат интерфейс - НЕ ИСПОЛЬЗОВАТЬ!
+/// ЭТА ФУНКЦИЯ ВЫЗЫВАЕТ ДУБЛИРОВАНИЕ KeyCode::Char СОБЫТИЙ!
+#[allow(dead_code)]
+async fn run_tui_chat_deprecated(service: &services::OrchestrationService) -> Result<()> {
+    tui_chat::run_tui_chat_deprecated(service).await
 }
 
 async fn run_tui_chat_with_async_init() -> Result<()> {

@@ -84,9 +84,17 @@ impl TuiChatState {
 
     /// Safely insert character at cursor position
     fn insert_char(&mut self, c: char) {
+        // DEBUG: Track insert_char() calls to detect duplication
+        eprintln!("🔍 DEBUG insert_char(): char='{}' cursor_pos={} input_before='{}'", 
+                 c, self.cursor_position, self.input);
+        
         let byte_idx = self.char_to_byte_index(self.cursor_position);
         self.input.insert(byte_idx, c);
         self.cursor_position += 1;
+        
+        // DEBUG: Show state after insertion
+        eprintln!("✅ DEBUG insert_char(): input_after='{}' cursor_pos={}", 
+                 self.input, self.cursor_position);
     }
 
     /// Safely remove character before cursor position
@@ -121,8 +129,10 @@ impl TuiChatState {
     }
 }
 
-/// Запускает TUI чат
-pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Result<()> {
+/// DEPRECATED: Запускает TUI чат - ЗАМЕНЁН на run_tui_chat_with_async_init()
+/// ЭТА ФУНКЦИЯ НЕ ДОЛЖНА ИСПОЛЬЗОВАТЬСЯ - ВЫЗЫВАЕТ ДУБЛИРОВАНИЕ СОБЫТИЙ!
+#[allow(dead_code)]
+pub async fn run_tui_chat_deprecated(service: &crate::services::OrchestrationService) -> Result<()> {
     println!("🚀 Инициализация TUI чат интерфейса...");
     println!("📱 Создаём полноценный чат как в Claude Code...");
 
@@ -239,10 +249,8 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
                         KeyCode::PageDown => {
                             state.scroll_offset = state.scroll_offset.saturating_add(5);
                         }
-                        // Ввод символов (UTF-8 safe)
-                        KeyCode::Char(c) => {
-                            state.insert_char(c);
-                        }
+                        // Ввод символов (UTF-8 safe) - REMOVED TO ELIMINATE DUPLICATION
+                        // KeyCode::Char handler removed - only async version should be used
                         _ => {}
                     }
                 }
@@ -380,6 +388,9 @@ fn render_chat_history(f: &mut Frame, area: Rect, state: &TuiChatState) {
 
 /// Отрисовка поля ввода
 fn render_input_field(f: &mut Frame, area: Rect, state: &TuiChatState) {
+    // DEBUG: Track render calls and input state
+    eprintln!("🖼️ DEBUG render_input_field(): input='{}' cursor_pos={} len={}", 
+             state.input, state.cursor_position, state.input.len());
     let input = Paragraph::new(state.input.as_str())
         .style(if state.is_processing {
             Style::default().fg(Color::Gray)
@@ -608,14 +619,16 @@ async fn run_tui_loop(
             }
         }
 
-        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Убираем регулярную отрисовку чтобы избежать дублирования символов
-        // Отрисовка будет происходить только при необходимости (после events, service updates)
+        // Handle service initialization display
         if !service_ready || last_init_check.elapsed() >= std::time::Duration::from_millis(500) {
             terminal.draw(|f| render_ui(f, state))?;
         }
 
+        let mut should_redraw = false;
+
         // Обработка событий
         if event::poll(Duration::from_millis(100))? {
+            should_redraw = true; // Events require screen update
             if let Event::Key(key) = event::read()? {
                 if (key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c'))
                     || key.code == KeyCode::Esc
@@ -664,28 +677,27 @@ async fn run_tui_loop(
                             }
                         }
                         KeyCode::Char(c) => {
+                            // DEBUG: Track KeyCode::Char event processing in async TUI
+                            eprintln!("🎯 DEBUG KeyCode::Char event #2: received char='{}'", c);
                             // Use UTF-8 safe character insertion
                             state.insert_char(c);
-                            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отрисовка ТОЛЬКО после изменения символов
-                            terminal.draw(|f| render_ui(f, state))?;
+                            eprintln!("📝 DEBUG KeyCode::Char event #2: completed");
+                            // ИСПРАВЛЕНИЕ ДУБЛИРОВАНИЯ: убран terminal.draw() - отрисовка в main loop
                         }
                         KeyCode::Backspace => {
                             // Use UTF-8 safe backspace operation
                             state.backspace();
-                            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отрисовка ТОЛЬКО после backspace
-                            terminal.draw(|f| render_ui(f, state))?;
+                            // ИСПРАВЛЕНИЕ ДУБЛИРОВАНИЯ: убран terminal.draw() - отрисовка в main loop
                         }
                         KeyCode::Left => {
                             // Move cursor left by one character (UTF-8 safe)
                             state.move_cursor_left();
-                            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отрисовка ТОЛЬКО после cursor movement
-                            terminal.draw(|f| render_ui(f, state))?;
+                            // ИСПРАВЛЕНИЕ ДУБЛИРОВАНИЯ: убран terminal.draw() - отрисовка в main loop
                         }
                         KeyCode::Right => {
                             // Move cursor right by one character (UTF-8 safe)
                             state.move_cursor_right();
-                            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отрисовка ТОЛЬКО после cursor movement
-                            terminal.draw(|f| render_ui(f, state))?;
+                            // ИСПРАВЛЕНИЕ ДУБЛИРОВАНИЯ: убран terminal.draw() - отрисовка в main loop
                         }
                         KeyCode::PageUp => {
                             if state.scroll_offset > 0 {
@@ -701,6 +713,11 @@ async fn run_tui_loop(
                     }
                 }
             }
+        }
+
+        // ИСПРАВЛЕНИЕ ДУБЛИРОВАНИЯ: Отрисовка ТОЛЬКО ЗДЕСЬ после обработки events
+        if should_redraw {
+            terminal.draw(|f| render_ui(f, state))?;
         }
     }
 
