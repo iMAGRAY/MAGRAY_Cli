@@ -130,24 +130,12 @@ async fn main() -> Result<()> {
     // Early .env loading for OPENAI_API_KEY and other configuration
     dotenv::dotenv().ok();
 
-    // Start events metrics aggregator (non-blocking)
-    events::start_tool_metrics_aggregator().await;
-    // Настройка структурированного логирования
-    init_structured_logging()?;
-
     let cli = Cli::parse();
 
-    // Красивое приветствие (в тестах можно отключить через MAGRAY_NO_ANIM)
-    if std::env::var("MAGRAY_NO_ANIM").is_err() {
-        show_welcome_animation().await?;
-    }
-
-    // Если команда не указана, запускаем интерактивный чат
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем TUI режим ПЕРЕД инициализацией логирования
     let cli = if cli.command.is_none() {
-        println!("🚀 Команда не указана - запускаем Claude Code-подобный TUI чат...");
-
-        // Для TUI режима отключаем подробное логирование
-        std::env::set_var("RUST_LOG", "error");
+        // Для TUI режима ПОЛНОСТЬЮ отключаем логирование ПЕРЕД init_structured_logging
+        std::env::set_var("RUST_LOG", "off");
 
         Cli {
             command: Some(Commands::Chat {
@@ -156,8 +144,32 @@ async fn main() -> Result<()> {
             }),
         }
     } else {
+        // Для CLI режима используем обычное логирование
+        if std::env::var("RUST_LOG").is_err() {
+            std::env::set_var("RUST_LOG", "info");
+        }
         cli
     };
+
+    // Start events metrics aggregator (non-blocking)
+    events::start_tool_metrics_aggregator().await;
+    // Настройка структурированного логирования ПОСЛЕ установки RUST_LOG
+    init_structured_logging()?;
+
+    // Красивое приветствие (в тестах можно отключить через MAGRAY_NO_ANIM)
+    if std::env::var("MAGRAY_NO_ANIM").is_err() {
+        show_welcome_animation().await?;
+    }
+
+    // Для TUI режима НЕ печатаем сообщения в stdout
+    if let Some(Commands::Chat { no_tui: false, .. }) = &cli.command {
+        // TUI режим - никаких сообщений в stdout
+    } else {
+        // CLI режим - можно печатать сообщения
+        if cli.command.is_none() {
+            println!("🚀 Команда не указана - запускаем Claude Code-подобный TUI чат...");
+        }
+    }
 
     // Проверяем наличие дефолтных моделей и предлагаем установить при необходимости
     if std::env::var("MAGRAY_SKIP_AUTO_INSTALL").is_err() {
@@ -1088,29 +1100,47 @@ async fn create_agent_orchestrator() -> Result<AgentOrchestrator> {
 
 /// Создание и инициализация нового AgentOrchестrator-based сервиса
 async fn create_orchestrator_service() -> Result<services::OrchestrationService> {
+    create_orchestrator_service_with_ui(true).await
+}
+
+pub async fn create_orchestrator_service_silent() -> Result<services::OrchestrationService> {
+    create_orchestrator_service_with_ui(false).await
+}
+
+async fn create_orchestrator_service_with_ui(
+    show_ui: bool,
+) -> Result<services::OrchestrationService> {
     use indicatif::{ProgressBar, ProgressStyle};
 
-    // Показываем прогресс инициализации
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::default_spinner()
-            .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
-            .template("{spinner:.cyan} {msg}")
-            .unwrap_or_else(|_| ProgressStyle::default_spinner()),
-    );
-
-    spinner.set_message("Инициализация агентной системы...");
-    spinner.enable_steady_tick(Duration::from_millis(100));
+    // В TUI режиме НЕ показываем spinner и сообщения
+    let spinner = if show_ui {
+        let spinner = ProgressBar::new_spinner();
+        spinner.set_style(
+            ProgressStyle::default_spinner()
+                .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
+                .template("{spinner:.cyan} {msg}")
+                .unwrap_or_else(|_| ProgressStyle::default_spinner()),
+        );
+        spinner.set_message("Инициализация агентной системы...");
+        spinner.enable_steady_tick(Duration::from_millis(100));
+        Some(spinner)
+    } else {
+        None
+    };
 
     // Try to create with real orchestrator first
     match services::OrchestrationService::with_orchestrator().await {
         Ok(service) => {
-            spinner.finish_with_message("✅ Мульти-агентная система готова!");
+            if let Some(spinner) = spinner {
+                spinner.finish_with_message("✅ Мульти-агентная система готова!");
+            }
             info!("OrchestrationService with AgentOrchestrator created successfully");
             Ok(service)
         }
         Err(e) => {
-            spinner.set_message("⚠️  Переключение на LLM режим...");
+            if let Some(ref spinner) = spinner {
+                spinner.set_message("⚠️  Переключение на LLM режим...");
+            }
 
             warn!(
                 "Failed to create orchestrator service: {}, falling back to LLM-powered service",
@@ -1120,11 +1150,15 @@ async fn create_orchestrator_service() -> Result<services::OrchestrationService>
             // Fall back to LLM-powered orchestration service
             match services::OrchestrationService::with_llm_fallback().await {
                 Ok(service) => {
-                    spinner.finish_with_message("✅ LLM режим активирован!");
+                    if let Some(spinner) = spinner {
+                        spinner.finish_with_message("✅ LLM режим активирован!");
+                    }
                     Ok(service)
                 }
                 Err(fallback_error) => {
-                    spinner.finish_with_message("❌ Ошибка инициализации");
+                    if let Some(spinner) = spinner {
+                        spinner.finish_with_message("❌ Ошибка инициализации");
+                    }
                     Err(anyhow::anyhow!(
                         "Orchestrator failed: {}. Fallback failed: {}",
                         e,

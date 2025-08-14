@@ -449,8 +449,8 @@ impl AsyncServiceState {
         let init_error_clone = Arc::clone(&self.init_error);
 
         tokio::spawn(async move {
-            // Попробуем создать OrchestrationService с коротким таймаутом
-            let service_future = crate::create_orchestrator_service();
+            // Попробуем создать OrchestrationService с коротким таймаутом в SILENT режиме для TUI
+            let service_future = crate::create_orchestrator_service_silent();
             match timeout(TokioDuration::from_secs(10), service_future).await {
                 Ok(Ok(service)) => {
                     if let Ok(mut service_lock) = service_clone.write() {
