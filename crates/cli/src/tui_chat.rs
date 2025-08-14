@@ -1,6 +1,7 @@
 use crate::services;
 use anyhow::Result;
 use crossterm::{
+    cursor::{Hide, Show},
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -126,11 +127,18 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
     println!("📱 Создаём полноценный чат как в Claude Code...");
 
     // Быстрая настройка терминала с улучшенной обработкой ошибок
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Правильная настройка terminal без echo дублирования
+    let mut stdout = io::stdout();
+
+    // Очистка терминала и включение alternate screen ПЕРЕД raw mode
+    execute!(stdout, EnterAlternateScreen)?;
+
+    // Включаем raw mode что автоматически отключает echo в crossterm
     enable_raw_mode()
         .map_err(|e| anyhow::format_err!("Не удалось включить raw mode терминала: {}", e))?;
 
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
+    // Настройка mouse capture и скрытие системного курсора
+    execute!(stdout, EnableMouseCapture, Hide)
         .map_err(|e| anyhow::format_err!("Не удалось настроить терминал: {}", e))?;
 
     let backend = CrosstermBackend::new(stdout);
@@ -171,8 +179,8 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
                                 // Отрисовка с индикатором обработки
                                 terminal.draw(|f| render_ui(f, &state))?;
 
-                                // Получение ответа с timeout защитой
-                                let request_future = service.process_user_request(&message);
+                                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Использовать process_tui_message для прямого LLM ответа
+                                let request_future = service.process_tui_message(&message);
                                 match timeout(TokioDuration::from_secs(60), request_future).await {
                                     Ok(Ok(response)) => {
                                         state.add_message("Assistant".to_string(), response);
@@ -194,33 +202,34 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
                                 state.is_processing = false;
                             }
                         }
-                        // Навигация
+                        // Навигация (UTF-8 safe character-based)
                         KeyCode::Left => {
-                            if state.cursor_position > 0 {
-                                state.cursor_position -= 1;
-                            }
+                            state.move_cursor_left();
                         }
                         KeyCode::Right => {
-                            if state.cursor_position < state.input.len() {
-                                state.cursor_position += 1;
-                            }
+                            state.move_cursor_right();
                         }
                         KeyCode::Home => {
                             state.cursor_position = 0;
                         }
                         KeyCode::End => {
-                            state.cursor_position = state.input.len();
+                            state.cursor_position = state.max_cursor_position();
                         }
-                        // Редактирование
+                        // Редактирование (UTF-8 safe)
                         KeyCode::Backspace => {
-                            if state.cursor_position > 0 {
-                                state.input.remove(state.cursor_position - 1);
-                                state.cursor_position -= 1;
-                            }
+                            state.backspace();
                         }
                         KeyCode::Delete => {
-                            if state.cursor_position < state.input.len() {
-                                state.input.remove(state.cursor_position);
+                            if state.cursor_position < state.max_cursor_position() {
+                                let byte_idx = state.char_to_byte_index(state.cursor_position);
+                                if let Some(ch) = state.input.chars().nth(state.cursor_position) {
+                                    // Удаляем символ по character index, используя byte index для String::remove
+                                    for _ in 0..ch.len_utf8() {
+                                        if byte_idx < state.input.len() {
+                                            state.input.remove(byte_idx);
+                                        }
+                                    }
+                                }
                             }
                         }
                         // Прокрутка
@@ -230,10 +239,9 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
                         KeyCode::PageDown => {
                             state.scroll_offset = state.scroll_offset.saturating_add(5);
                         }
-                        // Ввод символов
+                        // Ввод символов (UTF-8 safe)
                         KeyCode::Char(c) => {
-                            state.input.insert(state.cursor_position, c);
-                            state.cursor_position += 1;
+                            state.insert_char(c);
                         }
                         _ => {}
                     }
@@ -248,7 +256,8 @@ pub async fn run_tui_chat(service: &crate::services::OrchestrationService) -> Re
         execute!(
             terminal.backend_mut(),
             LeaveAlternateScreen,
-            DisableMouseCapture
+            DisableMouseCapture,
+            Show // Показать системный курсор при выходе
         )?;
         terminal.show_cursor()?;
         Ok(())
@@ -507,10 +516,42 @@ pub async fn run_tui_chat_with_async_init() -> Result<()> {
     print!("\x1b[2J\x1b[H"); // Clear screen and move cursor to home
     std::io::Write::flush(&mut std::io::stdout()).ok();
 
-    // Настройка терминала
-    enable_raw_mode().map_err(|e| anyhow::anyhow!("Failed to enable raw mode: {}", e))?;
+    // Настройка терминала (КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ для предотвращения echo дублирования)
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ дублирования символов - ПРИНУДИТЕЛЬНОЕ отключение echo:
+
+    // 1. СНАЧАЛА включаем raw mode (это должно отключить echo)
+    enable_raw_mode().map_err(|e| anyhow::anyhow!("Failed to enable raw mode: {}", e))?;
+
+    // 2. ПРИНУДИТЕЛЬНО отключаем echo через системные вызовы (на случай если crossterm не работает)
+    #[cfg(windows)]
+    {
+        unsafe {
+            let handle =
+                winapi::um::processenv::GetStdHandle(winapi::um::winbase::STD_INPUT_HANDLE);
+            if handle != winapi::um::handleapi::INVALID_HANDLE_VALUE {
+                let mut mode = 0;
+                if winapi::um::consoleapi::GetConsoleMode(handle, &mut mode) != 0 {
+                    // Принудительно убираем ENABLE_ECHO_INPUT флаг
+                    mode &= !winapi::um::wincon::ENABLE_ECHO_INPUT;
+                    winapi::um::consoleapi::SetConsoleMode(handle, mode);
+                }
+            }
+        }
+    }
+
+    // 3. Теперь настраиваем терминал
+    execute!(stdout, EnterAlternateScreen)?;
+
+    // 4. Очистка и финальная настройка
+    execute!(
+        stdout,
+        crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
+    )?;
+    std::io::Write::flush(&mut stdout)?;
+
+    // 5. Mouse + скрытие курсора
+    execute!(stdout, EnableMouseCapture, Hide)
         .map_err(|e| anyhow::anyhow!("Failed to setup terminal: {}", e))?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal =
@@ -535,7 +576,8 @@ pub async fn run_tui_chat_with_async_init() -> Result<()> {
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
-        DisableMouseCapture
+        DisableMouseCapture,
+        Show // Восстановить системный курсор
     )
     .ok();
 
@@ -579,10 +621,9 @@ async fn run_tui_loop(
             }
         }
 
-        // Отрисовка интерфейса
-        terminal.draw(|f| {
-            render_ui(f, state);
-        })?;
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Регулярная отрисовка интерфейса для TUI stability
+        // Обеспечиваем отображение изменений async service init и состояния
+        terminal.draw(|f| render_ui(f, state))?;
 
         // Обработка событий
         if event::poll(Duration::from_millis(100))? {
@@ -603,19 +644,32 @@ async fn run_tui_loop(
                                 state.cursor_position = 0;
                                 state.is_processing = true;
 
-                                // Обработка сообщения
-                                if let Ok(service_lock) = async_state.service.read() {
-                                    if let Some(service) = &*service_lock {
-                                        let service_clone = Arc::clone(service);
-                                        let response =
-                                            process_message_async(service_clone, message).await;
-                                        state.add_message("AI".to_string(), response);
-                                    } else {
-                                        state.add_message(
-                                            "AI".to_string(),
-                                            "Система пока инициализируется. Попробуйте через несколько секунд.".to_string(),
-                                        );
+                                // Обработка сообщения (исправлен clippy::await_holding_lock)
+                                let service_opt = {
+                                    async_state
+                                        .service
+                                        .read()
+                                        .ok()
+                                        .and_then(|guard| guard.as_ref().map(Arc::clone))
+                                };
+
+                                if let Some(service) = service_opt {
+                                    match process_message_async(service, message).await {
+                                        Ok(response) => {
+                                            state.add_message("AI".to_string(), response);
+                                        }
+                                        Err(error_msg) => {
+                                            state.add_message(
+                                                "AI".to_string(),
+                                                format!("❌ Ошибка: {error_msg}\n\n💡 Попробуйте:\n• Простой вопрос: 'Привет'\n• Или подождите инициализации системы"),
+                                            );
+                                        }
                                     }
+                                } else {
+                                    state.add_message(
+                                        "AI".to_string(),
+                                        "⏳ Система пока инициализируется. Попробуйте через несколько секунд.".to_string(),
+                                    );
                                 }
                                 state.is_processing = false;
                             }
@@ -623,18 +677,22 @@ async fn run_tui_loop(
                         KeyCode::Char(c) => {
                             // Use UTF-8 safe character insertion
                             state.insert_char(c);
+                            // Отрисовка происходит в main loop - не нужно дублировать
                         }
                         KeyCode::Backspace => {
                             // Use UTF-8 safe backspace operation
                             state.backspace();
+                            // Отрисовка происходит в main loop - не нужно дублировать
                         }
                         KeyCode::Left => {
                             // Move cursor left by one character (UTF-8 safe)
                             state.move_cursor_left();
+                            // Отрисовка происходит в main loop - не нужно дублировать
                         }
                         KeyCode::Right => {
                             // Move cursor right by one character (UTF-8 safe)
                             state.move_cursor_right();
+                            // Отрисовка происходит в main loop - не нужно дублировать
                         }
                         KeyCode::PageUp => {
                             if state.scroll_offset > 0 {
@@ -660,15 +718,15 @@ async fn run_tui_loop(
 async fn process_message_async(
     service: Arc<services::OrchestrationService>,
     message: String,
-) -> String {
+) -> Result<String, String> {
     match timeout(
         TokioDuration::from_secs(30),
         service.process_tui_message(&message),
     )
     .await
     {
-        Ok(Ok(response)) => response,
-        Ok(Err(e)) => format!("Ошибка обработки: {e}"),
-        Err(_) => "Таймаут при обработке запроса (30 сек)".to_string(),
+        Ok(Ok(response)) => Ok(response),
+        Ok(Err(e)) => Err(format!("Ошибка обработки: {e}")),
+        Err(_) => Err("Таймаут при обработке запроса (30 сек)".to_string()),
     }
 }
