@@ -26,7 +26,7 @@ gpu = ["cpu", "wasm-runtime-advanced"]
 file-ops = []
 shell-ops = []
 git-ops = []
-web-ops = ["reqwest", "futures-util", "base64"]
+web-ops = ["futures-util"]
 plugins = ["llm/cpu"]
 security = []
 # WASM runtime features for real wasmtime integration
@@ -51,19 +51,26 @@ tempfile = { workspace = true }
 console = { workspace = true }
 indicatif = { workspace = true }
 async-trait = { workspace = true }
-reqwest = { workspace = true, optional = true }
+reqwest = { version = "0.12", features = ["json"] }  # Always included for telemetry and web ops
 urlencoding = "2.1"
 rand = "0.8"
 thiserror = { workspace = true }
 num_cpus = "1.15"
 common = { path = "../common" }
 futures-util = { version = "0.3", optional = true, default-features = false, features = ["std"] }
-base64 = { version = "0.22", optional = true }
+base64 = "0.22"  # Always included for signing and encoding
 # CRITICAL P0.2.3: Add crypto dependencies for MCP signature verification
 sha2 = "0.10"
 # CRITICAL P0.2.6: Add chrono for audit timestamps and core for EventBus integration
 chrono = { workspace = true }
 magray-core = { path = "../core", package = "core" }
+wasmtime = "26.0"
+wasmtime-wasi = "26.0"
+# P1.2.8: Additional crypto for tool signing (in real implementation)
+# ring = "0.17"  # Commented out for demo implementation
+# P1.2.9: Unix libc for process signals
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 # P1.2.1.a: Wasmtime dependencies for real WASM runtime
 wasmtime = { version = "26.0", optional = true, default-features = false, features = ["cranelift", "runtime"] }

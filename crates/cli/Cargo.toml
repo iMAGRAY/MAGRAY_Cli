@@ -71,6 +71,7 @@ tools = { path = "../tools" }
 domain = { path = "../domain" }
 todo = { path = "../todo" }
 orchestrator = { path = "../orchestrator" }
+ui = { path = "../ui" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }

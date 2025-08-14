@@ -156,7 +156,7 @@ impl DiffViewer {
             return;
         }
 
-        let visible_lines = area.height.saturating_sub(2) as usize; // Account for borders
+        let visible_lines = area.height.saturating_sub(2).max(1) as usize; // Account for borders
         let start_line = self.scroll_offset;
         let end_line = (start_line + visible_lines).min(file.lines.len());
 
@@ -183,10 +183,10 @@ impl DiffViewer {
         // Render scrollbar if needed
         if file.lines.len() > visible_lines {
             let scrollbar_area = Rect {
-                x: area.x + area.width - 1,
+                x: area.x + area.width.saturating_sub(1),
                 y: area.y + 1,
                 width: 1,
-                height: area.height - 2,
+                height: area.height.saturating_sub(2),
             };
 
             let mut scrollbar_state = ScrollbarState::default()

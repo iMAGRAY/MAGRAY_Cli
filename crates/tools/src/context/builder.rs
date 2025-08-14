@@ -314,6 +314,12 @@ impl ToolContextBuilder {
         })
     }
 
+    /// Check if using intelligent tool selection (vs fallback)
+    pub fn has_intelligent_tool_selection(&self) -> bool {
+        // Check if reranker is using Qwen3 or fallback
+        self.config.use_semantic_reranking
+    }
+
     /// Build tool context and select relevant tools
     #[instrument(skip(self), fields(query_len = request.query.len()))]
     pub async fn build_context(

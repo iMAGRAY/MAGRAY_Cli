@@ -10,7 +10,8 @@ members = [
     "crates/ai",
     "crates/common",
     "crates/domain",      # TODO: Migrate to core
-    "crates/ui"           # NEW: TUI Framework
+    "crates/ui",          # NEW: TUI Framework
+    "crates/orchestrator" # NEW: Multi-Agent Orchestration
 ]
 exclude = [
     "fuzz",

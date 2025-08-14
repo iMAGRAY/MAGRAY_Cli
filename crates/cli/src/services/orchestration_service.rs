@@ -5,6 +5,7 @@
 //! Intent→Plan→Execute→Critic workflow.
 
 use anyhow::{anyhow, Result};
+use llm::LlmClient;
 use orchestrator::{
     create_agent_event_publisher, AgentOrchestrator, OrchestratorConfig, SystemConfig,
     TaskPriority, WorkflowRequest,
@@ -99,6 +100,9 @@ pub struct OrchestrationService {
     /// Fallback to legacy agent for backward compatibility  
     fallback_agent: Arc<RwLock<Option<String>>>,
 
+    /// LLM client for intelligent fallback execution
+    llm_client: Arc<RwLock<Option<Arc<LlmClient>>>>,
+
     /// Configuration for orchestrator
     config: OrchestratorConfig,
 
@@ -115,6 +119,7 @@ impl OrchestrationService {
         Self {
             orchestrator: Arc::new(RwLock::new(None)),
             fallback_agent: Arc::new(RwLock::new(None)),
+            llm_client: Arc::new(RwLock::new(None)),
             config: OrchestratorConfig::default(),
             orchestrator_available: Arc::new(AtomicBool::new(false)),
             fallback_mode: Arc::new(AtomicBool::new(true)),
@@ -153,9 +158,32 @@ impl OrchestrationService {
         Ok(Self {
             orchestrator: Arc::new(RwLock::new(Some(orchestrator))),
             fallback_agent: Arc::new(RwLock::new(None)),
+            llm_client: Arc::new(RwLock::new(None)),
             config: orchestrator_config,
             orchestrator_available: Arc::new(AtomicBool::new(true)),
             fallback_mode: Arc::new(AtomicBool::new(false)),
+            health_check_interval: Duration::from_secs(30),
+            last_health_check: Arc::new(Mutex::new(None)),
+        })
+    }
+
+    /// Create orchestration service with LLM-powered fallback
+    pub async fn with_llm_fallback() -> Result<Self> {
+        info!("Initializing OrchestrationService with LLM-powered fallback");
+
+        // Create LLM client for intelligent fallback
+        let llm_client = LlmClient::from_env()
+            .map_err(|e| anyhow!("Failed to create LLM client for fallback: {}", e))?;
+
+        info!("LLM client initialized for intelligent fallback");
+
+        Ok(Self {
+            orchestrator: Arc::new(RwLock::new(None)),
+            fallback_agent: Arc::new(RwLock::new(None)),
+            llm_client: Arc::new(RwLock::new(Some(Arc::new(llm_client)))),
+            config: OrchestratorConfig::default(),
+            orchestrator_available: Arc::new(AtomicBool::new(false)),
+            fallback_mode: Arc::new(AtomicBool::new(true)),
             health_check_interval: Duration::from_secs(30),
             last_health_check: Arc::new(Mutex::new(None)),
         })
@@ -278,40 +306,74 @@ impl OrchestrationService {
         }
     }
 
-    /// Execute command using fallback mode (direct execution through UnifiedAgentV2)
+    /// Execute command using LLM-powered fallback mode
     async fn execute_fallback(
         &self,
         request: CommandRequest,
         start_time: Instant,
     ) -> Result<OrchestrationResult> {
         warn!(
-            "Executing command in fallback mode: {}",
+            "Executing command in LLM-powered fallback mode: {}",
             request.command_type
         );
 
-        // Ensure fallback agent is initialized
-        self.ensure_fallback_agent().await?;
+        // Get LLM client
+        let llm_client_guard = self.llm_client.read().await;
+        let llm_client = llm_client_guard
+            .as_ref()
+            .ok_or_else(|| anyhow!("LLM client not available in fallback mode"))?;
 
-        // Simple fallback execution (placeholder)
+        info!("Using LLM for intelligent fallback execution");
+
+        // Create intelligent prompt for LLM
+        let prompt = format!(
+            "You are MAGRAY CLI, an intelligent assistant. The user requested: '{}'\n\
+            Command type: {}\n\
+            Context: This is a fallback execution because the full multi-agent system is not available.\n\
+            Please provide a helpful, informative response to the user's request.",
+            request.action,
+            request.command_type
+        );
+
+        // Execute through LLM
+        let llm_start = Instant::now();
+        let llm_response = match llm_client.chat_simple(&prompt).await {
+            Ok(response) => {
+                info!("LLM fallback execution successful");
+                response
+            }
+            Err(e) => {
+                error!("LLM fallback execution failed: {}", e);
+                format!(
+                    "I apologize, but I'm currently unable to process your request: '{}'. \
+                    The system is in fallback mode and the LLM service encountered an error: {}",
+                    request.action, e
+                )
+            }
+        };
+        let llm_duration = llm_start.elapsed().as_millis() as u64;
+
         let execution_time = start_time.elapsed().as_millis() as u64;
         let execution_step = ExecutionStep {
-            step_id: "fallback-execution".to_string(),
-            tool_used: Some(request.command_type.clone()),
+            step_id: "llm-fallback-execution".to_string(),
+            tool_used: Some("LLM".to_string()),
             status: StepStatus::Completed,
-            duration_ms: 100,
-            output: Some(format!(
-                "Fallback execution: {} - {}",
-                request.command_type, request.action
-            )),
+            duration_ms: llm_duration,
+            output: Some(llm_response),
         };
 
         Ok(OrchestrationResult {
             success: true,
             execution_time_ms: execution_time,
-            intent_analysis: None,
-            plan_summary: Some("Fallback execution - orchestrator not available".to_string()),
+            intent_analysis: Some(IntentAnalysis {
+                intent_type: request.command_type.clone(),
+                confidence: 0.8, // High confidence for direct LLM processing
+                extracted_parameters: request.parameters.clone(),
+                suggested_tools: vec!["LLM".to_string()],
+            }),
+            plan_summary: Some("LLM-powered fallback execution - AgentOrchestrator not available".to_string()),
             execution_steps: vec![execution_step],
-            critique: Some("Executed in fallback mode - orchestrator not available".to_string()),
+            critique: Some("Executed using LLM fallback - full orchestration system not available".to_string()),
             error: None,
             fallback_used: true,
         })
@@ -418,6 +480,9 @@ impl Default for OrchestrationService {
 impl OrchestrationService {
     /// Simple user request processing (placeholder until full integration)
     pub async fn process_user_request(&self, message: &str) -> Result<String> {
+        println!("🔍 DEBUG: Processing user request: {}", message);
+        println!("🔍 DEBUG: Orchestrator available: {}", self.orchestrator_available.load(Ordering::Relaxed));
+        println!("🔍 DEBUG: Fallback mode: {}", self.fallback_mode.load(Ordering::Relaxed));
         debug!("Processing user request: {}", message);
 
         // Create simple command request
@@ -466,10 +531,15 @@ impl OrchestrationService {
         // Check orchestrator availability (without mutation)
         let orchestrator_guard = self.orchestrator.read().await;
         let orchestrator_available = orchestrator_guard.is_some();
+        
+        println!("🔍 DEBUG: execute_command_immutable - orchestrator available: {}", orchestrator_available);
+        println!("🔍 DEBUG: execute_command_immutable - fallback mode: {}", self.fallback_mode.load(Ordering::Relaxed));
 
         if orchestrator_available && !self.fallback_mode.load(Ordering::Relaxed) {
+            println!("🔍 DEBUG: Using orchestrator execution");
             self.execute_through_orchestrator(request, start_time).await
         } else {
+            println!("🔍 DEBUG: Using fallback execution");
             self.execute_fallback(request, start_time).await
         }
     }

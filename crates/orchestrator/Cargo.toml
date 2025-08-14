@@ -48,6 +48,7 @@ tokio-util = "0.7"
 common = { path = "../common" }
 llm = { path = "../llm" }
 magray-core = { path = "../core", package = "core" }
+tools = { path = "../tools" }
 
 # Example dependencies are in dev-dependencies
 

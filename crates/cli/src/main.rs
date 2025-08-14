@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{info, warn};
+use ui::tui::TUIApp;
 
 mod commands;
 mod health_checks;
@@ -22,8 +23,7 @@ mod util;
 mod status_tests;
 
 use cli::agent_traits::AgentResponse;
-use cli::agent_traits::{RequestContext, RequestProcessorTrait};
-use cli::unified_agent_v2::UnifiedAgentV2;
+use orchestrator::orchestrator::AgentOrchestrator;
 use commands::{
     GpuCommand, MemoryCommand, ModelsCommand, OrchestratorCommand, SmartCommand, TasksCommand,
     ToolsCommand,
@@ -117,6 +117,8 @@ enum Commands {
         #[arg(long)]
         allow_shell: bool,
     },
+    /// [🖥] Запуск TUI интерфейса для Plan→Preview→Execute workflow
+    Tui,
 }
 
 #[tokio::main]
@@ -135,6 +137,15 @@ async fn main() -> Result<()> {
     if std::env::var("MAGRAY_NO_ANIM").is_err() {
         show_welcome_animation().await?;
     }
+
+    // Если команда не указана, запускаем интерактивный чат
+    let cli = if cli.command.is_none() {
+        Cli {
+            command: Some(Commands::Chat { message: None }),
+        }
+    } else {
+        cli
+    };
 
     // Проверяем наличие дефолтных моделей и предлагаем установить при необходимости
     if std::env::var("MAGRAY_SKIP_AUTO_INSTALL").is_err() {
@@ -190,6 +201,7 @@ async fn main() -> Result<()> {
             Some(Commands::Performance) => "performance",
             Some(Commands::Policy { .. }) => "policy",
             Some(Commands::Tools(_)) => "tools",
+            Some(Commands::Tui) => "tui",
             None => "help",
         };
         tokio::spawn(events::publish(
@@ -203,7 +215,7 @@ async fn main() -> Result<()> {
                 let orchestrator_service = create_orchestrator_service().await?;
                 let message = format!("прочитай файл {path}");
                 let response =
-                    process_orchestrator_message(&orchestrator_service, &message).await?;
+                    process_orchestration_service_message(&orchestrator_service, &message).await?;
                 display_response(response).await;
                 let _ = orchestrator_service.shutdown().await;
             }
@@ -211,7 +223,7 @@ async fn main() -> Result<()> {
                 let orchestrator_service = create_orchestrator_service().await?;
                 let message = format!("создай файл {path} с содержимым: {content}");
                 let response =
-                    process_orchestrator_message(&orchestrator_service, &message).await?;
+                    process_orchestration_service_message(&orchestrator_service, &message).await?;
                 display_response(response).await;
                 let _ = orchestrator_service.shutdown().await;
             }
@@ -219,13 +231,13 @@ async fn main() -> Result<()> {
                 let orchestrator_service = create_orchestrator_service().await?;
                 let message = format!("покажи содержимое папки {}", path.as_deref().unwrap_or("."));
                 let response =
-                    process_orchestrator_message(&orchestrator_service, &message).await?;
+                    process_orchestration_service_message(&orchestrator_service, &message).await?;
                 display_response(response).await;
                 let _ = orchestrator_service.shutdown().await;
             }
             Some(Commands::Tool { action }) => {
                 let orchestrator_service = create_orchestrator_service().await?;
-                let response = process_orchestrator_message(&orchestrator_service, &action).await?;
+                let response = process_orchestration_service_message(&orchestrator_service, &action).await?;
                 display_response(response).await;
                 let _ = orchestrator_service.shutdown().await;
             }
@@ -320,6 +332,11 @@ async fn main() -> Result<()> {
                 timeout(Duration::from_secs(300), cmd.execute())
                     .await
                     .map_err(|_| anyhow::anyhow!("Tools command timeout"))??;
+            }
+            Some(Commands::Tui) => {
+                timeout(Duration::from_secs(3600), run_tui_mode())
+                    .await
+                    .map_err(|_| anyhow::anyhow!("TUI mode timeout"))??;
             }
             None => {
                 // Интерактивный режим
@@ -467,7 +484,7 @@ async fn process_interactive_command(input: &str) -> Result<()> {
             }
             let orchestrator_service = create_orchestrator_service().await?;
             let message = format!("прочитай файл {}", args[1]);
-            let response = process_orchestrator_message(&orchestrator_service, &message).await?;
+            let response = process_orchestration_service_message(&orchestrator_service, &message).await?;
             display_response(response).await;
             let _ = orchestrator_service.shutdown().await;
         }
@@ -482,7 +499,7 @@ async fn process_interactive_command(input: &str) -> Result<()> {
             let orchestrator_service = create_orchestrator_service().await?;
             let content = args[2..].join(" ");
             let message = format!("создай файл {} с содержимым: {}", args[1], content);
-            let response = process_orchestrator_message(&orchestrator_service, &message).await?;
+            let response = process_orchestration_service_message(&orchestrator_service, &message).await?;
             display_response(response).await;
             let _ = orchestrator_service.shutdown().await;
         }
@@ -490,7 +507,7 @@ async fn process_interactive_command(input: &str) -> Result<()> {
             let path = if args.len() > 1 { args[1] } else { "." };
             let orchestrator_service = create_orchestrator_service().await?;
             let message = format!("покажи содержимое папки {path}");
-            let response = process_orchestrator_message(&orchestrator_service, &message).await?;
+            let response = process_orchestration_service_message(&orchestrator_service, &message).await?;
             display_response(response).await;
             let _ = orchestrator_service.shutdown().await;
         }
@@ -501,7 +518,7 @@ async fn process_interactive_command(input: &str) -> Result<()> {
             }
             let action = args[1..].join(" ");
             let orchestrator_service = create_orchestrator_service().await?;
-            let response = process_orchestrator_message(&orchestrator_service, &action).await?;
+            let response = process_orchestration_service_message(&orchestrator_service, &action).await?;
             display_response(response).await;
             let _ = orchestrator_service.shutdown().await;
         }
@@ -757,11 +774,11 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
 }
 
 #[allow(dead_code)]
-async fn process_single_message(agent: &UnifiedAgentV2, message: &str) -> Result<()> {
+async fn process_single_message(orchestrator: &AgentOrchestrator, message: &str) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
 
     // Защита от зависания с таймаутом 60 секунд
-    let process_future = process_agent_message(agent, message);
+    let process_future = process_orchestrator_message(orchestrator, message);
     let response = match timeout(TokioDuration::from_secs(60), process_future).await {
         Ok(Ok(response)) => response,
         Ok(Err(e)) => return Err(e),
@@ -785,7 +802,7 @@ async fn process_single_message_orchestrator(
     use tokio::time::{timeout, Duration as TokioDuration};
 
     // Защита от зависания с таймаутом 60 секунд
-    let process_future = process_orchestrator_message(service, message);
+    let process_future = process_orchestration_service_message(service, message);
     let response = match timeout(TokioDuration::from_secs(60), process_future).await {
         Ok(Ok(response)) => response,
         Ok(Err(e)) => return Err(e),
@@ -803,7 +820,7 @@ async fn process_single_message_orchestrator(
 }
 
 #[allow(dead_code)]
-async fn run_interactive_chat(agent: &UnifiedAgentV2) -> Result<()> {
+async fn run_interactive_chat(orchestrator: &AgentOrchestrator) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
 
     println!(
@@ -873,7 +890,7 @@ async fn run_interactive_chat(agent: &UnifiedAgentV2) -> Result<()> {
         }
 
         // Обрабатываем сообщение с timeout защитой
-        let process_future = process_agent_message(agent, &input);
+        let process_future = process_orchestrator_message(orchestrator, &input);
         let response = match timeout(TokioDuration::from_secs(60), process_future).await {
             Ok(Ok(response)) => response,
             Ok(Err(e)) => {
@@ -966,7 +983,7 @@ async fn run_interactive_chat_orchestrator(service: &services::OrchestrationServ
         }
 
         // Обрабатываем сообщение с timeout защитой
-        let process_future = process_orchestrator_message(service, &input);
+        let process_future = process_orchestration_service_message(service, &input);
         let response = match timeout(TokioDuration::from_secs(60), process_future).await {
             Ok(Ok(response)) => response,
             Ok(Err(e)) => {
@@ -1031,49 +1048,97 @@ async fn display_chat_response(text: &str) {
     println!();
 }
 
-/// Создание и инициализация UnifiedAgentV2 (legacy fallback)
-async fn create_unified_agent_v2() -> Result<UnifiedAgentV2> {
-    let mut agent = UnifiedAgentV2::new().await?;
-    agent.initialize().await?;
-    Ok(agent)
+/// Создание и инициализация AgentOrchestrator
+async fn create_agent_orchestrator() -> Result<AgentOrchestrator> {
+    use orchestrator::system::SystemConfig;
+    use orchestrator::orchestrator::OrchestratorConfig;
+    use orchestrator::events::{DefaultAgentEventPublisher, AgentEventPublisher};
+    use std::sync::Arc;
+    
+    let system_config = SystemConfig::default();
+    let orchestrator_config = OrchestratorConfig::default();
+    
+    // Создаем AgentEventPublisher для orchestrator
+    let agent_id = uuid::Uuid::new_v4();
+    let event_publisher = Arc::new(DefaultAgentEventPublisher::new(
+        agent_id,
+        "CLI-Orchestrator".to_string(),
+        "orchestrator".to_string(),
+    )) as Arc<dyn AgentEventPublisher>;
+    
+    AgentOrchestrator::new(system_config, orchestrator_config, event_publisher)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create orchestrator: {}", e))
 }
 
-/// Создание и инициализация нового AgentOrchestrator-based сервиса
+/// Создание и инициализация нового AgentOrchестrator-based сервиса
 async fn create_orchestrator_service() -> Result<services::OrchestrationService> {
+    println!("🔍 DEBUG: Attempting to create OrchestrationService with AgentOrchestrator");
+    
     // Try to create with real orchestrator first
     match services::OrchestrationService::with_orchestrator().await {
         Ok(service) => {
+            println!("🔍 DEBUG: OrchestrationService with AgentOrchestrator created successfully");
             info!("OrchestrationService with AgentOrchestrator created successfully");
             Ok(service)
         }
         Err(e) => {
+            // Enhanced error diagnostics
+            println!("🔍 DEBUG: OrchestrationService::with_orchestrator() failed with detailed error:");
+            println!("🔍 DEBUG: Error type: {}", e);
+            println!("🔍 DEBUG: Error chain:");
+            let mut current = e.source();
+            let mut depth = 0;
+            while let Some(source) = current {
+                depth += 1;
+                println!("🔍 DEBUG: Level {}: {}", depth, source);
+                current = source.source();
+            }
+            
             warn!(
-                "Failed to create orchestrator service: {}, falling back to basic service",
+                "Failed to create orchestrator service: {}, falling back to LLM-powered service",
                 e
             );
-            // Fall back to basic orchestration service (with fallback agent)
-            Ok(services::OrchestrationService::new())
+            
+            // Fall back to LLM-powered orchestration service
+            println!("🔍 DEBUG: Creating fallback service with LLM integration");
+            Ok(services::OrchestrationService::with_llm_fallback().await?)
         }
     }
 }
 
-/// Обработка сообщения через UnifiedAgentV2 API (legacy)
-#[allow(dead_code)]
-async fn process_agent_message(agent: &UnifiedAgentV2, message: &str) -> Result<AgentResponse> {
-    let context = RequestContext {
-        message: message.to_string(),
-        session_id: "main_session".to_string(),
-        metadata: std::collections::HashMap::new(),
+/// Обработка сообщения через AgentOrchestrator workflow
+async fn process_orchestrator_message(orchestrator: &AgentOrchestrator, message: &str) -> Result<AgentResponse> {
+    use orchestrator::workflow::WorkflowRequest;
+    
+    // Создаем workflow request для Intent→Plan→Execute→Critic workflow
+    let workflow_request = WorkflowRequest {
+        user_input: message.to_string(),
+        context: None,
+        priority: orchestrator::actors::TaskPriority::Normal,
+        dry_run: false,
+        timeout_ms: Some(60000),
+        config_overrides: None,
     };
 
-    let result = agent.process_user_request(context).await?;
-
-    // result.response уже является AgentResponse
-    Ok(result.response)
+    // Выполняем полный workflow: Intent→Plan→Execute→Critic
+    let workflow_result = orchestrator.execute_workflow(workflow_request).await?;
+    
+    // Конвертируем результат в AgentResponse
+    let content = if workflow_result.success {
+        workflow_result.results
+            .and_then(|r| r.as_str().map(String::from))
+            .unwrap_or_else(|| "Задача выполнена успешно".to_string())
+    } else {
+        workflow_result.error.unwrap_or_else(|| "Произошла ошибка при выполнении".to_string())
+    };
+    
+    Ok(AgentResponse::Chat(content))
 }
 
-/// Обработка сообщения через OrchestrationService
-async fn process_orchestrator_message(
+/// Обработка сообщения через OrchestrationService (legacy fallback)
+#[allow(dead_code)]
+async fn process_orchestration_service_message(
     service: &services::OrchestrationService,
     message: &str,
 ) -> Result<AgentResponse> {
@@ -1361,7 +1426,7 @@ async fn show_performance_metrics() -> Result<()> {
     info!("📈 Initializing UnifiedAgent for performance metrics");
 
     // Создаем UnifiedAgent для доступа к DI системе
-    let _agent = match create_unified_agent_v2().await {
+    let _orchestrator = match create_agent_orchestrator().await {
         Ok(agent) => {
             info!("✅ UnifiedAgent initialized successfully");
             agent
@@ -1533,5 +1598,29 @@ fn run_ort_install_script() -> Result<()> {
             std::env::set_var("ORT_DYLIB_PATH", p.display().to_string());
         }
     }
+    Ok(())
+}
+
+/// Запуск TUI интерфейса для Plan→Preview→Execute workflow
+async fn run_tui_mode() -> Result<()> {
+    println!("🖥  Starting MAGRAY TUI Interface...");
+    
+    // Создаем TUI приложение
+    let mut app = TUIApp::new().map_err(|e| {
+        anyhow::anyhow!("Failed to initialize TUI: {}", e)
+    })?;
+    
+    println!("🚀 TUI initialized successfully. Press 'q' to quit, 'h' for help.");
+    
+    // Интеграция с orchestrator (заглушка для MVP)
+    // В будущем здесь будет реальная интеграция с AgentOrchestrator
+    
+    // Запускаем TUI
+    if let Err(e) = app.run() {
+        eprintln!("TUI error: {}", e);
+        return Err(anyhow::anyhow!("TUI execution failed: {}", e));
+    }
+    
+    println!("👋 TUI session ended.");
     Ok(())
 }

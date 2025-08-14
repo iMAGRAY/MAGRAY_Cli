@@ -7,6 +7,8 @@ use tracing::{debug, info, warn};
 
 use crate::batch_optimized::{BatchOptimizedConfig, BatchOptimizedProcessor};
 use crate::cache_interface::EmbeddingCacheInterface;
+#[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
+use crate::qwen3_bridge::Qwen3MemoryBridge;
 #[cfg(feature = "gpu")]
 use ai::gpu_fallback::FallbackStats;
 #[cfg(feature = "gpu")]
@@ -198,6 +200,9 @@ pub struct GpuBatchProcessor {
     /// Ultra-optimized batch processor для maximum QPS
     #[allow(dead_code)]
     ultra_batch_processor: Option<Arc<BatchOptimizedProcessor>>,
+    /// Qwen3 Memory Bridge для использования Qwen3EmbeddingProvider
+    #[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
+    qwen3_bridge: Option<Arc<Qwen3MemoryBridge>>,
 }
 
 #[derive(Clone)]
@@ -285,7 +290,92 @@ impl GpuBatchProcessor {
             processing_queue: Arc::new(Mutex::new(Vec::new())),
             config,
             ultra_batch_processor,
+            #[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
+            qwen3_bridge: None, // Будет инициализирован через with_qwen3_bridge
         })
+    }
+
+    /// NEW: Создать GpuBatchProcessor с Qwen3MemoryBridge для разблокировки memory system
+    #[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
+    pub async fn with_qwen3_bridge(
+        config: BatchProcessorConfig,
+        cache: Arc<dyn EmbeddingCacheInterface>,
+    ) -> Result<Self> {
+        info!("🔗 Инициализация GpuBatchProcessor с Qwen3MemoryBridge");
+
+        // Создаем стандартный processor сначала
+        let embedding_config = EmbeddingConfig {
+            model_name: "qwen3emb".to_string(),
+            batch_size: config.max_batch_size,
+            max_length: 512,
+            use_gpu: false, // CPU для стабильности
+            gpu_config: None,
+            embedding_dim: Some(1024),
+        };
+
+        let mut processor = Self::new(config, embedding_config, cache).await?;
+
+        // Создаем и инициализируем Qwen3MemoryBridge
+        let qwen3_config = ai::EmbeddingConfig {
+            model_name: "qwen3emb".to_string(),
+            batch_size: processor.config.max_batch_size,
+            max_length: 512,
+            use_gpu: false,
+            gpu_config: None,
+            embedding_dim: Some(1024),
+        };
+
+        match Qwen3MemoryBridge::new(qwen3_config).await {
+            Ok(bridge) => {
+                // Инициализируем bridge
+                if let Err(e) = bridge.initialize().await {
+                    warn!("⚠️ Qwen3 bridge initialization failed: {}, will use fallback", e);
+                } else {
+                    info!("✅ Qwen3MemoryBridge инициализирован успешно");
+                }
+
+                processor.qwen3_bridge = Some(Arc::new(bridge));
+                info!("🚀 GpuBatchProcessor интегрирован с Qwen3MemoryBridge");
+            }
+            Err(e) => {
+                warn!("⚠️ Не удалось создать Qwen3MemoryBridge: {}, используем стандартный fallback", e);
+                processor.qwen3_bridge = None;
+            }
+        }
+
+        Ok(processor)
+    }
+
+    /// Проверить доступность Qwen3 bridge
+    #[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
+    pub async fn is_qwen3_available(&self) -> bool {
+        if let Some(ref bridge) = self.qwen3_bridge {
+            bridge.is_qwen3_available().await
+        } else {
+            false
+        }
+    }
+
+    /// Проверить доступность Qwen3 bridge (fallback для minimal build)
+    #[cfg(not(all(not(feature = "minimal"), feature = "embeddings")))]
+    pub async fn is_qwen3_available(&self) -> bool {
+        false
+    }
+
+    /// Получить метрики Qwen3 bridge
+    #[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
+    pub async fn get_qwen3_metrics(&self) -> Option<crate::qwen3_bridge::BridgeMetrics> {
+        if let Some(ref bridge) = self.qwen3_bridge {
+            Some(bridge.get_metrics().await)
+        } else {
+            None
+        }
+    }
+
+    /// Получить метрики Qwen3 bridge (fallback для minimal build)
+    #[cfg(not(all(not(feature = "minimal"), feature = "embeddings")))]
+    pub async fn get_qwen3_metrics(&self) -> Option<()> {
+        None
     }
 
     /// Создать ultra-optimized batch processor для maximum QPS
@@ -554,6 +644,23 @@ impl GpuBatchProcessor {
 
     /// Получить embedding с comprehensive fallback chain
     async fn get_embedding_with_fallback(&self, text: &str) -> Result<Vec<f32>> {
+        // 0. НОВЫЙ ПРИОРИТЕТ: Пытаемся через Qwen3MemoryBridge если доступен
+        #[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
+        if let Some(ref bridge) = self.qwen3_bridge {
+            debug!("Attempting embedding through Qwen3MemoryBridge");
+            match bridge.embed_text(text).await {
+                Ok(embedding) => {
+                    if !embedding.is_empty() {
+                        debug!("✅ Qwen3MemoryBridge embedding successful (dim: {})", embedding.len());
+                        return Ok(embedding);
+                    }
+                }
+                Err(e) => {
+                    warn!("Qwen3MemoryBridge failed: {}, falling back to standard methods", e);
+                }
+            }
+        }
+
         // 1. Пытаемся через основной fallback сервис (GPU→CPU)
         match self
             .embedding_service
@@ -665,42 +772,32 @@ impl GpuBatchProcessor {
 
         // Обрабатываем uncached тексты с resilient processing
         if !uncached_texts.is_empty() {
-            let embeddings = if let Some(ref pipeline) = self.gpu_pipeline {
-                // Используем GPU pipeline для максимальной производительности
-                debug!(
-                    "🚀 Используем GPU Pipeline для {} текстов",
-                    uncached_texts.len()
-                );
-
-                // Пытаемся через GPU pipeline с fallback
-                match pipeline
-                    .process_texts_optimized(uncached_texts.clone())
-                    .await
-                {
-                    Ok(embeddings) => embeddings,
-                    Err(e) => {
-                        warn!("🔄 GPU Pipeline failed: {}. Fallback на основной сервис", e);
-                        self.embedding_service
-                            .embed_batch(uncached_texts.clone())
-                            .await
-                            .map_err(|fallback_err| {
-                                anyhow::anyhow!(
-                                    "Both GPU pipeline and fallback failed. GPU: {}, Fallback: {}",
-                                    e,
-                                    fallback_err
-                                )
-                            })?
+            let embeddings = {
+                // 0. НОВЫЙ ПРИОРИТЕТ: Пытаемся batch embedding через Qwen3MemoryBridge
+                #[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
+                if let Some(ref bridge) = self.qwen3_bridge {
+                    debug!("🔗 Attempting batch embedding through Qwen3MemoryBridge ({} texts)", uncached_texts.len());
+                    match bridge.embed_batch(&uncached_texts).await {
+                        Ok(embeddings) => {
+                            info!("✅ Qwen3MemoryBridge batch embedding successful ({} embeddings)", embeddings.len());
+                            embeddings
+                        }
+                        Err(e) => {
+                            warn!("Qwen3MemoryBridge batch failed: {}, falling back to GPU pipeline", e);
+                            // Fallback к GPU pipeline
+                            self.get_embeddings_via_pipeline_or_fallback(&uncached_texts).await?
+                        }
                     }
+                } else {
+                    // Нет Qwen3 bridge, используем GPU pipeline или fallback
+                    self.get_embeddings_via_pipeline_or_fallback(&uncached_texts).await?
                 }
-            } else {
-                // Fallback на обычный сервис
-                debug!(
-                    "🔄 Используем Fallback сервис для {} текстов",
-                    uncached_texts.len()
-                );
-                self.embedding_service
-                    .embed_batch(uncached_texts.clone())
-                    .await?
+
+                #[cfg(not(all(not(feature = "minimal"), feature = "embeddings")))]
+                {
+                    // Qwen3 bridge недоступен, используем стандартный fallback
+                    self.get_embeddings_via_pipeline_or_fallback(&uncached_texts).await?
+                }
             };
 
             // Сохраняем в кэш и результаты с защитой от partial failures
@@ -748,6 +845,47 @@ impl GpuBatchProcessor {
             }
         }
         Ok(final_results)
+    }
+
+    /// Получить embeddings через GPU pipeline или fallback (вспомогательный метод для Qwen3 интеграции)
+    async fn get_embeddings_via_pipeline_or_fallback(&self, uncached_texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        if let Some(ref pipeline) = self.gpu_pipeline {
+            // Используем GPU pipeline для максимальной производительности
+            debug!(
+                "🚀 Используем GPU Pipeline для {} текстов",
+                uncached_texts.len()
+            );
+
+            // Пытаемся через GPU pipeline с fallback
+            match pipeline
+                .process_texts_optimized(uncached_texts.to_vec())
+                .await
+            {
+                Ok(embeddings) => Ok(embeddings),
+                Err(e) => {
+                    warn!("🔄 GPU Pipeline failed: {}. Fallback на основной сервис", e);
+                    self.embedding_service
+                        .embed_batch(uncached_texts.to_vec())
+                        .await
+                        .map_err(|fallback_err| {
+                            anyhow::anyhow!(
+                                "Both GPU pipeline and fallback failed. GPU: {}, Fallback: {}",
+                                e,
+                                fallback_err
+                            )
+                        })
+                }
+            }
+        } else {
+            // Fallback на обычный сервис
+            debug!(
+                "🔄 Используем Fallback сервис для {} текстов",
+                uncached_texts.len()
+            );
+            self.embedding_service
+                .embed_batch(uncached_texts.to_vec())
+                .await
+        }
     }
 
     /// Обработать накопленный батч
