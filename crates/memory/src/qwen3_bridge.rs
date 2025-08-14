@@ -1,10 +1,10 @@
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
-use ai::{Qwen3EmbeddingProvider, EmbeddingConfig};
 use crate::fallback::FallbackEmbeddingService;
+use ai::{EmbeddingConfig, Qwen3EmbeddingProvider};
 
 /// Bridge adapter для интеграции Qwen3EmbeddingProvider в memory system
 /// Обеспечивает совместимость между ai crate и memory system интерфейсами
@@ -42,8 +42,8 @@ impl Qwen3MemoryBridge {
         info!("   Batch size: {}", config.batch_size);
 
         // Создаем Qwen3EmbeddingProvider с конфигурацией
-        let qwen3_provider = Qwen3EmbeddingProvider::new_with_config(config.clone())
-            .map_err(|e| {
+        let qwen3_provider =
+            Qwen3EmbeddingProvider::new_with_config(config.clone()).map_err(|e| {
                 error!("❌ Не удалось создать Qwen3EmbeddingProvider: {}", e);
                 anyhow::anyhow!("Failed to create Qwen3EmbeddingProvider: {}", e)
             })?;
@@ -58,7 +58,7 @@ impl Qwen3MemoryBridge {
             initialized: std::sync::atomic::AtomicBool::new(false),
             performance_metrics: Arc::new(RwLock::new(BridgeMetrics::default())),
         };
-        
+
         info!("✅ Qwen3MemoryBridge создан");
         Ok(bridge)
     }
@@ -77,7 +77,7 @@ impl Qwen3MemoryBridge {
             gpu_config: None,
             embedding_dim: Some(1024),
         };
-        
+
         Self::new(config).await
     }
 
@@ -98,9 +98,15 @@ impl Qwen3MemoryBridge {
         match test_result {
             Ok(embedding) => {
                 if embedding.len() == 1024 {
-                    info!("✅ Qwen3 provider инициализирован (embedding dim: {})", embedding.len());
+                    info!(
+                        "✅ Qwen3 provider инициализирован (embedding dim: {})",
+                        embedding.len()
+                    );
                 } else {
-                    warn!("⚠️ Неожиданная размерность embedding: {} (ожидалось 1024)", embedding.len());
+                    warn!(
+                        "⚠️ Неожиданная размерность embedding: {} (ожидалось 1024)",
+                        embedding.len()
+                    );
                 }
             }
             Err(e) => {
@@ -109,7 +115,8 @@ impl Qwen3MemoryBridge {
             }
         }
 
-        self.initialized.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.initialized
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         info!("✅ Qwen3MemoryBridge инициализирован");
         Ok(())
     }
@@ -134,16 +141,20 @@ impl Qwen3MemoryBridge {
             Ok(embedding) => {
                 metrics.successful_requests += 1;
                 metrics.qwen3_requests += 1;
-                
+
                 let latency = start_time.elapsed().as_millis() as f64;
                 metrics.total_latency_ms += latency;
-                metrics.avg_latency_ms = metrics.total_latency_ms / metrics.successful_requests as f64;
-                
+                metrics.avg_latency_ms =
+                    metrics.total_latency_ms / metrics.successful_requests as f64;
+
                 debug!("✅ Qwen3 embedding получен за {:.2}ms", latency);
                 Ok(embedding)
             }
             Err(e) => {
-                warn!("⚠️ Qwen3 provider ошибка: {}, используем graceful fallback", e);
+                warn!(
+                    "⚠️ Qwen3 provider ошибка: {}, используем graceful fallback",
+                    e
+                );
                 metrics.failed_requests += 1;
 
                 // Используем fallback service
@@ -153,14 +164,19 @@ impl Qwen3MemoryBridge {
                         metrics.fallback_requests += 1;
                         let latency = start_time.elapsed().as_millis() as f64;
                         metrics.total_latency_ms += latency;
-                        metrics.avg_latency_ms = metrics.total_latency_ms / (metrics.successful_requests + 1) as f64;
-                        
+                        metrics.avg_latency_ms =
+                            metrics.total_latency_ms / (metrics.successful_requests + 1) as f64;
+
                         warn!("🔄 Fallback embedding получен за {:.2}ms", latency);
                         Ok(embedding)
                     }
                     Err(fallback_error) => {
                         error!("❌ Fallback также неудачен: {}", fallback_error);
-                        Err(anyhow::anyhow!("Все embedding методы неудачны: Qwen3: {}, Fallback: {}", e, fallback_error))
+                        Err(anyhow::anyhow!(
+                            "Все embedding методы неудачны: Qwen3: {}, Fallback: {}",
+                            e,
+                            fallback_error
+                        ))
                     }
                 }
             }
@@ -173,8 +189,11 @@ impl Qwen3MemoryBridge {
             self.initialize().await?;
         }
 
-        debug!("📦 Обработка batch из {} текстов через Qwen3MemoryBridge", texts.len());
-        
+        debug!(
+            "📦 Обработка batch из {} текстов через Qwen3MemoryBridge",
+            texts.len()
+        );
+
         let start_time = std::time::Instant::now();
         let mut metrics = self.performance_metrics.write().await;
         metrics.total_requests += texts.len() as u64;
@@ -189,13 +208,17 @@ impl Qwen3MemoryBridge {
             Ok(embeddings) => {
                 metrics.successful_requests += texts.len() as u64;
                 metrics.qwen3_requests += texts.len() as u64;
-                
+
                 let latency = start_time.elapsed().as_millis() as f64;
                 metrics.total_latency_ms += latency;
-                metrics.avg_latency_ms = metrics.total_latency_ms / metrics.successful_requests as f64;
-                
-                info!("✅ Qwen3 batch embeddings получены за {:.2}ms ({:.1} items/sec)", 
-                      latency, texts.len() as f64 / (latency / 1000.0));
+                metrics.avg_latency_ms =
+                    metrics.total_latency_ms / metrics.successful_requests as f64;
+
+                info!(
+                    "✅ Qwen3 batch embeddings получены за {:.2}ms ({:.1} items/sec)",
+                    latency,
+                    texts.len() as f64 / (latency / 1000.0)
+                );
                 Ok(embeddings)
             }
             Err(e) => {
@@ -209,13 +232,17 @@ impl Qwen3MemoryBridge {
                         metrics.fallback_requests += texts.len() as u64;
                         let latency = start_time.elapsed().as_millis() as f64;
                         metrics.total_latency_ms += latency;
-                        
+
                         warn!("🔄 Fallback batch embeddings получены за {:.2}ms", latency);
                         Ok(embeddings)
                     }
                     Err(fallback_error) => {
                         error!("❌ Fallback batch также неудачен: {}", fallback_error);
-                        Err(anyhow::anyhow!("Все batch embedding методы неудачны: Qwen3: {}, Fallback: {}", e, fallback_error))
+                        Err(anyhow::anyhow!(
+                            "Все batch embedding методы неудачны: Qwen3: {}, Fallback: {}",
+                            e,
+                            fallback_error
+                        ))
                     }
                 }
             }
@@ -246,7 +273,8 @@ impl Qwen3MemoryBridge {
     pub async fn force_fallback(&self) {
         // Просто устанавливаем флаг что инициализация не завершена
         // Это заставит использовать fallback
-        self.initialized.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.initialized
+            .store(false, std::sync::atomic::Ordering::Relaxed);
         warn!("🔄 Qwen3MemoryBridge переключен в fallback режим");
     }
 
@@ -258,7 +286,7 @@ impl Qwen3MemoryBridge {
                 info!("✅ Qwen3 provider восстановлен");
                 true
             }
-            Err(_) => false
+            Err(_) => false,
         }
     }
 }
@@ -270,7 +298,7 @@ impl Clone for Qwen3MemoryBridge {
             fallback_service: Arc::clone(&self.fallback_service),
             config: self.config.clone(),
             initialized: std::sync::atomic::AtomicBool::new(
-                self.initialized.load(std::sync::atomic::Ordering::Relaxed)
+                self.initialized.load(std::sync::atomic::Ordering::Relaxed),
             ),
             performance_metrics: Arc::clone(&self.performance_metrics),
         }
@@ -313,15 +341,15 @@ mod tests {
         };
 
         let bridge = Qwen3MemoryBridge::new(config).await?;
-        
+
         // Инициализация может быть неудачной если модель недоступна
         // но bridge все равно должен работать через fallback
         let _init_result = bridge.initialize().await;
-        
+
         // Проверяем что можем получить embedding (через fallback если нужно)
         let embedding = bridge.embed_text("test").await?;
         assert_eq!(embedding.len(), 1024);
-        
+
         Ok(())
     }
 
@@ -337,14 +365,14 @@ mod tests {
         };
 
         let bridge = Qwen3MemoryBridge::new(config).await?;
-        
+
         // Делаем несколько запросов
         let _embedding1 = bridge.embed_text("test 1").await;
         let _embedding2 = bridge.embed_text("test 2").await;
-        
+
         let metrics = bridge.get_metrics().await;
         assert!(metrics.total_requests >= 2);
-        
+
         Ok(())
     }
 }

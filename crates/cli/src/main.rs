@@ -17,17 +17,18 @@ mod commands;
 mod health_checks;
 mod progress;
 mod services;
+mod tui_chat;
 mod util;
 
 #[cfg(test)]
 mod status_tests;
 
 use cli::agent_traits::AgentResponse;
-use orchestrator::orchestrator::AgentOrchestrator;
 use commands::{
     GpuCommand, MemoryCommand, ModelsCommand, OrchestratorCommand, SmartCommand, TasksCommand,
     ToolsCommand,
 };
+use orchestrator::orchestrator::AgentOrchestrator;
 
 // Иконки для CLI интерфейса
 static ROBOT_ICON: AnimatedIcon = AnimatedIcon::new(&["[AI]", "[▲I]", "[●I]", "[♦I]"]);
@@ -63,6 +64,9 @@ enum Commands {
     Chat {
         /// Сообщение для отправки (если не указано - интерактивный режим)
         message: Option<String>,
+        /// Отключить TUI интерфейс (использовать простой CLI чат)
+        #[arg(long)]
+        no_tui: bool,
     },
     /// [●] Читает файл с красивой подсветкой синтаксиса
     Read {
@@ -140,8 +144,9 @@ async fn main() -> Result<()> {
 
     // Если команда не указана, запускаем интерактивный чат
     let cli = if cli.command.is_none() {
+        println!("🚀 Команда не указана - запускаем Claude Code-подобный TUI чат...");
         Cli {
-            command: Some(Commands::Chat { message: None }),
+            command: Some(Commands::Chat { message: None, no_tui: false }),
         }
     } else {
         cli
@@ -210,7 +215,7 @@ async fn main() -> Result<()> {
         ));
 
         match cli.command {
-            Some(Commands::Chat { message }) => handle_chat(message).await?,
+            Some(Commands::Chat { message, no_tui }) => handle_chat(message, no_tui).await?,
             Some(Commands::Read { path }) => {
                 let orchestrator_service = create_orchestrator_service().await?;
                 let message = format!("прочитай файл {path}");
@@ -237,7 +242,8 @@ async fn main() -> Result<()> {
             }
             Some(Commands::Tool { action }) => {
                 let orchestrator_service = create_orchestrator_service().await?;
-                let response = process_orchestration_service_message(&orchestrator_service, &action).await?;
+                let response =
+                    process_orchestration_service_message(&orchestrator_service, &action).await?;
                 display_response(response).await;
                 let _ = orchestrator_service.shutdown().await;
             }
@@ -475,7 +481,7 @@ async fn process_interactive_command(input: &str) -> Result<()> {
             } else {
                 None
             };
-            handle_chat(message).await?;
+            handle_chat(message, false).await?; // false = используем TUI по умолчанию
         }
         "read" => {
             if args.len() < 2 {
@@ -484,7 +490,8 @@ async fn process_interactive_command(input: &str) -> Result<()> {
             }
             let orchestrator_service = create_orchestrator_service().await?;
             let message = format!("прочитай файл {}", args[1]);
-            let response = process_orchestration_service_message(&orchestrator_service, &message).await?;
+            let response =
+                process_orchestration_service_message(&orchestrator_service, &message).await?;
             display_response(response).await;
             let _ = orchestrator_service.shutdown().await;
         }
@@ -499,7 +506,8 @@ async fn process_interactive_command(input: &str) -> Result<()> {
             let orchestrator_service = create_orchestrator_service().await?;
             let content = args[2..].join(" ");
             let message = format!("создай файл {} с содержимым: {}", args[1], content);
-            let response = process_orchestration_service_message(&orchestrator_service, &message).await?;
+            let response =
+                process_orchestration_service_message(&orchestrator_service, &message).await?;
             display_response(response).await;
             let _ = orchestrator_service.shutdown().await;
         }
@@ -507,7 +515,8 @@ async fn process_interactive_command(input: &str) -> Result<()> {
             let path = if args.len() > 1 { args[1] } else { "." };
             let orchestrator_service = create_orchestrator_service().await?;
             let message = format!("покажи содержимое папки {path}");
-            let response = process_orchestration_service_message(&orchestrator_service, &message).await?;
+            let response =
+                process_orchestration_service_message(&orchestrator_service, &message).await?;
             display_response(response).await;
             let _ = orchestrator_service.shutdown().await;
         }
@@ -518,7 +527,8 @@ async fn process_interactive_command(input: &str) -> Result<()> {
             }
             let action = args[1..].join(" ");
             let orchestrator_service = create_orchestrator_service().await?;
-            let response = process_orchestration_service_message(&orchestrator_service, &action).await?;
+            let response =
+                process_orchestration_service_message(&orchestrator_service, &action).await?;
             display_response(response).await;
             let _ = orchestrator_service.shutdown().await;
         }
@@ -666,36 +676,13 @@ async fn show_welcome_animation() -> Result<()> {
     Ok(())
 }
 
-async fn handle_chat(message: Option<String>) -> Result<()> {
+async fn handle_chat(message: Option<String>, no_tui: bool) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
 
     let _term = Term::stdout();
 
-    // Проверяем, есть ли входные данные из pipe/stdin
-    let mut stdin_message = None;
-    if message.is_none() {
-        // Проверяем синхронно, есть ли данные в stdin
-        let join_res = std::thread::spawn(|| {
-            use std::io::{self, Read};
-            let mut input = String::new();
-            match io::stdin().read_to_string(&mut input) {
-                Ok(0) => None, // Нет данных
-                Ok(_) => {
-                    let trimmed = input.trim();
-                    if trimmed.is_empty() {
-                        None
-                    } else {
-                        Some(trimmed.to_string())
-                    }
-                }
-                Err(_) => None, // Ошибка чтения
-            }
-        })
-        .join();
-        if let Ok(result) = join_res {
-            stdin_message = result
-        }
-    }
+    // В интерактивном режиме не читаем stdin (блокирует TUI)
+    let stdin_message = None;
 
     // Инициализация LLM клиента с анимацией
     let spinner = indicatif::ProgressBar::new_spinner();
@@ -744,31 +731,41 @@ async fn handle_chat(message: Option<String>) -> Result<()> {
         }
     };
 
-    // Создаем новый AgentOrchestrator-based сервис с timeout защитой
-    let service_future = create_orchestrator_service();
-    let service = match timeout(TokioDuration::from_secs(30), service_future).await {
-        Ok(Ok(service)) => service,
-        Ok(Err(e)) => return Err(e),
-        Err(_) => {
-            return Err(anyhow::anyhow!(
-                "OrchestrationService initialization timeout after 30 seconds"
-            ))
-        }
-    };
-
-    // Определяем, какое сообщение обрабатывать
-    let final_message = message.or(stdin_message);
-
-    if let Some(msg) = final_message {
-        // Одиночное сообщение (из аргументов или stdin)
+    // Запускаем TUI сначала, инициализируем сервис в фоне
+    if let Some(msg) = message.or(stdin_message) {
+        // Для одиночных сообщений нужен сервис
+        let service_future = create_orchestrator_service();
+        let service = match timeout(TokioDuration::from_secs(30), service_future).await {
+            Ok(Ok(service)) => service,
+            Ok(Err(e)) => return Err(e),
+            Err(_) => {
+                return Err(anyhow::anyhow!(
+                    "OrchestrationService initialization timeout after 30 seconds"
+                ))
+            }
+        };
         process_single_message_orchestrator(&service, &msg).await?;
-    } else {
-        // Интерактивный чат
-        run_interactive_chat_orchestrator(&service).await?;
+        let _ = service.shutdown().await;
+        return Ok(());
     }
 
-    // Graceful shutdown
-    let _ = service.shutdown().await;
+    // Интерактивный режим - запускаем TUI немедленно
+    if no_tui {
+        // CLI режим - нужен сервис
+        let service_future = create_orchestrator_service();
+        let service = match timeout(TokioDuration::from_secs(5), service_future).await {
+            Ok(Ok(service)) => service,
+            Ok(Err(_)) | Err(_) => {
+                println!("⚠️  AgentOrchestrator недоступен. Используется простой LLM режим...");
+                services::OrchestrationService::with_llm_fallback().await?
+            }
+        };
+        run_interactive_chat_orchestrator(&service).await?;
+        let _ = service.shutdown().await;
+    } else {
+        // TUI режим - запускаем немедленно без вывода в консоль
+        run_tui_chat_with_async_init().await?;
+    }
 
     Ok(())
 }
@@ -913,25 +910,36 @@ async fn run_interactive_chat(orchestrator: &AgentOrchestrator) -> Result<()> {
     Ok(())
 }
 
+/// Запускает TUI чат интерфейс
+async fn run_tui_chat(service: &services::OrchestrationService) -> Result<()> {
+    tui_chat::run_tui_chat(service).await
+}
+
+async fn run_tui_chat_with_async_init() -> Result<()> {
+    tui_chat::run_tui_chat_with_async_init().await
+}
+
 async fn run_interactive_chat_orchestrator(service: &services::OrchestrationService) -> Result<()> {
     use tokio::time::{timeout, Duration as TokioDuration};
 
     println!(
         "{} {}",
         style("[★]").green().bold(),
-        style("Добро пожаловать в интерактивный режим с AgentOrchestrator!")
+        style("Добро пожаловать в интерактивный чат!")
             .bright()
             .bold()
     );
     println!(
         "{} {}",
-        style("[►]").cyan(),
-        style("Напишите ваше сообщение или").dim()
+        style("[💡]").cyan(),
+        style("Система готова к работе - вы можете задать любой вопрос").dim()
     );
     println!(
-        "{} {} {}",
+        "{} {} {} {} {}",
         style("   ").dim(),
         style("'exit'").yellow().bold(),
+        style("или").dim(),
+        style("'quit'").yellow().bold(),
         style("для выхода").dim()
     );
     println!();
@@ -1050,14 +1058,14 @@ async fn display_chat_response(text: &str) {
 
 /// Создание и инициализация AgentOrchestrator
 async fn create_agent_orchestrator() -> Result<AgentOrchestrator> {
-    use orchestrator::system::SystemConfig;
+    use orchestrator::events::{AgentEventPublisher, DefaultAgentEventPublisher};
     use orchestrator::orchestrator::OrchestratorConfig;
-    use orchestrator::events::{DefaultAgentEventPublisher, AgentEventPublisher};
+    use orchestrator::system::SystemConfig;
     use std::sync::Arc;
-    
+
     let system_config = SystemConfig::default();
     let orchestrator_config = OrchestratorConfig::default();
-    
+
     // Создаем AgentEventPublisher для orchestrator
     let agent_id = uuid::Uuid::new_v4();
     let event_publisher = Arc::new(DefaultAgentEventPublisher::new(
@@ -1065,7 +1073,7 @@ async fn create_agent_orchestrator() -> Result<AgentOrchestrator> {
         "CLI-Orchestrator".to_string(),
         "orchestrator".to_string(),
     )) as Arc<dyn AgentEventPublisher>;
-    
+
     AgentOrchestrator::new(system_config, orchestrator_config, event_publisher)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create orchestrator: {}", e))
@@ -1073,44 +1081,60 @@ async fn create_agent_orchestrator() -> Result<AgentOrchestrator> {
 
 /// Создание и инициализация нового AgentOrchестrator-based сервиса
 async fn create_orchestrator_service() -> Result<services::OrchestrationService> {
-    println!("🔍 DEBUG: Attempting to create OrchestrationService with AgentOrchestrator");
+    use indicatif::{ProgressBar, ProgressStyle};
     
+    // Показываем прогресс инициализации
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
+            .template("{spinner:.cyan} {msg}")
+            .unwrap_or_else(|_| ProgressStyle::default_spinner()),
+    );
+    
+    spinner.set_message("Инициализация агентной системы...");
+    spinner.enable_steady_tick(Duration::from_millis(100));
+
     // Try to create with real orchestrator first
     match services::OrchestrationService::with_orchestrator().await {
         Ok(service) => {
-            println!("🔍 DEBUG: OrchestrationService with AgentOrchestrator created successfully");
+            spinner.finish_with_message("✅ Мульти-агентная система готова!");
             info!("OrchestrationService with AgentOrchestrator created successfully");
             Ok(service)
         }
         Err(e) => {
-            // Enhanced error diagnostics
-            println!("🔍 DEBUG: OrchestrationService::with_orchestrator() failed with detailed error:");
-            println!("🔍 DEBUG: Error type: {}", e);
-            println!("🔍 DEBUG: Error chain:");
-            let mut current = e.source();
-            let mut depth = 0;
-            while let Some(source) = current {
-                depth += 1;
-                println!("🔍 DEBUG: Level {}: {}", depth, source);
-                current = source.source();
-            }
+            spinner.set_message("⚠️  Переключение на LLM режим...");
             
             warn!(
                 "Failed to create orchestrator service: {}, falling back to LLM-powered service",
                 e
             );
-            
+
             // Fall back to LLM-powered orchestration service
-            println!("🔍 DEBUG: Creating fallback service with LLM integration");
-            Ok(services::OrchestrationService::with_llm_fallback().await?)
+            match services::OrchestrationService::with_llm_fallback().await {
+                Ok(service) => {
+                    spinner.finish_with_message("✅ LLM режим активирован!");
+                    Ok(service)
+                }
+                Err(fallback_error) => {
+                    spinner.finish_with_message("❌ Ошибка инициализации");
+                    Err(anyhow::anyhow!(
+                        "Orchestrator failed: {}. Fallback failed: {}", 
+                        e, fallback_error
+                    ))
+                }
+            }
         }
     }
 }
 
 /// Обработка сообщения через AgentOrchestrator workflow
-async fn process_orchestrator_message(orchestrator: &AgentOrchestrator, message: &str) -> Result<AgentResponse> {
+async fn process_orchestrator_message(
+    orchestrator: &AgentOrchestrator,
+    message: &str,
+) -> Result<AgentResponse> {
     use orchestrator::workflow::WorkflowRequest;
-    
+
     // Создаем workflow request для Intent→Plan→Execute→Critic workflow
     let workflow_request = WorkflowRequest {
         user_input: message.to_string(),
@@ -1123,16 +1147,19 @@ async fn process_orchestrator_message(orchestrator: &AgentOrchestrator, message:
 
     // Выполняем полный workflow: Intent→Plan→Execute→Critic
     let workflow_result = orchestrator.execute_workflow(workflow_request).await?;
-    
+
     // Конвертируем результат в AgentResponse
     let content = if workflow_result.success {
-        workflow_result.results
+        workflow_result
+            .results
             .and_then(|r| r.as_str().map(String::from))
             .unwrap_or_else(|| "Задача выполнена успешно".to_string())
     } else {
-        workflow_result.error.unwrap_or_else(|| "Произошла ошибка при выполнении".to_string())
+        workflow_result
+            .error
+            .unwrap_or_else(|| "Произошла ошибка при выполнении".to_string())
     };
-    
+
     Ok(AgentResponse::Chat(content))
 }
 
@@ -1604,23 +1631,21 @@ fn run_ort_install_script() -> Result<()> {
 /// Запуск TUI интерфейса для Plan→Preview→Execute workflow
 async fn run_tui_mode() -> Result<()> {
     println!("🖥  Starting MAGRAY TUI Interface...");
-    
+
     // Создаем TUI приложение
-    let mut app = TUIApp::new().map_err(|e| {
-        anyhow::anyhow!("Failed to initialize TUI: {}", e)
-    })?;
-    
+    let mut app = TUIApp::new().map_err(|e| anyhow::anyhow!("Failed to initialize TUI: {}", e))?;
+
     println!("🚀 TUI initialized successfully. Press 'q' to quit, 'h' for help.");
-    
+
     // Интеграция с orchestrator (заглушка для MVP)
     // В будущем здесь будет реальная интеграция с AgentOrchestrator
-    
+
     // Запускаем TUI
     if let Err(e) = app.run() {
         eprintln!("TUI error: {}", e);
         return Err(anyhow::anyhow!("TUI execution failed: {}", e));
     }
-    
+
     println!("👋 TUI session ended.");
     Ok(())
 }

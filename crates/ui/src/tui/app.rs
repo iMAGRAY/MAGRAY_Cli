@@ -49,9 +49,7 @@ impl TUIApp {
         while !self.state.should_quit {
             // Draw UI
             let state = &mut self.state;
-            self.terminal.draw(|f| {
-                Self::render_ui(f, state)
-            })?;
+            self.terminal.draw(|f| Self::render_ui(f, state))?;
             self.handle_events()?;
         }
         Ok(())
@@ -66,10 +64,11 @@ impl TUIApp {
             .margin(1)
             .constraints(
                 [
-                    Constraint::Length(3),     // Header
-                    Constraint::Min(1),        // Main content
-                    Constraint::Length(3),     // Status bar
-                ].as_ref(),
+                    Constraint::Length(3), // Header
+                    Constraint::Min(1),    // Main content
+                    Constraint::Length(3), // Status bar
+                ]
+                .as_ref(),
             )
             .split(size);
 
@@ -79,11 +78,14 @@ impl TUIApp {
         // Create main content layout
         let content_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(45), // Plan viewer
-                Constraint::Percentage(35), // Diff viewer
-                Constraint::Percentage(20), // Action buttons
-            ].as_ref())
+            .constraints(
+                [
+                    Constraint::Percentage(45), // Plan viewer
+                    Constraint::Percentage(35), // Diff viewer
+                    Constraint::Percentage(20), // Action buttons
+                ]
+                .as_ref(),
+            )
             .split(chunks[1]);
 
         // Render components with focus indication
@@ -103,8 +105,10 @@ impl TUIApp {
     fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
         let mode_text = format!("Mode: {:?}", state.mode);
         let orchestration_text = if state.orchestration_active {
-            format!(" | Orchestration: Active ({})", 
-                state.current_operation.as_deref().unwrap_or("Unknown"))
+            format!(
+                " | Orchestration: Active ({})",
+                state.current_operation.as_deref().unwrap_or("Unknown")
+            )
         } else {
             " | Orchestration: Idle".to_string()
         };
@@ -112,13 +116,20 @@ impl TUIApp {
         let title = Line::from(vec![
             Span::styled(
                 "MAGRAY CLI - TUI Interface",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" | "),
             Span::styled(mode_text, Style::default().fg(Color::Yellow)),
-            Span::styled(orchestration_text, Style::default().fg(
-                if state.orchestration_active { Color::Green } else { Color::Gray }
-            )),
+            Span::styled(
+                orchestration_text,
+                Style::default().fg(if state.orchestration_active {
+                    Color::Green
+                } else {
+                    Color::Gray
+                }),
+            ),
         ]);
 
         let header = Paragraph::new(title)
@@ -130,7 +141,7 @@ impl TUIApp {
 
     fn render_plan_viewer(f: &mut Frame, area: Rect, state: &mut AppState) {
         let is_focused = state.is_focused(FocusedComponent::PlanViewer);
-        
+
         // Create a block with different style based on focus
         let block = if is_focused {
             Block::default()
@@ -152,7 +163,7 @@ impl TUIApp {
 
     fn render_diff_viewer(f: &mut Frame, area: Rect, state: &mut AppState) {
         let is_focused = state.is_focused(FocusedComponent::DiffViewer);
-        
+
         let block = if is_focused {
             Block::default()
                 .borders(Borders::ALL)
@@ -172,7 +183,7 @@ impl TUIApp {
 
     fn render_action_buttons(f: &mut Frame, area: Rect, state: &mut AppState) {
         let is_focused = state.is_focused(FocusedComponent::ActionButtons);
-        
+
         let block = if is_focused {
             Block::default()
                 .borders(Borders::ALL)
@@ -193,7 +204,10 @@ impl TUIApp {
     fn render_status_bar(f: &mut Frame, area: Rect, state: &AppState) {
         let status_text = if let Some(ref error) = state.error_message {
             Line::from(vec![
-                Span::styled("ERROR: ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "ERROR: ",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(error.clone(), Style::default().fg(Color::Red)),
             ])
         } else {
@@ -201,8 +215,10 @@ impl TUIApp {
                 Span::styled("Status: ", Style::default().fg(Color::Cyan)),
                 Span::raw(&state.status_message),
                 Span::raw(" | "),
-                Span::styled("Press 'Tab' to switch focus, 'h' for help, 'q' to quit", 
-                    Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    "Press 'Tab' to switch focus, 'h' for help, 'q' to quit",
+                    Style::default().fg(Color::DarkGray),
+                ),
             ])
         };
 
@@ -265,14 +281,16 @@ impl TUIApp {
             TUIEvent::PlanGenerated(plan_json) => {
                 self.state.plan_viewer.update(&plan_json);
                 self.state.set_mode(AppMode::PlanViewing);
-                self.state.set_status("Plan generated successfully".to_string());
+                self.state
+                    .set_status("Plan generated successfully".to_string());
             }
             TUIEvent::ExecutionProgress(progress) => {
                 self.state.set_status(format!("Execution: {}", progress));
             }
             TUIEvent::ExecutionComplete(result) => {
                 self.state.stop_orchestration();
-                self.state.set_status(format!("Execution complete: {}", result));
+                self.state
+                    .set_status(format!("Execution complete: {}", result));
             }
             TUIEvent::Error(error) => {
                 self.state.set_error(error);
@@ -305,19 +323,23 @@ impl TUIApp {
                 self.state.stop_orchestration();
             }
             "modify_plan" => {
-                self.state.set_status("Plan modification not yet implemented".to_string());
+                self.state
+                    .set_status("Plan modification not yet implemented".to_string());
             }
             "save_plan" => {
                 self.state.set_status("Plan saved (simulation)".to_string());
             }
             _ => {
-                self.state.set_error(format!("Unknown command: {}", command));
+                self.state
+                    .set_error(format!("Unknown command: {}", command));
             }
         }
     }
 
     fn show_help(&mut self) {
-        self.state.set_status("Help: Tab=Focus, ↑↓=Navigate, Enter=Select, Space=Expand, q=Quit".to_string());
+        self.state.set_status(
+            "Help: Tab=Focus, ↑↓=Navigate, Enter=Select, Space=Expand, q=Quit".to_string(),
+        );
     }
 
     fn refresh_ui(&mut self) {

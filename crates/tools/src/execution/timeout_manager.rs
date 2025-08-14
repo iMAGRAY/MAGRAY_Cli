@@ -28,11 +28,11 @@ pub struct TimeoutConfig {
 impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
-            execution_timeout: Duration::from_secs(300),     // 5 minutes
+            execution_timeout: Duration::from_secs(300), // 5 minutes
             graceful_shutdown_timeout: Duration::from_secs(30), // 30 seconds
-            force_kill_timeout: Duration::from_secs(10),     // 10 seconds
-            heartbeat_interval: Duration::from_secs(10),     // 10 seconds
-            heartbeat_timeout: Duration::from_secs(60),      // 1 minute
+            force_kill_timeout: Duration::from_secs(10), // 10 seconds
+            heartbeat_interval: Duration::from_secs(10), // 10 seconds
+            heartbeat_timeout: Duration::from_secs(60),  // 1 minute
         }
     }
 }
@@ -145,13 +145,16 @@ impl TimeoutManager {
         T: Send + 'static,
     {
         let timeout_config = config.unwrap_or_else(|| self.global_config.clone());
-        
-        debug!("Starting operation with timeout: {} ({:?})", operation_id, timeout_config.execution_timeout);
+
+        debug!(
+            "Starting operation with timeout: {} ({:?})",
+            operation_id, timeout_config.execution_timeout
+        );
 
         // Create timeout context
         let (cancellation_tx, cancellation_rx) = oneshot::channel();
         let (status_tx, _status_rx) = watch::channel(OperationStatus::Starting);
-        
+
         let context = Arc::new(TimeoutContext {
             operation_id: operation_id.clone(),
             started_at: Instant::now(),
@@ -225,11 +228,15 @@ impl TimeoutManager {
 
     /// Send heartbeat for active operation
     pub fn send_heartbeat(&self, operation_id: &str) -> Result<()> {
-        let contexts = self.contexts.lock()
+        let contexts = self
+            .contexts
+            .lock()
             .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        
+
         if let Some(context) = contexts.get(operation_id) {
-            let mut last_heartbeat = context.last_heartbeat.lock()
+            let mut last_heartbeat = context
+                .last_heartbeat
+                .lock()
                 .map_err(|_| anyhow::anyhow!("Lock error"))?;
             *last_heartbeat = Instant::now();
             debug!("Heartbeat received for operation: {}", operation_id);
@@ -241,14 +248,21 @@ impl TimeoutManager {
 
     /// Cancel operation manually
     pub fn cancel_operation(&self, operation_id: &str, reason: TimeoutReason) -> Result<()> {
-        let mut contexts = self.contexts.lock()
+        let mut contexts = self
+            .contexts
+            .lock()
             .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        
+
         if let Some(context) = contexts.remove(operation_id) {
             // Try to send cancellation signal (may fail if already consumed)
-            let _ = context.status_tx.send(OperationStatus::ShuttingDownGracefully);
-            
-            info!("Cancellation requested for operation: {} ({:?})", operation_id, reason);
+            let _ = context
+                .status_tx
+                .send(OperationStatus::ShuttingDownGracefully);
+
+            info!(
+                "Cancellation requested for operation: {} ({:?})",
+                operation_id, reason
+            );
             Ok(())
         } else {
             Err(anyhow::anyhow!("Operation not found: {}", operation_id))
@@ -258,13 +272,15 @@ impl TimeoutManager {
     /// Get status of active operation
     pub fn get_operation_status(&self, operation_id: &str) -> Option<OperationStatus> {
         let contexts = self.contexts.lock().ok()?;
-        contexts.get(operation_id)
+        contexts
+            .get(operation_id)
             .and_then(|context| context.status_tx.borrow().clone().into())
     }
 
     /// List all active operations
     pub fn list_active_operations(&self) -> Vec<String> {
-        self.contexts.lock()
+        self.contexts
+            .lock()
             .map(|contexts| contexts.keys().cloned().collect())
             .unwrap_or_default()
     }
@@ -273,10 +289,12 @@ impl TimeoutManager {
     pub fn get_operation_metrics(&self, operation_id: &str) -> Option<OperationMetrics> {
         let contexts = self.contexts.lock().ok()?;
         contexts.get(operation_id).map(|context| {
-            let last_heartbeat = context.last_heartbeat.lock()
+            let last_heartbeat = context
+                .last_heartbeat
+                .lock()
                 .map(|hb| *hb)
                 .unwrap_or(context.started_at);
-            
+
             OperationMetrics {
                 operation_id: operation_id.to_string(),
                 started_at: context.started_at,
@@ -302,8 +320,11 @@ impl TimeoutManager {
         T: Send + 'static,
     {
         let timeout_config = config.unwrap_or_else(|| self.global_config.clone());
-        
-        debug!("Starting operation with graceful shutdown: {}", operation_id);
+
+        debug!(
+            "Starting operation with graceful shutdown: {}",
+            operation_id
+        );
 
         // Create cancellation channels
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -323,31 +344,47 @@ impl TimeoutManager {
                 TimeoutResult::Failed(err)
             }
             Err(_) => {
-                warn!("Operation {} timed out, initiating graceful shutdown", operation_id);
+                warn!(
+                    "Operation {} timed out, initiating graceful shutdown",
+                    operation_id
+                );
                 let _ = status_tx.send(OperationStatus::ShuttingDownGracefully);
                 let _ = shutdown_tx.send(());
 
                 // Execute graceful shutdown with timeout
-                let shutdown_result = timeout(
-                    timeout_config.graceful_shutdown_timeout, 
-                    shutdown_handler
-                ).await;
+                let shutdown_result =
+                    timeout(timeout_config.graceful_shutdown_timeout, shutdown_handler).await;
 
                 match shutdown_result {
                     Ok(Ok(())) => {
-                        info!("Graceful shutdown completed for operation: {}", operation_id);
+                        info!(
+                            "Graceful shutdown completed for operation: {}",
+                            operation_id
+                        );
                         let _ = status_tx.send(OperationStatus::Completed);
-                        TimeoutResult::TimedOut { reason: TimeoutReason::ExecutionTimeout }
+                        TimeoutResult::TimedOut {
+                            reason: TimeoutReason::ExecutionTimeout,
+                        }
                     }
                     Ok(Err(err)) => {
-                        error!("Graceful shutdown failed for operation {}: {}", operation_id, err);
+                        error!(
+                            "Graceful shutdown failed for operation {}: {}",
+                            operation_id, err
+                        );
                         let _ = status_tx.send(OperationStatus::ForceTerminating);
-                        TimeoutResult::TimedOut { reason: TimeoutReason::GracefulShutdownTimeout }
+                        TimeoutResult::TimedOut {
+                            reason: TimeoutReason::GracefulShutdownTimeout,
+                        }
                     }
                     Err(_) => {
-                        error!("Graceful shutdown timed out for operation: {}", operation_id);
+                        error!(
+                            "Graceful shutdown timed out for operation: {}",
+                            operation_id
+                        );
                         let _ = status_tx.send(OperationStatus::ForceTerminating);
-                        TimeoutResult::TimedOut { reason: TimeoutReason::GracefulShutdownTimeout }
+                        TimeoutResult::TimedOut {
+                            reason: TimeoutReason::GracefulShutdownTimeout,
+                        }
                     }
                 }
             }
@@ -359,28 +396,36 @@ impl TimeoutManager {
         let context_clone = context.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(context_clone.config.heartbeat_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let time_since_heartbeat = {
-                    let last_heartbeat = context_clone.last_heartbeat.lock()
+                    let last_heartbeat = context_clone
+                        .last_heartbeat
+                        .lock()
                         .map(|hb| hb.elapsed())
                         .unwrap_or(Duration::ZERO);
                     last_heartbeat
                 };
-                
+
                 if time_since_heartbeat > context_clone.config.heartbeat_timeout {
-                    warn!("Heartbeat timeout for operation: {} ({}s since last heartbeat)", 
-                          context_clone.operation_id, time_since_heartbeat.as_secs());
-                    
+                    warn!(
+                        "Heartbeat timeout for operation: {} ({}s since last heartbeat)",
+                        context_clone.operation_id,
+                        time_since_heartbeat.as_secs()
+                    );
+
                     // This would trigger cancellation in a real implementation
                     let _ = context_clone.status_tx.send(OperationStatus::TimedOut);
                     break;
                 }
-                
-                debug!("Heartbeat check passed for operation: {} ({}s since last heartbeat)", 
-                       context_clone.operation_id, time_since_heartbeat.as_secs());
+
+                debug!(
+                    "Heartbeat check passed for operation: {} ({}s since last heartbeat)",
+                    context_clone.operation_id,
+                    time_since_heartbeat.as_secs()
+                );
             }
         })
     }
@@ -388,21 +433,21 @@ impl TimeoutManager {
     /// Start cleanup task for expired contexts
     fn start_cleanup_task(&mut self) {
         let contexts = Arc::clone(&self.contexts);
-        
+
         self.cleanup_handle = Some(tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60)); // Cleanup every minute
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let mut expired_operations = Vec::new();
-                
+
                 {
                     let contexts_guard = match contexts.lock() {
                         Ok(guard) => guard,
                         Err(_) => continue,
                     };
-                    
+
                     for (operation_id, context) in contexts_guard.iter() {
                         // Consider operations expired if they've been running for more than 2x their timeout
                         let max_lifetime = context.config.execution_timeout * 2;
@@ -411,14 +456,14 @@ impl TimeoutManager {
                         }
                     }
                 }
-                
+
                 // Remove expired operations
                 if !expired_operations.is_empty() {
                     let mut contexts_guard = match contexts.lock() {
                         Ok(guard) => guard,
                         Err(_) => continue,
                     };
-                    
+
                     for operation_id in expired_operations {
                         warn!("Cleaning up expired operation: {}", operation_id);
                         contexts_guard.remove(&operation_id);
@@ -464,16 +509,14 @@ mod tests {
     #[tokio::test]
     async fn test_successful_operation() {
         let manager = TimeoutManager::new();
-        
-        let result = manager.execute_with_timeout(
-            "test-op".to_string(),
-            None,
-            async {
+
+        let result = manager
+            .execute_with_timeout("test-op".to_string(), None, async {
                 sleep(Duration::from_millis(100)).await;
                 Ok("success")
-            },
-        ).await;
-        
+            })
+            .await;
+
         match result {
             TimeoutResult::Completed(value) => assert_eq!(value, "success"),
             _ => panic!("Expected completed result"),
@@ -486,20 +529,20 @@ mod tests {
             execution_timeout: Duration::from_millis(100),
             ..Default::default()
         };
-        
+
         let manager = TimeoutManager::with_config(config.clone());
-        
-        let result = manager.execute_with_timeout(
-            "timeout-test".to_string(),
-            Some(config),
-            async {
+
+        let result = manager
+            .execute_with_timeout("timeout-test".to_string(), Some(config), async {
                 sleep(Duration::from_millis(200)).await;
                 Ok("should not complete")
-            },
-        ).await;
-        
+            })
+            .await;
+
         match result {
-            TimeoutResult::TimedOut { reason: TimeoutReason::ExecutionTimeout } => {
+            TimeoutResult::TimedOut {
+                reason: TimeoutReason::ExecutionTimeout,
+            } => {
                 // Expected timeout
             }
             _ => panic!("Expected timeout result"),
@@ -509,14 +552,14 @@ mod tests {
     #[tokio::test]
     async fn test_heartbeat_functionality() {
         let manager = TimeoutManager::new();
-        
+
         // Note: In real implementation, manager would be Arc<TimeoutManager> for sharing
         // This test demonstrates the basic heartbeat API
         let operation_id = "heartbeat-test".to_string();
-        
+
         // Send heartbeat (in real usage, this would happen during an active operation)
         let heartbeat_result = manager.send_heartbeat(&operation_id);
-        
+
         // Note: This test is simplified - in real implementation you'd need to handle
         // the async nature of the operation and heartbeat monitoring
         assert!(heartbeat_result.is_err()); // Operation might not be registered yet in this test
@@ -525,7 +568,7 @@ mod tests {
     #[test]
     fn test_timeout_config_defaults() {
         let config = TimeoutConfig::default();
-        
+
         assert_eq!(config.execution_timeout, Duration::from_secs(300));
         assert_eq!(config.graceful_shutdown_timeout, Duration::from_secs(30));
         assert_eq!(config.force_kill_timeout, Duration::from_secs(10));

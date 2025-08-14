@@ -7,7 +7,7 @@ pub mod security_enforcer;
 pub mod subprocess_runner;
 // P1.2.6: Dry-run Support
 pub mod dry_run;
-// P1.2.7: Auto-diff Support  
+// P1.2.7: Auto-diff Support
 pub mod auto_diff;
 // P1.2.8: Tool Signing
 pub mod tool_signing;
@@ -31,17 +31,15 @@ pub use security_enforcer::{
 };
 
 pub use subprocess_runner::{
-    JsonRpcRequest, JsonRpcResponse, ProcessLifecycleManager, SubprocessConfig,
-    SubprocessError, SubprocessRunner,
+    JsonRpcRequest, JsonRpcResponse, ProcessLifecycleManager, SubprocessConfig, SubprocessError,
+    SubprocessRunner,
 };
 
 pub use dry_run::{
     Change, ChangeType, DryRunExecutor, DryRunResult, Risk, RiskCategory, SafetyAssessment,
 };
 
-pub use auto_diff::{
-    AutoDiffEngine, DiffResult, FileChange, FileChangeType, FileSystemSnapshot,
-};
+pub use auto_diff::{AutoDiffEngine, DiffResult, FileChange, FileChangeType, FileSystemSnapshot};
 
 pub use tool_signing::{
     SignedToolManifest, SigningCertificate, ToolSignature, ToolSigner, VerificationResult,

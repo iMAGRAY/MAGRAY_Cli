@@ -21,8 +21,6 @@ mod cache_interface;
 mod cache_lru;
 #[cfg(not(feature = "minimal"))]
 pub mod fallback;
-#[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
-pub mod qwen3_bridge;
 #[cfg(all(not(feature = "minimal"), feature = "gpu-acceleration"))]
 pub mod gpu_ultra_accelerated; // GPU acceleration для 10x+ speedup
 #[cfg(not(feature = "minimal"))]
@@ -37,6 +35,8 @@ pub mod ml_promotion; // Декомпозированная ML promotion сис�
 mod notifications;
 #[cfg(all(not(feature = "minimal"), feature = "persistence"))]
 pub mod promotion;
+#[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
+pub mod qwen3_bridge;
 #[cfg(not(feature = "minimal"))]
 pub mod service_di; // REFACTORED модули в service_di/
 #[cfg(not(feature = "minimal"))]
@@ -126,7 +126,7 @@ pub use types::{Layer, PromotionConfig, Record, SearchOptions};
 
 // Qwen3 Integration Bridge
 #[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
-pub use qwen3_bridge::{Qwen3MemoryBridge, BridgeMetrics};
+pub use qwen3_bridge::{BridgeMetrics, Qwen3MemoryBridge};
 
 // NEW: Refactored services based on SOLID principles
 #[cfg(all(not(feature = "minimal"), feature = "services-modules"))]

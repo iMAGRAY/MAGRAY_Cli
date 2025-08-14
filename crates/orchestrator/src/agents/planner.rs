@@ -12,8 +12,8 @@ use super::intent_analyzer::{Intent, IntentType};
 
 // Tool Context Builder integration for intelligent tool selection
 use tools::context::{
-    ToolContextBuilder, ToolSelectionRequest, ToolSelectionResponse,
-    ToolRankingResult, ContextBuildingConfig
+    ContextBuildingConfig, ToolContextBuilder, ToolRankingResult, ToolSelectionRequest,
+    ToolSelectionResponse,
 };
 use tools::registry::SecureToolRegistry;
 
@@ -282,9 +282,7 @@ impl Planner {
     }
 
     /// Create Planner with intelligent tool selection capabilities
-    pub fn with_intelligent_tool_selection(
-        tool_registry: Arc<SecureToolRegistry>,
-    ) -> Result<Self> {
+    pub fn with_intelligent_tool_selection(tool_registry: Arc<SecureToolRegistry>) -> Result<Self> {
         let tool_context_builder = Arc::new(ToolContextBuilder::new(Arc::clone(&tool_registry))?);
 
         let mut strategies = HashMap::new();
@@ -384,11 +382,14 @@ impl Planner {
     async fn select_optimal_tools(&self, intent: &Intent) -> Result<Vec<ToolRankingResult>> {
         match &self.tool_context_builder {
             Some(context_builder) => {
-                tracing::debug!("Using intelligent tool selection for intent: {:?}", intent.intent_type);
-                
+                tracing::debug!(
+                    "Using intelligent tool selection for intent: {:?}",
+                    intent.intent_type
+                );
+
                 let query = self.intent_to_query(intent)?;
                 let context = self.intent_to_context(intent);
-                
+
                 let request = ToolSelectionRequest {
                     query,
                     context,
@@ -403,14 +404,17 @@ impl Planner {
                 match context_builder.build_context(request).await {
                     Ok(response) => {
                         tracing::info!(
-                            "Intelligent tool selection completed in {:?} with {} tools selected", 
+                            "Intelligent tool selection completed in {:?} with {} tools selected",
                             response.selection_metrics.total_time,
                             response.tools.len()
                         );
                         Ok(response.tools)
                     }
                     Err(e) => {
-                        tracing::warn!("Intelligent tool selection failed: {:?}, using fallback", e);
+                        tracing::warn!(
+                            "Intelligent tool selection failed: {:?}, using fallback",
+                            e
+                        );
                         self.fallback_tool_selection(intent).await
                     }
                 }
@@ -437,9 +441,7 @@ impl Planner {
             IntentType::MemoryOperation { operation } => {
                 format!("memory operation: {}", operation)
             }
-            _ => {
-                "general task execution".to_string()
-            }
+            _ => "general task execution".to_string(),
         };
         Ok(query)
     }
@@ -447,23 +449,29 @@ impl Planner {
     /// Convert intent context to tool selection context
     fn intent_to_context(&self, intent: &Intent) -> HashMap<String, String> {
         let mut context = HashMap::new();
-        
+
         // Add intent metadata
         context.insert("intent_id".to_string(), intent.id.to_string());
-        context.insert("intent_type".to_string(), format!("{:?}", intent.intent_type));
+        context.insert(
+            "intent_type".to_string(),
+            format!("{:?}", intent.intent_type),
+        );
         context.insert("confidence".to_string(), intent.confidence.to_string());
-        
+
         // Add session context
         if let Some(user_id) = &intent.context.user_id {
             context.insert("user_id".to_string(), user_id.clone());
         }
-        context.insert("session_id".to_string(), intent.context.session_id.to_string());
-        
+        context.insert(
+            "session_id".to_string(),
+            intent.context.session_id.to_string(),
+        );
+
         // Add environment context
         for (key, value) in &intent.context.environment {
             context.insert(format!("env_{}", key), value.clone());
         }
-        
+
         context
     }
 
@@ -473,9 +481,11 @@ impl Planner {
             IntentType::ExecuteTool { .. } => {
                 Some(vec!["execution".to_string(), "utility".to_string()])
             }
-            IntentType::AskQuestion { .. } => {
-                Some(vec!["knowledge".to_string(), "search".to_string(), "llm".to_string()])
-            }
+            IntentType::AskQuestion { .. } => Some(vec![
+                "knowledge".to_string(),
+                "search".to_string(),
+                "llm".to_string(),
+            ]),
             IntentType::FileOperation { .. } => {
                 Some(vec!["filesystem".to_string(), "io".to_string()])
             }
@@ -489,7 +499,7 @@ impl Planner {
     /// Fallback tool selection when intelligent selection is not available
     async fn fallback_tool_selection(&self, intent: &Intent) -> Result<Vec<ToolRankingResult>> {
         tracing::debug!("Using fallback tool selection");
-        
+
         // Simple fallback - return basic tool recommendations based on intent type
         let fallback_tools = match &intent.intent_type {
             IntentType::ExecuteTool { tool_name } => {
@@ -517,14 +527,16 @@ impl Planner {
                 vec![self.create_fallback_tool_ranking("generic_executor", 0.5)]
             }
         };
-        
+
         Ok(fallback_tools)
     }
 
     /// Create a basic tool ranking for fallback mode
     fn create_fallback_tool_ranking(&self, tool_name: &str, score: f32) -> ToolRankingResult {
-        use tools::registry::{ToolMetadata, SemanticVersion, ToolCategory, SecurityLevel, PerformanceMetrics};
-        
+        use tools::registry::{
+            PerformanceMetrics, SecurityLevel, SemanticVersion, ToolCategory, ToolMetadata,
+        };
+
         // Create basic metadata for fallback tool
         let mut metadata = ToolMetadata::new(
             tool_name.to_string(),
@@ -533,11 +545,11 @@ impl Planner {
         )
         .with_description(format!("Fallback tool for {}", tool_name))
         .with_category(ToolCategory::Custom("utility".to_string()));
-        
+
         // Set security level directly since there's no with_security_level method
         metadata.security_level = SecurityLevel::MediumRisk;
         metadata.performance_metrics = PerformanceMetrics::default();
-        
+
         ToolRankingResult {
             metadata,
             relevance_score: score,
@@ -550,10 +562,14 @@ impl Planner {
     }
 
     /// Plan for tool execution intent with intelligent tool selection
-    async fn plan_tool_execution_with_intelligence(&self, intent: &Intent, tool_name: &str) -> Result<ActionPlan> {
+    async fn plan_tool_execution_with_intelligence(
+        &self,
+        intent: &Intent,
+        tool_name: &str,
+    ) -> Result<ActionPlan> {
         // Get optimal tools using intelligent selection
         let selected_tools = self.select_optimal_tools(intent).await?;
-        
+
         // Use the best tool if available, otherwise fall back to requested tool
         let actual_tool_name = if let Some(best_tool) = selected_tools.first() {
             tracing::info!(
@@ -564,7 +580,10 @@ impl Planner {
             );
             &best_tool.metadata.name
         } else {
-            tracing::debug!("No intelligent tool recommendations, using requested tool: {}", tool_name);
+            tracing::debug!(
+                "No intelligent tool recommendations, using requested tool: {}",
+                tool_name
+            );
             tool_name
         };
 
@@ -588,28 +607,30 @@ impl Planner {
         };
 
         let mut resource_reqs = Self::default_resource_requirements();
-        resource_reqs.tools_required.push(actual_tool_name.to_string());
-        
+        resource_reqs
+            .tools_required
+            .push(actual_tool_name.to_string());
+
         // Add metadata about tool selection
         let mut metadata = HashMap::new();
         metadata.insert(
-            "original_tool_request".to_string(), 
-            serde_json::Value::String(tool_name.to_string())
+            "original_tool_request".to_string(),
+            serde_json::Value::String(tool_name.to_string()),
         );
         metadata.insert(
             "intelligent_selection_used".to_string(),
-            serde_json::Value::Bool(self.has_intelligent_tool_selection())
+            serde_json::Value::Bool(self.has_intelligent_tool_selection()),
         );
         if let Some(best_tool) = selected_tools.first() {
             if let Some(score_num) = serde_json::Number::from_f64(best_tool.combined_score as f64) {
                 metadata.insert(
                     "selected_tool_score".to_string(),
-                    serde_json::Value::Number(score_num)
+                    serde_json::Value::Number(score_num),
                 );
             }
             metadata.insert(
                 "selection_reasoning".to_string(),
-                serde_json::Value::String(best_tool.reasoning.clone())
+                serde_json::Value::String(best_tool.reasoning.clone()),
             );
         }
 
@@ -691,7 +712,7 @@ impl Planner {
 impl PlannerTrait for Planner {
     async fn build_plan(&self, intent: &Intent) -> Result<ActionPlan> {
         tracing::debug!("Building plan for intent: {:?}", intent.intent_type);
-        
+
         // Increment plan counter
         {
             let mut plans_created = self.plans_created.write().await;
@@ -701,7 +722,8 @@ impl PlannerTrait for Planner {
         let plan = match &intent.intent_type {
             IntentType::ExecuteTool { tool_name } => {
                 if self.has_intelligent_tool_selection() {
-                    self.plan_tool_execution_with_intelligence(intent, tool_name).await?
+                    self.plan_tool_execution_with_intelligence(intent, tool_name)
+                        .await?
                 } else {
                     self.plan_tool_execution(intent, tool_name)?
                 }

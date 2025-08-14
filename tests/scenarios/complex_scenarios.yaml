@@ -1,0 +1,181 @@
+# MAGRAY CLI Human-Like Testing Scenarios
+# Комплексные тестовые сценарии для проверки AI capabilities
+
+scenarios:
+  # === ПРОСТЫЕ БАЗОВЫЕ СЦЕНАРИИ ===
+  - id: "basic_greeting"
+    name: "Basic Greeting Test"
+    input: "привет"
+    expected_type: "simple_response"
+    timeout_seconds: 15
+    evaluation_criteria:
+      - "responds_appropriately"
+      - "shows_politeness"
+      - "provides_helpful_context"
+
+  - id: "help_request"
+    name: "Help Request"
+    input: "помоги мне"
+    expected_type: "simple_response" 
+    timeout_seconds: 20
+    evaluation_criteria:
+      - "offers_assistance"
+      - "asks_clarifying_questions"
+      - "provides_capabilities_overview"
+
+  - id: "version_check"
+    name: "Version Information"
+    input: "какая версия?"
+    expected_type: "simple_response"
+    timeout_seconds: 10
+    evaluation_criteria:
+      - "provides_version_info"
+      - "includes_build_details"
+      - "technical_accuracy"
+
+  # === СЛОЖНЫЕ ТЕХНИЧЕСКИЕ ЗАДАЧИ ===
+  - id: "rust_api_creation"
+    name: "Complex Rust API with JWT Authentication"
+    input: "Создай новый Rust проект с API сервером, добавь аутентификацию JWT, создай несколько эндпоинтов для пользователей и продуктов, напиши unit тесты и integration тесты"
+    expected_type: "complex_task"
+    timeout_seconds: 120
+    evaluation_criteria:
+      - "creates_project_structure"
+      - "implements_jwt_auth"
+      - "provides_multiple_endpoints"
+      - "includes_comprehensive_tests"
+      - "follows_rust_best_practices"
+      - "provides_clear_documentation"
+
+  - id: "security_analysis"
+    name: "Security Vulnerability Analysis"
+    input: "Проанализируй этот код на предмет безопасности, найди потенциальные уязвимости SQL injection, XSS, CSRF и предложи конкретные исправления с примерами кода"
+    expected_type: "complex_task"
+    timeout_seconds: 90
+    evaluation_criteria:
+      - "identifies_security_vulnerabilities"
+      - "provides_specific_examples"
+      - "suggests_concrete_fixes"
+      - "explains_security_principles"
+      - "covers_multiple_attack_vectors"
+
+  - id: "database_optimization"
+    name: "Database Performance Optimization"
+    input: "Оптимизируй производительность этой базы данных PostgreSQL: добавь нужные индексы, настрой кеширование Redis, оптимизируй медленные запросы и предложи схему партиционирования для большого объема данных"
+    expected_type: "complex_task"
+    timeout_seconds: 100
+    evaluation_criteria:
+      - "analyzes_performance_bottlenecks"
+      - "suggests_appropriate_indexes"
+      - "implements_caching_strategy"
+      - "optimizes_sql_queries"
+      - "provides_partitioning_scheme"
+      - "includes_monitoring_recommendations"
+
+  - id: "microservices_architecture"
+    name: "Microservices Architecture Design"
+    input: "Спроектируй архитектуру микросервисов для e-commerce платформы: сервис пользователей, каталог товаров, корзина, оплата, уведомления. Включи API Gateway, service discovery, distributed logging и monitoring"
+    expected_type: "complex_task"
+    timeout_seconds: 150
+    evaluation_criteria:
+      - "designs_comprehensive_architecture"
+      - "separates_concerns_properly"
+      - "includes_api_gateway"
+      - "implements_service_discovery"
+      - "provides_logging_strategy"
+      - "includes_monitoring_solution"
+      - "considers_data_consistency"
+
+  # === СПЕЦИАЛИЗИРОВАННЫЕ СЦЕНАРИИ ===
+  - id: "machine_learning_pipeline"
+    name: "ML Pipeline Development"
+    input: "Создай pipeline для машинного обучения: загрузка данных, preprocessing, feature engineering, обучение модели классификации, валидация, деплой через REST API с мониторингом производительности модели"
+    expected_type: "complex_task"
+    timeout_seconds: 120
+    evaluation_criteria:
+      - "implements_data_pipeline"
+      - "includes_preprocessing_steps"
+      - "provides_feature_engineering"
+      - "implements_model_training"
+      - "includes_model_validation"
+      - "creates_deployment_api"
+      - "monitors_model_performance"
+
+  - id: "blockchain_smart_contract"
+    name: "Blockchain Smart Contract"
+    input: "Разработай smart contract на Solidity для децентрализованного маркетплейса: создание товаров, покупка, escrow mechanism, репутационная система, с полным набором тестов и security audit"
+    expected_type: "complex_task"
+    timeout_seconds: 100
+    evaluation_criteria:
+      - "implements_marketplace_logic"
+      - "includes_escrow_mechanism"
+      - "provides_reputation_system"
+      - "includes_comprehensive_tests"
+      - "addresses_security_concerns"
+      - "follows_solidity_best_practices"
+
+  - id: "devops_ci_cd"
+    name: "DevOps CI/CD Pipeline"
+    input: "Настрой полный CI/CD pipeline для проекта: автоматическое тестирование, security scanning, build optimization, deployment в Kubernetes, blue-green deployment, rollback mechanism, monitoring и alerting"
+    expected_type: "complex_task"
+    timeout_seconds: 110
+    evaluation_criteria:
+      - "implements_automated_testing"
+      - "includes_security_scanning"
+      - "optimizes_build_process"
+      - "deploys_to_kubernetes"
+      - "implements_deployment_strategies"
+      - "provides_rollback_mechanism"
+      - "includes_monitoring_alerting"
+
+  # === ERROR HANDLING И EDGE CASES ===
+  - id: "invalid_request"
+    name: "Invalid Request Handling"
+    input: "абракадабра непонятная команда 12345 !@#$%"
+    expected_type: "error_handling"
+    timeout_seconds: 20
+    evaluation_criteria:
+      - "handles_gracefully"
+      - "provides_helpful_error_message"
+      - "suggests_alternatives"
+      - "maintains_conversational_flow"
+
+  - id: "empty_input"
+    name: "Empty Input Handling" 
+    input: ""
+    expected_type: "error_handling"
+    timeout_seconds: 15
+    evaluation_criteria:
+      - "prompts_for_input"
+      - "provides_usage_examples"
+      - "maintains_user_engagement"
+
+  - id: "very_long_input"
+    name: "Long Input Stress Test"
+    input: "Создай мне очень сложную систему которая включает в себя множество компонентов и сервисов и должна работать с высокой нагрузкой и обеспечивать отказоустойчивость и масштабируемость и безопасность и мониторинг и логирование и алертинг и автоматическое восстановление и load balancing и caching и database sharding и message queues и event sourcing и CQRS и микросервисную архитектуру с API Gateway и service mesh и container orchestration и GitOps и infrastructure as code и chaos engineering и performance testing и security scanning и compliance проверки"
+    expected_type: "complex_task"
+    timeout_seconds: 180
+    evaluation_criteria:
+      - "handles_complex_requirements"
+      - "breaks_down_large_task"
+      - "provides_structured_approach"
+      - "maintains_technical_accuracy"
+      - "addresses_all_mentioned_aspects"
+
+# === МЕТАДАННЫЕ ДЛЯ КОНФИГУРАЦИИ ===
+meta:
+  version: "1.0"
+  created: "2025-08-16"
+  description: "Comprehensive human-like testing scenarios for MAGRAY CLI"
+  total_scenarios: 12
+  estimated_total_time_minutes: 25
+  categories:
+    - "basic_interaction"
+    - "complex_technical_tasks"
+    - "specialized_domains"
+    - "error_handling"
+  
+  success_criteria:
+    minimum_pass_rate: 0.8
+    average_response_time_seconds: 30
+    minimum_evaluation_score: 7.0

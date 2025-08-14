@@ -20,7 +20,7 @@ pub enum TelemetryEvent {
         timestamp: SystemTime,
         input_size_bytes: u64,
     },
-    
+
     /// Tool execution completed
     ToolExecutionCompleted {
         tool_name: String,
@@ -31,7 +31,7 @@ pub enum TelemetryEvent {
         output_size_bytes: u64,
         error_message: Option<String>,
     },
-    
+
     /// Resource usage measurement
     ResourceUsage {
         operation_id: String,
@@ -41,7 +41,7 @@ pub enum TelemetryEvent {
         disk_io_bytes: u64,
         network_io_bytes: u64,
     },
-    
+
     /// Security event
     SecurityEvent {
         event_type: SecurityEventType,
@@ -50,7 +50,7 @@ pub enum TelemetryEvent {
         severity: SecuritySeverity,
         details: HashMap<String, String>,
     },
-    
+
     /// Performance metrics
     PerformanceMetric {
         metric_name: String,
@@ -60,7 +60,7 @@ pub enum TelemetryEvent {
         unit: String,
         tags: HashMap<String, String>,
     },
-    
+
     /// Error event
     ErrorEvent {
         operation_id: String,
@@ -70,7 +70,7 @@ pub enum TelemetryEvent {
         stack_trace: Option<String>,
         context: HashMap<String, String>,
     },
-    
+
     /// System health check
     HealthCheck {
         timestamp: SystemTime,
@@ -215,17 +215,13 @@ impl TelemetryCollector {
     pub fn new(config: TelemetryConfig) -> Self {
         let events = Arc::new(Mutex::new(Vec::new()));
         let metrics = Arc::new(Mutex::new(MetricsAggregator::new()));
-        
+
         let (event_tx, event_rx) = mpsc::unbounded_channel();
-        
+
         // Start background processing task
-        let background_task = Self::start_background_task(
-            config.clone(),
-            events.clone(),
-            metrics.clone(),
-            event_rx,
-        );
-        
+        let background_task =
+            Self::start_background_task(config.clone(), events.clone(), metrics.clone(), event_rx);
+
         Self {
             config,
             events,
@@ -234,13 +230,13 @@ impl TelemetryCollector {
             _background_task: background_task,
         }
     }
-    
+
     /// Record a telemetry event
     pub fn record_event(&self, event: TelemetryEvent) {
         if !self.config.enabled {
             return;
         }
-        
+
         // Apply sampling
         if self.config.sampling_rate < 1.0 {
             use rand::Rng;
@@ -249,12 +245,12 @@ impl TelemetryCollector {
                 return;
             }
         }
-        
+
         if let Err(e) = self.event_tx.send(event) {
             error!("Failed to send telemetry event: {}", e);
         }
     }
-    
+
     /// Record tool execution start
     pub fn record_tool_start(&self, tool_name: String, operation_id: String, input_size: u64) {
         let event = TelemetryEvent::ToolExecutionStarted {
@@ -265,7 +261,7 @@ impl TelemetryCollector {
         };
         self.record_event(event);
     }
-    
+
     /// Record tool execution completion
     pub fn record_tool_completion(
         &self,
@@ -287,7 +283,7 @@ impl TelemetryCollector {
         };
         self.record_event(event);
     }
-    
+
     /// Record resource usage
     pub fn record_resource_usage(
         &self,
@@ -307,7 +303,7 @@ impl TelemetryCollector {
         };
         self.record_event(event);
     }
-    
+
     /// Record security event
     pub fn record_security_event(
         &self,
@@ -325,7 +321,7 @@ impl TelemetryCollector {
         };
         self.record_event(event);
     }
-    
+
     /// Record performance metric
     pub fn record_performance_metric(
         &self,
@@ -345,7 +341,7 @@ impl TelemetryCollector {
         };
         self.record_event(event);
     }
-    
+
     /// Record error event
     pub fn record_error(
         &self,
@@ -365,7 +361,7 @@ impl TelemetryCollector {
         };
         self.record_event(event);
     }
-    
+
     /// Record health check
     pub fn record_health_check(
         &self,
@@ -383,41 +379,39 @@ impl TelemetryCollector {
         };
         self.record_event(event);
     }
-    
+
     /// Get current metrics snapshot
     pub fn get_metrics(&self) -> Option<MetricsSnapshot> {
         let metrics = self.metrics.lock().ok()?;
         Some(metrics.snapshot())
     }
-    
+
     /// Get recent events
     pub fn get_recent_events(&self, limit: usize) -> Vec<TelemetryEvent> {
         if let Ok(events) = self.events.lock() {
-            events.iter()
-                .rev()
-                .take(limit)
-                .cloned()
-                .collect()
+            events.iter().rev().take(limit).cloned().collect()
         } else {
             Vec::new()
         }
     }
-    
+
     /// Export events to external system
     pub async fn export_events(&self, endpoint: &str) -> Result<()> {
         let events = {
-            let events = self.events.lock()
+            let events = self
+                .events
+                .lock()
                 .map_err(|_| anyhow::anyhow!("Lock error"))?;
             events.clone()
         };
-        
+
         if events.is_empty() {
             return Ok(());
         }
-        
+
         // Serialize events to JSON
         let json_payload = serde_json::to_string(&events)?;
-        
+
         // Send to external endpoint (simplified HTTP client)
         let client = reqwest::Client::new();
         let response = client
@@ -426,48 +420,51 @@ impl TelemetryCollector {
             .body(json_payload)
             .send()
             .await?;
-        
+
         if response.status().is_success() {
             info!("Successfully exported {} telemetry events", events.len());
-            
+
             // Clear exported events
             if let Ok(mut events) = self.events.lock() {
                 events.clear();
             }
         } else {
-            error!("Failed to export telemetry events: HTTP {}", response.status());
+            error!(
+                "Failed to export telemetry events: HTTP {}",
+                response.status()
+            );
         }
-        
+
         Ok(())
     }
-    
+
     /// Clear old events based on retention policy
     pub fn cleanup_old_events(&self) {
         if let Ok(mut events) = self.events.lock() {
             let cutoff_time = SystemTime::now()
                 .checked_sub(self.config.retention_period)
                 .unwrap_or(SystemTime::UNIX_EPOCH);
-            
+
             let initial_count = events.len();
-            events.retain(|event| {
-                match event {
-                    TelemetryEvent::ToolExecutionStarted { timestamp, .. } => *timestamp > cutoff_time,
-                    TelemetryEvent::ToolExecutionCompleted { timestamp, .. } => *timestamp > cutoff_time,
-                    TelemetryEvent::ResourceUsage { timestamp, .. } => *timestamp > cutoff_time,
-                    TelemetryEvent::SecurityEvent { timestamp, .. } => *timestamp > cutoff_time,
-                    TelemetryEvent::PerformanceMetric { timestamp, .. } => *timestamp > cutoff_time,
-                    TelemetryEvent::ErrorEvent { timestamp, .. } => *timestamp > cutoff_time,
-                    TelemetryEvent::HealthCheck { timestamp, .. } => *timestamp > cutoff_time,
+            events.retain(|event| match event {
+                TelemetryEvent::ToolExecutionStarted { timestamp, .. } => *timestamp > cutoff_time,
+                TelemetryEvent::ToolExecutionCompleted { timestamp, .. } => {
+                    *timestamp > cutoff_time
                 }
+                TelemetryEvent::ResourceUsage { timestamp, .. } => *timestamp > cutoff_time,
+                TelemetryEvent::SecurityEvent { timestamp, .. } => *timestamp > cutoff_time,
+                TelemetryEvent::PerformanceMetric { timestamp, .. } => *timestamp > cutoff_time,
+                TelemetryEvent::ErrorEvent { timestamp, .. } => *timestamp > cutoff_time,
+                TelemetryEvent::HealthCheck { timestamp, .. } => *timestamp > cutoff_time,
             });
-            
+
             let cleaned_count = initial_count - events.len();
             if cleaned_count > 0 {
                 debug!("Cleaned up {} old telemetry events", cleaned_count);
             }
         }
     }
-    
+
     /// Start background processing task
     fn start_background_task(
         config: TelemetryConfig,
@@ -478,19 +475,19 @@ impl TelemetryCollector {
         tokio::spawn(async move {
             let mut flush_interval = tokio::time::interval(config.flush_interval);
             let mut cleanup_interval = tokio::time::interval(Duration::from_secs(3600)); // Cleanup hourly
-            
+
             loop {
                 tokio::select! {
                     // Process incoming events
                     Some(event) = event_rx.recv() => {
                         Self::process_event(&events, &metrics, event);
                     }
-                    
+
                     // Periodic flush
                     _ = flush_interval.tick() => {
                         Self::flush_events(&config, &events).await;
                     }
-                    
+
                     // Periodic cleanup
                     _ = cleanup_interval.tick() => {
                         Self::cleanup_events(&config, &events);
@@ -499,7 +496,7 @@ impl TelemetryCollector {
             }
         })
     }
-    
+
     /// Process a single telemetry event
     fn process_event(
         events: &Arc<Mutex<Vec<TelemetryEvent>>>,
@@ -510,18 +507,15 @@ impl TelemetryCollector {
         if let Ok(mut events) = events.lock() {
             events.push(event.clone());
         }
-        
+
         // Update metrics
         if let Ok(mut metrics) = metrics.lock() {
             metrics.update(&event);
         }
     }
-    
+
     /// Flush events to external systems
-    async fn flush_events(
-        config: &TelemetryConfig,
-        events: &Arc<Mutex<Vec<TelemetryEvent>>>,
-    ) {
+    async fn flush_events(config: &TelemetryConfig, events: &Arc<Mutex<Vec<TelemetryEvent>>>) {
         if config.export_enabled {
             if let Some(ref endpoint) = config.export_endpoint {
                 debug!("Flushing telemetry events to: {}", endpoint);
@@ -529,17 +523,14 @@ impl TelemetryCollector {
             }
         }
     }
-    
+
     /// Clean up old events
-    fn cleanup_events(
-        config: &TelemetryConfig,
-        events: &Arc<Mutex<Vec<TelemetryEvent>>>,
-    ) {
+    fn cleanup_events(config: &TelemetryConfig, events: &Arc<Mutex<Vec<TelemetryEvent>>>) {
         if let Ok(mut events) = events.lock() {
             let cutoff_time = SystemTime::now()
                 .checked_sub(config.retention_period)
                 .unwrap_or(SystemTime::UNIX_EPOCH);
-            
+
             let initial_count = events.len();
             events.retain(|event| {
                 let event_time = match event {
@@ -553,7 +544,7 @@ impl TelemetryCollector {
                 };
                 event_time > cutoff_time
             });
-            
+
             let cleaned = initial_count - events.len();
             if cleaned > 0 {
                 debug!("Cleaned {} old telemetry events", cleaned);
@@ -577,7 +568,7 @@ impl MetricsAggregator {
             start_time: Instant::now(),
         }
     }
-    
+
     fn update(&mut self, event: &TelemetryEvent) {
         match event {
             TelemetryEvent::ToolExecutionCompleted {
@@ -594,18 +585,21 @@ impl MetricsAggregator {
                     self.failed_operations += 1;
                 }
                 self.duration_sum_ms += duration_ms;
-                
+
                 // Update tool-specific metrics
-                let tool_tracker = self.tools_usage.entry(tool_name.clone()).or_insert(ToolUsageTracker {
-                    total_executions: 0,
-                    successful_executions: 0,
-                    failed_executions: 0,
-                    duration_sum_ms: 0,
-                    total_input_bytes: 0,
-                    total_output_bytes: 0,
-                    last_used: SystemTime::now(),
-                });
-                
+                let tool_tracker =
+                    self.tools_usage
+                        .entry(tool_name.clone())
+                        .or_insert(ToolUsageTracker {
+                            total_executions: 0,
+                            successful_executions: 0,
+                            failed_executions: 0,
+                            duration_sum_ms: 0,
+                            total_input_bytes: 0,
+                            total_output_bytes: 0,
+                            last_used: SystemTime::now(),
+                        });
+
                 tool_tracker.total_executions += 1;
                 if *success {
                     tool_tracker.successful_executions += 1;
@@ -616,42 +610,46 @@ impl MetricsAggregator {
                 tool_tracker.total_output_bytes += output_size_bytes;
                 tool_tracker.last_used = SystemTime::now();
             }
-            
-            TelemetryEvent::ResourceUsage { memory_mb, cpu_percent, .. } => {
+
+            TelemetryEvent::ResourceUsage {
+                memory_mb,
+                cpu_percent,
+                ..
+            } => {
                 self.peak_memory_mb = self.peak_memory_mb.max(*memory_mb);
                 self.cpu_samples.push(*cpu_percent);
-                
+
                 // Keep only last 1000 CPU samples to prevent unbounded growth
                 if self.cpu_samples.len() > 1000 {
                     self.cpu_samples.remove(0);
                 }
             }
-            
+
             TelemetryEvent::ErrorEvent { .. } => {
                 self.total_errors += 1;
             }
-            
+
             TelemetryEvent::SecurityEvent { .. } => {
                 self.security_events += 1;
             }
-            
+
             _ => {}
         }
     }
-    
+
     fn snapshot(&self) -> MetricsSnapshot {
         let average_duration = if self.total_operations > 0 {
             self.duration_sum_ms as f64 / self.total_operations as f64
         } else {
             0.0
         };
-        
+
         let average_cpu = if !self.cpu_samples.is_empty() {
             self.cpu_samples.iter().sum::<f64>() / self.cpu_samples.len() as f64
         } else {
             0.0
         };
-        
+
         let mut tools_usage = HashMap::new();
         for (tool_name, tracker) in &self.tools_usage {
             let avg_duration = if tracker.total_executions > 0 {
@@ -659,18 +657,21 @@ impl MetricsAggregator {
             } else {
                 0.0
             };
-            
-            tools_usage.insert(tool_name.clone(), ToolUsageMetrics {
-                total_executions: tracker.total_executions,
-                successful_executions: tracker.successful_executions,
-                failed_executions: tracker.failed_executions,
-                average_duration_ms: avg_duration,
-                total_input_bytes: tracker.total_input_bytes,
-                total_output_bytes: tracker.total_output_bytes,
-                last_used: tracker.last_used,
-            });
+
+            tools_usage.insert(
+                tool_name.clone(),
+                ToolUsageMetrics {
+                    total_executions: tracker.total_executions,
+                    successful_executions: tracker.successful_executions,
+                    failed_executions: tracker.failed_executions,
+                    average_duration_ms: avg_duration,
+                    total_input_bytes: tracker.total_input_bytes,
+                    total_output_bytes: tracker.total_output_bytes,
+                    last_used: tracker.last_used,
+                },
+            );
         }
-        
+
         MetricsSnapshot {
             timestamp: SystemTime::now(),
             total_operations: self.total_operations,
@@ -694,7 +695,7 @@ mod tests {
     async fn test_telemetry_collector_creation() {
         let config = TelemetryConfig::default();
         let collector = TelemetryCollector::new(config);
-        
+
         // Collector should be created successfully
         assert!(collector.config.enabled);
     }
@@ -702,13 +703,9 @@ mod tests {
     #[tokio::test]
     async fn test_event_recording() {
         let collector = TelemetryCollector::default();
-        
-        collector.record_tool_start(
-            "test-tool".to_string(),
-            "op-123".to_string(),
-            1024,
-        );
-        
+
+        collector.record_tool_start("test-tool".to_string(), "op-123".to_string(), 1024);
+
         collector.record_tool_completion(
             "test-tool".to_string(),
             "op-123".to_string(),
@@ -717,10 +714,10 @@ mod tests {
             2048,
             None,
         );
-        
+
         // Give background task time to process
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         let events = collector.get_recent_events(10);
         assert_eq!(events.len(), 2);
     }
@@ -728,7 +725,7 @@ mod tests {
     #[tokio::test]
     async fn test_metrics_aggregation() {
         let collector = TelemetryCollector::default();
-        
+
         // Record some operations
         collector.record_tool_completion(
             "tool1".to_string(),
@@ -738,7 +735,7 @@ mod tests {
             512,
             None,
         );
-        
+
         collector.record_tool_completion(
             "tool2".to_string(),
             "op2".to_string(),
@@ -747,10 +744,10 @@ mod tests {
             0,
             Some("Test error".to_string()),
         );
-        
+
         // Give background task time to process
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         let metrics = collector.get_metrics().unwrap();
         assert_eq!(metrics.total_operations, 2);
         assert_eq!(metrics.successful_operations, 1);
@@ -763,7 +760,7 @@ mod tests {
         let severity = SecuritySeverity::Critical;
         let json = serde_json::to_string(&severity).unwrap();
         let deserialized: SecuritySeverity = serde_json::from_str(&json).unwrap();
-        
+
         match deserialized {
             SecuritySeverity::Critical => {} // Expected
             _ => panic!("Serialization failed"),

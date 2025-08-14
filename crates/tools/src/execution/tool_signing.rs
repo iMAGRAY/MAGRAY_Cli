@@ -124,8 +124,12 @@ impl ToolSigner {
 
     /// Add trusted certificate to the store
     pub fn add_trusted_certificate(&mut self, certificate: SigningCertificate) {
-        info!("Adding trusted certificate: {} ({})", certificate.id, certificate.subject);
-        self.trusted_certificates.insert(certificate.id.clone(), certificate);
+        info!(
+            "Adding trusted certificate: {} ({})",
+            certificate.id, certificate.subject
+        );
+        self.trusted_certificates
+            .insert(certificate.id.clone(), certificate);
     }
 
     /// Remove certificate from trusted store
@@ -134,19 +138,25 @@ impl ToolSigner {
     }
 
     /// Load trusted certificates from directory
-    pub async fn load_trusted_certificates<P: AsRef<Path>>(&mut self, cert_dir: P) -> Result<usize> {
+    pub async fn load_trusted_certificates<P: AsRef<Path>>(
+        &mut self,
+        cert_dir: P,
+    ) -> Result<usize> {
         let cert_dir = cert_dir.as_ref();
         if !cert_dir.exists() {
             return Ok(0);
         }
 
         let mut count = 0;
-        let mut entries = tokio::fs::read_dir(cert_dir).await
+        let mut entries = tokio::fs::read_dir(cert_dir)
+            .await
             .map_err(|e| anyhow!("Failed to read certificate directory: {}", e))?;
 
-        while let Some(entry) = entries.next_entry().await
-            .map_err(|e| anyhow!("Failed to read directory entry: {}", e))? {
-            
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .map_err(|e| anyhow!("Failed to read directory entry: {}", e))?
+        {
             let path = entry.path();
             if path.extension().map_or(false, |ext| ext == "json") {
                 match self.load_certificate_from_file(&path).await {
@@ -161,7 +171,11 @@ impl ToolSigner {
             }
         }
 
-        info!("Loaded {} trusted certificates from {}", count, cert_dir.display());
+        info!(
+            "Loaded {} trusted certificates from {}",
+            count,
+            cert_dir.display()
+        );
         Ok(count)
     }
 
@@ -179,15 +193,17 @@ impl ToolSigner {
         debug!("Signing tool at: {}", manifest_path.display());
 
         // Read and parse manifest
-        let manifest_content = tokio::fs::read_to_string(manifest_path).await
-            .map_err(|e| SigningError::FileNotFound { 
-                path: manifest_path.display().to_string() 
+        let manifest_content = tokio::fs::read_to_string(manifest_path)
+            .await
+            .map_err(|e| SigningError::FileNotFound {
+                path: manifest_path.display().to_string(),
             })?;
 
-        let manifest: serde_json::Value = serde_json::from_str(&manifest_content)
-            .map_err(|e| SigningError::SerializationError { 
-                error: e.to_string() 
-            })?;
+        let manifest: serde_json::Value = serde_json::from_str(&manifest_content).map_err(|e| {
+            SigningError::SerializationError {
+                error: e.to_string(),
+            }
+        })?;
 
         // Compute hash of all files in the tool directory
         let (files_hash, signed_files) = self.compute_directory_hash(tool_directory).await?;
@@ -213,7 +229,10 @@ impl ToolSigner {
         signed_manifest: &SignedToolManifest,
         tool_directory: Option<&Path>,
     ) -> Result<VerificationResult, SigningError> {
-        let cache_key = format!("{}_{}", signed_manifest.signature.key_id, signed_manifest.files_hash);
+        let cache_key = format!(
+            "{}_{}",
+            signed_manifest.signature.key_id, signed_manifest.files_hash
+        );
 
         // Check cache first
         if let Some((cached_result, cached_at)) = self.verification_cache.get(&cache_key) {
@@ -223,21 +242,27 @@ impl ToolSigner {
             }
         }
 
-        debug!("Verifying tool signature with key ID: {}", signed_manifest.signature.key_id);
+        debug!(
+            "Verifying tool signature with key ID: {}",
+            signed_manifest.signature.key_id
+        );
 
         // Get certificate
-        let certificate = self.trusted_certificates.get(&signed_manifest.signature.key_id)
-            .ok_or_else(|| SigningError::KeyNotFound { 
-                key_id: signed_manifest.signature.key_id.clone() 
+        let certificate = self
+            .trusted_certificates
+            .get(&signed_manifest.signature.key_id)
+            .ok_or_else(|| SigningError::KeyNotFound {
+                key_id: signed_manifest.signature.key_id.clone(),
             })?;
 
         // Check certificate validity
         let now = SystemTime::now();
         if now > certificate.valid_until {
-            let result = VerificationResult::Expired { 
-                certificate: certificate.clone() 
+            let result = VerificationResult::Expired {
+                certificate: certificate.clone(),
             };
-            self.verification_cache.insert(cache_key, (result.clone(), now));
+            self.verification_cache
+                .insert(cache_key, (result.clone(), now));
             return Ok(result);
         }
 
@@ -245,18 +270,22 @@ impl ToolSigner {
         if let Some(tool_dir) = tool_directory {
             let (computed_hash, _) = self.compute_directory_hash(tool_dir).await?;
             if computed_hash != signed_manifest.files_hash {
-                let result = VerificationResult::Invalid { 
-                    reason: "Files hash mismatch - tool has been tampered with".to_string() 
+                let result = VerificationResult::Invalid {
+                    reason: "Files hash mismatch - tool has been tampered with".to_string(),
                 };
-                self.verification_cache.insert(cache_key, (result.clone(), now));
+                self.verification_cache
+                    .insert(cache_key, (result.clone(), now));
                 return Ok(result);
             }
         }
 
         // Verify signature
-        let manifest_content = serde_json::to_string(&signed_manifest.manifest)
-            .map_err(|e| SigningError::SerializationError { error: e.to_string() })?;
-        
+        let manifest_content = serde_json::to_string(&signed_manifest.manifest).map_err(|e| {
+            SigningError::SerializationError {
+                error: e.to_string(),
+            }
+        })?;
+
         let signature_data = format!("{}{}", manifest_content, signed_manifest.files_hash);
         let signature_valid = self.verify_signature(
             signature_data.as_bytes(),
@@ -266,30 +295,33 @@ impl ToolSigner {
 
         let result = if signature_valid {
             if self.is_certificate_trusted(&certificate.id) {
-                VerificationResult::Valid { 
-                    certificate: certificate.clone() 
+                VerificationResult::Valid {
+                    certificate: certificate.clone(),
                 }
             } else {
-                VerificationResult::ValidButUntrusted { 
-                    certificate: certificate.clone() 
+                VerificationResult::ValidButUntrusted {
+                    certificate: certificate.clone(),
                 }
             }
         } else {
-            VerificationResult::Invalid { 
-                reason: "Cryptographic signature verification failed".to_string() 
+            VerificationResult::Invalid {
+                reason: "Cryptographic signature verification failed".to_string(),
             }
         };
 
         // Cache result
-        self.verification_cache.insert(cache_key, (result.clone(), now));
+        self.verification_cache
+            .insert(cache_key, (result.clone(), now));
 
-        info!("Tool signature verification completed: {:?}", 
-              match &result {
-                  VerificationResult::Valid { .. } => "Valid",
-                  VerificationResult::ValidButUntrusted { .. } => "Valid but untrusted",
-                  VerificationResult::Invalid { .. } => "Invalid",
-                  VerificationResult::Expired { .. } => "Expired",
-              });
+        info!(
+            "Tool signature verification completed: {:?}",
+            match &result {
+                VerificationResult::Valid { .. } => "Valid",
+                VerificationResult::ValidButUntrusted { .. } => "Valid but untrusted",
+                VerificationResult::Invalid { .. } => "Invalid",
+                VerificationResult::Expired { .. } => "Expired",
+            }
+        );
 
         Ok(result)
     }
@@ -308,11 +340,17 @@ impl ToolSigner {
         signed_manifest: &SignedToolManifest,
         output_path: P,
     ) -> Result<(), SigningError> {
-        let json = serde_json::to_string_pretty(signed_manifest)
-            .map_err(|e| SigningError::SerializationError { error: e.to_string() })?;
+        let json = serde_json::to_string_pretty(signed_manifest).map_err(|e| {
+            SigningError::SerializationError {
+                error: e.to_string(),
+            }
+        })?;
 
-        tokio::fs::write(output_path, json).await
-            .map_err(|e| SigningError::IoError { error: e.to_string() })?;
+        tokio::fs::write(output_path, json)
+            .await
+            .map_err(|e| SigningError::IoError {
+                error: e.to_string(),
+            })?;
 
         Ok(())
     }
@@ -321,11 +359,15 @@ impl ToolSigner {
     pub async fn load_signed_manifest<P: AsRef<Path>>(
         path: P,
     ) -> Result<SignedToolManifest, SigningError> {
-        let content = tokio::fs::read_to_string(path).await
-            .map_err(|e| SigningError::IoError { error: e.to_string() })?;
+        let content = tokio::fs::read_to_string(path)
+            .await
+            .map_err(|e| SigningError::IoError {
+                error: e.to_string(),
+            })?;
 
-        serde_json::from_str(&content)
-            .map_err(|e| SigningError::SerializationError { error: e.to_string() })
+        serde_json::from_str(&content).map_err(|e| SigningError::SerializationError {
+            error: e.to_string(),
+        })
     }
 
     /// Compute hash of all files in a directory
@@ -341,15 +383,25 @@ impl ToolSigner {
         let mut stack = vec![directory.to_path_buf()];
 
         while let Some(current_dir) = stack.pop() {
-            let mut dir_entries = tokio::fs::read_dir(&current_dir).await
-                .map_err(|e| SigningError::IoError { error: e.to_string() })?;
+            let mut dir_entries =
+                tokio::fs::read_dir(&current_dir)
+                    .await
+                    .map_err(|e| SigningError::IoError {
+                        error: e.to_string(),
+                    })?;
 
-            while let Some(entry) = dir_entries.next_entry().await
-                .map_err(|e| SigningError::IoError { error: e.to_string() })? {
-                
+            while let Some(entry) =
+                dir_entries
+                    .next_entry()
+                    .await
+                    .map_err(|e| SigningError::IoError {
+                        error: e.to_string(),
+                    })?
+            {
                 let path = entry.path();
-                let metadata = entry.metadata().await
-                    .map_err(|e| SigningError::IoError { error: e.to_string() })?;
+                let metadata = entry.metadata().await.map_err(|e| SigningError::IoError {
+                    error: e.to_string(),
+                })?;
 
                 if metadata.is_dir() {
                     stack.push(path);
@@ -364,13 +416,17 @@ impl ToolSigner {
 
         for path in entries {
             // Get relative path from directory
-            let relative_path = path.strip_prefix(directory)
-                .map_err(|e| SigningError::IoError { error: e.to_string() })?;
+            let relative_path =
+                path.strip_prefix(directory)
+                    .map_err(|e| SigningError::IoError {
+                        error: e.to_string(),
+                    })?;
 
             // Read file content
-            let content = tokio::fs::read(&path).await
-                .map_err(|e| SigningError::FileNotFound { 
-                    path: path.display().to_string() 
+            let content = tokio::fs::read(&path)
+                .await
+                .map_err(|e| SigningError::FileNotFound {
+                    path: path.display().to_string(),
                 })?;
 
             // Update hasher with path and content
@@ -462,10 +518,14 @@ impl ToolSigner {
     /// Get cache statistics
     pub fn cache_stats(&self) -> (usize, usize) {
         let total_entries = self.verification_cache.len();
-        let expired_entries = self.verification_cache.values()
-            .filter(|(_, cached_at)| cached_at.elapsed().unwrap_or(self.cache_ttl) >= self.cache_ttl)
+        let expired_entries = self
+            .verification_cache
+            .values()
+            .filter(|(_, cached_at)| {
+                cached_at.elapsed().unwrap_or(self.cache_ttl) >= self.cache_ttl
+            })
             .count();
-        
+
         (total_entries, expired_entries)
     }
 }
@@ -508,20 +568,34 @@ mod tests {
         let signer = ToolSigner::new();
 
         // Create test files
-        tokio::fs::write(temp_dir.path().join("file1.txt"), b"content1").await.unwrap();
-        tokio::fs::write(temp_dir.path().join("file2.txt"), b"content2").await.unwrap();
+        tokio::fs::write(temp_dir.path().join("file1.txt"), b"content1")
+            .await
+            .unwrap();
+        tokio::fs::write(temp_dir.path().join("file2.txt"), b"content2")
+            .await
+            .unwrap();
 
-        let (hash1, files1) = signer.compute_directory_hash(temp_dir.path()).await.unwrap();
+        let (hash1, files1) = signer
+            .compute_directory_hash(temp_dir.path())
+            .await
+            .unwrap();
         assert_eq!(files1.len(), 2);
         assert!(files1.contains(&"file1.txt".to_string()));
         assert!(files1.contains(&"file2.txt".to_string()));
 
         // Create same files in different order - should produce same hash
         let temp_dir2 = tempdir().unwrap();
-        tokio::fs::write(temp_dir2.path().join("file2.txt"), b"content2").await.unwrap();
-        tokio::fs::write(temp_dir2.path().join("file1.txt"), b"content1").await.unwrap();
+        tokio::fs::write(temp_dir2.path().join("file2.txt"), b"content2")
+            .await
+            .unwrap();
+        tokio::fs::write(temp_dir2.path().join("file1.txt"), b"content1")
+            .await
+            .unwrap();
 
-        let (hash2, _files2) = signer.compute_directory_hash(temp_dir2.path()).await.unwrap();
+        let (hash2, _files2) = signer
+            .compute_directory_hash(temp_dir2.path())
+            .await
+            .unwrap();
         assert_eq!(hash1, hash2);
     }
 
@@ -531,16 +605,22 @@ mod tests {
         let data = b"test data to sign";
         let key_id = "test-key";
 
-        let signature = signer.create_signature(data, key_id, "dummy-private-key").unwrap();
+        let signature = signer
+            .create_signature(data, key_id, "dummy-private-key")
+            .unwrap();
         assert_eq!(signature.key_id, key_id);
         assert_eq!(signature.algorithm, "DEMO_SHA256");
 
-        let is_valid = signer.verify_signature(data, &signature, "dummy-public-key").unwrap();
+        let is_valid = signer
+            .verify_signature(data, &signature, "dummy-public-key")
+            .unwrap();
         assert!(is_valid);
 
         // Test with different data
         let different_data = b"different data";
-        let is_valid_different = signer.verify_signature(different_data, &signature, "dummy-public-key").unwrap();
+        let is_valid_different = signer
+            .verify_signature(different_data, &signature, "dummy-public-key")
+            .unwrap();
         assert!(!is_valid_different);
     }
 

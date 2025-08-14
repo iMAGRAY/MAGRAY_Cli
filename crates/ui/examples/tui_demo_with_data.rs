@@ -1,7 +1,7 @@
 use ui::{
     components::{
-        plan_viewer::{ActionPlan, ActionStep, StepStatus},
         diff_viewer::{DiffData, DiffLine, DiffLineType, FileDiff},
+        plan_viewer::{ActionPlan, ActionStep, StepStatus},
     },
     tui::TUIApp,
 };
@@ -9,22 +9,22 @@ use ui::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🖥  Starting MAGRAY TUI Demo with Test Data...");
-    
+
     // Создаем TUI приложение
     let mut app = TUIApp::new()?;
-    
+
     // Загружаем тестовые данные
     load_test_plan(&mut app);
     load_test_diff(&mut app);
-    
+
     println!("🚀 TUI initialized with test data. Use Tab to switch focus, Arrow keys to navigate, 'q' to quit.");
-    
+
     // Запускаем TUI
     if let Err(e) = app.run() {
         eprintln!("TUI error: {}", e);
         return Err(e);
     }
-    
+
     println!("👋 TUI demo session ended.");
     Ok(())
 }
@@ -83,7 +83,7 @@ fn load_test_plan(app: &mut TUIApp) {
         ],
         created_at: "2025-08-15T20:00:00Z".to_string(),
     };
-    
+
     let plan_json = serde_json::to_string(&test_plan).unwrap();
     app.load_plan(plan_json);
 }
@@ -173,7 +173,8 @@ fn load_test_diff(app: &mut TUIApp) {
                         line_type: DiffLineType::Add,
                         old_line_number: None,
                         new_line_number: Some(5),
-                        content: "#[derive(Debug, Clone, Serialize, Deserialize, Queryable)]".to_string(),
+                        content: "#[derive(Debug, Clone, Serialize, Deserialize, Queryable)]"
+                            .to_string(),
                     },
                     DiffLine {
                         line_type: DiffLineType::Add,
@@ -235,7 +236,7 @@ fn load_test_diff(app: &mut TUIApp) {
         ],
         created_at: "2025-08-15T20:05:00Z".to_string(),
     };
-    
+
     let diff_json = serde_json::to_string(&test_diff).unwrap();
     app.load_diff(diff_json);
 }

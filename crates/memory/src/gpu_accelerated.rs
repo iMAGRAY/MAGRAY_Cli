@@ -329,7 +329,10 @@ impl GpuBatchProcessor {
             Ok(bridge) => {
                 // Инициализируем bridge
                 if let Err(e) = bridge.initialize().await {
-                    warn!("⚠️ Qwen3 bridge initialization failed: {}, will use fallback", e);
+                    warn!(
+                        "⚠️ Qwen3 bridge initialization failed: {}, will use fallback",
+                        e
+                    );
                 } else {
                     info!("✅ Qwen3MemoryBridge инициализирован успешно");
                 }
@@ -338,7 +341,10 @@ impl GpuBatchProcessor {
                 info!("🚀 GpuBatchProcessor интегрирован с Qwen3MemoryBridge");
             }
             Err(e) => {
-                warn!("⚠️ Не удалось создать Qwen3MemoryBridge: {}, используем стандартный fallback", e);
+                warn!(
+                    "⚠️ Не удалось создать Qwen3MemoryBridge: {}, используем стандартный fallback",
+                    e
+                );
                 processor.qwen3_bridge = None;
             }
         }
@@ -651,12 +657,18 @@ impl GpuBatchProcessor {
             match bridge.embed_text(text).await {
                 Ok(embedding) => {
                     if !embedding.is_empty() {
-                        debug!("✅ Qwen3MemoryBridge embedding successful (dim: {})", embedding.len());
+                        debug!(
+                            "✅ Qwen3MemoryBridge embedding successful (dim: {})",
+                            embedding.len()
+                        );
                         return Ok(embedding);
                     }
                 }
                 Err(e) => {
-                    warn!("Qwen3MemoryBridge failed: {}, falling back to standard methods", e);
+                    warn!(
+                        "Qwen3MemoryBridge failed: {}, falling back to standard methods",
+                        e
+                    );
                 }
             }
         }
@@ -776,27 +788,39 @@ impl GpuBatchProcessor {
                 // 0. НОВЫЙ ПРИОРИТЕТ: Пытаемся batch embedding через Qwen3MemoryBridge
                 #[cfg(all(not(feature = "minimal"), feature = "embeddings"))]
                 if let Some(ref bridge) = self.qwen3_bridge {
-                    debug!("🔗 Attempting batch embedding through Qwen3MemoryBridge ({} texts)", uncached_texts.len());
+                    debug!(
+                        "🔗 Attempting batch embedding through Qwen3MemoryBridge ({} texts)",
+                        uncached_texts.len()
+                    );
                     match bridge.embed_batch(&uncached_texts).await {
                         Ok(embeddings) => {
-                            info!("✅ Qwen3MemoryBridge batch embedding successful ({} embeddings)", embeddings.len());
+                            info!(
+                                "✅ Qwen3MemoryBridge batch embedding successful ({} embeddings)",
+                                embeddings.len()
+                            );
                             embeddings
                         }
                         Err(e) => {
-                            warn!("Qwen3MemoryBridge batch failed: {}, falling back to GPU pipeline", e);
+                            warn!(
+                                "Qwen3MemoryBridge batch failed: {}, falling back to GPU pipeline",
+                                e
+                            );
                             // Fallback к GPU pipeline
-                            self.get_embeddings_via_pipeline_or_fallback(&uncached_texts).await?
+                            self.get_embeddings_via_pipeline_or_fallback(&uncached_texts)
+                                .await?
                         }
                     }
                 } else {
                     // Нет Qwen3 bridge, используем GPU pipeline или fallback
-                    self.get_embeddings_via_pipeline_or_fallback(&uncached_texts).await?
+                    self.get_embeddings_via_pipeline_or_fallback(&uncached_texts)
+                        .await?
                 }
 
                 #[cfg(not(all(not(feature = "minimal"), feature = "embeddings")))]
                 {
                     // Qwen3 bridge недоступен, используем стандартный fallback
-                    self.get_embeddings_via_pipeline_or_fallback(&uncached_texts).await?
+                    self.get_embeddings_via_pipeline_or_fallback(&uncached_texts)
+                        .await?
                 }
             };
 
@@ -848,7 +872,10 @@ impl GpuBatchProcessor {
     }
 
     /// Получить embeddings через GPU pipeline или fallback (вспомогательный метод для Qwen3 интеграции)
-    async fn get_embeddings_via_pipeline_or_fallback(&self, uncached_texts: &[String]) -> Result<Vec<Vec<f32>>> {
+    async fn get_embeddings_via_pipeline_or_fallback(
+        &self,
+        uncached_texts: &[String],
+    ) -> Result<Vec<Vec<f32>>> {
         if let Some(ref pipeline) = self.gpu_pipeline {
             // Используем GPU pipeline для максимальной производительности
             debug!(

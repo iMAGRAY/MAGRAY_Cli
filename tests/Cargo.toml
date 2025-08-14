@@ -1,0 +1,45 @@
+[package]
+name = "magray-e2e-testing"
+version = "0.1.0"
+edition = "2021"
+authors = ["MAGRAY Team"]
+description = "MAGRAY CLI Human-Like E2E Testing System with GPT-5 nano evaluation"
+
+[[bin]]
+name = "magray_testing"
+path = "main.rs"
+
+[dependencies]
+# Core async runtime
+tokio = { workspace = true }
+anyhow = { workspace = true }
+
+# Serialization and config
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# CLI and logging
+clap = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+
+# HTTP client for OpenAI API
+reqwest = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+tempfile = { workspace = true }
+
+# Local crates (for accessing MAGRAY CLI if needed)
+# Note: The E2E tests run MAGRAY CLI as a subprocess, so no direct dependency needed
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
+
+[features]
+default = []

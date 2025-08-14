@@ -1,0 +1,11 @@
+UTF-8 Test Input for TUI Chat
+
+Basic ASCII: Hello World
+Cyrillic: Привет мир! Как дела?
+Emojis: 🚀 🤖 💬 ✨ 🎯 🔥 
+Mixed: Hello 🌍 Мир! 🚀
+Japanese: こんにちは 世界
+Complex: 🎉🔥 Привет! How are you? 日本語 🌟✨
+
+This file tests UTF-8 character boundary handling in TUI cursor positioning.
+Expected behavior: All characters should be insertable and navigable without panic.

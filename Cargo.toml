@@ -11,7 +11,8 @@ members = [
     "crates/common",
     "crates/domain",      # TODO: Migrate to core
     "crates/ui",          # NEW: TUI Framework
-    "crates/orchestrator" # NEW: Multi-Agent Orchestration
+    "crates/orchestrator", # NEW: Multi-Agent Orchestration
+    "tests"               # E2E Testing System
 ]
 exclude = [
     "fuzz",
@@ -61,6 +62,10 @@ wiremock = "0.6"
 criterion = { version = "0.5", features = ["html_reports"] }
 fake = { version = "2.9", features = ["derive", "chrono", "uuid"] }
 serial_test = "3.0"
+
+# E2E Testing System dependencies
+serde_yaml = "0.9"
+env_logger = "0.11"
 
 # Conditional compilation features for MAGRAY CLI  
 [workspace.metadata.features]

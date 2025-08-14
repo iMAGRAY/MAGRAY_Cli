@@ -1,0 +1,36 @@
+# Sample MAGRAY CLI Test Scenarios
+scenarios:
+  - id: "quick_test"
+    name: "Quick Response Test"
+    input: "привет, как дела?"
+    expected_type: "simple_response"
+    timeout_seconds: 15
+    evaluation_criteria:
+      - "responds_appropriately"
+      - "shows_politeness"
+
+  - id: "help_test"  
+    name: "Help Request Test"
+    input: "помоги мне создать простое Rust приложение"
+    expected_type: "complex_task"
+    timeout_seconds: 60
+    evaluation_criteria:
+      - "provides_clear_instructions"
+      - "includes_code_examples"
+      - "explains_concepts"
+
+  - id: "error_handling_test"
+    name: "Error Handling Test"
+    input: "абракадабра nonsense 12345"
+    expected_type: "error_handling" 
+    timeout_seconds: 20
+    evaluation_criteria:
+      - "handles_gracefully"
+      - "provides_helpful_message"
+
+meta:
+  version: "1.0"
+  description: "Sample scenarios for testing"
+  total_scenarios: 3
+  estimated_total_time_minutes: 5
+  categories: ["basic", "help", "error"]

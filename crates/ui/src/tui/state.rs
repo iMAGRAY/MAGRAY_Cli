@@ -59,11 +59,13 @@ impl AppState {
         self.mode = mode;
         match &mode {
             AppMode::PlanViewing => {
-                self.status_message = "Plan loaded. Navigate with ↑↓, press Enter for details.".to_string();
+                self.status_message =
+                    "Plan loaded. Navigate with ↑↓, press Enter for details.".to_string();
                 self.focused_component = FocusedComponent::PlanViewer;
             }
             AppMode::DiffViewing => {
-                self.status_message = "Diff loaded. Navigate with ↑↓, switch files with ←→.".to_string();
+                self.status_message =
+                    "Diff loaded. Navigate with ↑↓, switch files with ←→.".to_string();
                 self.focused_component = FocusedComponent::DiffViewer;
             }
             AppMode::Executing => {

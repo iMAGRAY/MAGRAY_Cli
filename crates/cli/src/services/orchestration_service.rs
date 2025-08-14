@@ -371,9 +371,13 @@ impl OrchestrationService {
                 extracted_parameters: request.parameters.clone(),
                 suggested_tools: vec!["LLM".to_string()],
             }),
-            plan_summary: Some("LLM-powered fallback execution - AgentOrchestrator not available".to_string()),
+            plan_summary: Some(
+                "LLM-powered fallback execution - AgentOrchestrator not available".to_string(),
+            ),
             execution_steps: vec![execution_step],
-            critique: Some("Executed using LLM fallback - full orchestration system not available".to_string()),
+            critique: Some(
+                "Executed using LLM fallback - full orchestration system not available".to_string(),
+            ),
             error: None,
             fallback_used: true,
         })
@@ -481,8 +485,14 @@ impl OrchestrationService {
     /// Simple user request processing (placeholder until full integration)
     pub async fn process_user_request(&self, message: &str) -> Result<String> {
         println!("🔍 DEBUG: Processing user request: {}", message);
-        println!("🔍 DEBUG: Orchestrator available: {}", self.orchestrator_available.load(Ordering::Relaxed));
-        println!("🔍 DEBUG: Fallback mode: {}", self.fallback_mode.load(Ordering::Relaxed));
+        println!(
+            "🔍 DEBUG: Orchestrator available: {}",
+            self.orchestrator_available.load(Ordering::Relaxed)
+        );
+        println!(
+            "🔍 DEBUG: Fallback mode: {}",
+            self.fallback_mode.load(Ordering::Relaxed)
+        );
         debug!("Processing user request: {}", message);
 
         // Create simple command request
@@ -531,9 +541,15 @@ impl OrchestrationService {
         // Check orchestrator availability (without mutation)
         let orchestrator_guard = self.orchestrator.read().await;
         let orchestrator_available = orchestrator_guard.is_some();
-        
-        println!("🔍 DEBUG: execute_command_immutable - orchestrator available: {}", orchestrator_available);
-        println!("🔍 DEBUG: execute_command_immutable - fallback mode: {}", self.fallback_mode.load(Ordering::Relaxed));
+
+        println!(
+            "🔍 DEBUG: execute_command_immutable - orchestrator available: {}",
+            orchestrator_available
+        );
+        println!(
+            "🔍 DEBUG: execute_command_immutable - fallback mode: {}",
+            self.fallback_mode.load(Ordering::Relaxed)
+        );
 
         if orchestrator_available && !self.fallback_mode.load(Ordering::Relaxed) {
             println!("🔍 DEBUG: Using orchestrator execution");
