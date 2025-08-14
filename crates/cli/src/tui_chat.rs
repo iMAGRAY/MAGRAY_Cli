@@ -523,22 +523,9 @@ pub async fn run_tui_chat_with_async_init() -> Result<()> {
     // 1. СНАЧАЛА включаем raw mode (это должно отключить echo)
     enable_raw_mode().map_err(|e| anyhow::anyhow!("Failed to enable raw mode: {}", e))?;
 
-    // 2. ПРИНУДИТЕЛЬНО отключаем echo через системные вызовы (на случай если crossterm не работает)
-    #[cfg(windows)]
-    {
-        unsafe {
-            let handle =
-                winapi::um::processenv::GetStdHandle(winapi::um::winbase::STD_INPUT_HANDLE);
-            if handle != winapi::um::handleapi::INVALID_HANDLE_VALUE {
-                let mut mode = 0;
-                if winapi::um::consoleapi::GetConsoleMode(handle, &mut mode) != 0 {
-                    // Принудительно убираем ENABLE_ECHO_INPUT флаг
-                    mode &= !winapi::um::wincon::ENABLE_ECHO_INPUT;
-                    winapi::um::consoleapi::SetConsoleMode(handle, mode);
-                }
-            }
-        }
-    }
+    // 2. КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Не используем Windows API принудительное отключение echo
+    // поскольку это может конфликтовать с crossterm и вызывать дублирование символов
+    // Crossterm raw mode должно быть достаточно для отключения echo
 
     // 3. Теперь настраиваем терминал
     execute!(stdout, EnterAlternateScreen)?;
@@ -621,9 +608,11 @@ async fn run_tui_loop(
             }
         }
 
-        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Регулярная отрисовка интерфейса для TUI stability
-        // Обеспечиваем отображение изменений async service init и состояния
-        terminal.draw(|f| render_ui(f, state))?;
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Убираем регулярную отрисовку чтобы избежать дублирования символов
+        // Отрисовка будет происходить только при необходимости (после events, service updates)
+        if !service_ready || last_init_check.elapsed() >= std::time::Duration::from_millis(500) {
+            terminal.draw(|f| render_ui(f, state))?;
+        }
 
         // Обработка событий
         if event::poll(Duration::from_millis(100))? {
@@ -677,22 +666,26 @@ async fn run_tui_loop(
                         KeyCode::Char(c) => {
                             // Use UTF-8 safe character insertion
                             state.insert_char(c);
-                            // Отрисовка происходит в main loop - не нужно дублировать
+                            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отрисовка ТОЛЬКО после изменения символов
+                            terminal.draw(|f| render_ui(f, state))?;
                         }
                         KeyCode::Backspace => {
                             // Use UTF-8 safe backspace operation
                             state.backspace();
-                            // Отрисовка происходит в main loop - не нужно дублировать
+                            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отрисовка ТОЛЬКО после backspace
+                            terminal.draw(|f| render_ui(f, state))?;
                         }
                         KeyCode::Left => {
                             // Move cursor left by one character (UTF-8 safe)
                             state.move_cursor_left();
-                            // Отрисовка происходит в main loop - не нужно дублировать
+                            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отрисовка ТОЛЬКО после cursor movement
+                            terminal.draw(|f| render_ui(f, state))?;
                         }
                         KeyCode::Right => {
                             // Move cursor right by one character (UTF-8 safe)
                             state.move_cursor_right();
-                            // Отрисовка происходит в main loop - не нужно дублировать
+                            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отрисовка ТОЛЬКО после cursor movement
+                            terminal.draw(|f| render_ui(f, state))?;
                         }
                         KeyCode::PageUp => {
                             if state.scroll_offset > 0 {

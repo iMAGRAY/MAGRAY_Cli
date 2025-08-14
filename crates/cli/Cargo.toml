@@ -95,6 +95,11 @@ parking_lot = "0.12.4"
 rand = "0.9.2"
 dirs = "5.0"
 dotenv = { workspace = true }
+reqwest = { version = "0.11", features = ["json"] }
+
+# Windows-specific dependencies removed - crossterm handles terminal control sufficiently
+# [target.'cfg(windows)'.dependencies] 
+# winapi = { version = "0.3.9", features = ["wincon", "consoleapi", "handleapi", "processenv", "winbase"] }
 
 [dev-dependencies]
 assert_cmd = "2.0"
